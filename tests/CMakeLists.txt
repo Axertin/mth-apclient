@@ -17,6 +17,7 @@ include(Catch)
 add_executable(mthap_unit_tests
     unit/smoke_test.cpp
     unit/build_id_test.cpp
+    unit/log_test.cpp
 )
 
 target_include_directories(mthap_unit_tests PRIVATE
@@ -28,6 +29,11 @@ target_link_libraries(mthap_unit_tests PRIVATE
     mthap_core
 )
 target_compile_features(mthap_unit_tests PRIVATE cxx_std_23)
+
+# Exercise the real Linux file-log backend's pure entry points (ILog seam,
+# set_default_log, logf) without Frida or the module.
+target_sources(mthap_unit_tests PRIVATE
+    "${CMAKE_SOURCE_DIR}/src/pal/linux/log_linux.cpp")
 
 enable_strict_warnings(mthap_unit_tests)
 
