@@ -20,7 +20,10 @@
             "name": "clang-x64-release",
             "displayName": "Linux clang x64 Release",
             "inherits": "clang-x64-debug",
-            "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "MTHAP_BUILD_TESTS": "OFF"
+            }
         },
         {
             "name": "clang-x64-tests",
