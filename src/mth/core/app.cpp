@@ -1,11 +1,10 @@
 #include "mth/core/app.hpp"
 
 #include "mth/core/build_id.hpp"
+#include "mth_version.h"
 #include "pal/pal_hook.hpp"
 #include "pal/pal_log.hpp"
 #include "pal/pal_module.hpp"
-
-#include "mth_version.h"
 
 namespace mth
 {
