@@ -22,6 +22,39 @@ enable_strict_warnings(mthap_core)
 apply_release_optimizations(mthap_core)
 
 if(NOT MTHAP_BUILD_TESTS_ONLY)
+    if(MTHAP_ENABLE_NET)
+        find_package(asio CONFIG REQUIRED)
+        find_package(OpenSSL REQUIRED)
+        find_package(ZLIB REQUIRED)
+        find_package(nlohmann_json CONFIG REQUIRED)
+
+        add_library(mthap_net STATIC
+            net/ap_link_apclient.cpp
+        )
+        target_include_directories(mthap_net PUBLIC "${CMAKE_SOURCE_DIR}/src")
+        target_compile_definitions(mthap_net PUBLIC
+            ASIO_STANDALONE
+            AP_NO_SCHEMA
+            _WEBSOCKETPP_CPP11_STL_
+            _WEBSOCKETPP_CPP11_THREAD_
+            _WEBSOCKETPP_NO_BOOST_
+            WSWRAP_ASYNC_CLEANUP
+        )
+        target_link_libraries(mthap_net PUBLIC
+            mthap_core
+            mthap::apclient
+            asio::asio
+            OpenSSL::SSL
+            OpenSSL::Crypto
+            ZLIB::ZLIB
+            nlohmann_json::nlohmann_json
+        )
+        target_compile_features(mthap_net PUBLIC cxx_std_23)
+        set_target_properties(mthap_net PROPERTIES POSITION_INDEPENDENT_CODE ON)
+        enable_strict_warnings(mthap_net)
+        apply_release_optimizations(mthap_net)
+    endif()
+
     # mth-apclient.cpp / app.cpp call PAL impls, so they live in the module,
     # not in mthap_core (keeps the pure test link clean).
     add_library(mthap MODULE
@@ -34,6 +67,11 @@ if(NOT MTHAP_BUILD_TESTS_ONLY)
         mthap_core
         mthap_pal
     )
+
+    if(MTHAP_ENABLE_NET)
+        target_link_libraries(mthap PRIVATE mthap_net)
+        target_compile_definitions(mthap PRIVATE MTHAP_HAS_NET)
+    endif()
 
     target_compile_features(mthap PRIVATE cxx_std_23)
     enable_strict_warnings(mthap)

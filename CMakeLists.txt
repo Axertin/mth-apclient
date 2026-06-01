@@ -15,6 +15,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 option(MTHAP_BUILD_TESTS "Build unit tests (Catch2)" ON)
 option(MTHAP_BUILD_TESTS_ONLY "Build only tests, skip mod build" OFF)
+option(MTHAP_ENABLE_NET "Build the Archipelago network lane (apclientpp + TLS)" ON)
 
 include(compiler_setup)
 include(SimpleGitVersion)

@@ -31,3 +31,7 @@ set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE BOTH)
 set(CMAKE_EXE_LINKER_FLAGS_INIT "-static -static-libgcc")
 set(CMAKE_SHARED_LINKER_FLAGS_INIT "-static -static-libgcc")
 set(CMAKE_MODULE_LINKER_FLAGS_INIT "-static -static-libgcc")
+
+# The LLVM-MinGW dev cross has no vcpkg-provided OpenSSL/asio, so it cannot build
+# the apclientpp net lane. It still compile-checks core + the Windows PAL.
+set(MTHAP_ENABLE_NET OFF CACHE BOOL "" FORCE)
