@@ -19,6 +19,8 @@ add_executable(mthap_unit_tests
     unit/build_id_test.cpp
     unit/offsets_test.cpp
     unit/log_test.cpp
+    unit/ap_state_test.cpp
+    unit/ap_coordinator_test.cpp
 )
 
 target_include_directories(mthap_unit_tests PRIVATE

@@ -9,6 +9,8 @@
 add_library(mthap_core STATIC
     core/build_id.cpp
     core/offsets.cpp
+    core/ap_state.cpp
+    core/ap_coordinator.cpp
 )
 
 target_include_directories(mthap_core PUBLIC "${CMAKE_SOURCE_DIR}/src")
