@@ -1,0 +1,79 @@
+{
+    "version": 3,
+    "configurePresets": [
+        {
+            "name": "clang-x64-debug",
+            "displayName": "Linux clang x64 Debug",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build/${presetName}",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "CMAKE_C_COMPILER": "clang",
+                "CMAKE_CXX_COMPILER": "clang++",
+                "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/external/vcpkg/scripts/buildsystems/vcpkg.cmake",
+                "VCPKG_TARGET_TRIPLET": "x64-linux",
+                "MTHAP_BUILD_TESTS": "ON"
+            },
+            "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Linux" }
+        },
+        {
+            "name": "clang-x64-release",
+            "displayName": "Linux clang x64 Release",
+            "inherits": "clang-x64-debug",
+            "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+        },
+        {
+            "name": "clang-x64-tests",
+            "displayName": "Linux clang x64 tests-only",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build/${presetName}",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "CMAKE_C_COMPILER": "clang",
+                "CMAKE_CXX_COMPILER": "clang++",
+                "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/external/vcpkg/scripts/buildsystems/vcpkg.cmake",
+                "VCPKG_TARGET_TRIPLET": "x64-linux",
+                "MTHAP_BUILD_TESTS_ONLY": "ON",
+                "MTHAP_BUILD_TESTS": "ON"
+            },
+            "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Linux" }
+        },
+        {
+            "name": "clang-cl-x64-debug",
+            "displayName": "Windows clang-cl x64 Debug (canonical)",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build/${presetName}",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "CMAKE_C_COMPILER": "clang-cl",
+                "CMAKE_CXX_COMPILER": "clang-cl",
+                "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/external/vcpkg/scripts/buildsystems/vcpkg.cmake",
+                "VCPKG_TARGET_TRIPLET": "x64-windows-static",
+                "CMAKE_MSVC_RUNTIME_LIBRARY": "MultiThreaded$<$<CONFIG:Debug>:Debug>",
+                "MTHAP_BUILD_TESTS": "OFF"
+            },
+            "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" },
+            "architecture": { "value": "x64", "strategy": "external" }
+        },
+        {
+            "name": "clang-cl-x64-release",
+            "displayName": "Windows clang-cl x64 Release (canonical)",
+            "inherits": "clang-cl-x64-debug",
+            "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+        }
+    ],
+    "buildPresets": [
+        { "name": "clang-x64-debug",      "configurePreset": "clang-x64-debug" },
+        { "name": "clang-x64-release",    "configurePreset": "clang-x64-release" },
+        { "name": "clang-x64-tests",      "configurePreset": "clang-x64-tests" },
+        { "name": "clang-cl-x64-debug",   "configurePreset": "clang-cl-x64-debug" },
+        { "name": "clang-cl-x64-release", "configurePreset": "clang-cl-x64-release" }
+    ],
+    "testPresets": [
+        {
+            "name": "clang-x64-tests",
+            "configurePreset": "clang-x64-tests",
+            "output": { "outputOnFailure": true }
+        }
+    ]
+}

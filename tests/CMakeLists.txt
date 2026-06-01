@@ -1,0 +1,34 @@
+# Catch2 via FetchContent — keeps the test lane off the vcpkg bootstrap.
+include(FetchContent)
+
+set(CATCH2_VERSION "v3.5.4")
+
+FetchContent_Declare(
+    Catch2
+    GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+    GIT_TAG        ${CATCH2_VERSION}
+    GIT_SHALLOW    TRUE
+)
+FetchContent_MakeAvailable(Catch2)
+
+list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
+include(Catch)
+
+add_executable(mthap_unit_tests
+    unit/smoke_test.cpp
+    unit/build_id_test.cpp
+)
+
+target_include_directories(mthap_unit_tests PRIVATE
+    "${CMAKE_SOURCE_DIR}/src"
+    "${CMAKE_CURRENT_SOURCE_DIR}"
+)
+target_link_libraries(mthap_unit_tests PRIVATE
+    Catch2::Catch2WithMain
+    mthap_core
+)
+target_compile_features(mthap_unit_tests PRIVATE cxx_std_23)
+
+enable_strict_warnings(mthap_unit_tests)
+
+catch_discover_tests(mthap_unit_tests)

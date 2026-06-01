@@ -1,0 +1,11 @@
+{
+  "name": "mth-apclient",
+  "version-string": "0.1.0-dev",
+  "dependencies": [],
+  "features": {
+    "net": {
+      "description": "Archipelago networking layer (added in a later milestone)",
+      "dependencies": []
+    }
+  }
+}
