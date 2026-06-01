@@ -17,3 +17,45 @@ set_target_properties(mthap_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 add_git_version_info(mthap_core)
 enable_strict_warnings(mthap_core)
 apply_release_optimizations(mthap_core)
+
+if(NOT MTHAP_BUILD_TESTS_ONLY)
+    # mth-apclient.cpp / app.cpp call PAL impls, so they live in the module,
+    # not in mthap_core (keeps the pure test link clean).
+    add_library(mthap MODULE
+        mth-apclient.cpp
+        core/app.cpp
+    )
+
+    target_link_libraries(mthap PRIVATE
+        mthap_core
+        mthap_pal
+    )
+
+    target_compile_features(mthap PRIVATE cxx_std_23)
+    enable_strict_warnings(mthap)
+    apply_release_optimizations(mthap)
+
+    if(WIN32)
+        set_target_properties(mthap PROPERTIES
+            OUTPUT_NAME "mthap"
+            PREFIX ""
+            SUFFIX ".dll"
+        )
+        # CRT linkage is controlled by CMAKE_MSVC_RUNTIME_LIBRARY (per-preset,
+        # static via the x64-windows-static triplet).
+    else()
+        set_target_properties(mthap PROPERTIES
+            OUTPUT_NAME "mthap"
+            PREFIX "lib"
+            SUFFIX ".so"
+        )
+        # Static-link our C++ runtime so the dynamic linker can't resolve our
+        # modern libstdc++ symbols against whatever the Steam runtime provides.
+        target_link_options(mthap PRIVATE
+            -static-libgcc
+            -static-libstdc++
+            "LINKER:-z,now"
+            "LINKER:--exclude-libs,ALL"
+        )
+    endif()
+endif()
