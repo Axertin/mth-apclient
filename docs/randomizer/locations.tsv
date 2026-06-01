@@ -1,0 +1,362 @@
+idx	region	regionName	vanillaItem	sub	gid	h00	canonicalName	displayName
+0	18	region18	None	0	0x0	0000000000000000		region18 - None #0
+1	18	region18	Health_Upgrade	0	0x0	321e533633f58581		region18 - Health_Upgrade #0
+2	18	region18	Health_Upgrade	1	0x0	3fa76b4bc5f80cf7		region18 - Health_Upgrade #1
+3	18	region18	Health_Upgrade	2	0x0	dbb57d76fed8a950		region18 - Health_Upgrade #2
+4	18	region18	Health_Upgrade	3	0x0	0c020139e480dcd7		region18 - Health_Upgrade #3
+5	18	region18	Health_Upgrade	4	0x0	87f8c790fa50eb20		region18 - Health_Upgrade #4
+6	18	region18	Health_Upgrade	5	0x0	ddc0c45a733f447d		region18 - Health_Upgrade #5
+7	18	region18	Health_Upgrade	6	0x0	f2825ef9033ad8ce		region18 - Health_Upgrade #6
+8	18	region18	Health_Upgrade	7	0x0	935e60861a028315		region18 - Health_Upgrade #7
+9	18	region18	Trinket_Upgrade	0	0x0	60be1ad5d883f22e		region18 - Trinket_Upgrade #0
+10	18	region18	Magic_Upgrade	0	0x0	47491a6a4f325fce		region18 - Magic_Upgrade #0
+11	18	region18	Magic_Upgrade	1	0x0	7d7caf07f6db6b22		region18 - Magic_Upgrade #1
+12	18	region18	Spark_Upgrade	0	0x0	4d35a7b2f4e7c3f3		region18 - Spark_Upgrade #0
+13	18	region18	Vial_Upgrade	0	0x0	038c788377f22a34		region18 - Vial_Upgrade #0
+14	18	region18	Vial_Upgrade	1	0x0	b026aac7b972a55a		region18 - Vial_Upgrade #1
+15	18	region18	Vial_Upgrade	2	0x0	d7c09fd082936c17		region18 - Vial_Upgrade #2
+16	18	region18	Whip_Level_3	0	0x0	b096fefc53c01a3d		region18 - Whip_Level_3 #0
+17	9	introBeach	Daggers_Level_3	1	0x0	694b7b963380b21c	introBeach_o_978	introBeach_o_978
+18	9	introBeach	Hammer_Level_3	2	0x0	def6f0b7c7777ec4	introBeach_o_979	introBeach_o_979
+19	9	introBeach	Lock	0	0x0	baefcf650d1252cf	introBeach_o_1011	introBeach_o_1011
+20	9	introBeach	Lock	1	0x0	9017c7ac1e93746e	introBeach_o_1453	introBeach_o_1453
+21	9	introBeach	Lock	2	0x0	c99db1ad10675927	introBeach_o_14532	introBeach_o_14532
+22	9	introBeach	Lock	3	0x0	f63e2d9158274dfc	introBeach_o_14531	introBeach_o_14531
+23	9	introBeach	Key	0	0x0	f194328b65119df1	introBeach_o_101011	introBeach_o_101011
+24	9	introBeach	HealingVialFirst	-1	0x2a2f14b4	727eef23b7958e87		introBeach - HealingVialFirst
+25	9	introBeach	Trinket_UraniumBracelet	-1	0x3a94807	adf7afbee0e7ecd1		introBeach - Trinket_UraniumBracelet
+26	9	introBeach	Bonestone_02	0	0x0	47c9f1647adfc424	introBeach_o_416	introBeach_o_416
+27	9	introBeach	Key	1	0x0	fe46366109bf0023	introBeach_o_904	introBeach_o_904
+28	9	introBeach	Bonestone_01	1	0x0	70055b964fe1d5a6	introBeach_o_912	introBeach_o_912
+29	9	introBeach	Bonestone_01	2	0x0	b35f14ec153d5354	introBeach_o_1921	introBeach_o_1921
+30	9	introBeach	Bonestone_02	3	0x0	e7819a4b8050ab4f	introBeach_o_24931	introBeach_o_24931
+31	9	introBeach	Bonestone_01	4	0x0	8cd532598b72a7a4	introBeach_o_2013	introBeach_o_2013
+32	9	introBeach	Fish_Trigger	6	0x0	ddc97e40931cbe6f	FishTrigger	FishTrigger
+33	2	bayou	Lock	4	0x0	fe07a5c13567f8fa	bayou_o_2267	bayou_o_2267
+34	2	bayou	Health_Upgrade	8	0x0	40e79edcffdc8fe0	bayou_Gator	bayou_Gator
+35	2	bayou	Bonestone_03	5	0x0	ae66843c07606798	bayou_o_10341	bayou_o_10341
+36	2	bayou	Bonestone_02	6	0x0	6be2f0fdc886b65a	bayou_o_10361	bayou_o_10361
+37	2	bayou	Trinket_IronLung	-1	0x0	7197eb8e455ac98b		bayou - Trinket_IronLung
+38	2	bayou	Bonestone_02	7	0x0	67e165a28117739d	bayou_o_1478	bayou_o_1478
+39	2	bayou	Bonestone_03	8	0x0	9863c495b7a0d7f3	bayou_o_15051	bayou_o_15051
+40	2	bayou	Trinket_VSyrup	-1	0x0	1b096153884a9350	bayou_o_322	bayou_o_322
+41	2	bayou	Bonestone_03	9	0x0	421d7cd15bd40e4a	bayou_o_150511	bayou_o_150511
+42	2	bayou	Key	2	0x0	b1ffd2195a2e3d69	bayou_o_1934	bayou_o_1934
+43	2	bayou	Bonestone_02	10	0x0	34684fc05a21b6f5	bayou_o_1973	bayou_o_1973
+44	2	bayou	Key	3	0x0	885ab21ae23c1409	bayou_o_2283	bayou_o_2283
+45	2	bayou	Hammer_Level_2	3	0x0	3a30e34724efd7e7	bayou_o_2302	bayou_o_2302
+46	2	bayou	Bonestone_02	11	0x0	733ac83f8f54907c	bayou_o_2309	bayou_o_2309
+47	2	bayou	Trinket_TwilWeave	-1	0x0	9f9cd1c25c2449bd	bayou_o_3221	bayou_o_3221
+48	2	bayou	Trinket_CrashPad	-1	0x0	b4be31642176204e		bayou - Trinket_CrashPad
+49	2	bayou	Key	4	0x0	bfc6bb7ace4bdc76		bayou - Key #4
+50	2	bayou	Fish_Shrimpster	14	0x0	6f1aae33909b896a	FishShrimpster	FishShrimpster
+51	6	cryptB	Bonestone_01	12	0x0	d42a19d54ca754b5		cryptB - Bonestone_01 #12
+52	6	cryptB	Key	5	0x0	2bb91893e87ba04f	cryptA_o_60511	cryptA_o_60511
+53	6	cryptB	Bonestone_02	13	0x0	f53e26f876dbd462	cryptA_o_79	cryptA_o_79
+54	6	cryptB	Bonestone_02	14	0x0	5fe8a2790241a171	cryptA_o_80	cryptA_o_80
+55	6	cryptB	Lock	5	0x0	fa6c57d2c4989d38	cryptA_o_84	cryptA_o_84
+56	6	cryptB	Daggers_Level_2	4	0x0	91862ee0c62b6c62	cryptA_o_70	cryptA_o_70
+57	6	cryptB	Trinket_BloodpressureBonnet	-1	0x0	2f04cdafab0d79a3	cryptA_o_322	cryptA_o_322
+58	6	cryptB	Health_Upgrade	9	0x0	053f3315c26484b3	cryptB_Queen	cryptB_Queen
+59	6	cryptB	Trinket_PutridClump	-1	0x0	d45dc635dbef6810		cryptB - Trinket_PutridClump
+60	6	cryptB	Trinket_ProtoSpark	-1	0xda6d0596	6220aa4673b68035	cryptB_o_1394	cryptB_o_1394
+61	6	cryptB	Bonestone_02	15	0x0	938e987d988dfb73	cryptB_o_5166	cryptB_o_5166
+62	6	cryptB	Bonestone_01	16	0x0	7bf45dec981154c5	cryptB_o_5799	cryptB_o_5799
+63	6	cryptB	Bonestone_02	17	0x0	c047b8fb94f9c68f	cryptB_o_5291	cryptB_o_5291
+64	6	cryptB	Key	6	0x0	fdf7dd34a52ae267	cryptB_o_5499	cryptB_o_5499
+65	6	cryptB	Bonestone_02	18	0x0	7a0c9a10952e5b35	cryptB_o_5412	cryptB_o_5412
+66	6	cryptB	Trinket_BoneMagnet	-1	0x0	14285ff206f58af4		cryptB - Trinket_BoneMagnet
+67	6	cryptB	Key	7	0x0	f4c4cb10529fb3f5		cryptB - Key #7
+68	6	cryptB	Fish_Ghost	0	0x0	556e689392cf37be	FishGhost	FishGhost
+69	4	boneBeachA	Lock	6	0x0	5807538503ead1f5	boneBeachA_o_5565	boneBeachA_o_5565
+70	4	boneBeachA	Bonestone_03	19	0x0	5daf2868938f0cc2	boneBeachA_o_5688	boneBeachA_o_5688
+71	4	boneBeachA	Bonestone_02	20	0x0	a3935d51457623db	boneBeachA_o_5739	boneBeachA_o_5739
+72	4	boneBeachA	Bonestone_03	21	0x0	1d1c44577d13c255	boneBeachA_o_6255	boneBeachA_o_6255
+73	4	boneBeachA	Bonestone_03	22	0x0	95cef463c86d495d	boneBeachA_o_5091	boneBeachA_o_5091
+74	4	boneBeachA	Trinket_JouleSyringe	-1	0x0	81cd52418402a236	boneBeachA_o_5315	boneBeachA_o_5315
+75	4	boneBeachA	BusterBat_Level_3	5	0x0	27e16f8d5faf19e7	boneBeachA_o_5385	boneBeachA_o_5385
+76	4	boneBeachA	Bonestone_03	23	0x0	6662314696dcf7a7	boneBeachA_o_5490	boneBeachA_o_5490
+77	4	boneBeachA	Bonestone_03	24	0x0	042f52d7c3789a53	boneBeachA_o_5608	boneBeachA_o_5608
+78	4	boneBeachA	Bonestone_02	25	0x0	7d586c1139c76f47	boneBeachA_o_6242	boneBeachA_o_6242
+79	4	boneBeachA	Key	8	0x0	c2a2cbc709093855	boneBeachA_o_5070	boneBeachA_o_5070
+80	4	boneBeachA	Trinket_PolypLamp	-1	0x0	25d6ac42d239b058		boneBeachA - Trinket_PolypLamp
+81	4	boneBeachA	Key	9	0x0	068b085d7b1e36db		boneBeachA - Key #9
+82	3	boneBeach_overworld	Fish_Puffer	1	0x0	2ac158a035343d8e	FishPuffer	FishPuffer
+83	4	boneBeachA	Health_Upgrade	10	0x0	524d1964304670f5	boneBeachB_o_7328	boneBeachB_o_7328
+84	4	boneBeachA	Key	10	0x0	09ef7625145b07e4	boneBeachB_o_8363	boneBeachB_o_8363
+85	4	boneBeachA	Bonestone_03	26	0x0	587e70d13a548e4c	boneBeachB_o_8499	boneBeachB_o_8499
+86	4	boneBeachA	Bonestone_03	27	0x0	32a546b9e1087081	boneBeachB_o_7616	boneBeachB_o_7616
+87	4	boneBeachA	Bonestone_03	28	0x0	9c315cc76c0dd2e6	boneBeachB_o_8556	boneBeachB_o_8556
+88	4	boneBeachA	Fish_Goremaw	8	0x0	77d86fcef680b2d2	FishGoremaw	FishGoremaw
+89	14	septemburgB	Key	11	0x0	326321ff3b57a909		septemburgB - Key #11
+90	14	septemburgB	Key	12	0x0	cfcd4dc8e4fe0297	septemburgA_o_5663	septemburgA_o_5663
+91	14	septemburgB	Bonestone_03	29	0x0	8735fb9854ca6cb9	septemburgA_o_60031	septemburgA_o_60031
+92	14	septemburgB	Bonestone_04	30	0x0	0f0d9571c8c928f9		septemburgB - Bonestone_04 #30
+93	14	septemburgB	Bonestone_03	31	0x0	84cb8c27029fcf27		septemburgB - Bonestone_03 #31
+94	14	septemburgB	Bonestone_03	32	0x0	1d161cc8237be8d0		septemburgB - Bonestone_03 #32
+95	14	septemburgB	Health_Upgrade	11	0x0	fe045673bdf3afda	septemburgB_GigaPumpkinHands	septemburgB_GigaPumpkinHands
+96	14	septemburgB	Lock	7	0x0	3fe045f302d450aa	septemburgB_o_3212	septemburgB_o_3212
+97	14	septemburgB	Key	13	0x0	fe350acf60052f69	septemburgB_o_56661	septemburgB_o_56661
+98	14	septemburgB	Bonestone_05	33	0x0	e2d5d3dbd9b75e6b	septemburgB_o_28941	septemburgB_o_28941
+99	14	septemburgB	Shield_Level_2	6	0x0	02f6df21b7d71d12		septemburgB - Shield_Level_2 #6
+100	14	septemburgB	Bonestone_03	34	0x0	f511180f7f616a8b	septemburgB_o_60031	septemburgB_o_60031
+101	14	septemburgB	Bonestone_03	35	0x0	385bd4710c15da9a		septemburgB - Bonestone_03 #35
+102	14	septemburgB	Trinket_MRoot	-1	0x0	9b50bd95eb0be2a5		septemburgB - Trinket_MRoot
+103	14	septemburgB	Key	14	0x0	630bca195b0a3b47		septemburgB - Key #14
+104	14	septemburgB	Fish_Gazeworm	11	0x0	060768ae07521273	FishGazeworm	FishGazeworm
+105	14	septemburgB	Bonestone_04	36	0x0	fa68d366a1302fe8	septemburgSewer_o_2049	septemburgSewer_o_2049
+106	14	septemburgB	Bonestone_04	37	0x0	ffef74dd7b41ad55	septemburgSewer_o_2115	septemburgSewer_o_2115
+107	14	septemburgB	Bonestone_01	38	0x0	95e74c85eed631ee	septemburgSewer_o_128	septemburgSewer_o_128
+108	14	septemburgB	Fish_Spincer	5	0x0	617ca1c68b669bfc	FishSpincer	FishSpincer
+109	8	frozenTrainyardA	Lock	8	0x0	739b4203c4f71395	frozenTrainyardA_o_3254	frozenTrainyardA_o_3254
+110	8	frozenTrainyardA	Trinket_Beast5	-1	0x0	fa7426366ced38b5	frozenTrainyardA_o_2480	frozenTrainyardA_o_2480
+111	8	frozenTrainyardA	Key	15	0x0	193aba2436f8c923	frozenTrainyardA_o_1726	frozenTrainyardA_o_1726
+112	8	frozenTrainyardA	Bonestone_03	39	0x0	af38e5b78530dcf7	frozenTrainyardA_o_3232	frozenTrainyardA_o_3232
+113	8	frozenTrainyardA	Bonestone_05	40	0x0	bdd1870835ef6165	frozenTrainyardA_o_3299	frozenTrainyardA_o_3299
+114	8	frozenTrainyardA	Trinket_Vanishing	-1	0x0	35e244746270dbd2		frozenTrainyardA - Trinket_Vanishing
+115	8	frozenTrainyardA	Lock	9	0x0	3a977337fa7797ae	frozenTrainyardB_o_2479	frozenTrainyardB_o_2479
+116	8	frozenTrainyardA	Key	16	0x0	9821c17136031bbe	frozenTrainyardB_o_3962	frozenTrainyardB_o_3962
+117	8	frozenTrainyardA	Bonestone_04	41	0x0	c9bfd7f9697287fc	frozenTrainyardB_o_19671	frozenTrainyardB_o_19671
+118	8	frozenTrainyardA	Bonestone_04	42	0x0	2a05961c764e11a6	frozenTrainyardB_o_19672	frozenTrainyardB_o_19672
+119	8	frozenTrainyardA	Shield_Level_3	7	0x0	7be4777a933fec1e	frozenTrainyardB_o_3891	frozenTrainyardB_o_3891
+120	8	frozenTrainyardA	Trinket_BoneBonus	-1	0x0	08504d4516aa905d		frozenTrainyardA - Trinket_BoneBonus
+121	8	frozenTrainyardA	Key	17	0x0	38ceee73f9de72ad		frozenTrainyardA - Key #17
+122	8	frozenTrainyardA	Fish_Ice	4	0x0	27287ce314c03b93	FishIce	FishIce
+123	8	frozenTrainyardA	Bonestone_05	43	0x0	297d5be1f19ac1a3		frozenTrainyardA - Bonestone_05 #43
+124	8	frozenTrainyardA	Health_Upgrade	12	0x0	af7a0633386e222e	frozenTrainyardBoss_Engineer	frozenTrainyardBoss_Engineer
+125	0	astralOrrery	Health_Upgrade	13	0x0	07eadff7d73a1f60	astralOrrery_Abducted	astralOrrery_Abducted
+126	0	astralOrrery	Bonestone_03	44	0x0	ed77e05e5847d3d3	astralOrrery_o_2063	astralOrrery_o_2063
+127	0	astralOrrery	Lock	10	0x0	4d34b286904e2936	astralOrrery_o_3326	astralOrrery_o_3326
+128	0	astralOrrery	Bonestone_03	45	0x0	9e0ebee293c4940e	astralOrrery_o_1419	astralOrrery_o_1419
+129	0	astralOrrery	BusterBat_Level_2	8	0x0	61a45e97a6f67651	astralOrrery_o_1515	astralOrrery_o_1515
+130	0	astralOrrery	Bonestone_04	46	0x0	a45587bc440553e3	astralOrrery_o_1616	astralOrrery_o_1616
+131	0	astralOrrery	Bonestone_03	47	0x0	cf719355a0ebe3a3	astralOrrery_o_17811	astralOrrery_o_17811
+132	0	astralOrrery	Trinket_SpiderB	-1	0x0	4cc3ccccd7dc4ba3	astralOrrery_o_58901	astralOrrery_o_58901
+133	0	astralOrrery	Bonestone_03	48	0x0	98f6dc9a787e3710	astralOrrery_o_1121	astralOrrery_o_1121
+134	0	astralOrrery	Key	18	0x0	868618a855accf4b	astralOrrery_o_2103	astralOrrery_o_2103
+135	0	astralOrrery	Key	19	0x0	ca42cb79345eb6e5	astralOrrery_o_2105	astralOrrery_o_2105
+136	0	astralOrrery	Bonestone_03	49	0x0	4846208982ec30bc	astralOrrery_o_2026	astralOrrery_o_2026
+137	0	astralOrrery	Trinket_VialSalvo	-1	0x0	3fe6f150b14f5637		astralOrrery - Trinket_VialSalvo
+138	0	astralOrrery	Key	20	0x0	3f9b26de5fb1e057		astralOrrery - Key #20
+139	11	mansion	Bonestone_05	50	0xea68feb6	61ede13b544088bb		mansion - Bonestone_05 #50
+140	11	mansion	Trinket_DodgingPendulum	-1	0x0	ef2073ac5faa3b7f	mansion_finalMimic_0	mansion_finalMimic_0
+141	11	mansion	Lock	11	0x0	0de4e7e07e1f3a0d	mansion_o_1976	mansion_o_1976
+142	11	mansion	Bonestone_05	51	0x0	4afb2f71a081ff81	mansion_o_7703	mansion_o_7703
+143	11	mansion	Bonestone_05	52	0x0	7ceb711829cd2970	mansion_o_77031	mansion_o_77031
+144	11	mansion	Bonestone_05	53	0x0	a9e70dac998b229b	mansion_o_1595	mansion_o_1595
+145	11	mansion	Trinket_DoubleJump	-1	0x0	6e0ea8a45d1f7517		mansion - Trinket_DoubleJump
+146	12	hub	Bonestone_02	54	0x210b5692	53a0f9996726e8c4	hub_Muriel	hub_Muriel
+147	12	hub	Trinket_ThermalPack	-1	0x0	0b62bcab114ef1c2		hub - Trinket_ThermalPack
+148	12	hub	Trinket_PocketTrebuchet	-1	0x0	d8c45967cc3e2b91		hub - Trinket_PocketTrebuchet
+149	12	hub	Ticket_Pass	-1	0xa077502	6619d1ed1010a6db		hub - Ticket_Pass
+150	12	hub	Bonestone_05	55	0x2c042a98	f6e673c4a3541c2a		hub - Bonestone_05 #55
+151	12	hub	Lock	12	0x0	55e68714193e456d	hub_o_429	hub_o_429
+152	12	hub	Lock	13	0x0	cf0c95cdb0ee8428	hub_o_445	hub_o_445
+153	12	hub	Bonestone_02	56	0x11b093ef	bf0e3dfe14a2518b		hub - Bonestone_02 #56
+154	12	hub	Trinket_PlasmaSaver	-1	0x0	f1d1315f5759aec1	hub_LongNose	hub_LongNose
+155	12	hub	Key	21	0x7c12abda	abeb85e8f2d5add4		hub - Key #21
+156	12	hub	Key	22	0x1e2f884e	b53784624644472c		hub - Key #22
+157	12	hub	Lock	14	0x0	14144f2f251393e2	hub_o_446	hub_o_446
+158	12	hub	Trinket_BoneSaver	-1	0x0	be8bb4bd7a211a67		hub - Trinket_BoneSaver
+159	12	hub	Bonestone_01	57	0x258257aa	12f80446b2e578d9		hub - Bonestone_01 #57
+160	12	hub	Key	23	0xc8b2aaf	59bc5e85e7afa428		hub - Key #23
+161	12	hub	Trinket_BoneReleaser	-1	0x0	f844f2daeafe9d92		hub - Trinket_BoneReleaser
+162	12	hub	Trinket_SteadySoles	-1	0x0	5c9044a385250ed9	hub_o_448	hub_o_448
+163	12	hub	Whip_Level_2	9	0x0	019ba88fcff45551	hub_o_435	hub_o_435
+164	12	hub	Bonestone_02	58	0x0	7fc2413b3c675cdf	hub_o_5331	hub_o_5331
+165	12	hub	Bonestone_02	59	0x0	5e400ec089a78521	hub_o_2570	hub_o_2570
+166	12	hub	Bonestone_01	60	0x0	c5764b66c220b549	hub_o_612	hub_o_612
+167	12	hub	Bonestone_02	61	0x0	97da0f206c36a771	hub_o_656	hub_o_656
+168	12	hub	Key	24	0x0	4b89396253b24ddd	hub_o_773	hub_o_773
+169	12	hub	Bonestone_02	62	0x0	f0272a952972c920	hub_o_814	hub_o_814
+170	12	hub	Bonestone_02	63	0x0	47812ceaf4e10c51	hub_o_818	hub_o_818
+171	12	hub	Trinket_Beast6	-1	0x0	f57208c5b89aad79	hub_o_1042	hub_o_1042
+172	12	hub	Bonestone_03	64	0x0	93f2cff650a694a0	hub_o_8693	hub_o_8693
+173	12	hub	Bonestone_02	65	0x0	0330ce74fcb68ad9	hub_o_780	hub_o_780
+174	12	hub	Whip	10	0x0	92bf0898ab622c75		hub - Whip #10
+175	12	hub	Hammer	11	0x0	1895dc4f7906a98b		hub - Hammer #11
+176	12	hub	Daggers	12	0x0	c8cca97d9fb8a9f5		hub - Daggers #12
+177	12	hub	BusterBat	13	0x0	ec547807372c4569		hub - BusterBat #13
+178	12	hub	Shield	14	0x0	37ebb76c826c70d6		hub - Shield #14
+179	12	hub	Trinket_PlasmaFunnel	-1	0x0	6b3e9f2cb3a1ecd9		hub - Trinket_PlasmaFunnel
+180	12	hub	Trinket_BurrowPulse	-1	0x0	756a0535a6906da0		hub - Trinket_BurrowPulse
+181	12	hub	Trinket_BriskBrew	-1	0x0	9cf32da08bfe06fd		hub - Trinket_BriskBrew
+182	12	hub	Trinket_AutoVial	-1	0x0	b1d199eb60cebdf8		hub - Trinket_AutoVial
+183	12	hub	Trinket_ShockFlint	-1	0x0	bc60cbc3b4c6a529		hub - Trinket_ShockFlint
+184	12	hub	Trinket_Shield	-1	0x0	37e1d6abfb3f7d89		hub - Trinket_Shield
+185	12	hub	Trinket_VialParry	-1	0x0	0bc9c3a13f484f0b		hub - Trinket_VialParry
+186	12	hub	Health_Upgrade	14	0x0	ca8d1e3e9d60f70e		hub - Health_Upgrade #14
+187	12	hub	Health_Upgrade	15	0x0	8405bafa3524b159		hub - Health_Upgrade #15
+188	12	hub	Health_Upgrade	16	0x0	c5748115547d0cf6		hub - Health_Upgrade #16
+189	12	hub	Vial_Upgrade	3	0x0	560eb02fe5ea1455		hub - Vial_Upgrade #3
+190	12	hub	Vial_Upgrade	4	0x0	9b9bfd91cb50ff85		hub - Vial_Upgrade #4
+191	12	hub	Vial_Upgrade	5	0x0	68386d46f55f5d20		hub - Vial_Upgrade #5
+192	12	hub	Spark_Upgrade	1	0x0	216eaf3f0b2cf9c4		hub - Spark_Upgrade #1
+193	12	hub	Magic_Upgrade	2	0x0	71d3bbc4bd740d1c		hub - Magic_Upgrade #2
+194	12	hub	Magic_Upgrade	3	0x0	bb6557f83f7a15ae		hub - Magic_Upgrade #3
+195	12	hub	Magic_Upgrade	4	0x0	e16a6590de27e792		hub - Magic_Upgrade #4
+196	12	hub	Trinket_Upgrade	1	0x0	77b0ca794cd2dcc0		hub - Trinket_Upgrade #1
+197	12	hub	Trinket_Upgrade	2	0x0	f07567b1aee12846		hub - Trinket_Upgrade #2
+198	12	hub	Trinket_Upgrade	3	0x0	9606e9fde06e53f4		hub - Trinket_Upgrade #3
+199	12	hub	Key	25	0x0	fa87e559f03974c0		hub - Key #25
+200	12	hub	Key	26	0x0	5a48b613b598465b		hub - Key #26
+201	12	hub	Key	27	0x0	03a5c2563050e53d		hub - Key #27
+202	12	hub	Key	28	0x0	e581748907a0b9c2		hub - Key #28
+203	12	hub	Key	29	0x0	a130b1635d3bbed5		hub - Key #29
+204	12	hub	Key	30	0x0	6780ec76be0b00b1		hub - Key #30
+205	12	hub	Key	31	0x0	b3fd83f9044201e5		hub - Key #31
+206	12	hub	Key	32	0x0	db7d2f5846882fd0		hub - Key #32
+207	12	hub	Key	33	0x0	7cb28f359759daca		hub - Key #33
+208	12	hub	ArmorUpgrade_Health	-1	0x0	6e5e82847fcdb08a		hub - ArmorUpgrade_Health
+209	12	hub	ArmorUpgrade_Custom	-1	0x0	093e111814ceb523		hub - ArmorUpgrade_Custom
+210	12	hub	Upgrade_JouleAlembic	-1	0x0	190f1105883fd5a5		hub - Upgrade_JouleAlembic
+211	12	hub	Upgrade_WorldMap	-1	0x0	0bba790f4169fcf0		hub - Upgrade_WorldMap
+212	12	hub	Upgrade_EnhancedMap	-1	0x0	f978b97356511443		hub - Upgrade_EnhancedMap
+213	12	hub	Upgrade_RadarMap	-1	0x0	1faed9ac6b2eb3af		hub - Upgrade_RadarMap
+214	12	hub	Upgrade_SidearmKeeper	-1	0x0	0bff39a15065f325		hub - Upgrade_SidearmKeeper
+215	12	hub	Upgrade_SidearmSaver	-1	0x0	01fed63750fcdfc3		hub - Upgrade_SidearmSaver
+216	12	hub	Upgrade_Phonograph	-1	0x0	9f0f5e933ed17244		hub - Upgrade_Phonograph
+217	12	hub	Upgrade_CandleVision	-1	0x0	548b003186eeb20d		hub - Upgrade_CandleVision
+218	12	hub	Upgrade_TrainingDummy	-1	0x0	bb63aa4876c5e967		hub - Upgrade_TrainingDummy
+219	12	hub	Upgrade_TwoSidearmsHUD	-1	0x0	f0ee9bc3ef83a95a		hub - Upgrade_TwoSidearmsHUD
+220	12	hub	Fish_Flag	2	0x0	701ed6f2dbee3527	FishFlag	FishFlag
+221	7	hub_overworld_east	Trinket_Upgrade	4	0xbdcbf2b7	93fe63fb0f4b2692	hub_overworld_east_Maxi	hub_overworld_east_Maxi
+222	7	hub_overworld_east	Lock	15	0x0	0346e0f41ec1fe1d	hub_overworld_east_o_496	hub_overworld_east_o_496
+223	7	hub_overworld_east	Trinket_Windfall	-1	0x19adabca	f978bc956c47ede1		hub_overworld_east - Trinket_Windfall
+224	7	hub_overworld_east	Lock	16	0x0	86523d22a4d2dd6e	hub_overworld_east_o_690	hub_overworld_east_o_690
+225	7	hub_overworld_east	Lock	17	0x0	f57de363de4cb34a	hub_overworld_east_o_817	hub_overworld_east_o_817
+226	7	hub_overworld_east	Trinket_ComboCapacitor	-1	0x0	67c04ca185cddc16		hub_overworld_east - Trinket_ComboCapacitor
+227	7	hub_overworld_east	Lock	18	0x0	e67e9293b8c574af	hub_overworld_east_o_14	hub_overworld_east_o_14
+228	7	hub_overworld_east	Bonestone_02	66	0x0	958325a69ca70a4b		hub_overworld_east - Bonestone_02 #66
+229	7	hub_overworld_east	Magic_Upgrade	5	0x0	b07ff8eeb893c8dc	hub_overworld_east_o_815	hub_overworld_east_o_815
+230	7	hub_overworld_east	Key	34	0x0	2a8a3abcb33a068a	hub_overworld_east_o_8081	hub_overworld_east_o_8081
+231	7	hub_overworld_east	Bonestone_02	67	0x0	0e6a6e25b9176dd1	hub_overworld_east_o_914	hub_overworld_east_o_914
+232	7	hub_overworld_east	Bonestone_03	68	0x0	b8085bacc469e36a	hub_overworld_east_o_866	hub_overworld_east_o_866
+233	7	hub_overworld_east	Bonestone_01	69	0x0	7cc58c5e2a0b8dea	hub_overworld_east_o_919	hub_overworld_east_o_919
+234	7	hub_overworld_east	Bonestone_01	70	0x0	96d208ab379c022b	hub_overworld_east_o_920	hub_overworld_east_o_920
+235	7	hub_overworld_east	Bonestone_01	71	0x0	7e3387c8cc1098b8		hub_overworld_east - Bonestone_01 #71
+236	7	hub_overworld_east	Bonestone_03	72	0x0	ae6f015310790011	hub_overworld_east_o_946	hub_overworld_east_o_946
+237	7	hub_overworld_east	Trinket_Salts	-1	0x0	4387d7f67875051d	hub_overworld_east_o_263011	hub_overworld_east_o_263011
+238	7	hub_overworld_east	Spark_Upgrade	2	0x0	1ada71917fb11e57	hub_overworld_east_o_969	hub_overworld_east_o_969
+239	7	hub_overworld_east	Trinket_WispRage	-1	0x0	860fa9a70b396b19		hub_overworld_east - Trinket_WispRage
+240	7	hub_overworld_east	Key	35	0x0	4956e428ded0d086		hub_overworld_east - Key #35
+241	7	hub_overworld_east	Fish_Dork	9	0x0	004b5635857b8925	FishDork	FishDork
+242	16	hub_overworld_west	Trinket_VialDecoy	-1	0xddb2bc34	8a3cba92212a6002	hub_overworld_west_o_161211	hub_overworld_west_o_161211
+243	16	hub_overworld_west	Key	36	0x17c2c9d8	31f9a8811d63143c		hub_overworld_west - Key #36
+244	16	hub_overworld_west	Lock	19	0x0	e8b50956b4482bf7	hub_overworld_west_o_2680	hub_overworld_west_o_2680
+245	16	hub_overworld_west	Trinket_Statue	-1	0x242ec3ac	b39392892f34b0df		hub_overworld_west - Trinket_Statue
+246	16	hub_overworld_west	Lock	20	0x0	22aa179c8a062b05	hub_overworld_west_o_3008	hub_overworld_west_o_3008
+247	16	hub_overworld_west	Lock	21	0x0	949e595e64ae8e10	hub_overworld_west_o_3052	hub_overworld_west_o_3052
+248	16	hub_overworld_west	Magic_Upgrade	6	0x0	eac740ee3a8f506c	hub_overworld_west_o_2423	hub_overworld_west_o_2423
+249	16	hub_overworld_west	Trinket_FireRing	-1	0x0	2825b572cbe9f9a7	hub_overworld_west_o_2796	hub_overworld_west_o_2796
+250	16	hub_overworld_west	Bonestone_02	73	0x0	e3a16b9d25b82243	hub_overworld_west_o_2799	hub_overworld_west_o_2799
+251	16	hub_overworld_west	Key	37	0x0	1612689275325a4d	hub_overworld_west_o_2844	hub_overworld_west_o_2844
+252	16	hub_overworld_west	Bonestone_02	74	0x0	c83821040f01f871	hub_overworld_west_o_279911	hub_overworld_west_o_279911
+253	16	hub_overworld_west	Bonestone_03	75	0x0	07215643e211cf1d	hub_overworld_west_o_2798	hub_overworld_west_o_2798
+254	16	hub_overworld_west	Bonestone_02	76	0x0	b1281b54558f3669	hub_overworld_west_o_3010	hub_overworld_west_o_3010
+255	16	hub_overworld_west	Bonestone_02	77	0x0	044f00214ea42a10	hub_overworld_west_o_3050	hub_overworld_west_o_3050
+256	16	hub_overworld_west	Trinket_WispHeal	-1	0x0	be5c96a03a7ade24		hub_overworld_west - Trinket_WispHeal
+257	16	hub_overworld_west	Key	38	0x0	4ad043b5708707ff		hub_overworld_west - Key #38
+258	16	hub_overworld_west	Fish_Glomper	7	0x0	2100226201654b9c	FishGlomper	FishGlomper
+259	16	hub_overworld_west	Fish_Cuddlepus	12	0x0	42c0a639a6760e55	FishCuddlepus	FishCuddlepus
+260	15	hub_overworld_south	Lock	22	0x0	6ff7ff1e1c49e5c2	hub_overworld_south_o_1605	hub_overworld_south_o_1605
+261	15	hub_overworld_south	Bonestone_03	78	0x0	8d99379d2c516b43	hub_overworld_south_o_1622	hub_overworld_south_o_1622
+262	15	hub_overworld_south	Lock	23	0x0	00fd2152c3028984	hub_overworld_south_o_2023	hub_overworld_south_o_2023
+263	15	hub_overworld_south	Trinket_LaceGlove	-1	0x4a4c7c3a	f2c610d2c001224b	DakAck	DakAck
+264	15	hub_overworld_south	Bonestone_02	79	0x0	bcd557c85bf4a082	hub_overworld_south_o_11972	hub_overworld_south_o_11972
+265	15	hub_overworld_south	Magic_Upgrade	7	0x0	526089d781f7f0f3	hub_overworld_south_o_2000	hub_overworld_south_o_2000
+266	15	hub_overworld_south	Bonestone_03	80	0x0	800c6d89887f2154	hub_overworld_south_o_1197	hub_overworld_south_o_1197
+267	15	hub_overworld_south	Bonestone_02	81	0x0	48ae32424f0c2dab	hub_overworld_south_o_16221	hub_overworld_south_o_16221
+268	15	hub_overworld_south	Bonestone_03	82	0x0	d2f44f07b4f8c331	hub_overworld_south_o_2309	hub_overworld_south_o_2309
+269	15	hub_overworld_south	Trinket_VialPouch	-1	0x0	1b7f15b1c541f611	hub_overworld_south_o_2294	hub_overworld_south_o_2294
+270	15	hub_overworld_south	Key	39	0x0	8874633d44bd1826	hub_overworld_south_o_2011	hub_overworld_south_o_2011
+271	15	hub_overworld_south	Bonestone_04	83	0x0	ed3c09a55ebf4b1c	hub_overworld_south_o_51161	hub_overworld_south_o_51161
+272	15	hub_overworld_south	Trinket_FWisp	-1	0x0	344896cd4b0c7cdf		hub_overworld_south - Trinket_FWisp
+273	15	hub_overworld_south	Key	40	0x0	78c4dbfadf823f5f		hub_overworld_south - Key #40
+274	15	hub_overworld_south	Fish_Crumble	3	0x0	da758da25049a245	FishCrumble	FishCrumble
+275	10	hub_mansion	Bonestone_01	84	0x0	678b4242c732adc5	hub_mansion_o_1103	hub_mansion_o_1103
+276	0	astralOrrery	Trinket_Beast3	-1	0xcf8e3902	d520bf0979c0e17d		astralOrrery - Trinket_Beast3
+277	0	astralOrrery	Lock	24	0x0	207f4bb4f347af0e	astralOrrery_mirrorHub_o_20	astralOrrery_mirrorHub_o_20
+278	0	astralOrrery	Lock	25	0x0	a00ad7f25d2dceba	astralOrrery_mirrorHub_o_123	astralOrrery_mirrorHub_o_123
+279	0	astralOrrery	Trinket_Upgrade	5	0x0	e90709efaeb49f0b	astralOrrery_mirrorHub_o_2140	astralOrrery_mirrorHub_o_2140
+280	0	astralOrrery	Bonestone_02	85	0x0	448c16ac3409114c	astralOrrery_mirrorHub_o_14443	astralOrrery_mirrorHub_o_14443
+281	0	astralOrrery	Bonestone_04	86	0x0	b62b720d2e3571cb	astralOrrery_mirrorHub_o_144411	astralOrrery_mirrorHub_o_144411
+282	0	astralOrrery	Fish_Trunkstar	13	0x0	df6c7f02b302b680	FishTrunkstar	FishTrunkstar
+283	1	bayou_overworld	Lock	26	0x0	7f92cc28425de08d	bayou_overworld_o_2757	bayou_overworld_o_2757
+284	1	bayou_overworld	Lock	27	0x0	07246f795bee99d5	bayou_overworld_o_27572	bayou_overworld_o_27572
+285	1	bayou_overworld	Lock	28	0x0	6d907d42513aa060	bayou_overworld_o_3137	bayou_overworld_o_3137
+286	1	bayou_overworld	Magic_Upgrade	8	0x0	24e3d5f539907969	bayou_overworld_o_3157	bayou_overworld_o_3157
+287	1	bayou_overworld	Bonestone_03	87	0x0	ed496cdc55479760		bayou_overworld - Bonestone_03 #87
+288	1	bayou_overworld	Bonestone_03	88	0x0	263ad2c4e4f7a1a2	bayou_overworld_o_279523	bayou_overworld_o_279523
+289	1	bayou_overworld	Trinket_Jug	-1	0xbf7c3ae4	b36cd1fa92a751f3		bayou_overworld - Trinket_Jug
+290	1	bayou_overworld	Trinket_PlasmaJug	-1	0x0	93969a1e25991a3c	bayou_overworld_o_571	bayou_overworld_o_571
+291	1	bayou_overworld	Trinket_TumblingTutu	-1	0x1d74ffca	eada5d473e481a33	bayou_overworld_FrogBucketWithBand	bayou_overworld_FrogBucketWithBand
+292	1	bayou_overworld	Key	41	0x0	27ea9f710f98cfb2		bayou_overworld - Key #41
+293	1	bayou_overworld	Bonestone_02	89	0x0	a09872943b41c67e	bayou_overworld_o_279521	bayou_overworld_o_279521
+294	1	bayou_overworld	Trinket_TStone	-1	0x0	19ce3874ef8f307b	bayou_overworld_o_322	bayou_overworld_o_322
+295	1	bayou_overworld	Vial_Upgrade	6	0x0	a22bc90491637a02	bayou_overworld_o_3115	bayou_overworld_o_3115
+296	1	bayou_overworld	Bonestone_02	90	0x0	6d521f3c2770336b	bayou_overworld_o_3308	bayou_overworld_o_3308
+297	1	bayou_overworld	Trinket_SparkOrb	-1	0x0	14391f3d0f1309e7		bayou_overworld - Trinket_SparkOrb
+298	1	bayou_overworld	Key	42	0x0	1e6a9cc860d292e8		bayou_overworld - Key #42
+299	1	bayou_overworld	Fish_Eel	10	0x0	06201552fab50a15	FishEel	FishEel
+300	1	bayou_overworld	Upgrade_FishingRod	-1	0xb2ca3d50	e34afeeea5a95091	fishingHole_o_161313	fishingHole_o_161313
+301	1	bayou_overworld	Upgrade_FishingGold	-1	0x5be3732a	dfbbca66dacbefd8		bayou_overworld - Upgrade_FishingGold
+302	1	bayou_overworld	Fish_Boss	15	0x0	0a27bf6847b99300	FishBoss	FishBoss
+303	5	crypt_overworld	Bonestone_02	91	0x0	97c4abb6796fa2cb	crypt_overworld_o_26992	crypt_overworld_o_26992
+304	5	crypt_overworld	Lock	29	0x0	9f2deed935588941	crypt_overworld_o_3121	crypt_overworld_o_3121
+305	5	crypt_overworld	Key	43	0x0	50c897bdb97ea4de	crypt_overworld_o_3126	crypt_overworld_o_3126
+306	5	crypt_overworld	Lock	30	0x0	fe462bb886b5e743	crypt_overworld_o_31211	crypt_overworld_o_31211
+307	5	crypt_overworld	Lock	31	0x0	918afaa2864a0249	crypt_overworld_o_3340	crypt_overworld_o_3340
+308	5	crypt_overworld	Trinket_Beast1	-1	0x0	975477324a772543	crypt_overworld_o_2630	crypt_overworld_o_2630
+309	5	crypt_overworld	Bonestone_02	92	0x0	1cdb9e5e6366e686	crypt_overworld_o_2631	crypt_overworld_o_2631
+310	5	crypt_overworld	Key	44	0x0	b6caaae1c15475e5	crypt_overworld_o_3125	crypt_overworld_o_3125
+311	5	crypt_overworld	Bonestone_02	93	0x0	65737d89e7e0b2df	crypt_overworld_o_3270	crypt_overworld_o_3270
+312	5	crypt_overworld	Vial_Upgrade	7	0x0	52783180994bbc79	crypt_overworld_o_3027	crypt_overworld_o_3027
+313	5	crypt_overworld	Bonestone_01	94	0x0	98b6e5387a0c0ae1	crypt_overworld_o_3025	crypt_overworld_o_3025
+314	5	crypt_overworld	Bonestone_01	95	0x0	9c45cd43d19bad09	crypt_overworld_o_30251	crypt_overworld_o_30251
+315	5	crypt_overworld	Bonestone_02	96	0x0	4d2f1e8cc3aab7cf	crypt_overworld_o_2699	crypt_overworld_o_2699
+316	5	crypt_overworld	Trinket_TractionTreads	-1	0x0	a6f1cce40deba01d	crypt_overworld_o_322	crypt_overworld_o_322
+317	3	boneBeach_overworld	Trinket_BurrowChainer	-1	0x0	921c95736611eea2		boneBeach_overworld - Trinket_BurrowChainer
+318	3	boneBeach_overworld	Lock	32	0x0	2f7c8a6d9e8f8fd4	boneBeach_overworld_o_4793	boneBeach_overworld_o_4793
+319	3	boneBeach_overworld	Key	45	0x4dc65afe	c5b6212f2aca5f6c		boneBeach_overworld - Key #45
+320	3	boneBeach_overworld	Lock	33	0x0	7e966163e6ec8e87	boneBeach_overworld_o_5120	boneBeach_overworld_o_5120
+321	3	boneBeach_overworld	Lock	34	0x0	e75e1f9cef06e501	boneBeach_overworld_o_5128	boneBeach_overworld_o_5128
+322	3	boneBeach_overworld	Trinket_BellowsBustle	-1	0x7fe59403	b051419e72ec6dbf		boneBeach_overworld - Trinket_BellowsBustle
+323	3	boneBeach_overworld	Vial_Upgrade	8	0x0	184f7abc8270a311	boneBeach_overworld_o_4791	boneBeach_overworld_o_4791
+324	3	boneBeach_overworld	Bonestone_02	97	0x0	d19535d7b46ac6df	boneBeach_overworld_o_5157	boneBeach_overworld_o_5157
+325	3	boneBeach_overworld	Upgrade_FishingUpgrade	-1	0x0	daf850d2d0e2d700	boneBeach_overworld_o_47881	boneBeach_overworld_o_47881
+326	3	boneBeach_overworld	Bonestone_02	98	0x0	54b13ee754c9ad20	boneBeach_overworld_o_5116	boneBeach_overworld_o_5116
+327	3	boneBeach_overworld	Magic_Upgrade	9	0x0	cb2db13fae1e075c	boneBeach_overworld_o_4783	boneBeach_overworld_o_4783
+328	3	boneBeach_overworld	Bonestone_03	99	0x0	6758d737162fb830	boneBeach_overworld_o_5393	boneBeach_overworld_o_5393
+329	3	boneBeach_overworld	Bonestone_03	100	0x0	f2ed50e01a87547f	boneBeach_overworld_o_53931	boneBeach_overworld_o_53931
+330	3	boneBeach_overworld	Trinket_NiterBelt	-1	0x0	0e0377aa194c683b	boneBeach_overworld_o_9025	boneBeach_overworld_o_9025
+331	15	hub_overworld_south	Key	46	0x0	b7a63b760bf4b3ae	boneBeach_overworld_o_4785	boneBeach_overworld_o_4785
+332	3	boneBeach_overworld	Bonestone_04	101	0x0	4978e13119a96d93	boneBeach_overworld_o_53351	boneBeach_overworld_o_53351
+333	3	boneBeach_overworld	Trinket_Beast4	-1	0x0	ffc894a72277ec22		boneBeach_overworld - Trinket_Beast4
+334	13	septemburg_overworld	Trinket_LightningGrip	-1	0x1d9e776	62951a1b264b6ac5		septemburg_overworld - Trinket_LightningGrip
+335	13	septemburg_overworld	Bonestone_03	102	0x9d61fc67	0d7845f7fe2ab048	septemburg_overworld_o_60313	septemburg_overworld_o_60313
+336	13	septemburg_overworld	Lock	35	0x0	70b4a3a62617c1c9	septemburg_overworld_o_14	septemburg_overworld_o_14
+337	13	septemburg_overworld	Lock	36	0x0	18857e1f1ecb93b7	septemburg_overworld_o_120	septemburg_overworld_o_120
+338	13	septemburg_overworld	Lock	37	0x0	6c85e52e1a7a0739	septemburg_overworld_o_121	septemburg_overworld_o_121
+339	13	septemburg_overworld	Bonestone_04	103	0x0	6a174af6df1cf84c	septemburg_overworld_o_2821	septemburg_overworld_o_2821
+340	13	septemburg_overworld	Bonestone_03	104	0x0	b94f311c3bdf02a1	septemburg_overworld_o_230	septemburg_overworld_o_230
+341	13	septemburg_overworld	Key	47	0x0	c43bced6e75dbcb2	septemburg_overworld_o_5819	septemburg_overworld_o_5819
+342	13	septemburg_overworld	Key	48	0x0	a8914e149d55739a	septemburg_overworld_o_108	septemburg_overworld_o_108
+343	13	septemburg_overworld	Vial_Upgrade	9	0x0	637c6d9423babb91	septemburg_overworld_o_2657	septemburg_overworld_o_2657
+344	13	septemburg_overworld	Trinket_WallowersGauntlets	-1	0x0	a3e3a7bd8f8ebadf	septemburg_overworld_o_58901	septemburg_overworld_o_58901
+345	13	septemburg_overworld	Bonestone_04	105	0x0	8d111c142b706752	septemburg_overworld_o_413	septemburg_overworld_o_413
+346	13	septemburg_overworld	Bonestone_02	106	0x0	84daeb61dfa66031	septemburg_overworld_o_686	septemburg_overworld_o_686
+347	13	septemburg_overworld	Trinket_OozingOrgan	-1	0x0	2e694a63204a6235		septemburg_overworld - Trinket_OozingOrgan
+348	13	septemburg_overworld	Trinket_Beast2	-1	0x0	b0e24c5227960d11		septemburg_overworld - Trinket_Beast2
+349	13	septemburg_overworld	Trinket_LightningRing	-1	0x0	4021a55f8bf5049b		septemburg_overworld - Trinket_LightningRing
+350	13	septemburg_overworld	Key	49	0x0	1c57545e5d2d7c2b		septemburg_overworld - Key #49
+351	12	hub	Upgrade_WeirdDanceHUD	-1	0x0	c7cb9a0a6b55852c		hub - Upgrade_WeirdDanceHUD
+352	12	hub	Health_Upgrade	17	0x0	f1a199e574d9280d	evraArena_o_391	evraArena_o_391
+353	14	septemburgB	Spark_Upgrade	3	0x0	f8b7f460b53b97ac		septemburgB - Spark_Upgrade #3
+354	4	boneBeachA	Bonestone_04	107	0x0	08941be842eaf2c6	tower_boneBeach_o_57	tower_boneBeach_o_57
+355	5	crypt_overworld	Bonestone_01	108	0x0	aae6d28b73e48a75	tower_boneBeach_o_63	tower_boneBeach_o_63
+356	4	boneBeachA	Bonestone_03	109	0x0	e1a55933522a63a7	tower_boneBeach_o_154	tower_boneBeach_o_154
+357	12	hub	ArmorUpgrade_Damage	-1	0x0	d41c290982a3248c		hub - ArmorUpgrade_Damage
+358	12	hub	Lock	38	0x0	97919170585f3380		hub - Lock #38
+359	12	hub	Lock	39	0x0	9dd2c3610f5d3e1c		hub - Lock #39
+360	12	hub	Bonestone_03	110	0x0	351c78fe96f98ae1	trainCabin_o_2209	trainCabin_o_2209

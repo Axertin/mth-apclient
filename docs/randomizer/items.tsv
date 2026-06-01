@@ -1,0 +1,196 @@
+itemTypeId	internalName	assetName	nameKey	descKey	storageKind	iconAtlas
+0	kItemType_None	None			0x0	
+1	kItemType_Shop_Exit	None	shop_exit	shop_exit_desc	0xa	UI/HUD/trinketMenu.anb.yc
+2	kItemType_Whip	Whip	whip_name	whip_desc	0x1	UI/HUD/equipmentIcons.anb.yc
+3	kItemType_Whip_Level_2	WhipLevel2	whip_level_2_name	whip_level_2_desc	0x1	UI/HUD/equipmentIcons.anb.yc
+4	kItemType_Whip_Level_3	WhipLevel3	whip_level_3_name	whip_level_3_desc	0x1	UI/HUD/equipmentIcons.anb.yc
+5	kItemType_Hammer	Hammer	hammer_name	hammer_desc	0x1	UI/HUD/equipmentIcons.anb.yc
+6	kItemType_Hammer_Level_2	HammerLevel2	hammer_level_2_name	hammer_level_2_desc	0x1	UI/HUD/equipmentIcons.anb.yc
+7	kItemType_Hammer_Level_3	HammerLevel3	hammer_level_3_name	hammer_level_3_desc	0x1	UI/HUD/equipmentIcons.anb.yc
+8	kItemType_Daggers	Daggers	daggers_name	daggers_desc	0x1	UI/HUD/equipmentIcons.anb.yc
+9	kItemType_Daggers_Level_2	DaggersLevel2	daggers_level_2_name	daggers_level_2_desc	0x1	UI/HUD/equipmentIcons.anb.yc
+10	kItemType_Daggers_Level_3	DaggersLevel3	daggers_level_3_name	daggers_level_3_desc	0x1	UI/HUD/equipmentIcons.anb.yc
+11	kItemType_BusterBat	BusterBat	busterBat_name	busterBat_desc	0x1	UI/HUD/equipmentIcons.anb.yc
+12	kItemType_BusterBat_Level_2	BusterBatLevel2	busterBat_level_2_name	busterBat_level_2_desc	0x1	UI/HUD/equipmentIcons.anb.yc
+13	kItemType_BusterBat_Level_3	BusterBatLevel3	busterBat_level_3_name	busterBat_level_3_desc	0x1	UI/HUD/equipmentIcons.anb.yc
+14	kItemType_Shield	Shield	shield_name	shield_desc	0x1	UI/HUD/equipmentIcons.anb.yc
+15	kItemType_Shield_Level_2	ShieldLevel2	shield_level_2_name	shield_level_2_desc	0x1	UI/HUD/equipmentIcons.anb.yc
+16	kItemType_Shield_Level_3	ShieldLevel3	shield_level_3_name	shield_level_3_desc	0x1	UI/HUD/equipmentIcons.anb.yc
+17	kItemType_HealingVial	HealingVial			0x2	UI/HUD/equipmentIcons.anb.yc
+18	kItemType_HealingVialFirst	HealingVialFirst	vial_name	vial_desc	0x2	objects/healingVialPackPickup.anb.yc
+19	kItemType_HealingVialPickup	HealingVialPickup	vial_name	vial_desc	0x2	objects/healingVialPickup.anb.yc
+20	kItemType_HealingVialPackPickup	HealingVialPackPickup	vial_name	vial_desc	0x2	objects/healingVialPackPickup.anb.yc
+21	kItemType_ThrowingAxe	ThrowingAxe	throwing_axe_name	throwing_axe_desc	0x3	UI/HUD/equipmentIcons.anb.yc
+22	kItemType_ThrowingKnife	ThrowingKnife	throwing_knife_name	throwing_knife_desc	0x3	UI/HUD/equipmentIcons.anb.yc
+23	kItemType_WarpPortal	WarpPortal	warp_portal_name	warp_portal_desc	0x3	UI/HUD/equipmentIcons.anb.yc
+24	kItemType_ChargeLantern	ChargeLantern	charge_lantern_name	charge_lantern_desc	0x3	UI/HUD/equipmentIcons.anb.yc
+25	kItemType_ShieldBash	ShieldBash	shield_bash_name	shield_bash_desc	0x3	UI/HUD/equipmentIcons.anb.yc
+26	kItemType_ChemicalClackers	ChemicalClackers	chemical_clackers_name	chemical_clackers_desc	0x3	UI/HUD/equipmentIcons.anb.yc
+27	kItemType_Bicycle	Bicycle	bicycle_name	bicycle_desc	0x3	UI/HUD/equipmentIcons.anb.yc
+28	kItemType_HollowersRocks	HollowersRocks	hollowers_rocks_name	hollowers_rocks_desc	0x3	UI/HUD/equipmentIcons.anb.yc
+29	kItemType_FogThrower	FogThrower	fog_thrower_name	fog_thrower_desc	0x3	UI/HUD/equipmentIcons.anb.yc
+30	kItemType_LeashedPhantom	LeashedPhantom	leashed_phantom_name	leashed_phantom_desc	0x3	UI/HUD/equipmentIcons.anb.yc
+31	kItemType_MistShift	MistShift	mist_shift_name	mist_shift_desc	0x3	UI/HUD/equipmentIcons.anb.yc
+32	kItemType_HauntedUrn	HauntedUrn	haunted_urn_name	haunted_urn_desc	0x3	UI/HUD/equipmentIcons.anb.yc
+33	kItemType_BarrierParasol	BarrierParasol	barrier_parasol_name	barrier_parasol_desc	0x3	UI/HUD/equipmentIcons.anb.yc
+34	kItemType_FishingRod	FishingRod	fishing_rod_name	fishing_rod_desc	0x3	UI/HUD/equipmentIcons.anb.yc
+35	kItemType_HealthRecovery	HealthRecovery	healthrecovery_name	healthrecovery_desc	0x4	objects/healthPickup.anb.yc
+36	kItemType_FishHealthRecovery	HealthRecovery	healthrecovery_name	healthrecovery_desc	0x4	objects/healthPickup.anb.yc
+37	kItemType_Magic_Small	MagicSmall	magic_small_name	magic_small_desc	0x5	objects/magicPickup.anb.yc
+38	kItemType_Magic_Medium	MagicMedium	magic_medium_name	magic_medium_desc	0x5	objects/magicPickup.anb.yc
+39	kItemType_Magic_Large	MagicLarge	magic_large_name	magic_large_desc	0x5	objects/magicPickup.anb.yc
+40	kItemType_Treasure_Smallest	TreasureSmallest			0x6	objects/bones.anb.yc
+41	kItemType_Treasure_Small	TreasureSmall			0x6	objects/bones.anb.yc
+42	kItemType_Treasure_Medium	TreasureMedium			0x6	objects/bones.anb.yc
+43	kItemType_Treasure_Large	TreasureLarge			0x6	objects/bones.anb.yc
+44	kItemType_Treasure_Largest	TreasureLargest			0x6	objects/bones.anb.yc
+45	kItemType_Treasure_Boss	TreasureBoss			0x6	objects/bones.anb.yc
+46	kItemType_Treasure_GoldLarge	TreasureGoldLarge			0x6	objects/bones.anb.yc
+47	kItemType_Treasure_GoldLargest	TreasureGoldLargest			0x6	objects/bones.anb.yc
+48	kItemType_Treasure_JewelLarge	TreasureJewelLarge			0x6	objects/jeweledSkull.anb.yc
+49	kItemType_Treasure_JewelLargest	TreasureJewelLargest			0x6	objects/jeweledCowskull.anb.yc
+50	kItemType_BoneDust	BoneDust			0x6	objects/bones.anb.yc
+51	kItemType_Bonestone	Bonestone	bonestone_name	bonestone_desc	0xc	objects/bonestonePickup.anb.yc
+52	kItemType_Bonestone_01	Bonestone01	bonestone_name_01		0xc	UI/HUD/bonestoneIcons.anb.yc
+53	kItemType_Bonestone_02	Bonestone02	bonestone_name_02		0xc	UI/HUD/bonestoneIcons.anb.yc
+54	kItemType_Bonestone_03	Bonestone03	bonestone_name_03		0xc	UI/HUD/bonestoneIcons.anb.yc
+55	kItemType_Bonestone_04	Bonestone04	bonestone_name_04		0xc	UI/HUD/bonestoneIcons.anb.yc
+56	kItemType_Bonestone_05	Bonestone05	bonestone_name_05		0xc	UI/HUD/bonestoneIcons.anb.yc
+57	kItemType_Bonestone_06	Bonestone06	bonestone_name_06		0xc	UI/HUD/bonestoneIcons.anb.yc
+58	kItemType_Bonestone_07	Bonestone07	bonestone_name_07		0xc	UI/HUD/bonestoneIcons.anb.yc
+59	kItemType_Bonestone_08	Bonestone08	bonestone_name_08		0xc	UI/HUD/bonestoneIcons.anb.yc
+60	kItemType_Bonestone_09	Bonestone09	bonestone_name_09		0xc	UI/HUD/bonestoneIcons.anb.yc
+61	kItemType_Bonestone_10	Bonestone10	bonestone_name_10		0xc	UI/HUD/bonestoneIcons.anb.yc
+62	kItemType_Bonestone_Tower	BonestoneTower	bonestone_name_tower		0xc	UI/HUD/bonestoneIcons.anb.yc
+63	kItemType_Key	Key	key_name	key_desc	0x8	objects/key.anb.yc
+64	kItemType_Lock	Lock			0x11	
+65	kItemType_EarlyNote	EarlyBuy	earlybuy_name	earlybuy_desc	0xf	objects/note.anb.yc
+66	kItemType_Note	Note	note_name	note_desc	0xe	objects/note.anb.yc
+67	kItemType_Trinket	Trinket	trinket_pickup		0x7	objects/trinketPickup.anb.yc
+68	kItemType_Magic_Upgrade	MagicUpgrade	magicupgrade_name	magicupgrade_desc	0x9	objects/magicUpgrade.anb.yc
+69	kItemType_Health_Upgrade	HealthUpgrade	healthupgrade_name	healthupgrade_desc	0x9	objects/healthUpgrade.anb.yc
+70	kItemType_Spark_Upgrade	SparkUpgrade	sparkupgrade_name	sparkupgrade_desc	0x9	objects/sparkSlotUpgrade.anb.yc
+71	kItemType_Vial_Upgrade	VialUpgrade	vialupgrade_name	vialupgrade_desc	0x9	objects/healingVialUpgradePickup.anb.yc
+72	kItemType_Trinket_Upgrade	TrinketUpgrade	trinketupgrade_name	trinketupgrade_desc	0x9	objects/trinketUpgradePickup.anb.yc
+73	kItemType_Spark	Spark			0x9	objects/sparkOrb.anb.yc
+74	kItemType_Upgrade_CandleVision	CandleVision	candlevision_name	candlevision_desc	0x9	UI/HUD/underlabUpgradeIcons.anb.yc
+75	kItemType_Upgrade_WorldMap	WorldMap	worldmap_name	worldmap_desc	0x9	UI/HUD/underlabUpgradeIcons.anb.yc
+76	kItemType_Upgrade_EnhancedMap	EnhancedMap	enhancedmap_name	enhancedmap_desc	0x9	UI/HUD/underlabUpgradeIcons.anb.yc
+77	kItemType_Upgrade_RadarMap	RadarMap	radarmap_title	radarmap_desc	0x9	UI/HUD/underlabUpgradeIcons.anb.yc
+78	kItemType_Upgrade_TwoSidearms	TwoSidearm	twosideupgrade_name	twosideupgrade_desc	0x9	objects/sideArmUpgradePickup.anb.yc
+79	kItemType_ArmorUpgrade_Health	ArmorUpgradeHealth	armorhealthupgrade_name	armorhealthupgrade_desc	0x9	objects/armorPickup.anb.yc
+80	kItemType_ArmorUpgrade_Damage	ArmorUpgradeDamage	armordamageupgrade_name	armordamageupgrade_desc	0x9	objects/armorPickup.anb.yc
+81	kItemType_ArmorUpgrade_Custom	ArmorCustom	armorcustom_name	armorcustom_desc	0x9	UI/HUD/needleThreadIcon.anb.yc
+82	kItemType_Upgrade_JouleAlembic	JouleAlembic	joulealembic_name	joulealembic_desc	0x9	UI/HUD/underlabUpgradeIcons.anb.yc
+83	kItemType_Upgrade_SidearmSaver	SidearmSaver	phantomlocker_name	phantomlocker_desc	0x9	UI/HUD/underlabUpgradeIcons.anb.yc
+84	kItemType_Upgrade_SidearmKeeper	SidearmKeeper	clockworkarchive_name	clockworkarchive_desc	0x9	UI/HUD/underlabUpgradeIcons.anb.yc
+85	kItemType_Upgrade_TrainingDummy	TrainingDummy	trainingdummy_name	trainingdummy_desc	0x9	UI/HUD/underlabUpgradeIcons.anb.yc
+86	kItemType_Upgrade_Phonograph	Phonograph	phonograph_name	phonograph_desc	0x9	UI/HUD/underlabUpgradeIcons.anb.yc
+87	kItemType_Upgrade_FishingRod	FishingRod	fishing_rod_name	fishing_rod_desc	0x9	UI/HUD/equipmentIcons.anb.yc
+88	kItemType_Upgrade_FishingUpgrade	FishingUpgrade1	fishingupgrade1_name	fishingupgrade1_desc	0x9	UI/HUD/equipmentIcons.anb.yc
+89	kItemType_Upgrade_FishingGold	FishingRodGold	fishingupgrade2_name	fishingupgrade2_desc	0x9	UI/HUD/equipmentIcons.anb.yc
+90	kItemType_Upgrade_WeirdDanceHUD	WeirdDance	weirddance_name	weirddance_desc	0x9	UI/HUD/weirdDanceIcon.anb.yc
+91	kItemType_Upgrade_TwoSidearmsHUD	TwoSidearmHUD	twosideupgrade_name	twosideupgrade_desc	0x9	UI/HUD/sideArmUpgradeIcon.anb.yc
+92	kItemType_Armor_Default	ArmorDefault	armordefault_nname	armordefault_desc	0x9	objects/armorPickup.anb.yc
+93	kItemType_ArmorUpgrade_All	ArmorUpgradeDamage	armorall_name	armorall_desc	0x9	objects/armorPickup.anb.yc
+94	kItemType_Ticket_Pass	TrainPass	ticket_name	ticket_desc	0x10	UI/trainTicketMenu/trainTicketIcons.anb.yc
+95	kItemType_Ticket_HUB	HUBTicket	hub_ticket_name	hub_ticket_desc	0x10	UI/trainTicketMenu/trainTicketIcons.anb.yc
+96	kItemType_Ticket_Bayou	BayouTicket	bayou_ticket_name	bayou_ticket_desc	0x10	UI/trainTicketMenu/trainTicketIcons.anb.yc
+97	kItemType_Ticket_Septemburg	SeptemburgTicket	septemburg_ticket_name	septemburg_ticket_desc	0x10	UI/trainTicketMenu/trainTicketIcons.anb.yc
+98	kItemType_Ticket_BoneBeach	BoneBeachTicket	bonebeach_ticket_name	bonebeach_ticket_desc	0x10	UI/trainTicketMenu/trainTicketIcons.anb.yc
+99	kItemType_Ticket_FrozenTrainyard	FrozenTrainyardTicket	frozentrainyard_ticket_name	frozentrainyard_ticket_desc	0x10	UI/trainTicketMenu/trainTicketIcons.anb.yc
+100	kItemType_Ticket_Exit	ExitTicket	exit_ticket_name	exit_ticket_desc	0x0	UI/trainTicketMenu/trainTicketIcons.anb.yc
+101	kItemType_Ticket_Unavailable	UnavailableTicket	hub_ticket_name	unavailable_ticket_desc	0x0	UI/trainTicketMenu/trainTicketIcons.anb.yc
+102	kItemType_Upgrade_FishingUpgradePickup	FishingUpgrade1	fishingupgrade1_name	fishingupgrade1_desc	0x9	objects/fishingRaftPickup.anb.yc
+103	kItemType_Upgrade_FishingGoldPickup	FishingRod	fishingupgrade2_name	fishingupgrade2_desc	0x9	objects/fishingRodPickup.anb.yc
+104	kItemType_Fish_Ghost	FishGhost	fish_ghost_name	fish_ghost_desc	0x13	objects/fishTrophies.anb.yc
+105	kItemType_Fish_Puffer	FishPuffer	fish_puffer_name	fish_puffer_desc	0x13	objects/fishTrophies.anb.yc
+106	kItemType_Fish_Flag	FishFlag	fish_flag_name	fish_flag_desc	0x13	objects/fishTrophies.anb.yc
+107	kItemType_Fish_Crumble	FishCrumble	fish_crumble_name	fish_crumble_desc	0x13	objects/fishTrophies.anb.yc
+108	kItemType_Fish_Spincer	FishSpincer	fish_spincer_name	fish_spincer_desc	0x13	objects/fishTrophies.anb.yc
+109	kItemType_Fish_Ice	FishIce	fish_ice_name	fish_ice_desc	0x13	objects/fishTrophies.anb.yc
+110	kItemType_Fish_Trigger	FishTrigger	fish_trigger_name	fish_trigger_desc	0x13	objects/fishTrophies.anb.yc
+111	kItemType_Fish_Glomper	FishGlomp	fish_glomper_name	fish_glomper_desc	0x13	objects/fishTrophies.anb.yc
+112	kItemType_Fish_Goremaw	FishGoremaw	fish_goremaw_name	fish_goremaw_desc	0x13	objects/fishTrophies.anb.yc
+113	kItemType_Fish_Dork	FishDork	fish_dork_name	fish_dork_desc	0x13	objects/fishTrophies.anb.yc
+114	kItemType_Fish_Eel	FishEel	fish_eel_name	fish_eel_desc	0x13	objects/fishTrophies.anb.yc
+115	kItemType_Fish_Gazeworm	FishGazeworm	fish_gazeworm_name	fish_gazeworm_desc	0x13	objects/fishTrophies.anb.yc
+116	kItemType_Fish_Cuddlepus	FishCuddlepus	fish_cuddlepus_name	fish_cuddlepus_desc	0x13	objects/fishTrophies.anb.yc
+117	kItemType_Fish_Trunkstar	FishTrunkstar	fish_trunkstar_name	fish_trunkstar_desc	0x13	objects/fishTrophies.anb.yc
+118	kItemType_Fish_Shrimpster	FishShrimpster	fish_shrimpster_name	fish_shrimpster_desc	0x13	objects/fishTrophies.anb.yc
+119	kItemType_Fish_Boss	FishBoss	fish_boss_name	fish_boss_desc	0x13	objects/fishTrophies.anb.yc
+120	kItemType_Underlab_Default	UnderlabDefault	underlab_default_name	underlab_default_desc	0x12	UI/HUD/redecoratorIcons.anb.yc
+121	kItemType_Underlab_Crypt	UnderlabCrypt	underlab_crypt_name	underlab_crypt_desc	0x12	UI/HUD/redecoratorIcons.anb.yc
+122	kItemType_Underlab_Bayou	UnderlabBayou	underlab_bayou_name	underlab_bayou_desc	0x12	UI/HUD/redecoratorIcons.anb.yc
+123	kItemType_Underlab_Septemburg	UnderlabSeptemburg	underlab_septemburg_name	underlab_septemburg_desc	0x12	UI/HUD/redecoratorIcons.anb.yc
+124	kItemType_Underlab_Trainyard	UnderlabTrainyard	underlab_trainyard_name	underlab_trainyard_desc	0x12	UI/HUD/redecoratorIcons.anb.yc
+125	kItemType_Underlab_BoneBeach	UnderlabBoneBeach	underlab_bonebeach_name	underlab_bonebeach_desc	0x12	UI/HUD/redecoratorIcons.anb.yc
+126	kItemType_Underlab_Astral	UnderlabAstral	underlab_astral_name	underlab_astral_desc	0x12	UI/HUD/redecoratorIcons.anb.yc
+127	kItemType_Underlab_Mansion	UnderlabMansion	underlab_mansion_name	underlab_mansion_desc	0x12	UI/HUD/redecoratorIcons.anb.yc
+128	kItemType_Underlab_HUB	UnderlabHUB	underlab_hub_name	underlab_hub_desc	0x12	UI/HUD/redecoratorIcons.anb.yc
+129	kItemType_Underlab_East	UnderlabEast	underlab_east_name	underlab_east_desc	0x12	UI/HUD/redecoratorIcons.anb.yc
+130	kItemType_Underlab_West	UnderlabWest	underlab_west_name	underlab_west_desc	0x12	UI/HUD/redecoratorIcons.anb.yc
+131	kItemType_Underlab_South	UnderlabSouth	underlab_south_name	underlab_south_desc	0x12	UI/HUD/redecoratorIcons.anb.yc
+132	kItemType_Underlab_Sewer	UnderlabSewer	underlab_sewer_name	underlab_sewer_desc	0x12	UI/HUD/redecoratorIcons.anb.yc
+133	kItemType_Underlab_Guild	UnderlabGuild	underlab_guild_name	underlab_guild_desc	0x12	UI/HUD/redecoratorIcons.anb.yc
+134	kItemType_Trinket_LaceGlove	LaceGlove	ring_name_3	ring_desc_3	0xb	UI/HUD/trinketIcons.anb.yc
+135	kItemType_Trinket_TwilWeave	TwilWeave	ring_name_1	ring_desc_1	0xb	UI/HUD/trinketIcons.anb.yc
+136	kItemType_Trinket_Salts	Salts	ring_name_4	ring_desc_4	0xb	UI/HUD/trinketIcons.anb.yc
+137	kItemType_Trinket_BriskBrew	BriskBrew	ring_name_12	ring_desc_12	0xb	UI/HUD/trinketIcons.anb.yc
+138	kItemType_Trinket_BurrowPulse	BurrowPulse	ring_name_26	ring_desc_26	0xb	UI/HUD/trinketIcons.anb.yc
+139	kItemType_Trinket_PlasmaFunnel	PlasmaFunnel	ring_name_40	ring_desc_40	0xb	UI/HUD/trinketIcons.anb.yc
+140	kItemType_Trinket_BoneReleaser	BoneReleaser	ring_name_23	ring_desc_23	0xb	UI/HUD/trinketIcons.anb.yc
+141	kItemType_Trinket_SteadySoles	SteadySoles	ring_name_9	ring_desc_9	0xb	UI/HUD/trinketIcons.anb.yc
+142	kItemType_Trinket_PlasmaSaver	PlasmaSaver	ring_name_60	ring_desc_60	0xb	UI/HUD/trinketIcons.anb.yc
+143	kItemType_Trinket_BoneSaver	BoneSaver	ring_name_24	ring_desc_24	0xb	UI/HUD/trinketIcons.anb.yc
+144	kItemType_Trinket_WispRage	WispRage	ring_name_42	ring_desc_42	0xb	UI/HUD/trinketIcons.anb.yc
+145	kItemType_Trinket_WispHeal	WispHeal	ring_name_43	ring_desc_43	0xb	UI/HUD/trinketIcons.anb.yc
+146	kItemType_Trinket_FWisp	FWisp	ring_name_11	ring_desc_11	0xb	UI/HUD/trinketIcons.anb.yc
+147	kItemType_Trinket_Windfall	Windfall	ring_name_39	ring_desc_39	0xb	UI/HUD/trinketIcons.anb.yc
+148	kItemType_Trinket_ComboCapacitor	ComboCapacitor	ring_name_27	ring_desc_27	0xb	UI/HUD/trinketIcons.anb.yc
+149	kItemType_Trinket_TractionTreads	TractionTreads	ring_name_37	ring_desc_37	0xb	UI/HUD/trinketIcons.anb.yc
+150	kItemType_Trinket_BloodpressureBonnet	BloodpressureBonnet	ring_name_28	ring_desc_28	0xb	UI/HUD/trinketIcons.anb.yc
+151	kItemType_Trinket_BoneMagnet	BoneMagnet	ring_name_17	ring_desc_17	0xb	UI/HUD/trinketIcons.anb.yc
+152	kItemType_Trinket_PutridClump	PutridClump	ring_name_30	ring_desc_30	0xb	UI/HUD/trinketIcons.anb.yc
+153	kItemType_Trinket_ProtoSpark	ProtoSpark	ring_name_20	ring_desc_20	0xb	UI/HUD/trinketIcons.anb.yc
+154	kItemType_Trinket_VialPouch	VialPouch	ring_name_29	ring_desc_29	0xb	UI/HUD/trinketIcons.anb.yc
+155	kItemType_Trinket_FireRing	FireRing	ring_name_53	ring_desc_53	0xb	UI/HUD/trinketIcons.anb.yc
+156	kItemType_Trinket_SparkOrb	SparkOrb	ring_name_10	ring_desc_10	0xb	UI/HUD/trinketIcons.anb.yc
+157	kItemType_Trinket_TStone	TStone	ring_name_7	ring_desc_7	0xb	UI/HUD/trinketIcons.anb.yc
+158	kItemType_Trinket_VSyrup	VSyrup	ring_name_5	ring_desc_5	0xb	UI/HUD/trinketIcons.anb.yc
+159	kItemType_Trinket_CrashPad	CrashPad	ring_name_34	ring_desc_34	0xb	UI/HUD/trinketIcons.anb.yc
+160	kItemType_Trinket_IronLung	IronLung	ring_name_8	ring_desc_8	0xb	UI/HUD/trinketIcons.anb.yc
+161	kItemType_Trinket_TumblingTutu	TumblingTutu	ring_name_41	ring_desc_41	0xb	UI/HUD/trinketIcons.anb.yc
+162	kItemType_Trinket_Jug	Jug	ring_name_2	ring_desc_2	0xb	UI/HUD/trinketIcons.anb.yc
+163	kItemType_Trinket_UraniumBracelet	UraniumBracelet	ring_name_32	ring_desc_32	0xb	UI/HUD/trinketIcons.anb.yc
+164	kItemType_Trinket_Shield	Shield	ring_name_15	ring_desc_15	0xb	UI/HUD/trinketIcons.anb.yc
+165	kItemType_Trinket_ShockFlint	ShockFlint	ring_name_33	ring_desc_33	0xb	UI/HUD/trinketIcons.anb.yc
+166	kItemType_Trinket_AutoVial	AutoVial	ring_name_47	ring_desc_47	0xb	UI/HUD/trinketIcons.anb.yc
+167	kItemType_Trinket_PocketTrebuchet	PocketTrebuchet	ring_name_38	ring_desc_38	0xb	UI/HUD/trinketIcons.anb.yc
+168	kItemType_Trinket_Beast1	Beast1	ring_name_48	ring_desc_48	0xb	UI/HUD/trinketBeastIcons.anb.yc
+169	kItemType_Trinket_Beast2	Beast2	ring_name_49	ring_desc_49	0xb	UI/HUD/trinketBeastIcons.anb.yc
+170	kItemType_Trinket_Beast3	Beast3	ring_name_50	ring_desc_50	0xb	UI/HUD/trinketBeastIcons.anb.yc
+171	kItemType_Trinket_Beast4	Beast4	ring_name_51	ring_desc_51	0xb	UI/HUD/trinketBeastIcons.anb.yc
+172	kItemType_Trinket_Beast5	Beast5	ring_name_52	ring_desc_52	0xb	UI/HUD/trinketBeastIcons.anb.yc
+173	kItemType_Trinket_Beast6	Beast6	ring_name_22	ring_desc_22	0xb	UI/HUD/trinketBeastIcons.anb.yc
+174	kItemType_Trinket_VialDecoy	VialDecoy	ring_name_18	ring_desc_18	0xb	UI/HUD/trinketIcons.anb.yc
+175	kItemType_Trinket_Vanishing	Vanishing	ring_name_57	ring_desc_57	0xb	UI/HUD/trinketIcons.anb.yc
+176	kItemType_Trinket_BoneBonus	BoneBonus	ring_name_56	ring_desc_56	0xb	UI/HUD/trinketIcons.anb.yc
+177	kItemType_Trinket_SpiderB	SpiderB	ring_name_14	ring_desc_14	0xb	UI/HUD/trinketIcons.anb.yc
+178	kItemType_Trinket_VialSalvo	VialSalvo	ring_name_54	ring_desc_54	0xb	UI/HUD/trinketIcons.anb.yc
+179	kItemType_Trinket_DodgingPendulum	DodgingPendulum	ring_name_16	ring_desc_16	0xb	UI/HUD/trinketIcons.anb.yc
+180	kItemType_Trinket_DoubleJump	DoubleJump	ring_name_55	ring_desc_55	0xb	UI/HUD/trinketIcons.anb.yc
+181	kItemType_Trinket_WallowersGauntlets	WallowersGauntlets	ring_name_45	ring_desc_45	0xb	UI/HUD/trinketIcons.anb.yc
+182	kItemType_Trinket_OozingOrgan	OozingOrgan	ring_name_21	ring_desc_21	0xb	UI/HUD/trinketIcons.anb.yc
+183	kItemType_Trinket_LightningRing	LightningRing	ring_name_58	ring_desc_58	0xb	UI/HUD/trinketIcons.anb.yc
+184	kItemType_Trinket_MRoot	MRoot	ring_name_13	ring_desc_13	0xb	UI/HUD/trinketIcons.anb.yc
+185	kItemType_Trinket_LightningGrip	LightningGrip	ring_name_36	ring_desc_36	0xb	UI/HUD/trinketIcons.anb.yc
+186	kItemType_Trinket_Statue	Statue	ring_name_59	ring_desc_59	0xb	UI/HUD/trinketIcons.anb.yc
+187	kItemType_Trinket_NiterBelt	NiterBelt	ring_name_6	ring_desc_6	0xb	UI/HUD/trinketIcons.anb.yc
+188	kItemType_Trinket_BellowsBustle	BellowsBustle	ring_name_19	ring_desc_19	0xb	UI/HUD/trinketIcons.anb.yc
+189	kItemType_Trinket_BurrowChainer	BurrowChainer	ring_name_25	ring_desc_25	0xb	UI/HUD/trinketIcons.anb.yc
+190	kItemType_Trinket_JouleSyringe	JouleSyringe	ring_name_44	ring_desc_44	0xb	UI/HUD/trinketIcons.anb.yc
+191	kItemType_Trinket_PolypLamp	Polyp	ring_name_46	ring_desc_46	0xb	UI/HUD/trinketIcons.anb.yc
+192	kItemType_Trinket_ThermalPack	ThermalPack	ring_name_35	ring_desc_35	0xb	UI/HUD/trinketIcons.anb.yc
+193	kItemType_Trinket_VialParry	VialParry	ring_name_31	ring_desc_31	0xb	UI/HUD/trinketIcons.anb.yc
+194	kItemType_Trinket_PlasmaJug	PlasmaJug	ring_name_pjug	ring_desc_pjug	0xb	UI/HUD/trinketIcons.anb.yc
