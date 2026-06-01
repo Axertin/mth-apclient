@@ -13,6 +13,7 @@ if(WIN32)
         windows/thread_windows.cpp
         windows/hook_engine_windows.cpp
         windows/proxy_version.cpp
+        windows/cert_windows.cpp
     )
 else()
     set(_mthap_pal_sources
@@ -21,6 +22,7 @@ else()
         linux/module_linux.cpp
         linux/thread_linux.cpp
         linux/hook_engine_linux.cpp
+        linux/cert_linux.cpp
     )
 endif()
 
@@ -40,7 +42,7 @@ if(WIN32)
     set_source_files_properties(windows/proxy_version.cpp
         PROPERTIES COMPILE_OPTIONS "-Wno-dll-attribute-on-redeclaration")
 
-    target_link_libraries(mthap_pal PUBLIC minhook::minhook)
+    target_link_libraries(mthap_pal PUBLIC minhook::minhook crypt32)
 else()
     target_link_libraries(mthap_pal PUBLIC frida::gum dl pthread)
 endif()

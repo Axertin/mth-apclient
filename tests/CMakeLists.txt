@@ -21,6 +21,7 @@ add_executable(mthap_unit_tests
     unit/log_test.cpp
     unit/ap_state_test.cpp
     unit/ap_coordinator_test.cpp
+    unit/cert_test.cpp
 )
 
 target_include_directories(mthap_unit_tests PRIVATE
@@ -36,7 +37,8 @@ target_compile_features(mthap_unit_tests PRIVATE cxx_std_23)
 # Exercise the real Linux file-log backend's pure entry points (ILog seam,
 # set_default_log, logf) without Frida or the module.
 target_sources(mthap_unit_tests PRIVATE
-    "${CMAKE_SOURCE_DIR}/src/pal/linux/log_linux.cpp")
+    "${CMAKE_SOURCE_DIR}/src/pal/linux/log_linux.cpp"
+    "${CMAKE_SOURCE_DIR}/src/pal/linux/cert_linux.cpp")
 
 enable_strict_warnings(mthap_unit_tests)
 
