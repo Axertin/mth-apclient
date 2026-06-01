@@ -1,0 +1,111 @@
+name: ci
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+# Reuse vcpkg-built binaries across runs via a workspace-local file cache.
+env:
+  VCPKG_BINARY_SOURCES: "clear;files,${{ github.workspace }}/.vcpkg-cache,readwrite"
+
+jobs:
+  format:
+    name: clang-format check
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check formatting (clang-format 21.1.8)
+        run: |
+          python3 -m venv /tmp/cf
+          /tmp/cf/bin/pip install --quiet clang-format==21.1.8
+          git ls-files -z '*.c' '*.cc' '*.cpp' '*.cxx' '*.h' '*.hpp' '*.hxx' \
+            | grep -zvE '^(external|build)/' \
+            | xargs -0 -r /tmp/cf/bin/clang-format --dry-run --Werror
+
+  native-tests:
+    name: Native tests (Linux x64)
+    needs: format
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: recursive }
+      - name: Install toolchain
+        run: sudo apt-get update && sudo apt-get install -y clang ninja-build
+      - name: Cache vcpkg binaries
+        uses: actions/cache@v4
+        with:
+          path: .vcpkg-cache
+          key: vcpkg-native-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
+      - name: Bootstrap vcpkg
+        run: ./external/vcpkg/bootstrap-vcpkg.sh -disableMetrics
+      - name: Configure
+        run: cmake --preset clang-x64-tests
+      - name: Build
+        run: cmake --build --preset clang-x64-tests
+      - name: Test
+        run: ctest --preset clang-x64-tests --output-on-failure --output-junit "$GITHUB_WORKSPACE/test-results.xml"
+      - name: Upload test results (JUnit)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-native-tests
+          path: test-results.xml
+
+  build-linux:
+    name: Build mod (Linux x86_64, Frida)
+    needs: format
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: recursive }
+      - name: Install toolchain
+        run: sudo apt-get update && sudo apt-get install -y clang ninja-build
+      - name: Cache vcpkg binaries
+        uses: actions/cache@v4
+        with:
+          path: .vcpkg-cache
+          key: vcpkg-linux-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
+      - name: Bootstrap vcpkg
+        run: ./external/vcpkg/bootstrap-vcpkg.sh -disableMetrics
+      - name: Configure
+        run: cmake --preset clang-x64-release
+      - name: Build
+        run: cmake --build --preset clang-x64-release
+      - name: Upload libmthap.so
+        uses: actions/upload-artifact@v4
+        with:
+          name: libmthap-linux
+          path: build/clang-x64-release/src/mth/libmthap.so
+          if-no-files-found: error
+
+  build-windows:
+    name: Build mod (Windows clang-cl x64)
+    needs: format
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: recursive }
+      - name: Set up MSVC environment (x64)
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: amd64
+      - name: Cache vcpkg binaries
+        uses: actions/cache@v4
+        with:
+          path: .vcpkg-cache
+          key: vcpkg-winclangcl-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
+      - name: Bootstrap vcpkg
+        shell: cmd
+        run: external\vcpkg\bootstrap-vcpkg.bat -disableMetrics
+      - name: Configure
+        run: cmake --preset clang-cl-x64-release
+      - name: Build
+        run: cmake --build --preset clang-cl-x64-release
+      - name: Upload mthap.dll
+        uses: actions/upload-artifact@v4
+        with:
+          name: mthap-dll-windows
+          path: build/clang-cl-x64-release/src/mth/mthap.dll
+          if-no-files-found: error
