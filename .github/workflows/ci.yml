@@ -103,9 +103,9 @@ jobs:
         run: cmake --preset clang-cl-x64-release
       - name: Build
         run: cmake --build --preset clang-cl-x64-release
-      - name: Upload mthap.dll
+      - name: Upload version.dll
         uses: actions/upload-artifact@v4
         with:
-          name: mthap-dll-windows
-          path: build/clang-cl-x64-release/src/mth/mthap.dll
+          name: version-dll-windows
+          path: build/clang-cl-x64-release/src/mth/version.dll
           if-no-files-found: error

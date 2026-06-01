@@ -36,8 +36,12 @@ if(NOT MTHAP_BUILD_TESTS_ONLY)
     apply_release_optimizations(mthap)
 
     if(WIN32)
+        # Output is `version.dll`: the game statically imports VERSION.DLL, so
+        # the loader maps us in its place (proxy in proxy_version.cpp forwards
+        # to the real System32\version.dll). Additive drop-in next to the exe;
+        # survives Steam "verify integrity" (no shipped file is renamed).
         set_target_properties(mthap PROPERTIES
-            OUTPUT_NAME "mthap"
+            OUTPUT_NAME "version"
             PREFIX ""
             SUFFIX ".dll"
         )

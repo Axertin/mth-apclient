@@ -19,6 +19,13 @@ option(MTHAP_BUILD_TESTS_ONLY "Build only tests, skip mod build" OFF)
 include(compiler_setup)
 include(SimpleGitVersion)
 
+# The LLVM-MinGW dev cross routes printf-family calls through msvcrt, which drops
+# C99 specifiers like %lld/%zu unless we switch mingw to its own conformant stdio.
+# Harmless on the canonical clang-cl (UCRT) and Linux builds, where MINGW is unset.
+if(MINGW)
+    add_compile_definitions(__USE_MINGW_ANSI_STDIO=1)
+endif()
+
 if(NOT MTHAP_BUILD_TESTS_ONLY)
     if(WIN32)
         include(MinHook)

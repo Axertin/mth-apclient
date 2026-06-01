@@ -12,6 +12,7 @@ if(WIN32)
         windows/module_windows.cpp
         windows/thread_windows.cpp
         windows/hook_engine_windows.cpp
+        windows/proxy_version.cpp
     )
 else()
     set(_mthap_pal_sources
@@ -33,6 +34,12 @@ enable_strict_warnings(mthap_pal)
 apply_release_optimizations(mthap_pal)
 
 if(WIN32)
+    # winver.h forward-declares VerLanguageName etc. without dllexport; our
+    # proxy redeclares them with dllexport, which clang-cl flags on every
+    # PROXY_FWD line. Expected — suppress on this TU only.
+    set_source_files_properties(windows/proxy_version.cpp
+        PROPERTIES COMPILE_OPTIONS "-Wno-dll-attribute-on-redeclaration")
+
     target_link_libraries(mthap_pal PUBLIC minhook::minhook)
 else()
     target_link_libraries(mthap_pal PUBLIC frida::gum dl pthread)
