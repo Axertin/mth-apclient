@@ -1,6 +1,6 @@
-#include "pal/pal_cert.hpp"
-
 #include <cstdlib>
+
+#include "pal/pal_cert.hpp"
 
 namespace fs = std::filesystem;
 

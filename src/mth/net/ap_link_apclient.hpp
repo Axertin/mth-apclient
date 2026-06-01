@@ -36,9 +36,9 @@ class ApLink final : public mth::IApLink
     [[nodiscard]] std::vector<mth::ApEvent> drain_events() override;
 
   private:
-    void run();                               // net-thread loop
-    void enqueue(std::function<void()> cmd);  // game thread -> command queue
-    void push_event(mth::ApEvent ev);         // net thread -> event queue
+    void run();                              // net-thread loop
+    void enqueue(std::function<void()> cmd); // game thread -> command queue
+    void push_event(mth::ApEvent ev);        // net thread -> event queue
 
     void do_connect(const std::string &server, const std::string &slot, const std::string &password);
     void do_disconnect();
