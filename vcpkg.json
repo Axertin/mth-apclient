@@ -4,8 +4,13 @@
   "dependencies": [],
   "features": {
     "net": {
-      "description": "Archipelago networking layer (added in a later milestone)",
-      "dependencies": []
+      "description": "Archipelago networking (apclientpp transport + TLS)",
+      "dependencies": [
+        "asio",
+        "openssl",
+        "zlib",
+        "nlohmann-json"
+      ]
     }
   }
 }

@@ -12,6 +12,7 @@
                 "CMAKE_CXX_COMPILER": "clang++",
                 "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/external/vcpkg/scripts/buildsystems/vcpkg.cmake",
                 "VCPKG_TARGET_TRIPLET": "x64-linux",
+                "VCPKG_MANIFEST_FEATURES": "net",
                 "MTHAP_BUILD_TESTS": "ON"
             },
             "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Linux" }
@@ -52,6 +53,7 @@
                 "CMAKE_CXX_COMPILER": "clang-cl",
                 "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/external/vcpkg/scripts/buildsystems/vcpkg.cmake",
                 "VCPKG_TARGET_TRIPLET": "x64-windows-static",
+                "VCPKG_MANIFEST_FEATURES": "net",
                 "CMAKE_MSVC_RUNTIME_LIBRARY": "MultiThreaded$<$<CONFIG:Debug>:Debug>",
                 "MTHAP_BUILD_TESTS": "OFF"
             },
@@ -72,6 +74,7 @@
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Debug",
                 "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/cmake/toolchains/llvm-mingw-x64.cmake",
+                "VCPKG_MANIFEST_FEATURES": "net",
                 "MTHAP_BUILD_TESTS": "OFF"
             },
             "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Linux" }

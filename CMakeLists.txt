@@ -33,6 +33,13 @@ if(NOT MTHAP_BUILD_TESTS_ONLY)
         include(FridaGum)
     endif()
     add_subdirectory(src/pal)
+
+    # Archipelago net stack (apclientpp/wswrap/websocketpp), fetched + patched
+    # into the build dir. websocketpp 0.8.2 needs a small C++23 ctor/dtor fix,
+    # applied as a PATCH_COMMAND in ApClient.cmake (no in-tree submodule edits).
+    if(MTHAP_ENABLE_NET)
+        include(ApClient)
+    endif()
 endif()
 
 # mthap_core is pure (PAL headers only) and is linked by tests; build it in
