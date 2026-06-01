@@ -1,7 +1,10 @@
 #include "mth/core/app.hpp"
 
 #include <atomic>
+#include <cstdlib>
 
+#include "mth/core/ap_coordinator.hpp"
+#include "mth/core/ap_link.hpp"
 #include "mth/core/build_id.hpp"
 #include "mth/core/game_events.hpp"
 #include "mth/game_hooks.hpp"
@@ -9,49 +12,33 @@
 #include "pal/pal_hook.hpp"
 #include "pal/pal_log.hpp"
 #include "pal/pal_module.hpp"
+#ifdef MTHAP_HAS_NET
+#include "mth/net/ap_link_apclient.hpp"
+#else
+#include "mth/core/null_ap_link.hpp"
+#endif
 
 namespace
 {
 
-// Proof-of-life sink: logs the first time each tick fires (subsequent fires
-// suppressed so we don't flood at frame rate). Confirms each detour is live on
-// the real game without becoming log spam.
-class LoggingGameEvents final : public mth::IGameEvents
+// Tick sink: drives the AP coordinator on the fixed sim tick and logs its
+// first fire (so we know the detour is live without flooding at frame rate).
+class AppTickSink final : public mth::IGameEvents
 {
   public:
+    explicit AppTickSink(mth::ApCoordinator &coord) : coord_(coord)
+    {
+    }
     void on_game_fixed_update() override
     {
-        first(fixed_, "Game::FixedUpdate");
-    }
-    void on_game_update(float dt) override
-    {
-        first_dt(update_, "Game::Update", dt);
-    }
-    void on_world_update() override
-    {
-        first(world_, "World::Update");
-    }
-    void on_update_queue(float dt) override
-    {
-        first_dt(queue_, "ycUpdateQueue::Update", dt);
+        if (!logged_.exchange(true, std::memory_order_relaxed))
+            pal::logf(pal::LogLevel::Info, "tick: Game::FixedUpdate live; AP coordinator pumping");
+        coord_.tick();
     }
 
   private:
-    static void first(std::atomic<bool> &flag, const char *what)
-    {
-        if (!flag.exchange(true, std::memory_order_relaxed))
-            pal::logf(pal::LogLevel::Info, "tick: %s fired (further fires suppressed)", what);
-    }
-    static void first_dt(std::atomic<bool> &flag, const char *what, float dt)
-    {
-        if (!flag.exchange(true, std::memory_order_relaxed))
-            pal::logf(pal::LogLevel::Info, "tick: %s fired dt=%.5f (further fires suppressed)", what, static_cast<double>(dt));
-    }
-
-    std::atomic<bool> fixed_{false};
-    std::atomic<bool> update_{false};
-    std::atomic<bool> world_{false};
-    std::atomic<bool> queue_{false};
+    mth::ApCoordinator &coord_;
+    std::atomic<bool> logged_{false};
 };
 
 } // namespace
@@ -75,18 +62,34 @@ App::App()
 
     pal::init_hook_engine();
 
-    // Install the engine tick detours for this build and route them to our
-    // logging sink. No-op (with a log line) on unmapped builds.
-    events_ = std::make_unique<LoggingGameEvents>();
+#ifdef MTHAP_HAS_NET
+    link_ = std::make_unique<mth::net::ApLink>();
+#else
+    link_ = std::make_unique<mth::NullApLink>();
+#endif
+    coordinator_ = std::make_unique<ApCoordinator>(*link_, state_);
+    events_ = std::make_unique<AppTickSink>(*coordinator_);
     hooks_ = std::make_unique<GameHooks>(build, *events_);
+
+    if (const char *server = std::getenv("MTHAP_AP_SERVER"); server && *server)
+    {
+        const char *slot = std::getenv("MTHAP_AP_SLOT");
+        const char *password = std::getenv("MTHAP_AP_PASSWORD");
+        pal::logf(pal::LogLevel::Info, "AP: MTHAP_AP_SERVER set; connecting to %s", server);
+        link_->connect(server, slot ? slot : "Player1", password ? password : "");
+    }
+    else
+    {
+        pal::logf(pal::LogLevel::Info, "AP: MTHAP_AP_SERVER unset; net idle");
+    }
 }
 
 App::~App()
 {
-    // hooks_ removed first (member declared after events_), then the sink, then
-    // the engine is torn down.
     hooks_.reset();
     events_.reset();
+    coordinator_.reset();
+    link_.reset();
     pal::shutdown_hook_engine();
     pal::logf(pal::LogLevel::Info, "mth-apclient unloading");
 }
