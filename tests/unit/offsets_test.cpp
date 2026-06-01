@@ -1,0 +1,32 @@
+#include <catch2/catch_test_macros.hpp>
+
+#include "mth/core/offsets.hpp"
+
+TEST_CASE("offsets: Linux v1.0 table matches the analyzed addresses", "[mth][offsets]")
+{
+    // Real ELF symbol vaddrs (nm on the un-stripped binary), NOT Ghidra's
+    // image-based (0x100000-biased) addresses.
+    const auto &o = mth::offsets_for(mth::Build::Linux_v1_0);
+    REQUIRE(o.game_fixed_update == 0x00c96800);
+    REQUIRE(o.game_update == 0x00c979e0);
+    REQUIRE(o.world_update == 0x00ec6420);
+    REQUIRE(o.update_queue == 0x0031f6f0);
+}
+
+TEST_CASE("offsets: unknown/unmapped builds are zeroed so GameHooks skips", "[mth][offsets]")
+{
+    const auto &unknown = mth::offsets_for(mth::Build::Unknown);
+    REQUIRE(unknown.game_fixed_update == 0);
+    REQUIRE(unknown.game_update == 0);
+    REQUIRE(unknown.world_update == 0);
+    REQUIRE(unknown.update_queue == 0);
+
+    // Windows is a known enumerator but not mapped yet — also zeroed.
+    REQUIRE(mth::offsets_for(mth::Build::Windows_v1_0).update_queue == 0);
+}
+
+TEST_CASE("offsets: lookup returns a stable reference per build", "[mth][offsets]")
+{
+    REQUIRE(&mth::offsets_for(mth::Build::Linux_v1_0) == &mth::offsets_for(mth::Build::Linux_v1_0));
+    REQUIRE(&mth::offsets_for(mth::Build::Linux_v1_0) != &mth::offsets_for(mth::Build::Unknown));
+}

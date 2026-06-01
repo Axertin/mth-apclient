@@ -8,6 +8,7 @@
 
 add_library(mthap_core STATIC
     core/build_id.cpp
+    core/offsets.cpp
 )
 
 target_include_directories(mthap_core PUBLIC "${CMAKE_SOURCE_DIR}/src")
@@ -24,6 +25,7 @@ if(NOT MTHAP_BUILD_TESTS_ONLY)
     add_library(mthap MODULE
         mth-apclient.cpp
         core/app.cpp
+        game_hooks.cpp
     )
 
     target_link_libraries(mthap PRIVATE
