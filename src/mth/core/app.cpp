@@ -5,7 +5,6 @@
 
 #include "mth/core/ap_coordinator.hpp"
 #include "mth/core/ap_link.hpp"
-#include "mth/core/build_id.hpp"
 #include "mth/core/game_events.hpp"
 #include "mth/core/rando_bridge.hpp"
 #include "mth/game_hooks.hpp"
@@ -20,7 +19,7 @@
 #include "mth/core/null_ap_link.hpp"
 #endif
 #ifdef MTHAP_HAS_OVERLAY
-#include "mth/core/offsets.hpp"
+#include "mth/core/game_symbols.hpp"
 #include "mth/ui/dev_console.hpp"
 #include "pal/pal_overlay.hpp"
 #endif
@@ -69,12 +68,10 @@ App::App()
     const auto game = pal::game_module();
     const auto self = pal::self_module();
     const auto bid = pal::game_build_id();
-    const auto build = detect_build(bid);
-    const auto name = build_name(build);
 
     pal::logf(pal::LogLevel::Info, "game base=0x%llx size=0x%zx path=%s", static_cast<unsigned long long>(game.base), game.size, game.path.c_str());
     pal::logf(pal::LogLevel::Info, "self base=0x%llx path=%s", static_cast<unsigned long long>(self.base), self.path.c_str());
-    pal::logf(pal::LogLevel::Info, "build_id=%s build=%.*s", bid.c_str(), static_cast<int>(name.size()), name.data());
+    pal::logf(pal::LogLevel::Info, "build_id=%s", bid.c_str());
 
     pal::init_hook_engine();
 
@@ -85,9 +82,9 @@ App::App()
 #endif
     coordinator_ = std::make_unique<ApCoordinator>(*link_, state_);
     events_ = std::make_unique<AppTickSink>(*coordinator_, state_);
-    hooks_ = std::make_unique<GameHooks>(build, *events_);
+    hooks_ = std::make_unique<GameHooks>(*events_);
     rando_ = std::make_unique<RandoBridge>(*link_, state_);
-    rando_hooks_ = std::make_unique<RandoHooks>(build, *rando_);
+    rando_hooks_ = std::make_unique<RandoHooks>(*rando_);
 
     if (const char *server = std::getenv("MTHAP_AP_SERVER"); server && *server)
     {
@@ -102,8 +99,7 @@ App::App()
     }
 #ifdef MTHAP_HAS_OVERLAY
     {
-        const auto evt_off = overlay_offsets_for(build).process_sdl_event;
-        const pal::OverlayConfig ocfg{build, evt_off ? game.base + evt_off : 0};
+        const pal::OverlayConfig ocfg{pal::resolve_game_symbol(sym::process_sdl_event)};
         console_ = std::make_unique<DevConsole>(*this);
         overlay_ = pal::make_overlay(ocfg);
         overlay_->set_ui(console_.get());

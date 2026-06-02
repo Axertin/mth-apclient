@@ -16,8 +16,6 @@ include(Catch)
 
 add_executable(mthap_unit_tests
     unit/smoke_test.cpp
-    unit/build_id_test.cpp
-    unit/offsets_test.cpp
     unit/log_test.cpp
     unit/ap_state_test.cpp
     unit/ap_coordinator_test.cpp

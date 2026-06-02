@@ -3,7 +3,7 @@
 #include <cstdint>
 
 #include "mth/core/game_events.hpp"
-#include "mth/core/offsets.hpp"
+#include "mth/core/game_symbols.hpp"
 #include "pal/pal_log.hpp"
 #include "pal/pal_module.hpp"
 
@@ -59,44 +59,42 @@ void repl_update_queue(void *self, float dt)
 namespace mth
 {
 
-GameHooks::GameHooks(Build build, IGameEvents &sink)
+GameHooks::GameHooks(IGameEvents &sink)
 {
-    const auto &off = offsets_for(build);
-    if (off.game_fixed_update == 0)
-    {
-        pal::logf(pal::LogLevel::Warn, "GameHooks: no offset table for this build; tick hooks not installed");
-        return;
-    }
-
     g_sink = &sink;
-    const auto base = pal::game_module().base;
 
     struct Spec
     {
-        const char *name;
-        std::uintptr_t off;
+        const char *label;
+        const char *symbol;
         void *replacement;
         void **trampoline;
     };
     const Spec specs[kCount] = {
-        {"Game::FixedUpdate", off.game_fixed_update, reinterpret_cast<void *>(&repl_game_fixed_update), reinterpret_cast<void **>(&g_orig_game_fixed_update)},
-        {"Game::Update", off.game_update, reinterpret_cast<void *>(&repl_game_update), reinterpret_cast<void **>(&g_orig_game_update)},
-        {"World::Update", off.world_update, reinterpret_cast<void *>(&repl_world_update), reinterpret_cast<void **>(&g_orig_world_update)},
-        {"ycUpdateQueue::Update", off.update_queue, reinterpret_cast<void *>(&repl_update_queue), reinterpret_cast<void **>(&g_orig_update_queue)},
+        {"Game::FixedUpdate", sym::game_fixed_update, reinterpret_cast<void *>(&repl_game_fixed_update), reinterpret_cast<void **>(&g_orig_game_fixed_update)},
+        {"Game::Update", sym::game_update, reinterpret_cast<void *>(&repl_game_update), reinterpret_cast<void **>(&g_orig_game_update)},
+        {"World::Update", sym::world_update, reinterpret_cast<void *>(&repl_world_update), reinterpret_cast<void **>(&g_orig_world_update)},
+        {"ycUpdateQueue::Update", sym::update_queue, reinterpret_cast<void *>(&repl_update_queue), reinterpret_cast<void **>(&g_orig_update_queue)},
     };
 
     for (const auto &s : specs)
     {
-        void *target = reinterpret_cast<void *>(base + s.off);
+        const auto addr = pal::resolve_game_symbol(s.symbol);
+        if (addr == 0)
+        {
+            pal::logf(pal::LogLevel::Error, "GameHooks: symbol %s not found; %s not hooked", s.symbol, s.label);
+            continue;
+        }
+        void *target = reinterpret_cast<void *>(addr);
         const auto id = pal::hook_engine().install_hook(target, s.replacement, s.trampoline);
         if (id == pal::kInvalidHookId)
         {
-            pal::logf(pal::LogLevel::Error, "GameHooks: failed to hook %s at %p", s.name, target);
+            pal::logf(pal::LogLevel::Error, "GameHooks: failed to hook %s at %p", s.label, target);
         }
         else
         {
             ids_[installed_++] = id;
-            pal::logf(pal::LogLevel::Info, "GameHooks: hooked %s at %p (id=%llu)", s.name, target, static_cast<unsigned long long>(id));
+            pal::logf(pal::LogLevel::Info, "GameHooks: hooked %s at %p via symbol (id=%llu)", s.label, target, static_cast<unsigned long long>(id));
         }
     }
 }

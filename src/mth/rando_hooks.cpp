@@ -1,6 +1,6 @@
 #include "mth/rando_hooks.hpp"
 
-#include "mth/core/offsets.hpp"
+#include "mth/core/game_symbols.hpp"
 #include "mth/core/rando_bridge.hpp"
 #include "pal/pal_hook.hpp"
 #include "pal/pal_log.hpp"
@@ -33,17 +33,17 @@ void repl_on_pickup_done(int slot, int item_type, void *player, void *vec, int a
 namespace mth
 {
 
-RandoHooks::RandoHooks(Build build, RandoBridge &bridge)
+RandoHooks::RandoHooks(RandoBridge &bridge)
 {
-    const auto &off = rando_offsets_for(build);
-    if (off.on_pickup_done == 0)
+    g_bridge = &bridge;
+    const auto addr = pal::resolve_game_symbol(sym::on_pickup_done);
+    if (addr == 0)
     {
-        pal::logf(pal::LogLevel::Warn, "RandoHooks: no offset table for this build; pickup hook not installed");
+        pal::logf(pal::LogLevel::Error, "RandoHooks: symbol %s not found; OnPickupDone not hooked", sym::on_pickup_done);
+        g_bridge = nullptr;
         return;
     }
-
-    g_bridge = &bridge;
-    void *target = reinterpret_cast<void *>(pal::game_module().base + off.on_pickup_done);
+    void *target = reinterpret_cast<void *>(addr);
     g_id = pal::hook_engine().install_hook(target, reinterpret_cast<void *>(&repl_on_pickup_done), reinterpret_cast<void **>(&g_orig_on_pickup_done));
     if (g_id == pal::kInvalidHookId)
     {
@@ -52,7 +52,7 @@ RandoHooks::RandoHooks(Build build, RandoBridge &bridge)
         return;
     }
     installed_ = true;
-    pal::logf(pal::LogLevel::Info, "RandoHooks: hooked OnPickupDone at %p (id=%llu)", target, static_cast<unsigned long long>(g_id));
+    pal::logf(pal::LogLevel::Info, "RandoHooks: hooked OnPickupDone at %p via symbol (id=%llu)", target, static_cast<unsigned long long>(g_id));
 }
 
 RandoHooks::~RandoHooks()

@@ -3,11 +3,6 @@
 #include <cstdint>
 #include <memory>
 
-namespace mth
-{
-enum class Build; // opaque-enum fwd decl (defined in mth/core/build_id.hpp)
-}
-
 namespace pal
 {
 
@@ -32,8 +27,7 @@ class IOverlay
 
 struct OverlayConfig
 {
-    mth::Build build;                      // selects the ProcessSDLEvent offset
-    std::uintptr_t process_sdl_event_addr; // absolute addr (base + offset), 0 = none
+    std::uintptr_t process_sdl_event_addr; // absolute addr of ProcessSDLEvent(SDL_Event&), 0 = input unavailable
 };
 
 // Linux -> Vulkan/SDL overlay. Windows -> inert stub. Never returns null.

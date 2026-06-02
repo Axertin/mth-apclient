@@ -2,7 +2,6 @@
 
 #include <cstddef>
 
-#include "mth/core/build_id.hpp"
 #include "pal/pal_hook.hpp"
 
 namespace mth
@@ -10,16 +9,15 @@ namespace mth
 
 struct IGameEvents;
 
-// Installs detours on the engine's tick functions for the given build and
-// forwards each to `sink`. RAII: removes them on destruction. If the build's
-// offsets aren't known (offsets_for returns zeros), it logs and installs
-// nothing. `sink` must outlive the GameHooks.
+// Installs detours on the engine's tick functions (resolved by symbol name) and
+// forwards each to `sink`. RAII: removes them on destruction. If a symbol can't
+// be resolved, it logs and skips that hook. `sink` must outlive the GameHooks.
 //
 // Lives in the module lane (not mthap_core) because it touches pal:: impls.
 class GameHooks
 {
   public:
-    GameHooks(Build build, IGameEvents &sink);
+    GameHooks(IGameEvents &sink);
     ~GameHooks();
 
     GameHooks(const GameHooks &) = delete;

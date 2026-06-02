@@ -7,8 +7,6 @@
 #                Added in a later task; guarded on NOT MTHAP_BUILD_TESTS_ONLY.
 
 add_library(mthap_core STATIC
-    core/build_id.cpp
-    core/offsets.cpp
     core/ap_state.cpp
     core/ap_coordinator.cpp
     core/rando_bridge.cpp

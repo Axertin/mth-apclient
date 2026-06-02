@@ -12,6 +12,7 @@ if(WIN32)
         windows/module_windows.cpp
         windows/thread_windows.cpp
         windows/hook_engine_windows.cpp
+        windows/symbol_windows.cpp
         windows/proxy_version.cpp
         windows/cert_windows.cpp
         windows/overlay_windows.cpp
@@ -23,6 +24,7 @@ else()
         linux/module_linux.cpp
         linux/thread_linux.cpp
         linux/hook_engine_linux.cpp
+        linux/symbol_linux.cpp
         linux/cert_linux.cpp
     )
 endif()
