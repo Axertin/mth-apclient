@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
+#include <functional>
 #include <mutex>
 #include <string>
 
@@ -90,6 +91,9 @@ NullLog g_null_log;
 std::atomic<pal::ILog *> g_log{&g_null_log};
 FileLog *g_file_log{nullptr};
 
+std::mutex g_observer_mu;
+pal::LogObserver g_observer; // guarded by g_observer_mu
+
 } // namespace
 
 namespace pal
@@ -141,11 +145,22 @@ void set_default_log(ILog *log)
     g_log.store(log ? log : &g_null_log, std::memory_order_release);
 }
 
+void set_log_observer(LogObserver obs)
+{
+    std::lock_guard<std::mutex> lock(g_observer_mu);
+    g_observer = std::move(obs);
+}
+
 void vlogf(LogLevel level, const char *fmt, std::va_list ap)
 {
     char buf[1024];
     std::vsnprintf(buf, sizeof(buf), fmt, ap);
     default_log().write(level, buf);
+    {
+        std::lock_guard<std::mutex> lock(g_observer_mu);
+        if (g_observer)
+            g_observer(level, buf);
+    }
 }
 
 void logf(LogLevel level, const char *fmt, ...)

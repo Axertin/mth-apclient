@@ -12,7 +12,7 @@
                 "CMAKE_CXX_COMPILER": "clang++",
                 "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/external/vcpkg/scripts/buildsystems/vcpkg.cmake",
                 "VCPKG_TARGET_TRIPLET": "x64-linux",
-                "VCPKG_MANIFEST_FEATURES": "net",
+                "VCPKG_MANIFEST_FEATURES": "net;overlay",
                 "MTHAP_BUILD_TESTS": "ON"
             },
             "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Linux" }

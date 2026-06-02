@@ -19,6 +19,11 @@
 #else
 #include "mth/core/null_ap_link.hpp"
 #endif
+#ifdef MTHAP_HAS_OVERLAY
+#include "mth/core/offsets.hpp"
+#include "mth/ui/dev_console.hpp"
+#include "pal/pal_overlay.hpp"
+#endif
 
 namespace
 {
@@ -95,10 +100,24 @@ App::App()
     {
         pal::logf(pal::LogLevel::Info, "AP: MTHAP_AP_SERVER unset; net idle");
     }
+#ifdef MTHAP_HAS_OVERLAY
+    {
+        const auto evt_off = overlay_offsets_for(build).process_sdl_event;
+        const pal::OverlayConfig ocfg{build, evt_off ? game.base + evt_off : 0};
+        console_ = std::make_unique<DevConsole>(*this);
+        overlay_ = pal::make_overlay(ocfg);
+        overlay_->set_ui(console_.get());
+        pal::logf(pal::LogLevel::Info, "overlay: dev console attached"); // overlay logs the resolved toggle key
+    }
+#endif
 }
 
 App::~App()
 {
+#ifdef MTHAP_HAS_OVERLAY
+    overlay_.reset(); // removes render/input hooks + stops drawing first
+    console_.reset(); // then unregister the log observer
+#endif
     rando_hooks_.reset();
     rando_.reset();
     hooks_.reset();
@@ -116,5 +135,37 @@ void App::run()
     // until App is destroyed. (Networking / per-tick logic land in later work.)
     pal::logf(pal::LogLevel::Info, "App::run -- tick hooks installed; idling");
 }
+
+#ifdef MTHAP_HAS_OVERLAY
+void App::connect(const std::string &server, const std::string &slot, const std::string &password)
+{
+    link_->connect(server, slot, password);
+}
+
+void App::disconnect()
+{
+    link_->disconnect();
+}
+
+std::vector<std::string> App::status_lines() const
+{
+    std::vector<std::string> out;
+    out.push_back(std::string("connected: ") + (link_->is_connected() ? "yes" : "no"));
+    out.push_back("ap status: " + state_.status());
+    out.push_back("player slot: " + std::to_string(state_.player_slot()));
+    out.push_back("received items: " + std::to_string(state_.received_items().size()));
+    return out;
+}
+
+std::vector<std::string> App::item_lines() const
+{
+    std::vector<std::string> out;
+    for (const auto &it : state_.received_items())
+        out.push_back("item_id=" + std::to_string(it.item_id) + " index=" + std::to_string(it.index) + " from=" + std::to_string(it.player_from));
+    if (out.empty())
+        out.push_back("(no items received yet)");
+    return out;
+}
+#endif
 
 } // namespace mth

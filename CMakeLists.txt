@@ -17,6 +17,14 @@ option(MTHAP_BUILD_TESTS "Build unit tests (Catch2)" ON)
 option(MTHAP_BUILD_TESTS_ONLY "Build only tests, skip mod build" OFF)
 option(MTHAP_ENABLE_NET "Build the Archipelago network lane (apclientpp + TLS)" ON)
 
+# Overlay (Dear ImGui dev UI), Linux/Vulkan only this pass. Off for the
+# LLVM-MinGW dev cross (like the net lane); the Windows build gets a no-op stub
+# that needs none of the overlay's third-party deps.
+option(MTHAP_ENABLE_OVERLAY "Build the in-game Dear ImGui dev overlay (Linux/Vulkan)" ON)
+if(MINGW)
+    set(MTHAP_ENABLE_OVERLAY OFF)
+endif()
+
 include(compiler_setup)
 include(SimpleGitVersion)
 
@@ -40,6 +48,10 @@ if(NOT MTHAP_BUILD_TESTS_ONLY)
     # applied as a PATCH_COMMAND in ApClient.cmake (no in-tree submodule edits).
     if(MTHAP_ENABLE_NET)
         include(ApClient)
+    endif()
+
+    if(MTHAP_ENABLE_OVERLAY AND NOT WIN32)
+        include(DearImGui)
     endif()
 endif()
 

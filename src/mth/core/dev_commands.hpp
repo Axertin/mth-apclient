@@ -1,0 +1,32 @@
+#pragma once
+
+#include <string>
+#include <vector>
+
+namespace mth
+{
+
+enum class CommandKind
+{
+    None,    // empty/whitespace-only input
+    Unknown, // first token matched no command
+    Help,
+    Clear,
+    Status,
+    Items,
+    Connect, // args: [server, slot, (optional) password]
+    Disconnect,
+};
+
+struct ParsedCommand
+{
+    CommandKind kind{CommandKind::None};
+    std::vector<std::string> args; // tokens after the command word
+    std::string verb;              // the raw first token (for Unknown messages)
+};
+
+// Splits on ASCII whitespace (no quoting) and maps the first token to a
+// CommandKind. Matching is case-insensitive. Empty input -> None.
+ParsedCommand parse_command(const std::string &line);
+
+} // namespace mth

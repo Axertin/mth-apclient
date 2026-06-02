@@ -11,6 +11,16 @@
         "zlib",
         "nlohmann-json"
       ]
+    },
+    "overlay": {
+      "description": "In-game Dear ImGui dev overlay (Vulkan + SDL2 input)",
+      "dependencies": [
+        "vulkan-headers",
+        {
+          "name": "sdl2",
+          "default-features": false
+        }
+      ]
     }
   }
 }

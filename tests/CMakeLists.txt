@@ -23,6 +23,8 @@ add_executable(mthap_unit_tests
     unit/ap_coordinator_test.cpp
     unit/rando_bridge_test.cpp
     unit/cert_test.cpp
+    unit/dev_commands_test.cpp
+    unit/log_ring_test.cpp
 )
 
 target_include_directories(mthap_unit_tests PRIVATE

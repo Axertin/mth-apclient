@@ -32,4 +32,16 @@ struct RandoOffsets
 
 const RandoOffsets &rando_offsets_for(Build);
 
+// Per-build addresses of functions the dev overlay hooks. Zero == not mapped.
+// The Vulkan render path resolves its functions dynamically from libvulkan, so
+// only the statically-linked SDL input pump needs a build-keyed offset here.
+struct OverlayOffsets
+{
+    std::uintptr_t process_sdl_event; // ProcessSDLEvent(SDL_Event&) — the game's central event
+                                      // processor; main's SDL_WaitEvent loop calls it for every
+                                      // event (the SDL filter/PeepEvents/PollEvent are NOT the path)
+};
+
+const OverlayOffsets &overlay_offsets_for(Build);
+
 } // namespace mth

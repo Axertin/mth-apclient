@@ -14,6 +14,7 @@ if(WIN32)
         windows/hook_engine_windows.cpp
         windows/proxy_version.cpp
         windows/cert_windows.cpp
+        windows/overlay_windows.cpp
     )
 else()
     set(_mthap_pal_sources
@@ -24,6 +25,12 @@ else()
         linux/hook_engine_linux.cpp
         linux/cert_linux.cpp
     )
+endif()
+
+# Linux overlay (Vulkan/SDL) is built only when the overlay feature is on; the
+# Windows overlay stub is always compiled (it needs no third-party deps).
+if(NOT WIN32 AND MTHAP_ENABLE_OVERLAY)
+    list(APPEND _mthap_pal_sources linux/overlay_linux.cpp)
 endif()
 
 add_library(mthap_pal OBJECT ${_mthap_pal_sources})
@@ -45,4 +52,14 @@ if(WIN32)
     target_link_libraries(mthap_pal PUBLIC minhook::minhook crypt32)
 else()
     target_link_libraries(mthap_pal PUBLIC frida::gum dl pthread)
+endif()
+
+# Overlay: link the ImGui object lib (Linux only) and flag the build so App wires
+# the dev console. PUBLIC so the final mthap module inherits both the ImGui
+# include dirs (to compile DevConsole later) and the MTHAP_HAS_OVERLAY define.
+# Windows does NOT define MTHAP_HAS_OVERLAY: its make_overlay is an inert stub
+# that App never instantiates.
+if(NOT WIN32 AND MTHAP_ENABLE_OVERLAY)
+    target_link_libraries(mthap_pal PUBLIC mthap::imgui)
+    target_compile_definitions(mthap_pal PUBLIC MTHAP_HAS_OVERLAY)
 endif()

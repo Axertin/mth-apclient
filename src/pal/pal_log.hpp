@@ -2,6 +2,7 @@
 
 #include <cstdarg>
 #include <filesystem>
+#include <functional>
 #include <string_view>
 
 namespace pal
@@ -37,5 +38,13 @@ std::filesystem::path log_dir();
 
 ILog &default_log();
 void set_default_log(ILog *);
+
+// Optional tee: every logf/vlogf line is also handed to the observer (with the
+// same level and the formatted message, no timestamp/tag prefix). Thread-safe;
+// the observer may be invoked from any thread. Pass nullptr to clear.
+// The observer must NOT call logf/vlogf (it runs under the log mutex; re-entry
+// deadlocks).
+using LogObserver = std::function<void(LogLevel, std::string_view)>;
+void set_log_observer(LogObserver);
 
 } // namespace pal

@@ -12,6 +12,8 @@ add_library(mthap_core STATIC
     core/ap_state.cpp
     core/ap_coordinator.cpp
     core/rando_bridge.cpp
+    core/dev_commands.cpp
+    core/log_ring.cpp
 )
 
 target_include_directories(mthap_core PUBLIC "${CMAKE_SOURCE_DIR}/src")
@@ -75,6 +77,16 @@ if(NOT MTHAP_BUILD_TESTS_ONLY)
         target_compile_definitions(mthap PRIVATE MTHAP_HAS_NET)
     endif()
 
+    # The ImGui OBJECT lib is linked PUBLIC into mthap_pal (another OBJECT lib),
+    # which propagates its usage requirements (includes/defines) but NOT its
+    # object files transitively to this MODULE. The final module must link the
+    # ImGui objects directly or the overlay's ImGui_ImplVulkan_*/ImGui:: symbols
+    # stay undefined. (Linux + overlay-enabled only, matching src/pal.)
+    if(NOT WIN32 AND MTHAP_ENABLE_OVERLAY)
+        target_link_libraries(mthap PRIVATE mthap::imgui)
+        target_sources(mthap PRIVATE ui/dev_console.cpp)
+    endif()
+
     target_compile_features(mthap PRIVATE cxx_std_23)
     enable_strict_warnings(mthap)
     apply_release_optimizations(mthap)
@@ -105,5 +117,12 @@ if(NOT MTHAP_BUILD_TESTS_ONLY)
             "LINKER:-z,now"
             "LINKER:--exclude-libs,ALL"
         )
+        # Guard against the .so requiring glibc symbol versions newer than the
+        # Steam Linux Runtime provides (which makes the mod fail to load in-game
+        # silently: no log, no window). Turns that into a loud build failure.
+        add_custom_command(TARGET mthap POST_BUILD
+            COMMAND "${CMAKE_SOURCE_DIR}/scripts/check-glibc-max.sh" "$<TARGET_FILE:mthap>"
+            VERBATIM
+            COMMENT "Checking max required glibc symbol version (Steam Runtime compat)")
     endif()
 endif()
