@@ -176,6 +176,13 @@ PFN_ProcessSDLEvent g_orig_process = nullptr;
 // and read in the present hook (render thread) draw gate.
 std::atomic<bool> g_console_open{false};
 
+// ImGui's per-frame capture intent, published by the present (render) thread after
+// each frame and read by the input hook (game thread) to decide what to swallow.
+// One frame in arrears by construction; default false so that until ImGui has drawn
+// a frame (e.g. the moment the console opens) input passes through to the game.
+std::atomic<bool> g_imgui_want_keyboard{false};
+std::atomic<bool> g_imgui_want_mouse{false};
+
 // Cross-thread input hand-off. SDL_PeepEvents may run on a different thread than
 // vkQueuePresentKHR (the engine has a ycGameThread), and ImGui is NOT thread-safe.
 // So the SDL hook only CAPTURES events into this queue; the present hook drains it
@@ -526,6 +533,22 @@ static bool is_imgui_input_event(const SDL_Event &e)
     }
 }
 
+// Is this a mouse (vs keyboard/text) input event? Picks which of ImGui's
+// WantCapture flags gates the swallow decision for this event.
+static bool is_mouse_event(const SDL_Event &e)
+{
+    switch (e.type)
+    {
+    case SDL_MOUSEMOTION:
+    case SDL_MOUSEBUTTONDOWN:
+    case SDL_MOUSEBUTTONUP:
+    case SDL_MOUSEWHEEL:
+        return true;
+    default:
+        return false;
+    }
+}
+
 // ---------------------------------------------------------------------------
 // ProcessSDLEvent detour: the game's central event processor (one event by
 // reference). We flip the console on the toggle key, and while the console is
@@ -547,13 +570,23 @@ extern "C" void repl_process_sdl_event(SDL_Event *e)
             return; // swallow: do not forward to the game
         }
 
-        // While open: queue input for ImGui (fed on the render thread) and swallow
-        // it from the game. While closed: fall through and process normally.
+        // While open: hand every input event to ImGui (fed on the render thread), but
+        // only SWALLOW it from the game when ImGui actually wants that input class --
+        // i.e. the mouse is over the console window or its text box has keyboard focus.
+        // Otherwise fall through and forward, so the player can still move/act while the
+        // console is merely visible. WantCapture* is published one frame in arrears by
+        // the present hook, so right after opening (flags default false) input passes to
+        // the game until you hover or click into the console. While closed: process
+        // normally.
         if (g_console_open.load(std::memory_order_relaxed) && is_imgui_input_event(*e))
         {
-            std::lock_guard<std::mutex> lk(g_input_mu);
-            g_input_queue.push_back(*e);
-            return; // swallow
+            {
+                std::lock_guard<std::mutex> lk(g_input_mu);
+                g_input_queue.push_back(*e);
+            }
+            const bool want = is_mouse_event(*e) ? g_imgui_want_mouse.load(std::memory_order_acquire) : g_imgui_want_keyboard.load(std::memory_order_acquire);
+            if (want)
+                return; // ImGui owns this input; swallow it from the game
         }
     }
 
@@ -1069,6 +1102,9 @@ VKAPI_ATTR VkResult VKAPI_CALL repl_vkQueuePresentKHR(VkQueue queue, const VkPre
     //    any input captured during the closing frame so it does not replay on reopen.
     if (!g_console_open.load(std::memory_order_acquire))
     {
+        // Console hidden: claim no input so the hook forwards everything to the game.
+        g_imgui_want_keyboard.store(false, std::memory_order_release);
+        g_imgui_want_mouse.store(false, std::memory_order_release);
         std::lock_guard<std::mutex> lk(g_input_mu);
         g_input_queue.clear();
         return g_orig_present(queue, pPresentInfo);
@@ -1117,6 +1153,12 @@ VKAPI_ATTR VkResult VKAPI_CALL repl_vkQueuePresentKHR(VkQueue queue, const VkPre
         ImGui::ShowDemoWindow();
 
     ImGui::Render();
+
+    // Publish this frame's capture intent for the input hook (read on the game
+    // thread). Reflects the hover/focus computed in NewFrame, so the hook applies it
+    // to the next event -- a deliberate ~1-frame lag at the focus/blur boundary.
+    g_imgui_want_keyboard.store(io.WantCaptureKeyboard, std::memory_order_release);
+    g_imgui_want_mouse.store(io.WantCaptureMouse, std::memory_order_release);
 
     // 6. Record the overlay draw into this image's command buffer. Wait on this
     //    image's in-flight fence first so the PREVIOUS overlay submit for this image
