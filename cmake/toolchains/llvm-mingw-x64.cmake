@@ -1,7 +1,7 @@
 # Dev-only cross toolchain: build a Windows x86_64 DLL on Linux with LLVM-MinGW.
 #
 # NOT a release path. The canonical Windows build is native clang-cl (MSVC ABI,
-# x64-windows-static) on CI — see the clang-cl-x64-* presets. This toolchain
+# x64-windows-static) on CI - see the clang-cl-x64-* presets. This toolchain
 # produces a MinGW-ABI DLL and exists purely as a fast Linux-side compile-check
 # of the Windows code paths. Expects LLVM-MinGW at /opt/llvm-mingw (override via
 # LLVM_MINGW_ROOT).

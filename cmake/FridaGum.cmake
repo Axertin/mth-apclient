@@ -1,4 +1,4 @@
-# FridaGum.cmake — fetch frida-gum devkit (Linux only) and expose as `frida::gum`.
+# FridaGum.cmake - fetch frida-gum devkit (Linux only) and expose as `frida::gum`.
 #
 # Frida is our hook backend on Linux. On Windows we use MinHook instead;
 # see cmake/MinHook.cmake. The plan originally targeted Frida on both,

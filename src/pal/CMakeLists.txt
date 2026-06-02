@@ -2,7 +2,7 @@
 #
 # `mthap_pal` is an OBJECT library (not STATIC) so loader-injected entry points
 # (the Linux constructor in entry_linux.cpp, the Windows DllMain) are pulled
-# into the final `mthap` module unconditionally — a STATIC archive would let
+# into the final `mthap` module unconditionally - a STATIC archive would let
 # the linker drop those unreferenced .o files and silently break the mod.
 
 if(WIN32)
@@ -38,7 +38,7 @@ apply_release_optimizations(mthap_pal)
 if(WIN32)
     # winver.h forward-declares VerLanguageName etc. without dllexport; our
     # proxy redeclares them with dllexport, which clang-cl flags on every
-    # PROXY_FWD line. Expected — suppress on this TU only.
+    # PROXY_FWD line. Expected - suppress on this TU only.
     set_source_files_properties(windows/proxy_version.cpp
         PROPERTIES COMPILE_OPTIONS "-Wno-dll-attribute-on-redeclaration")
 

@@ -1,8 +1,8 @@
-# apply_patch.cmake — idempotent, cross-platform `git apply` for FetchContent.
+# apply_patch.cmake - idempotent, cross-platform `git apply` for FetchContent.
 #
 # FetchContent's PATCH_COMMAND can re-run against an already-patched source tree
 # (any reconfigure that invalidates the populate stamp), and a raw `git apply`
-# is not idempotent — it errors with "patch does not apply" the second time.
+# is not idempotent - it errors with "patch does not apply" the second time.
 # This wrapper reverse-checks first and no-ops if the patch is already applied.
 #
 # Usage:

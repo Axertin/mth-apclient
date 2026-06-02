@@ -51,7 +51,7 @@ BOOL WINAPI DllMain(HINSTANCE hInstDll, DWORD reason, LPVOID /*reserved*/)
     {
     case DLL_PROCESS_ATTACH:
         DisableThreadLibraryCalls(hInstDll);
-        // Always stand up the real version.dll first — we forward its exports
+        // Always stand up the real version.dll first - we forward its exports
         // for whatever process loaded us, even if we don't bootstrap the mod here.
         mth::proxy_version_load_real();
         if (!is_target_process())

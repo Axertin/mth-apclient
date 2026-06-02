@@ -1,6 +1,6 @@
 #pragma once
 
-// Public hook-engine interface. Frida-gum types are NOT exposed here —
+// Public hook-engine interface. Frida-gum types are NOT exposed here -
 // the default implementation is in src/pal/hook_manager.cpp; tests
 // substitute a MockHookEngine via set_hook_engine().
 

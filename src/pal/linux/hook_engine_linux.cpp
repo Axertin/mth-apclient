@@ -126,7 +126,7 @@ void set_hook_engine(IHookEngine *e)
 }
 
 // FridaHookEngine is the default; tests can override it via set_hook_engine().
-// No production code installs hooks yet — the first real game hook lands in a
+// No production code installs hooks yet - the first real game hook lands in a
 // later milestone.
 
 } // namespace pal

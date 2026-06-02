@@ -18,16 +18,16 @@ struct IGameEvents
 
     virtual void on_game_fixed_update()
     {
-    } // Game::FixedUpdate() — fixed sim step (dt = 1/targetFPS)
+    } // Game::FixedUpdate() - fixed sim step (dt = 1/targetFPS)
     virtual void on_game_update(float /*dt*/)
     {
-    } // Game::Update(dt) — per frame
+    } // Game::Update(dt) - per frame
     virtual void on_world_update()
     {
-    } // World::Update — per-level world tick
+    } // World::Update - per-level world tick
     virtual void on_update_queue(float /*dt*/)
     {
-    } // ycUpdateQueue::Update(dt) — low-level pump (fires per queue)
+    } // ycUpdateQueue::Update(dt) - low-level pump (fires per queue)
 };
 
 } // namespace mth

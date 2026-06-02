@@ -1,12 +1,12 @@
 // Runtime proxy for version.dll. The mod ships as `version.dll` next to
-// MinaTheHollower.exe, which statically imports VERSION.DLL — so the loader
+// MinaTheHollower.exe, which statically imports VERSION.DLL - so the loader
 // maps us in its place. DllMain (entry_windows.cpp) loads the real version.dll
 // from System32 and bootstraps the mod; this file forwards the standard
 // exports to the real DLL.
 //
 // x86_64 note: unlike the i686 stdcall ABI, x64 applies no name decoration, so
 // __declspec(dllexport) on an extern "C" function publishes the undecorated
-// export name directly (e.g. "GetFileVersionInfoW") — no /EXPORT alias needed.
+// export name directly (e.g. "GetFileVersionInfoW") - no /EXPORT alias needed.
 // Lookups via GetProcAddress are lazy, per-function on first use.
 
 #define WIN32_LEAN_AND_MEAN

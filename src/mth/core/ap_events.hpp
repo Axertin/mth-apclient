@@ -17,7 +17,7 @@ struct ReceivedItem
 };
 
 // Inbound events: produced by the transport (net thread), folded into ApState
-// on the game thread by ApCoordinator. Plain values — no nlohmann/apclientpp.
+// on the game thread by ApCoordinator. Plain values - no nlohmann/apclientpp.
 struct ApConnected
 {
     std::string slot_data; // raw slot_data JSON text (parsed later by game logic)

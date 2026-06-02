@@ -6,7 +6,7 @@ namespace mth
 namespace
 {
 
-// Unknown / unmapped builds: zeros → GameHooks installs nothing.
+// Unknown / unmapped builds: zeros -> GameHooks installs nothing.
 constexpr GameOffsets kNoOffsets{0, 0, 0, 0};
 
 constexpr GameOffsets kLinuxV1{
@@ -25,7 +25,7 @@ const GameOffsets &offsets_for(Build build)
     case Build::Linux_v1_0:
         return kLinuxV1;
     case Build::Windows_v1_0:
-        // Windows offsets not mapped yet — the PE ships no symbols, so these
+        // Windows offsets not mapped yet - the PE ships no symbols, so these
         // get ported from the named Linux binary later. Until then, no hooks.
     case Build::Unknown:
         break;

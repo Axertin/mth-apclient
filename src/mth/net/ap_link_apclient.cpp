@@ -13,7 +13,7 @@
 
 namespace
 {
-// AP game name — placeholder until the Mina apworld defines its name.
+// AP game name - placeholder until the Mina apworld defines its name.
 constexpr const char *kGameName = "Mina the Hollower";
 // items_handling bitmask: remote items + own-world items + starting inventory.
 constexpr int kItemHandling = 0b111;
@@ -223,7 +223,7 @@ void ApLink::setup_handlers(const std::string &slot, const std::string &password
             connected_.store(true);
             std::list<std::string> tags;
             // Mirror okami's proven connect flow: (re)assert items-handling/tags
-            // after the slot connects. send_items_handling=false, tags empty —
+            // after the slot connects. send_items_handling=false, tags empty -
             // effectively confirms the ConnectSlot negotiation.
             client_->ConnectUpdate(false, kItemHandling, true, tags);
             client_->StatusUpdate(APClient::ClientStatus::PLAYING);

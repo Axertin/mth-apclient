@@ -97,7 +97,7 @@ App::~App()
 void App::run()
 {
     // Tick detours are installed in the ctor; they fire on the game thread.
-    // Nothing else to drive yet — the worker thread returns and the hooks live
+    // Nothing else to drive yet - the worker thread returns and the hooks live
     // until App is destroyed. (Networking / per-tick logic land in later work.)
     pal::logf(pal::LogLevel::Info, "App::run -- tick hooks installed; idling");
 }

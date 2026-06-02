@@ -1,4 +1,4 @@
-# Catch2 via FetchContent — keeps the test lane off the vcpkg bootstrap.
+# Catch2 via FetchContent - keeps the test lane off the vcpkg bootstrap.
 include(FetchContent)
 
 set(CATCH2_VERSION "v3.5.4")

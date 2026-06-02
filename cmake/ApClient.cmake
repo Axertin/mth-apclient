@@ -1,4 +1,4 @@
-# ApClient.cmake — header-only Archipelago client deps via FetchContent.
+# ApClient.cmake - header-only Archipelago client deps via FetchContent.
 #
 # apclientpp -> wswrap -> websocketpp form the Archipelago net stack. All three
 # are header-only and were previously vendored as git submodules under external/.
@@ -22,7 +22,7 @@ include(FetchContent)
 cmake_policy(SET CMP0097 NEW)
 
 # SOURCE_SUBDIR points at a path with no CMakeLists.txt so MakeAvailable populates
-# (and runs PATCH_COMMAND) but does NOT add_subdirectory — these are header-only and
+# (and runs PATCH_COMMAND) but does NOT add_subdirectory - these are header-only and
 # their own CMake builds (examples/tests/install) are not wanted.
 set(_apclient_no_build "_headers_only")
 

@@ -1,7 +1,7 @@
 # mth-apclient: pure game logic (mthap_core) + final mod module (mthap).
 #
 #   mthap_core : pure, cross-platform logic. The unit tests link ONLY this.
-#                No PAL-impl, backend, or OS headers — header includes from
+#                No PAL-impl, backend, or OS headers - header includes from
 #                src/pal/ are fine, but nothing that needs linking.
 #   mthap      : final module (libmthap.so / mthap.dll). Composition root.
 #                Added in a later task; guarded on NOT MTHAP_BUILD_TESTS_ONLY.

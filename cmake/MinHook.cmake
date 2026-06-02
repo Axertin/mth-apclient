@@ -1,7 +1,7 @@
-# MinHook.cmake — fetch MinHook from upstream and expose as `minhook::minhook`.
+# MinHook.cmake - fetch MinHook from upstream and expose as `minhook::minhook`.
 #
 # MinHook is our hook backend on Windows (MinGW cross-compile friendly).
-# Upstream: https://github.com/TsudaKageyu/minhook — has its own CMakeLists.txt
+# Upstream: https://github.com/TsudaKageyu/minhook - has its own CMakeLists.txt
 # so FetchContent_MakeAvailable gives us a usable static library directly.
 
 if(TARGET minhook::minhook)

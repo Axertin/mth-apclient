@@ -21,7 +21,7 @@ TEST_CASE("offsets: unknown/unmapped builds are zeroed so GameHooks skips", "[mt
     REQUIRE(unknown.world_update == 0);
     REQUIRE(unknown.update_queue == 0);
 
-    // Windows is a known enumerator but not mapped yet — also zeroed.
+    // Windows is a known enumerator but not mapped yet - also zeroed.
     REQUIRE(mth::offsets_for(mth::Build::Windows_v1_0).update_queue == 0);
 }
 
