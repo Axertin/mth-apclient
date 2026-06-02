@@ -30,3 +30,9 @@ TEST_CASE("offsets: lookup returns a stable reference per build", "[mth][offsets
     REQUIRE(&mth::offsets_for(mth::Build::Linux_v1_0) == &mth::offsets_for(mth::Build::Linux_v1_0));
     REQUIRE(&mth::offsets_for(mth::Build::Linux_v1_0) != &mth::offsets_for(mth::Build::Unknown));
 }
+
+TEST_CASE("rando offsets: Linux v1 mapped, unknown zeroed", "[mth][offsets]")
+{
+    REQUIRE(mth::rando_offsets_for(mth::Build::Linux_v1_0).on_pickup_done != 0);
+    REQUIRE(mth::rando_offsets_for(mth::Build::Unknown).on_pickup_done == 0);
+}

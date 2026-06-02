@@ -11,6 +11,8 @@ struct IGameEvents;
 class GameHooks;
 class IApLink;
 class ApCoordinator;
+class RandoBridge;
+class RandoHooks;
 
 // Composition root. Owns the object graph for the mod. Created once by
 // pal::apclient_main on the worker thread. The logger and hook engine are
@@ -36,6 +38,8 @@ class App
     std::unique_ptr<ApCoordinator> coordinator_;
     std::unique_ptr<IGameEvents> events_;
     std::unique_ptr<GameHooks> hooks_;
+    std::unique_ptr<RandoBridge> rando_;
+    std::unique_ptr<RandoHooks> rando_hooks_;
 };
 
 } // namespace mth

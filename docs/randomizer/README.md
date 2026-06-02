@@ -320,6 +320,14 @@ keeps the two from colliding when an item's canonical slot is also a world locat
 **World representation:** keep the native item objects (correct Mina sprites); only a
 foreign-game item at a location needs a dummy sprite.
 
+**Validated at runtime (read-only MVP, build r148053):** real chests call
+`OnPickupDone` with a **unique `slot` in `0..360`** in vanilla play (native rando off),
+confirming per-location detection and the `ap_loc_id = base + idx` scheme. Ad-hoc
+pickups (subweapon ammo, magic/treasure drops, e.g. itemType 21/37/38/40/41) arrive with
+`slot = -1` and are correctly dropped by the `slot < 0` guard. The suppression/sidecar
+hooks above are NOT yet built -- the read-only MVP only observes + sends; the decoupling
+(suppress native grant, AP-driven grants, spawnGate flag) is the next phase.
+
 ## 12. Open questions
 
 - Canonical names for the 133 menu locations (shop / bonestone machine / base weapons).
@@ -330,3 +338,27 @@ foreign-game item at a location needs a dummy sprite.
   `OnPickupDone` vs `OnPickup` as the cleanest suppress point that preserves presentation.
 - Sidecar persistence format (per seed+slot) for checked locations + AP received index.
 - `s_rWarpData` decode for full logic/reachability (door-shuffle).
+
+## 13. Other engine surfaces (no built-in console)
+
+The engine embeds **no ImGui and no dev/text console** to reuse. Two systems are
+still worth knowing:
+
+- **Debug draw** -- `ycDrawUtil` plus globals `g_debugDrawWorld` /
+  `g_debugDrawWorldPersist` / `g_debugDrawHud` and gate `(anon)::s_debugDraw`; the
+  managers expose `*Manager::UpdateDebugDraw(ycUpdateQueueContext*)`. It renders
+  through the game's own render pass (`ycDrawUtil::Render` / `ycRenderPass`), so
+  populating it needs **no present hook**. It is **geometry only** (RectSolid,
+  BoxSolid, ellipsoids, lines) -- **no text API**. Good for in-world spatial markers
+  (e.g. highlight AP-location objects), not a text HUD. Confirm `s_debugDraw` is
+  runtime-flippable before relying on it.
+- **CheatManager** -- `IsCheat`, `ToggleCheat`, `ApplyBackerCheats`, menu hooks
+  (`OptionsMenuControl_ApplyCheat`). The cheats/modifiers system; the "Weird"
+  randomizer is one of these modifiers. Relevant for detecting or forcing the
+  rando-modifier state, not as a UI surface.
+
+A text debug console therefore needs a bundled ImGui overlay (present hook:
+`vkQueuePresentKHR` on Linux / the D3D12 present on Windows) or an external tool --
+there is nothing in-engine to piggyback for text. The display server difference is
+moot here: an overlay renders into the game's existing swapchain on both platforms,
+so no separate OS window is ever spawned.

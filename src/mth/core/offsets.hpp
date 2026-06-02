@@ -23,4 +23,13 @@ struct GameOffsets
 // Unknown / unmapped builds return an all-zero table.
 const GameOffsets &offsets_for(Build);
 
+// Per-build addresses of the randomizer item-collection functions, as
+// load-base-relative offsets. Zero == not mapped for this build.
+struct RandoOffsets
+{
+    std::uintptr_t on_pickup_done; // Items::OnPickupDone(int slot, int itemType, ...)
+};
+
+const RandoOffsets &rando_offsets_for(Build);
+
 } // namespace mth

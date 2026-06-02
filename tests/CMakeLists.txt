@@ -21,6 +21,7 @@ add_executable(mthap_unit_tests
     unit/log_test.cpp
     unit/ap_state_test.cpp
     unit/ap_coordinator_test.cpp
+    unit/rando_bridge_test.cpp
     unit/cert_test.cpp
 )
 

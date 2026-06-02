@@ -11,6 +11,7 @@ add_library(mthap_core STATIC
     core/offsets.cpp
     core/ap_state.cpp
     core/ap_coordinator.cpp
+    core/rando_bridge.cpp
 )
 
 target_include_directories(mthap_core PUBLIC "${CMAKE_SOURCE_DIR}/src")
@@ -61,6 +62,7 @@ if(NOT MTHAP_BUILD_TESTS_ONLY)
         mth-apclient.cpp
         core/app.cpp
         game_hooks.cpp
+        rando_hooks.cpp
     )
 
     target_link_libraries(mthap PRIVATE

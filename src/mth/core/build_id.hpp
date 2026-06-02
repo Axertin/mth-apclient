@@ -12,8 +12,10 @@ enum class Build
     Windows_v1_0,
 };
 
-// GNU BuildID of the shipped Linux MinaTheHollower binary (Ghidra recon, 2026-06-01).
-inline constexpr std::string_view kLinuxV1BuildId = "a40f4f641e247efced331ff77e0f2c68d465bc36";
+// GNU BuildID of the live Steam Linux MinaTheHollower binary, 1.0.5 [r148053].
+// Offsets in offsets.cpp target this build; re-derive when Steam pushes a new
+// revision. (RE recon was done on 1.0.5 [r147980] = a40f4f641e247efced331ff77e0f2c68d465bc36.)
+inline constexpr std::string_view kLinuxV1BuildId = "45919e541f7fb708bd9060ff80803797128c8c3d";
 
 // Windows build id, formatted "TimeDateStamp:SizeOfImage" exactly as
 // pal::game_build_id() emits it on Windows (see pal/windows/module_windows.cpp).

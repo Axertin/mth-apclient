@@ -7,7 +7,9 @@
 #include "mth/core/ap_link.hpp"
 #include "mth/core/build_id.hpp"
 #include "mth/core/game_events.hpp"
+#include "mth/core/rando_bridge.hpp"
 #include "mth/game_hooks.hpp"
+#include "mth/rando_hooks.hpp"
 #include "mth_version.h"
 #include "pal/pal_hook.hpp"
 #include "pal/pal_log.hpp"
@@ -26,7 +28,7 @@ namespace
 class AppTickSink final : public mth::IGameEvents
 {
   public:
-    explicit AppTickSink(mth::ApCoordinator &coord) : coord_(coord)
+    AppTickSink(mth::ApCoordinator &coord, mth::ApState &state) : coord_(coord), state_(state)
     {
     }
     void on_game_fixed_update() override
@@ -34,11 +36,20 @@ class AppTickSink final : public mth::IGameEvents
         if (!logged_.exchange(true, std::memory_order_relaxed))
             pal::logf(pal::LogLevel::Info, "tick: Game::FixedUpdate live; AP coordinator pumping");
         coord_.tick();
+        const int n = static_cast<int>(state_.received_items().size());
+        for (; logged_items_ < n; ++logged_items_)
+        {
+            const auto &it = state_.received_items()[static_cast<std::size_t>(logged_items_)];
+            pal::logf(pal::LogLevel::Info, "AP recv: item_id=%lld index=%d from=%d (not granted yet)", static_cast<long long>(it.item_id), it.index,
+                      it.player_from);
+        }
     }
 
   private:
     mth::ApCoordinator &coord_;
+    mth::ApState &state_;
     std::atomic<bool> logged_{false};
+    int logged_items_{0};
 };
 
 } // namespace
@@ -68,8 +79,10 @@ App::App()
     link_ = std::make_unique<mth::NullApLink>();
 #endif
     coordinator_ = std::make_unique<ApCoordinator>(*link_, state_);
-    events_ = std::make_unique<AppTickSink>(*coordinator_);
+    events_ = std::make_unique<AppTickSink>(*coordinator_, state_);
     hooks_ = std::make_unique<GameHooks>(build, *events_);
+    rando_ = std::make_unique<RandoBridge>(*link_, state_);
+    rando_hooks_ = std::make_unique<RandoHooks>(build, *rando_);
 
     if (const char *server = std::getenv("MTHAP_AP_SERVER"); server && *server)
     {
@@ -86,6 +99,8 @@ App::App()
 
 App::~App()
 {
+    rando_hooks_.reset();
+    rando_.reset();
     hooks_.reset();
     events_.reset();
     coordinator_.reset();
