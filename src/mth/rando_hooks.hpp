@@ -5,10 +5,8 @@ namespace mth
 
 class RandoBridge;
 
-// Installs the item-collection detours: the inbound OnPickupDone replay plumbing
-// (Player/trackable), the Pickup::Init spawn-redirect (AP-owned locations show the
-// sentinel), and the Pickup::OnPickup collect-detect (sends the location check).
-// Each is resolved by symbol; any not found is logged and skipped. One instance, owned by App.
+// Installs Pickup::Init (spawn redirect/despawn), Pickup::OnPickup (collect detect),
+// and OnPickupDone/Player plumbing for inbound grants. Symbols resolved at construction.
 class RandoHooks
 {
   public:
