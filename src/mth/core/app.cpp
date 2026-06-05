@@ -151,6 +151,9 @@ void App::ensure_inbound_ready()
     save_state_.emplace(pal::log_dir() / key);
     inbound_ = std::make_unique<InboundGranter>(granter_, state_, *save_state_);
     pal::logf(pal::LogLevel::Info, "inbound: state loaded (%s); granter live", key.c_str());
+    rando_->attach_save_state(*save_state_);
+    rando_->flush(); // resend any checks recorded before/while disconnected
+    pal::logf(pal::LogLevel::Info, "outbound: bridge attached to %s; flushed checked-set", key.c_str());
 }
 
 #ifdef MTHAP_HAS_OVERLAY

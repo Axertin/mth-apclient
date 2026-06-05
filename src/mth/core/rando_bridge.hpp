@@ -34,6 +34,8 @@ inline constexpr int game_item_type(std::int64_t ap_item_id_)
     return static_cast<int>(ap_item_id_ - kItemBase);
 }
 
+class ApSaveState; // defined in ap_save_state.hpp (same core lib)
+
 // Outbound side: turns a collected collection-slot into a server-validated,
 // deduplicated location check. Game-thread-only (no locks); reads ApState
 // (also game-thread) and pushes to IApLink (thread-safe command queue).
@@ -42,13 +44,26 @@ class RandoBridge
   public:
     RandoBridge(IApLink &link, ApState &state);
 
-    // Called from the OnPickupDone detour with the engine's slot arg.
+    // Attach the per-(seed,slot) durable state once it exists (on connect). Before this,
+    // checks are session-only (in-memory) and logged; after, they persist across restarts.
+    void attach_save_state(ApSaveState &save);
+
+    // A collected world location, by its s_rItemCollection index. Records it (persisted if
+    // attached), and sends the check if connected; otherwise it waits for flush().
     void on_location_collected(int collection_slot);
+
+    // Resend the whole checked-set (the server dedups). Call on (re)connect.
+    void flush();
+
+    // Is this collection index a location the connected server owns? Used by the spawn /
+    // collect hooks to decide redirect + check.
+    [[nodiscard]] bool is_ap_location(int collection_slot) const;
 
   private:
     IApLink &link_;
     ApState &state_;
-    std::set<std::int64_t> sent_{};
+    ApSaveState *save_{nullptr};
+    std::set<std::int64_t> sent_{}; // session fallback used only before save_ attaches
 };
 
 } // namespace mth
