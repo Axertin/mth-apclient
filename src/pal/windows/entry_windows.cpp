@@ -10,18 +10,13 @@
 
 namespace mth
 {
-// Defined in proxy_version.cpp. Loads the real System32\version.dll so the
-// proxy exports can forward to it. Called synchronously on DLL attach because
-// the host process's version.dll imports resolve through us immediately.
 void proxy_version_load_real();
 } // namespace mth
 
 namespace
 {
 
-// The mod may be loaded by more than just the game (the depot also ships
-// handler.exe). Only bootstrap inside MinaTheHollower.exe. MTHAP_FORCE_INIT=1
-// bypasses the check.
+// The depot also ships handler.exe; guard on executable basename.
 bool is_target_process()
 {
     if (const char *force = std::getenv("MTHAP_FORCE_INIT"); force && *force)
@@ -37,9 +32,7 @@ bool is_target_process()
 
 void apclient_main_trampoline(void * /*arg*/)
 {
-    // Let the loader lock release before we touch anything that might load
-    // further modules (the hook backend init will).
-    Sleep(100);
+    Sleep(100); // release loader lock before hook backend init loads further modules
     pal::apclient_main();
 }
 
@@ -51,9 +44,7 @@ BOOL WINAPI DllMain(HINSTANCE hInstDll, DWORD reason, LPVOID /*reserved*/)
     {
     case DLL_PROCESS_ATTACH:
         DisableThreadLibraryCalls(hInstDll);
-        // Always stand up the real version.dll first - we forward its exports
-        // for whatever process loaded us, even if we don't bootstrap the mod here.
-        mth::proxy_version_load_real();
+        mth::proxy_version_load_real(); // must run for every process, not just the game
         if (!is_target_process())
             break;
         pal::log_init();

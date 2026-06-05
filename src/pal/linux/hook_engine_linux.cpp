@@ -35,8 +35,6 @@ class FridaHookEngine final : public pal::IHookEngine
 
     pal::HookId install_listener(void * /*target*/, pal::Listener /*l*/, void * /*user*/) override
     {
-        // Listener-mode (enter/leave) requires a GumInvocationListener; deferred
-        // until a consumer needs it.
         pal::logf(pal::LogLevel::Warn, "FridaHookEngine: install_listener not yet implemented");
         return pal::kInvalidHookId;
     }
@@ -84,7 +82,7 @@ gboolean on_module(const GumModuleDetails *m, gpointer ud)
         pal::logf(pal::LogLevel::Debug, "hook_engine: module[%d] name=%s", st->count - 1, m->name);
         ++st->sample_logged;
     }
-    return TRUE; // keep iterating
+    return TRUE;
 }
 
 } // namespace
@@ -124,9 +122,5 @@ void set_hook_engine(IHookEngine *e)
 {
     g_engine_override = e;
 }
-
-// FridaHookEngine is the default; tests can override it via set_hook_engine().
-// No production code installs hooks yet - the first real game hook lands in a
-// later milestone.
 
 } // namespace pal

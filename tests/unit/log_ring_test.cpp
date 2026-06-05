@@ -18,7 +18,7 @@ TEST_CASE("LogRing drops the oldest line when full", "[mth][logring]")
     ring.push("a");
     ring.push("b");
     ring.push("c");
-    ring.push("d"); // evicts "a"
+    ring.push("d");
     REQUIRE(ring.snapshot() == std::vector<std::string>{"b", "c", "d"});
     REQUIRE(ring.size() == 3);
 }
@@ -26,7 +26,7 @@ TEST_CASE("LogRing drops the oldest line when full", "[mth][logring]")
 TEST_CASE("LogRing wraps correctly across more than one cycle", "[mth][logring]")
 {
     mth::LogRing ring(3);
-    for (const char *s : {"a", "b", "c", "d", "e"}) // two evictions: a, then b
+    for (const char *s : {"a", "b", "c", "d", "e"})
         ring.push(s);
     REQUIRE(ring.snapshot() == std::vector<std::string>{"c", "d", "e"});
     REQUIRE(ring.size() == 3);
@@ -36,7 +36,7 @@ TEST_CASE("LogRing clamps zero capacity to one", "[mth][logring]")
 {
     mth::LogRing ring(0);
     ring.push("a");
-    ring.push("b"); // evicts "a"
+    ring.push("b");
     REQUIRE(ring.snapshot() == std::vector<std::string>{"b"});
     REQUIRE(ring.size() == 1);
 }

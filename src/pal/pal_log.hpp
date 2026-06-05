@@ -24,13 +24,10 @@ class ILog
     virtual void flush() = 0;
 };
 
-// Opens a fresh log file per call, named `<stem>_YYYY-MM-DD_HH-MM-SS_mmm.log`,
-// in log_dir(). Filename only uses cross-platform-legal characters.
 void log_init(std::string_view stem = "mthap");
 void log_shutdown();
 
-// gnu_printf archetype: understood by gcc and clang/clang-cl, and accepts the
-// C99 specifiers (%zu etc.) we use.
+// gnu_printf: accepted by gcc and clang/clang-cl; covers C99 specifiers (%zu etc.).
 void logf(LogLevel, const char *fmt, ...) __attribute__((format(gnu_printf, 2, 3)));
 void vlogf(LogLevel, const char *fmt, std::va_list ap);
 
@@ -39,11 +36,7 @@ std::filesystem::path log_dir();
 ILog &default_log();
 void set_default_log(ILog *);
 
-// Optional tee: every logf/vlogf line is also handed to the observer (with the
-// same level and the formatted message, no timestamp/tag prefix). Thread-safe;
-// the observer may be invoked from any thread. Pass nullptr to clear.
-// The observer must NOT call logf/vlogf (it runs under the log mutex; re-entry
-// deadlocks).
+// Observer runs under the log mutex; must not call logf/vlogf (deadlock).
 using LogObserver = std::function<void(LogLevel, std::string_view)>;
 void set_log_observer(LogObserver);
 

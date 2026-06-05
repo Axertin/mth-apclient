@@ -17,9 +17,7 @@ class APClient; // forward-declared; full type only in the .cpp
 namespace mth::net
 {
 
-// apclientpp-backed IApLink. Owns the APClient on a dedicated network thread;
-// the game thread never touches the client. Outbound calls enqueue closures the
-// net thread runs; apclientpp handlers push ApEvents the game thread drains.
+// apclientpp-backed IApLink. APClient lives on the net thread only.
 class ApLink final : public mth::IApLink
 {
   public:
@@ -36,16 +34,16 @@ class ApLink final : public mth::IApLink
     [[nodiscard]] std::vector<mth::ApEvent> drain_events() override;
 
   private:
-    void run();                              // net-thread loop
-    void enqueue(std::function<void()> cmd); // game thread -> command queue
-    void push_event(mth::ApEvent ev);        // net thread -> event queue
+    void run();
+    void enqueue(std::function<void()> cmd);
+    void push_event(mth::ApEvent ev);
 
     void do_connect(const std::string &server, const std::string &slot, const std::string &password);
     void do_disconnect();
     void setup_handlers(const std::string &slot, const std::string &password);
 
-    std::unique_ptr<APClient> client_; // net-thread-only
-    int last_item_index_{-1};          // net-thread-only
+    std::unique_ptr<APClient> client_; // net thread only
+    int last_item_index_{-1};          // net thread only
 
     std::atomic<bool> running_{true};
     std::atomic<bool> connected_{false};
@@ -54,7 +52,7 @@ class ApLink final : public mth::IApLink
     std::mutex event_mutex_;
     std::vector<mth::ApEvent> events_;
 
-    std::thread thread_; // declared last: started after everything else is built
+    std::thread thread_; // last member: started after all others are initialized
 };
 
 } // namespace mth::net

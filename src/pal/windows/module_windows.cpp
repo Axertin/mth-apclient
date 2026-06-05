@@ -34,7 +34,6 @@ pal::ModuleInfo module_from_handle(HMODULE h)
     if (n && n < MAX_PATH)
         info.path = wide_to_utf8(buf);
 
-    // PE SizeOfImage from the NT header.
     const auto *dos = reinterpret_cast<const IMAGE_DOS_HEADER *>(h);
     if (dos && dos->e_magic == IMAGE_DOS_SIGNATURE)
     {

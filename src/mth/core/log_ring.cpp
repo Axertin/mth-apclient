@@ -11,8 +11,6 @@ void LogRing::push(std::string_view line)
         lines_.emplace_back(line);
         return;
     }
-    // Here lines_ is full, so lines_.size() == capacity_; use it uniformly with
-    // snapshot()'s modulus to keep the ring arithmetic self-consistent.
     lines_[head_] = std::string(line);
     head_ = (head_ + 1) % lines_.size();
 }

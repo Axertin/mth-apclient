@@ -8,16 +8,13 @@
 namespace mth::test
 {
 
-// In-memory IApLink for unit tests: records outbound calls, hands out scripted
-// events on drain_events().
+// In-memory IApLink for unit tests.
 class FakeApLink final : public mth::IApLink
 {
   public:
-    // driver-side (set by tests)
     std::vector<mth::ApEvent> pending;
     bool connected = false;
 
-    // records (read by tests)
     int connect_calls = 0;
     std::string last_server, last_slot, last_password;
     std::vector<std::int64_t> sent_locations;

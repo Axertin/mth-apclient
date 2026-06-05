@@ -16,7 +16,6 @@ class NullOverlay final : public IOverlay
 
 std::unique_ptr<IOverlay> make_overlay(const OverlayConfig &)
 {
-    // D3D12 overlay not implemented yet; inert so App wiring is uniform.
     return std::make_unique<NullOverlay>();
 }
 

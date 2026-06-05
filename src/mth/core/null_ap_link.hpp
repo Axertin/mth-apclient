@@ -5,9 +5,7 @@
 namespace mth
 {
 
-// No-op IApLink used when the net lane is disabled (e.g. the LLVM-MinGW dev
-// cross, which has no OpenSSL). Lets App wire the coordinator uniformly without
-// the network backend.
+// No-op IApLink for when the net lane is disabled (e.g. LLVM-MinGW, no OpenSSL).
 class NullApLink final : public IApLink
 {
   public:

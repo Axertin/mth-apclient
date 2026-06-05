@@ -74,7 +74,7 @@ TEST_CASE("log observer receives every formatted line", "[pal][log]")
     REQUIRE(seen[1].first == pal::LogLevel::Info);
     REQUIRE(seen[1].second == "world");
 
-    pal::set_log_observer(nullptr); // unsubscribe so later tests are unaffected
+    pal::set_log_observer(nullptr);
     pal::logf(pal::LogLevel::Info, "ignored");
     REQUIRE(seen.size() == 2);
 }

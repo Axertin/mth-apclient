@@ -9,8 +9,7 @@
 namespace mth
 {
 
-// Socket-only transport seam. Implementations enqueue outbound work and surface
-// inbound server traffic as ApEvents via drain_events(). No randomizer semantics.
+// Transport seam: outbound calls enqueue work; inbound traffic surfaces as ApEvents.
 class IApLink
 {
   public:
@@ -23,7 +22,6 @@ class IApLink
     virtual void send_locations(const std::vector<std::int64_t> &location_ids) = 0;
     virtual void set_goal() = 0;
 
-    // Game thread pulls all events produced since the last call.
     [[nodiscard]] virtual std::vector<ApEvent> drain_events() = 0;
 };
 

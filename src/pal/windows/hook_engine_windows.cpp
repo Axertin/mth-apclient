@@ -50,9 +50,6 @@ const char *mh_status_name(MH_STATUS s)
     }
 }
 
-// M2 smoke: install + fire + remove a hook on GetTickCount. Proves the full
-// MinHook round-trip (CreateHook -> EnableHook -> trampoline -> Disable -> Remove)
-// without depending on game state. Replaced by real game-function hooks at M3.
 using PFN_GetTickCount = DWORD(WINAPI *)();
 
 PFN_GetTickCount g_real_gettickcount = nullptr;

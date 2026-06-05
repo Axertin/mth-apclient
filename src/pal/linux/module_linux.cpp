@@ -23,10 +23,7 @@ int dlpi_collect_main(struct dl_phdr_info *info, size_t /*size*/, void *data)
     if (out->found)
         return 1;
 
-    // For non-PIE main executables, dlpi_addr is 0 and PT_LOAD p_vaddrs are
-    // absolute (e.g., 0x400000). For PIE/shared, dlpi_addr is the load offset
-    // and p_vaddrs are relative. Module base = dlpi_addr + min(p_vaddr); span
-    // ends at dlpi_addr + max(p_vaddr + p_memsz).
+    // Non-PIE: dlpi_addr=0, p_vaddrs absolute. PIE/SO: dlpi_addr=load offset, p_vaddrs relative.
     std::uintptr_t lo = static_cast<std::uintptr_t>(-1);
     std::uintptr_t hi = 0;
     for (int i = 0; i < info->dlpi_phnum; ++i)
@@ -47,8 +44,7 @@ int dlpi_collect_main(struct dl_phdr_info *info, size_t /*size*/, void *data)
     out->info.size = hi - lo;
     out->info.path = info->dlpi_name ? info->dlpi_name : "";
     out->found = true;
-    // dlpi_name "" is the main executable per glibc convention. If the first
-    // callback gives a real name, keep iterating until we find the empty one.
+    // dlpi_name "" is the main executable (glibc convention); keep iterating if first entry has a name.
     return out->info.path.empty() ? 1 : 0;
 }
 
@@ -98,7 +94,6 @@ int dlpi_collect_build_id(struct dl_phdr_info *info, size_t /*size*/, void *data
     auto *out = static_cast<BuildIdMatch *>(data);
     if (out->done)
         return 1;
-    // First callback is the main executable.
     out->build_id = read_gnu_build_id_from_phdr(info->dlpi_phdr, info->dlpi_phnum, info->dlpi_addr);
     out->done = true;
     return 1;

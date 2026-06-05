@@ -67,10 +67,7 @@ std::optional<fs::path> ca_bundle_path()
             return fs::path(o);
     }
 
-    // Materialize the Windows ROOT store to a PEM once, thread-safely: the
-    // function-local static initializer is guaranteed to run at most once even
-    // if multiple threads race here. (The MTHAP_AP_CERT override above stays
-    // per-call so it always wins.)
+    // Materialized once (function-local static); MTHAP_AP_CERT override remains per-call.
     static const std::optional<fs::path> cached = []() -> std::optional<fs::path>
     {
         HCERTSTORE store = CertOpenSystemStoreW(0, L"ROOT");

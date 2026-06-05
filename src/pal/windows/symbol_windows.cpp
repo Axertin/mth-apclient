@@ -17,8 +17,7 @@ std::uintptr_t resolve_game_symbol(const char *mangled_name)
 {
     if (g_custom)
         return g_custom(mangled_name);
-    // The shipped PE has no symbol table; the future frida-on-Windows / byte-pattern
-    // scanner fills this in. Until then, resolution fails here (hooks log + skip).
+    // PE has no symbol table; resolution always fails until a scanner is wired up.
     return 0;
 }
 

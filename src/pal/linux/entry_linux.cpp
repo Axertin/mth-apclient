@@ -11,10 +11,7 @@
 namespace
 {
 
-// Steam launches helper subprocesses that all inherit our LD_PRELOAD. Skip
-// init unless we're the game's main process. Expected basename is
-// `MinaTheHollower` (no extension on Linux). Set MTHAP_FORCE_INIT=1 to bypass
-// (development smoke tests under /bin/sleep, etc.).
+// Steam inherits LD_PRELOAD into helper subprocesses; guard on executable basename.
 bool is_target_process()
 {
     if (const char *force = std::getenv("MTHAP_FORCE_INIT"); force && *force)

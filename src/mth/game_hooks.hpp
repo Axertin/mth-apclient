@@ -9,11 +9,7 @@ namespace mth
 
 struct IGameEvents;
 
-// Installs detours on the engine's tick functions (resolved by symbol name) and
-// forwards each to `sink`. RAII: removes them on destruction. If a symbol can't
-// be resolved, it logs and skips that hook. `sink` must outlive the GameHooks.
-//
-// Lives in the module lane (not mthap_core) because it touches pal:: impls.
+// RAII detours on engine tick functions (symbol-resolved). `sink` must outlive this.
 class GameHooks
 {
   public:

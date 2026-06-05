@@ -1,14 +1,3 @@
-// Runtime proxy for version.dll. The mod ships as `version.dll` next to
-// MinaTheHollower.exe, which statically imports VERSION.DLL - so the loader
-// maps us in its place. DllMain (entry_windows.cpp) loads the real version.dll
-// from System32 and bootstraps the mod; this file forwards the standard
-// exports to the real DLL.
-//
-// x86_64 note: unlike the i686 stdcall ABI, x64 applies no name decoration, so
-// __declspec(dllexport) on an extern "C" function publishes the undecorated
-// export name directly (e.g. "GetFileVersionInfoW") - no /EXPORT alias needed.
-// Lookups via GetProcAddress are lazy, per-function on first use.
-
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 
@@ -32,7 +21,6 @@ void proxy_version_load_real()
     UINT n = GetSystemDirectoryW(path, MAX_PATH);
     if (n == 0 || n > MAX_PATH - 16)
         return;
-    // Append "\\version.dll" to the System32 path.
     wchar_t *end = path + n;
     const wchar_t tail[] = L"\\version.dll";
     for (size_t i = 0; i < (sizeof(tail) / sizeof(wchar_t)); ++i)
@@ -42,8 +30,6 @@ void proxy_version_load_real()
 
 } // namespace mth
 
-// Declares an export that lazily resolves the real function on first call and
-// forwards. Returns a default-constructed Ret if the real DLL is unavailable.
 #define PROXY_FWD(Ret, Name, Params, Args)                                                                                                                     \
     extern "C" __declspec(dllexport) Ret WINAPI Name Params                                                                                                    \
     {                                                                                                                                                          \
@@ -76,10 +62,7 @@ PROXY_FWD(BOOL, VerQueryValueA, (LPCVOID blk, LPCSTR sub, LPVOID *out, PUINT len
 
 PROXY_FWD(BOOL, VerQueryValueW, (LPCVOID blk, LPCWSTR sub, LPVOID *out, PUINT len), (blk, sub, out, len))
 
-// VerFindFile/VerInstallFile: MSVC's winver.h marks input-direction params
-// const (LPCSTR/LPCWSTR); mingw-w64's winver.h declares them all non-const
-// (LPSTR/LPWSTR). Match each header exactly to avoid conflicting-types errors
-// on redeclaration. clang-cl defines _MSC_VER; the LLVM-MinGW dev cross does not.
+// MSVC winver.h: input params are const; mingw-w64 winver.h: non-const. Match exactly.
 #ifdef _MSC_VER
 PROXY_FWD(DWORD, VerFindFileA, (DWORD fl, LPCSTR f, LPCSTR wd, LPCSTR ad, LPSTR cd, PUINT cdl, LPSTR dd, PUINT ddl), (fl, f, wd, ad, cd, cdl, dd, ddl))
 
@@ -99,5 +82,5 @@ PROXY_FWD(DWORD, VerInstallFileA, (DWORD fl, LPSTR s, LPSTR d, LPSTR sd, LPSTR d
 PROXY_FWD(DWORD, VerInstallFileW, (DWORD fl, LPWSTR s, LPWSTR d, LPWSTR sd, LPWSTR dd, LPWSTR cd, LPWSTR tmp, PUINT tmpl), (fl, s, d, sd, dd, cd, tmp, tmpl))
 #endif
 
-// Win8+ export; included for drop-in parity with a modern version.dll.
+// Win8+
 PROXY_FWD(DWORD, GetFileVersionInfoByHandle, (LONG fl, HANDLE h, DWORD off, LPVOID d, DWORD len), (fl, h, off, d, len))

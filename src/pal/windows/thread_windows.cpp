@@ -22,8 +22,7 @@ DWORD WINAPI trampoline(LPVOID raw)
 {
     auto *arg = static_cast<TrampolineArg *>(raw);
 
-    // SetThreadDescription wants wchar_t; convert ASCII best-effort.
-    wchar_t wname[32] = {};
+    wchar_t wname[32] = {}; // SetThreadDescription requires wchar_t
     for (int i = 0; i < 31 && arg->name[i]; ++i)
         wname[i] = static_cast<wchar_t>(static_cast<unsigned char>(arg->name[i]));
     SetThreadDescription(GetCurrentThread(), wname);
