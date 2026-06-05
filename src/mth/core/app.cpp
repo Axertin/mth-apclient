@@ -27,9 +27,7 @@
 namespace
 {
 
-// Thin forwarder - all tick logic lives in App so it owns all members. drive_tick runs
-// after Game::FixedUpdate; grants drain just before World::Update, the spawn-safe window
-// where the engine processes real pickups (so spawning item kinds don't hang the queue).
+// Thin forwarder to App. drive_tick: post-FixedUpdate. drain_grants: pre-World::Update spawn window.
 class AppTickSink final : public mth::IGameEvents
 {
   public:
@@ -79,6 +77,21 @@ App::App()
     rando_ = std::make_unique<RandoBridge>(*link_, state_);
     rando_hooks_ = std::make_unique<RandoHooks>(*rando_);
 
+    // MTHAP_MOCK_AP: offline test mode; fakes AP-connected state for locations 0..N (default N=1024).
+    if (const char *mock = std::getenv("MTHAP_MOCK_AP"); mock && *mock)
+    {
+        int max_idx = std::atoi(mock);
+        if (max_idx < 2)
+            max_idx = 1024;
+        ApConnected ev;
+        ev.seed = "mock";
+        ev.player_slot = 0;
+        for (int i = 0; i <= max_idx; ++i)
+            ev.missing_locations.push_back(ap_loc_id(i));
+        state_.apply(ev);
+        pal::logf(pal::LogLevel::Info, "AP: MOCK state injected (every pickup is an AP location, idx 0..%d)", max_idx);
+    }
+
     if (const char *server = std::getenv("MTHAP_AP_SERVER"); server && *server)
     {
         const char *slot = std::getenv("MTHAP_AP_SLOT");
@@ -119,10 +132,7 @@ App::~App()
 
 void App::run()
 {
-    // Tick detours are installed in the ctor; they fire on the game thread.
-    // Nothing else to drive yet - the worker thread returns and the hooks live
-    // until App is destroyed. (Networking / per-tick logic land in later work.)
-    pal::logf(pal::LogLevel::Info, "App::run -- tick hooks installed; idling");
+    pal::logf(pal::LogLevel::Info, "App::run: tick hooks installed, idling");
 }
 
 void App::drive_tick()
@@ -189,14 +199,11 @@ std::vector<std::string> App::item_lines() const
 
 void App::give_item(std::int64_t ap_item_id)
 {
-    // Debug command: grants directly via the granter, independent of AP connection. The
-    // only prerequisite is a cached Player* (observed on the first in-world pickup); report
-    // clearly when that is not yet available rather than silently doing nothing.
     const int item_type = mth::game_item_type(ap_item_id);
     if (granter_.grant(item_type))
         pal::logf(pal::LogLevel::Info, "console: giveapitem %lld (type=%d) granted", static_cast<long long>(ap_item_id), item_type);
     else
-        pal::logf(pal::LogLevel::Warn, "console: giveapitem %lld not granted yet (collect any in-world pickup/coin first to capture a player + position)",
+        pal::logf(pal::LogLevel::Warn, "console: giveapitem %lld not ready (collect any pickup first to capture player + position)",
                   static_cast<long long>(ap_item_id));
 }
 #endif
