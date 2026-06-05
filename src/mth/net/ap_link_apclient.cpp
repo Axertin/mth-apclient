@@ -230,7 +230,7 @@ void ApLink::setup_handlers(const std::string &slot, const std::string &password
 
             auto missing = client_->get_missing_locations();
             auto checked = client_->get_checked_locations();
-            push_event(mth::ApConnected{data.is_null() ? std::string{} : data.dump(), client_->get_player_number(),
+            push_event(mth::ApConnected{client_->get_seed(), data.is_null() ? std::string{} : data.dump(), client_->get_player_number(),
                                         std::vector<std::int64_t>(checked.begin(), checked.end()), std::vector<std::int64_t>(missing.begin(), missing.end())});
         });
 

@@ -3,31 +3,29 @@
 namespace mth
 {
 
-// Semantic game-tick events. The PAL detours (see GameHooks) fire these on the
-// game's own thread after forwarding to the original engine function, so any
-// game-state access from a handler is naturally serialized with the engine's
-// update. Defaults are no-ops so a consumer overrides only the ticks it needs.
-//
-// This is the seam that hides the platform/build-specific hook addresses from
-// gameplay logic: the same on_*() events fire whether they came from a Frida
-// detour at a Linux offset or a MinHook detour at a Windows one. Pure (no PAL),
-// so handlers can be unit-tested by calling these directly.
+// Engine-tick event seam. GameHooks fires these on the game thread after forwarding
+// to the original. Pure (no PAL); testable by direct calls.
 struct IGameEvents
 {
     virtual ~IGameEvents() = default;
 
     virtual void on_game_fixed_update()
     {
-    } // Game::FixedUpdate() - fixed sim step (dt = 1/targetFPS)
+    } // Game::FixedUpdate
     virtual void on_game_update(float /*dt*/)
     {
-    } // Game::Update(dt) - per frame
+    } // Game::Update
     virtual void on_world_update()
     {
-    } // World::Update - per-level world tick
+    } // World::Update
     virtual void on_update_queue(float /*dt*/)
     {
-    } // ycUpdateQueue::Update(dt) - low-level pump (fires per queue)
+    } // ycUpdateQueue::Update
+
+    // Fired BEFORE World::Update. Spawns must happen here to avoid update-queue hangs.
+    virtual void on_world_update_pre()
+    {
+    }
 };
 
 } // namespace mth

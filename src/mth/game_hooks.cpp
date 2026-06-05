@@ -7,11 +7,7 @@
 #include "pal/pal_log.hpp"
 #include "pal/pal_module.hpp"
 
-// Detour replacements + saved originals. File-scope globals because Frida calls
-// the replacements with no user context; there is exactly one GameHooks (owned
-// by App). Each replacement forwards to the original first (so handlers observe
-// post-update state), then fires the semantic event. Signatures mirror the
-// engine functions exactly (x86_64: `this` is just the first integer arg).
+// File-scope globals: Frida replacements have no user context; exactly one GameHooks exists.
 namespace
 {
 
@@ -40,6 +36,8 @@ void repl_game_update(float dt)
 
 void repl_world_update(void *self, void *ctx)
 {
+    if (g_sink)
+        g_sink->on_world_update_pre();
     if (g_orig_world_update)
         g_orig_world_update(self, ctx);
     if (g_sink)

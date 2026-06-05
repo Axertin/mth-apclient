@@ -14,6 +14,7 @@ void ApState::apply(const ApEvent &ev)
             using T = std::decay_t<decltype(e)>;
             if constexpr (std::is_same_v<T, ApConnected>)
             {
+                seed_ = e.seed;
                 slot_data_ = e.slot_data;
                 player_slot_ = e.player_slot;
                 valid_locations_.clear();

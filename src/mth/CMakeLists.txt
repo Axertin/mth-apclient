@@ -12,6 +12,8 @@ add_library(mthap_core STATIC
     core/rando_bridge.cpp
     core/dev_commands.cpp
     core/log_ring.cpp
+    core/ap_save_state.cpp
+    core/inbound_granter.cpp
 )
 
 target_include_directories(mthap_core PUBLIC "${CMAKE_SOURCE_DIR}/src")

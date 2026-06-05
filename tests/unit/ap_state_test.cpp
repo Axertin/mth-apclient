@@ -13,7 +13,7 @@ TEST_CASE("ap_state: starts idle, unauthenticated", "[mth][ap_state]")
 TEST_CASE("ap_state: ApConnected populates slot/locations and authenticates", "[mth][ap_state]")
 {
     mth::ApState s;
-    s.apply(mth::ApConnected{R"({"x":1})", 3, {10, 11}, {12}});
+    s.apply(mth::ApConnected{{}, R"({"x":1})", 3, {10, 11}, {12}});
     REQUIRE(s.authenticated());
     REQUIRE(s.player_slot() == 3);
     REQUIRE(s.slot_data() == R"({"x":1})");
@@ -27,7 +27,7 @@ TEST_CASE("ap_state: items dedup by index", "[mth][ap_state]")
     mth::ApState s;
     s.apply(mth::ApItemReceived{{1001, 0, 1, 0b001}});
     s.apply(mth::ApItemReceived{{1002, 1, 1, 0b010}});
-    s.apply(mth::ApItemReceived{{1001, 0, 1, 0b001}}); // duplicate (index 0) ignored
+    s.apply(mth::ApItemReceived{{1001, 0, 1, 0b001}}); // duplicate index 0
     REQUIRE(s.received_items().size() == 2);
     REQUIRE(s.last_item_index() == 1);
     REQUIRE(s.received_items()[1].item_id == 1002);
@@ -36,7 +36,7 @@ TEST_CASE("ap_state: items dedup by index", "[mth][ap_state]")
 TEST_CASE("ap_state: disconnect clears auth; status reflects events", "[mth][ap_state]")
 {
     mth::ApState s;
-    s.apply(mth::ApConnected{"{}", 1, {}, {}});
+    s.apply(mth::ApConnected{{}, "{}", 1, {}, {}});
     s.apply(mth::ApDisconnected{});
     REQUIRE_FALSE(s.authenticated());
     s.apply(mth::ApStatusChanged{"Connecting..."});

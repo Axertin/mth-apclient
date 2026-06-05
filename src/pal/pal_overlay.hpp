@@ -6,18 +6,16 @@
 namespace pal
 {
 
-// Content sink: the overlay calls draw() once per presented frame, between
-// ImGui's NewFrame() and Render(). Implementations issue ImGui:: widget calls.
+// Content sink: draw() is called every frame between NewFrame() and Render().
+// console_open controls whether the interactive console window should show.
 class IOverlayUi
 {
   public:
     virtual ~IOverlayUi() = default;
-    virtual void draw() = 0;
+    virtual void draw(bool console_open) = 0;
 };
 
-// Owns the platform render/input hooks + ImGui context. RAII: installs hooks on
-// construction, removes them on destruction. set_ui() may be called before or
-// after construction completes; a null sink simply draws nothing.
+// Owns platform render/input hooks and the ImGui context. RAII.
 class IOverlay
 {
   public:
@@ -27,10 +25,10 @@ class IOverlay
 
 struct OverlayConfig
 {
-    std::uintptr_t process_sdl_event_addr; // absolute addr of ProcessSDLEvent(SDL_Event&), 0 = input unavailable
+    std::uintptr_t process_sdl_event_addr; // absolute address of ProcessSDLEvent(SDL_Event&); 0 = input unavailable
 };
 
-// Linux -> Vulkan/SDL overlay. Windows -> inert stub. Never returns null.
+// Linux: Vulkan/SDL overlay. Windows: inert stub. Never returns null.
 std::unique_ptr<IOverlay> make_overlay(const OverlayConfig &);
 
 } // namespace pal

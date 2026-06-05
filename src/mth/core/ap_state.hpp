@@ -10,8 +10,7 @@
 namespace mth
 {
 
-// The mod's view of the connected AP room. Game-thread-only, no locks: written
-// solely by ApCoordinator (folding ApEvents on the tick), read by game logic.
+// Game-thread-only view of the AP room. Written by ApCoordinator, read by game logic.
 class ApState
 {
   public:
@@ -24,6 +23,10 @@ class ApState
     [[nodiscard]] const std::string &status() const
     {
         return status_;
+    }
+    [[nodiscard]] const std::string &seed() const
+    {
+        return seed_;
     }
     [[nodiscard]] const std::string &slot_data() const
     {
@@ -49,6 +52,7 @@ class ApState
   private:
     bool authenticated_{false};
     std::string status_{"Idle"};
+    std::string seed_{};
     std::string slot_data_{};
     int player_slot_{-1};
     std::set<std::int64_t> valid_locations_{};

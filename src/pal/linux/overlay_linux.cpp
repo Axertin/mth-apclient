@@ -1,36 +1,13 @@
 // Linux Vulkan/SDL dev overlay.
 //
-// We do NOT link against libvulkan at build time: this TU defines VK_NO_PROTOTYPES
-// (matching the imgui backend's IMGUI_IMPL_VULKAN_NO_PROTOTYPES) and resolves every
-// Vulkan entry point at runtime from the loader the game already opened.
+// No libvulkan link at build time: VK_NO_PROTOTYPES, all entry points resolved at
+// runtime from the loader the game already opened via dlopen(RTLD_NOLOAD).
+// Hooks vkCreateInstance/vkCreateDevice/vkCreateSwapchainKHR/vkQueuePresentKHR
+// to capture state and composite the ImGui overlay (loadOp=LOAD) before each present.
 //
-// Strategy:
-//   - dlopen("libvulkan.so.1", RTLD_NOLOAD) to grab the already-loaded loader.
-//   - Hook the loader trampolines the game calls: vkCreateInstance / vkCreateDevice /
-//     vkCreateSwapchainKHR / vkQueuePresentKHR (dlsym from the loader handle).
-//   - Capture instance/device/physical-device/queue/swapchain state from those hooks.
-//   - On each present: lazily init ImGui-on-Vulkan, draw a frame into the just-
-//     rendered swapchain image (loadOp=LOAD, present->present layout), and chain
-//     present after our overlay submit using the game's own wait semaphores.
-//
-// SDL input:
-//   - Hook ProcessSDLEvent(SDL_Event&) (a game function; addr from OverlayConfig).
-//     main runs `while(!done){ SDL_WaitEvent(&e); ProcessSDLEvent(e); }`, so every
-//     event flows through it. (SDL_PollEvent is modal-only; the game's own
-//     SDL_PeepEvents calls are all ADDEVENT, so neither is the input path.)
-//   - Toggle console visibility with F1 (overridable via MTHAP_CONSOLE_KEY).
-//   - While the console is open, swallow input by NOT forwarding to the original
-//     ProcessSDLEvent, and capture it for ImGui instead.
-//
-// Threading model note: ProcessSDLEvent runs on the main (event) thread, while
-// vkQueuePresentKHR runs on a separate render thread. ImGui is NOT thread-safe, so
-// the input hook must not touch ImGui: it only flips g_console_open (atomic) and
-// pushes captured events into g_input_queue (mutex-guarded); the present hook drains
-// that queue into ImGui IO right before NewFrame, keeping every ImGui call on the
-// render thread.
-//
-// Everything degrades gracefully: any missing piece of captured state means we
-// forward the present untouched and never crash.
+// Input: hooks ProcessSDLEvent(SDL_Event&) from OverlayConfig. Toggle key (default F1)
+// flips g_console_open; while open, input events are queued (mutex) and drained into
+// ImGui IO on the render thread before NewFrame. ImGui is not touched on the event thread.
 
 #define VK_NO_PROTOTYPES
 #include <atomic>
@@ -63,12 +40,10 @@ namespace
 // Resolved Vulkan entry points.
 // ---------------------------------------------------------------------------
 
-// Global / instance loader.
 PFN_vkGetInstanceProcAddr g_vkGetInstanceProcAddr = nullptr;
 PFN_vkGetDeviceProcAddr g_vkGetDeviceProcAddr = nullptr;
 
-// Device-level functions we CALL (resolved via vkGetDeviceProcAddr once the
-// device is known).
+// Device-level functions resolved via vkGetDeviceProcAddr once the device is known.
 PFN_vkGetDeviceQueue g_vkGetDeviceQueue = nullptr;
 PFN_vkGetSwapchainImagesKHR g_vkGetSwapchainImagesKHR = nullptr;
 PFN_vkCreateImageView g_vkCreateImageView = nullptr;
@@ -96,7 +71,7 @@ PFN_vkDestroyFence g_vkDestroyFence = nullptr;
 PFN_vkWaitForFences g_vkWaitForFences = nullptr;
 PFN_vkResetFences g_vkResetFences = nullptr;
 
-// Originals of the functions we HOOK (trampolines installed by the hook engine).
+// Trampolines installed by the hook engine.
 PFN_vkCreateInstance g_orig_create_instance = nullptr;
 PFN_vkCreateDevice g_orig_create_device = nullptr;
 PFN_vkCreateSwapchainKHR g_orig_create_swapchain = nullptr;
@@ -115,7 +90,7 @@ struct VulkanState
     bool queue_family_known = false;
     VkQueue queue = VK_NULL_HANDLE;
 
-    // Swapchain-derived resources (rebuilt on every vkCreateSwapchainKHR).
+    // Rebuilt on every vkCreateSwapchainKHR.
     VkSwapchainKHR swapchain = VK_NULL_HANDLE;
     VkFormat format = VK_FORMAT_UNDEFINED;
     VkExtent2D extent{};
@@ -133,70 +108,37 @@ struct VulkanState
     std::vector<VkSemaphore> render_finished; // one per swapchain image
     std::vector<VkFence> in_flight;           // one per swapchain image; gates cmd-buffer reuse
 
-    // Publication gate (acquire/release): set true with memory_order_release ONLY
-    // after ALL swapchain resources above are fully built, so the present thread that
-    // loads it with memory_order_acquire sees fully-constructed (non-atomic) handles.
+    // Acquire/release gate: release-stored only after all handles above are written.
     std::atomic<bool> resources_ready{false};
 };
 
 VulkanState g_state;
 
-// Threading model: the capture hooks (vkCreateDevice/vkCreateSwapchainKHR) and the
-// present detour can run on different threads during startup, but swapchain
-// (re)creation and presentation are NOT expected to run concurrently for the SAME
-// resources on this engine (a typical single render-thread). The atomic readiness
-// gate (g_state.resources_ready) publishes/visibilities the non-atomic handle writes
-// across threads via acquire/release; destroy_swapchain_resources() additionally does
-// vkDeviceWaitIdle before destroying. We deliberately do NOT take a lock across the
-// GPU submit / forwarded present to avoid deadlock.
-
-// Set in init_imgui (first present) and read/reset across the swapchain rebuild path;
-// atomic with acquire/release so visibility is consistent across threads.
 std::atomic<bool> g_imgui_inited{false};
-
-// The content sink. Written from the worker thread (set_ui), read from the render
-// thread (present detour). Aligned pointer => atomic load/store is correct.
 std::atomic<IOverlayUi *> g_ui{nullptr};
-
-// One-time "skipping render, state incomplete" warning so we don't spam the log
-// every frame.
-bool g_warned_incomplete = false;
+bool g_warned_incomplete = false; // rate-limit the "state incomplete" warning
 
 // ---------------------------------------------------------------------------
-// SDL input state (file-scope, used by repl_process_sdl_event and the present hook).
+// SDL input state.
 // ---------------------------------------------------------------------------
 
-// The game processes every event through ProcessSDLEvent(SDL_Event&), called by
-// main's SDL_WaitEvent loop (and the window-modal filter). That is what we hook;
-// SDL_PollEvent/SDL_PeepEvents are not on the game's input path.
 using PFN_ProcessSDLEvent = void (*)(SDL_Event *);
 PFN_ProcessSDLEvent g_orig_process = nullptr;
 
-// Atomic: the toggle is flipped in the SDL hook (which may run on the game thread)
-// and read in the present hook (render thread) draw gate.
 std::atomic<bool> g_console_open{false};
 
-// ImGui's per-frame capture intent, published by the present (render) thread after
-// each frame and read by the input hook (game thread) to decide what to swallow.
-// One frame in arrears by construction; default false so that until ImGui has drawn
-// a frame (e.g. the moment the console opens) input passes through to the game.
+// Published by the render thread after each frame; read (one frame in arrears) by
+// the input hook to decide what to swallow from the game.
 std::atomic<bool> g_imgui_want_keyboard{false};
 std::atomic<bool> g_imgui_want_mouse{false};
 
-// Cross-thread input hand-off. SDL_PeepEvents may run on a different thread than
-// vkQueuePresentKHR (the engine has a ycGameThread), and ImGui is NOT thread-safe.
-// So the SDL hook only CAPTURES events into this queue; the present hook drains it
-// into ImGui IO right before NewFrame, keeping all ImGui access on the render thread.
+// Events captured on the event thread, drained into ImGui IO on the render thread.
 std::mutex g_input_mu;
 std::vector<SDL_Event> g_input_queue; // guarded by g_input_mu
 
-// Toggle key; resolved once in the VulkanOverlay ctor.
 SDL_Keycode g_toggle_key = SDLK_F1;
 
-// ---------------------------------------------------------------------------
-// Key-name helper: env string -> SDL_Keycode for MTHAP_CONSOLE_KEY override.
-// ---------------------------------------------------------------------------
-
+// MTHAP_CONSOLE_KEY env string to SDL_Keycode.
 static SDL_Keycode parse_console_key(const char *name)
 {
     if (name == nullptr || name[0] == '\0')
@@ -231,15 +173,11 @@ static SDL_Keycode parse_console_key(const char *name)
     return SDLK_F1;
 }
 
-// ---------------------------------------------------------------------------
-// SDL_Keycode -> ImGuiKey translation (no SDL linkage — headers only).
-// ---------------------------------------------------------------------------
-
+// SDL_Keycode to ImGuiKey (header-only, no SDL linkage).
 static ImGuiKey sdl_keycode_to_imgui(SDL_Keycode key)
 {
     switch (key)
     {
-    // Navigation / editing
     case SDLK_TAB:
         return ImGuiKey_Tab;
     case SDLK_LEFT:
@@ -270,7 +208,6 @@ static ImGuiKey sdl_keycode_to_imgui(SDL_Keycode key)
         return ImGuiKey_Enter;
     case SDLK_ESCAPE:
         return ImGuiKey_Escape;
-    // Modifiers
     case SDLK_LCTRL:
         return ImGuiKey_LeftCtrl;
     case SDLK_RCTRL:
@@ -287,7 +224,6 @@ static ImGuiKey sdl_keycode_to_imgui(SDL_Keycode key)
         return ImGuiKey_LeftSuper;
     case SDLK_RGUI:
         return ImGuiKey_RightSuper;
-    // Letters A-Z (SDL keycodes == ASCII lowercase)
     case SDLK_a:
         return ImGuiKey_A;
     case SDLK_b:
@@ -340,7 +276,6 @@ static ImGuiKey sdl_keycode_to_imgui(SDL_Keycode key)
         return ImGuiKey_Y;
     case SDLK_z:
         return ImGuiKey_Z;
-    // Digits 0-9
     case SDLK_0:
         return ImGuiKey_0;
     case SDLK_1:
@@ -361,7 +296,6 @@ static ImGuiKey sdl_keycode_to_imgui(SDL_Keycode key)
         return ImGuiKey_8;
     case SDLK_9:
         return ImGuiKey_9;
-    // Function keys
     case SDLK_F1:
         return ImGuiKey_F1;
     case SDLK_F2:
@@ -386,7 +320,6 @@ static ImGuiKey sdl_keycode_to_imgui(SDL_Keycode key)
         return ImGuiKey_F11;
     case SDLK_F12:
         return ImGuiKey_F12;
-    // Punctuation used in server addresses and common console input
     case SDLK_MINUS:
         return ImGuiKey_Minus;
     case SDLK_EQUALS:
@@ -409,7 +342,6 @@ static ImGuiKey sdl_keycode_to_imgui(SDL_Keycode key)
         return ImGuiKey_Slash;
     case SDLK_BACKQUOTE:
         return ImGuiKey_GraveAccent;
-    // Keypad
     case SDLK_KP_0:
         return ImGuiKey_Keypad0;
     case SDLK_KP_1:
@@ -449,15 +381,9 @@ static ImGuiKey sdl_keycode_to_imgui(SDL_Keycode key)
     }
 }
 
-// ---------------------------------------------------------------------------
-// Feed one SDL event into ImGui IO.
-// Returns true for mouse/keyboard/text events that ImGui consumed and that
-// the game should NOT see while the console is open.
-// ---------------------------------------------------------------------------
-
+// Feed one SDL event into ImGui IO. Returns true for input events ImGui consumed.
 static bool feed_imgui(const SDL_Event &e)
 {
-    // Only feed when an ImGui context exists (context created lazily on first frame).
     if (ImGui::GetCurrentContext() == nullptr)
         return false;
 
@@ -496,7 +422,6 @@ static bool feed_imgui(const SDL_Event &e)
     case SDL_KEYUP:
     {
         const bool down = (e.type == SDL_KEYDOWN);
-        // Push modifier state derived from the event's mod bitmask.
         const SDL_Keymod mod = static_cast<SDL_Keymod>(e.key.keysym.mod);
         io.AddKeyEvent(ImGuiMod_Ctrl, (mod & KMOD_CTRL) != 0);
         io.AddKeyEvent(ImGuiMod_Shift, (mod & KMOD_SHIFT) != 0);
@@ -513,9 +438,8 @@ static bool feed_imgui(const SDL_Event &e)
     }
 }
 
-// Pure classifier (no ImGui): is this an event the console wants while open?
-// Mirrors the event types feed_imgui() translates. Used for the swallow decision
-// on the (possibly game) thread, where ImGui must not be touched.
+// Classifier (no ImGui): mirrors the event types feed_imgui() handles.
+// Used on the event thread where ImGui must not be touched.
 static bool is_imgui_input_event(const SDL_Event &e)
 {
     switch (e.type)
@@ -533,8 +457,7 @@ static bool is_imgui_input_event(const SDL_Event &e)
     }
 }
 
-// Is this a mouse (vs keyboard/text) input event? Picks which of ImGui's
-// WantCapture flags gates the swallow decision for this event.
+// Selects which WantCapture flag gates the swallow decision for this event.
 static bool is_mouse_event(const SDL_Event &e)
 {
     switch (e.type)
@@ -550,19 +473,14 @@ static bool is_mouse_event(const SDL_Event &e)
 }
 
 // ---------------------------------------------------------------------------
-// ProcessSDLEvent detour: the game's central event processor (one event by
-// reference). We flip the console on the toggle key, and while the console is
-// open we capture input for ImGui (drained on the render thread) and swallow it
-// by NOT forwarding to the original, so the player does not act while typing.
-// Everything else is forwarded to the game unchanged.
+// ProcessSDLEvent detour.
 // ---------------------------------------------------------------------------
 
 extern "C" void repl_process_sdl_event(SDL_Event *e)
 {
     if (e != nullptr)
     {
-        // Toggle key: flip on keydown; swallow BOTH down and up so the game never
-        // sees a dangling toggle key (which it would treat as stuck-held).
+        // Swallow both keydown and keyup for the toggle key so the game never sees it.
         if ((e->type == SDL_KEYDOWN || e->type == SDL_KEYUP) && e->key.keysym.sym == g_toggle_key)
         {
             if (e->type == SDL_KEYDOWN && e->key.repeat == 0)
@@ -570,14 +488,6 @@ extern "C" void repl_process_sdl_event(SDL_Event *e)
             return; // swallow: do not forward to the game
         }
 
-        // While open: hand every input event to ImGui (fed on the render thread), but
-        // only SWALLOW it from the game when ImGui actually wants that input class --
-        // i.e. the mouse is over the console window or its text box has keyboard focus.
-        // Otherwise fall through and forward, so the player can still move/act while the
-        // console is merely visible. WantCapture* is published one frame in arrears by
-        // the present hook, so right after opening (flags default false) input passes to
-        // the game until you hover or click into the console. While closed: process
-        // normally.
         if (g_console_open.load(std::memory_order_relaxed) && is_imgui_input_event(*e))
         {
             {
@@ -605,7 +515,6 @@ template <typename Fn> void resolve_device_fn(Fn &slot, VkDevice device, const c
         pal::logf(pal::LogLevel::Error, "overlay: failed to resolve device fn %s", name);
 }
 
-// Resolve every device-level function we CALL. Safe to call repeatedly.
 bool resolve_device_functions(VkDevice device)
 {
     if (g_vkGetDeviceProcAddr == nullptr)
@@ -645,7 +554,6 @@ bool resolve_device_functions(VkDevice device)
     resolve_device_fn(g_vkWaitForFences, device, "vkWaitForFences");
     resolve_device_fn(g_vkResetFences, device, "vkResetFences");
 
-    // All non-null?
     return g_vkGetDeviceQueue && g_vkGetSwapchainImagesKHR && g_vkCreateImageView && g_vkDestroyImageView && g_vkCreateRenderPass && g_vkDestroyRenderPass &&
            g_vkCreateFramebuffer && g_vkDestroyFramebuffer && g_vkCreateDescriptorPool && g_vkDestroyDescriptorPool && g_vkCreateCommandPool &&
            g_vkDestroyCommandPool && g_vkAllocateCommandBuffers && g_vkResetCommandBuffer && g_vkBeginCommandBuffer && g_vkEndCommandBuffer &&
@@ -653,9 +561,7 @@ bool resolve_device_functions(VkDevice device)
            g_vkCreateFence && g_vkDestroyFence && g_vkWaitForFences && g_vkResetFences;
 }
 
-// Loader thunk handed to ImGui_ImplVulkan_LoadFunctions. The Vulkan backend uses
-// it to resolve every function it needs (instance-level resolution covers device
-// functions too via the loader).
+// Loader thunk for ImGui_ImplVulkan_LoadFunctions.
 PFN_vkVoidFunction imgui_loader_thunk(const char *name, void * /*user*/)
 {
     if (g_vkGetInstanceProcAddr == nullptr)
@@ -664,7 +570,7 @@ PFN_vkVoidFunction imgui_loader_thunk(const char *name, void * /*user*/)
 }
 
 // ---------------------------------------------------------------------------
-// Swapchain resource teardown / build.
+// Swapchain resource teardown/build.
 // ---------------------------------------------------------------------------
 
 void destroy_swapchain_resources()
@@ -699,7 +605,6 @@ void destroy_swapchain_resources()
                 g_vkDestroyImageView(g_state.device, v, nullptr);
     g_state.image_views.clear();
 
-    // Command buffers are freed implicitly with their pool.
     if (g_state.command_pool != VK_NULL_HANDLE && g_vkDestroyCommandPool)
     {
         g_vkDestroyCommandPool(g_state.device, g_state.command_pool, nullptr);
@@ -722,7 +627,7 @@ bool build_render_pass()
     VkAttachmentDescription color{};
     color.format = g_state.format;
     color.samples = VK_SAMPLE_COUNT_1_BIT;
-    color.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD; // draw over the game's frame
+    color.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD; // composite over the game's frame
     color.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     color.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     color.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
@@ -763,12 +668,8 @@ bool build_render_pass()
     return true;
 }
 
-// Rebuild every per-image resource from the freshly created swapchain. Returns
-// true if the overlay is ready to render against this swapchain.
 bool build_swapchain_resources()
 {
-    // Drop readiness before tearing down / rebuilding so the present thread degrades
-    // (forwards untouched) rather than touching half-built resources.
     g_state.resources_ready.store(false, std::memory_order_release);
     destroy_swapchain_resources();
 
@@ -778,7 +679,6 @@ bool build_swapchain_resources()
         return false;
     }
 
-    // Enumerate swapchain images.
     std::uint32_t count = 0;
     if (g_vkGetSwapchainImagesKHR(g_state.device, g_state.swapchain, &count, nullptr) != VK_SUCCESS || count == 0)
     {
@@ -796,7 +696,6 @@ bool build_swapchain_resources()
     if (!build_render_pass())
         return false;
 
-    // Image views.
     g_state.image_views.resize(count, VK_NULL_HANDLE);
     for (std::uint32_t i = 0; i < count; ++i)
     {
@@ -821,7 +720,6 @@ bool build_swapchain_resources()
         }
     }
 
-    // Framebuffers.
     g_state.framebuffers.resize(count, VK_NULL_HANDLE);
     for (std::uint32_t i = 0; i < count; ++i)
     {
@@ -841,9 +739,8 @@ bool build_swapchain_resources()
         }
     }
 
-    // Command pool (graphics family, resettable buffers) + one command buffer per image.
     if (!g_state.queue_family_known)
-        pal::logf(pal::LogLevel::Warn, "overlay: assuming graphics queue family 0 (vkCreateDevice was not intercepted; queue family was never captured)");
+        pal::logf(pal::LogLevel::Warn, "overlay: assuming graphics queue family 0 (vkCreateDevice was not intercepted)");
 
     VkCommandPoolCreateInfo cp{};
     cp.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
@@ -867,7 +764,6 @@ bool build_swapchain_resources()
         return false;
     }
 
-    // Per-image render-finished semaphores.
     g_state.render_finished.resize(count, VK_NULL_HANDLE);
     for (std::uint32_t i = 0; i < count; ++i)
     {
@@ -880,10 +776,7 @@ bool build_swapchain_resources()
         }
     }
 
-    // Per-image in-flight fences. Created SIGNALED so the first vkWaitForFences for a
-    // given image returns immediately (no submit has been issued for it yet). The
-    // fence guarantees the PREVIOUS overlay submit for this image index has completed
-    // before its command buffer is reset and re-recorded.
+    // Created signaled so the first wait returns immediately.
     g_state.in_flight.resize(count, VK_NULL_HANDLE);
     for (std::uint32_t i = 0; i < count; ++i)
     {
@@ -897,8 +790,6 @@ bool build_swapchain_resources()
         }
     }
 
-    // Publish: release-store so the present thread's acquire-load sees every handle
-    // written above fully constructed. Only reached when ALL resources succeeded.
     g_state.resources_ready.store(true, std::memory_order_release);
     pal::logf(pal::LogLevel::Info, "overlay: swapchain resources built (%ux%u, %u images, fmt=%d)", g_state.extent.width, g_state.extent.height,
               g_state.image_count, static_cast<int>(g_state.format));
@@ -914,7 +805,6 @@ bool init_imgui()
     if (g_imgui_inited.load(std::memory_order_acquire))
         return true;
 
-    // Descriptor pool sized for ImGui.
     VkDescriptorPoolSize pool_size{};
     pool_size.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     pool_size.descriptorCount = 64;
@@ -938,8 +828,6 @@ bool init_imgui()
     ImGuiIO &io = ImGui::GetIO();
     io.IniFilename = nullptr; // never write imgui.ini into the game dir
     io.ConfigFlags |= ImGuiConfigFlags_NoMouseCursorChange;
-    // Input arrives in a later task; give NewFrame a legal display size now so it
-    // does not assert before the first present sets the real swapchain extent.
     io.DisplaySize = ImVec2(static_cast<float>(g_state.extent.width), static_cast<float>(g_state.extent.height));
 
     if (!ImGui_ImplVulkan_LoadFunctions(&imgui_loader_thunk, nullptr))
@@ -977,8 +865,6 @@ bool init_imgui()
         return false;
     }
 
-    // v1.91.5 uploads the font texture automatically on first RenderDrawData; no
-    // manual command-buffer dance required.
     g_imgui_inited.store(true, std::memory_order_release);
     pal::logf(pal::LogLevel::Info, "overlay: ImGui Vulkan backend initialized");
     return true;
@@ -1002,15 +888,12 @@ void shutdown_imgui()
 
 bool state_complete_for_render()
 {
-    // Acquire-load the readiness gate: pairs with the release-store in
-    // build_swapchain_resources so all non-atomic g_state handle writes that preceded
-    // the release are visible here before we touch any of them.
     return g_state.instance != VK_NULL_HANDLE && g_state.physical_device != VK_NULL_HANDLE && g_state.device != VK_NULL_HANDLE &&
            g_state.queue != VK_NULL_HANDLE && g_state.resources_ready.load(std::memory_order_acquire);
 }
 
 // ---------------------------------------------------------------------------
-// Detours.
+// Hook replacements.
 // ---------------------------------------------------------------------------
 
 VKAPI_ATTR VkResult VKAPI_CALL repl_vkCreateInstance(const VkInstanceCreateInfo *pCreateInfo, const VkAllocationCallbacks *pAllocator, VkInstance *pInstance)
@@ -1054,8 +937,6 @@ VKAPI_ATTR VkResult VKAPI_CALL repl_vkCreateSwapchainKHR(VkDevice device, const 
     if (r != VK_SUCCESS || pSwapchain == nullptr || pCreateInfo == nullptr)
         return r;
 
-    // Fallback: recover the device if vkCreateDevice was missed due to the
-    // startup-timing race (the swapchain call carries the VkDevice).
     if (g_state.device == VK_NULL_HANDLE)
     {
         g_state.device = device;
@@ -1067,25 +948,21 @@ VKAPI_ATTR VkResult VKAPI_CALL repl_vkCreateSwapchainKHR(VkDevice device, const 
     g_state.extent = pCreateInfo->imageExtent;
     g_state.min_image_count = pCreateInfo->minImageCount;
 
-    // If ImGui was initialized against a previous swapchain (resize / vsync
-    // toggle), tear it down so it re-inits with the new render pass + counts.
     if (g_imgui_inited.load(std::memory_order_acquire))
         shutdown_imgui();
 
     if (!build_swapchain_resources())
         pal::logf(pal::LogLevel::Warn, "overlay: swapchain resource build failed; overlay inactive for this swapchain");
 
-    g_warned_incomplete = false; // allow a fresh warning if state still incomplete
+    g_warned_incomplete = false;
     return r;
 }
 
 VKAPI_ATTR VkResult VKAPI_CALL repl_vkQueuePresentKHR(VkQueue queue, const VkPresentInfoKHR *pPresentInfo)
 {
-    // 1. Adopt the present queue if we never captured one (e.g. missed device).
     if (g_state.queue == VK_NULL_HANDLE)
         g_state.queue = queue;
 
-    // 2. Degrade: forward untouched if we cannot render.
     if (!state_complete_for_render() || pPresentInfo == nullptr)
     {
         if (!g_warned_incomplete)
@@ -1098,24 +975,18 @@ VKAPI_ATTR VkResult VKAPI_CALL repl_vkQueuePresentKHR(VkQueue queue, const VkPre
         return g_orig_present(queue, pPresentInfo);
     }
 
-    // 3. Skip the entire frame when the console is closed (zero GPU cost). Discard
-    //    any input captured during the closing frame so it does not replay on reopen.
-    if (!g_console_open.load(std::memory_order_acquire))
+    const bool console_open = g_console_open.load(std::memory_order_acquire);
+    if (!console_open)
     {
-        // Console hidden: claim no input so the hook forwards everything to the game.
         g_imgui_want_keyboard.store(false, std::memory_order_release);
         g_imgui_want_mouse.store(false, std::memory_order_release);
         std::lock_guard<std::mutex> lk(g_input_mu);
         g_input_queue.clear();
-        return g_orig_present(queue, pPresentInfo);
     }
 
-    // 4a. Lazy ImGui init (runs only when we are about to draw).
     if (!init_imgui())
         return g_orig_present(queue, pPresentInfo);
 
-    // 4b. Find OUR swapchain in the present info and its image index. For first
-    //     light we render only into the swapchain we captured; others pass through.
     std::uint32_t our_idx = UINT32_MAX;
     std::uint32_t image_index = 0;
     for (std::uint32_t i = 0; i < pPresentInfo->swapchainCount; ++i)
@@ -1130,9 +1001,8 @@ VKAPI_ATTR VkResult VKAPI_CALL repl_vkQueuePresentKHR(VkQueue queue, const VkPre
     if (our_idx == UINT32_MAX || image_index >= g_state.image_count)
         return g_orig_present(queue, pPresentInfo);
 
-    // 5. Build the ImGui frame. First drain SDL input captured by the SDL hook
-    //    (possibly on the game thread) into ImGui IO -- done here so every ImGui
-    //    call stays on this (the render) thread.
+    // Drain SDL input (captured on the event thread) into ImGui IO on the render thread.
+    if (console_open)
     {
         std::lock_guard<std::mutex> lk(g_input_mu);
         for (const SDL_Event &e : g_input_queue)
@@ -1143,27 +1013,20 @@ VKAPI_ATTR VkResult VKAPI_CALL repl_vkQueuePresentKHR(VkQueue queue, const VkPre
     ImGui_ImplVulkan_NewFrame();
     ImGuiIO &io = ImGui::GetIO();
     io.DisplaySize = ImVec2(static_cast<float>(g_state.extent.width), static_cast<float>(g_state.extent.height));
-    io.DeltaTime = 1.0f / 60.0f; // real timing arrives with input handling
-    io.MouseDrawCursor = true;   // draw ImGui's software cursor (game may hide the OS cursor)
+    io.DeltaTime = 1.0f / 60.0f;
+    io.MouseDrawCursor = console_open;
     ImGui::NewFrame();
 
     if (IOverlayUi *ui = g_ui.load(std::memory_order_acquire))
-        ui->draw();
-    else
+        ui->draw(console_open);
+    else if (console_open)
         ImGui::ShowDemoWindow();
 
     ImGui::Render();
 
-    // Publish this frame's capture intent for the input hook (read on the game
-    // thread). Reflects the hover/focus computed in NewFrame, so the hook applies it
-    // to the next event -- a deliberate ~1-frame lag at the focus/blur boundary.
-    g_imgui_want_keyboard.store(io.WantCaptureKeyboard, std::memory_order_release);
-    g_imgui_want_mouse.store(io.WantCaptureMouse, std::memory_order_release);
+    g_imgui_want_keyboard.store(console_open && io.WantCaptureKeyboard, std::memory_order_release);
+    g_imgui_want_mouse.store(console_open && io.WantCaptureMouse, std::memory_order_release);
 
-    // 6. Record the overlay draw into this image's command buffer. Wait on this
-    //    image's in-flight fence first so the PREVIOUS overlay submit for this image
-    //    index has fully completed before we reset/re-record/re-submit its command
-    //    buffer (created signaled, so the first wait returns immediately).
     VkFence in_flight = g_state.in_flight[image_index];
     g_vkWaitForFences(g_state.device, 1, &in_flight, VK_TRUE, UINT64_MAX);
     g_vkResetFences(g_state.device, 1, &in_flight);
@@ -1182,7 +1045,7 @@ VKAPI_ATTR VkResult VKAPI_CALL repl_vkQueuePresentKHR(VkQueue queue, const VkPre
     rp.framebuffer = g_state.framebuffers[image_index];
     rp.renderArea.offset = {0, 0};
     rp.renderArea.extent = g_state.extent;
-    rp.clearValueCount = 0; // loadOp = LOAD, nothing to clear
+    rp.clearValueCount = 0; // loadOp=LOAD, nothing to clear
     rp.pClearValues = nullptr;
     g_vkCmdBeginRenderPass(cmd, &rp, VK_SUBPASS_CONTENTS_INLINE);
 
@@ -1191,8 +1054,6 @@ VKAPI_ATTR VkResult VKAPI_CALL repl_vkQueuePresentKHR(VkQueue queue, const VkPre
     g_vkCmdEndRenderPass(cmd);
     g_vkEndCommandBuffer(cmd);
 
-    // 7. Submit: wait on the game's render-finished semaphores (so we draw after
-    //    the frame is rendered), signal our overlay semaphore for this image.
     VkSemaphore overlay_sem = g_state.render_finished[image_index];
 
     std::vector<VkPipelineStageFlags> wait_stages(pPresentInfo->waitSemaphoreCount, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
@@ -1207,15 +1068,10 @@ VKAPI_ATTR VkResult VKAPI_CALL repl_vkQueuePresentKHR(VkQueue queue, const VkPre
     submit.signalSemaphoreCount = 1;
     submit.pSignalSemaphores = &overlay_sem;
 
-    // Pass this image's in-flight fence; it is signaled when the overlay work for this
-    // image completes, gating the next reuse of this command buffer.
     if (g_vkQueueSubmit(queue, 1, &submit, in_flight) != VK_SUCCESS)
     {
-        // If our submit fails we must NOT consume the game's wait semaphores; fall
-        // back to forwarding the original present (the game's semaphores are still
-        // pending and will be waited on by the present below). We reset in_flight to
-        // signaled (an empty submit) so a future frame's vkWaitForFences for this image
-        // does not block forever on a fence that was reset but never signaled.
+        // Submit failed: restore in_flight to signaled so the next wait for this image
+        // does not block on an unsignaled fence.
         VkSubmitInfo signal_only{};
         signal_only.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
         g_vkQueueSubmit(queue, 1, &signal_only, in_flight);
@@ -1223,7 +1079,6 @@ VKAPI_ATTR VkResult VKAPI_CALL repl_vkQueuePresentKHR(VkQueue queue, const VkPre
         return g_orig_present(queue, pPresentInfo);
     }
 
-    // 8. Present, waiting on OUR semaphore (which in turn waited on the game's).
     VkPresentInfoKHR modified = *pPresentInfo;
     modified.waitSemaphoreCount = 1;
     modified.pWaitSemaphores = &overlay_sem;
@@ -1231,7 +1086,7 @@ VKAPI_ATTR VkResult VKAPI_CALL repl_vkQueuePresentKHR(VkQueue queue, const VkPre
 }
 
 // ---------------------------------------------------------------------------
-// Overlay implementation.
+// VulkanOverlay.
 // ---------------------------------------------------------------------------
 
 class VulkanOverlay final : public IOverlay
@@ -1241,23 +1096,21 @@ class VulkanOverlay final : public IOverlay
     {
         pal::logf(pal::LogLevel::Info, "overlay: VulkanOverlay constructing (event_proc=0x%llx)", static_cast<unsigned long long>(cfg_.process_sdl_event_addr));
 
-        // The game already loaded libvulkan; RTLD_NOLOAD just hands us its handle.
         vulkan_handle_ = dlopen("libvulkan.so.1", RTLD_NOW | RTLD_NOLOAD);
         if (vulkan_handle_ == nullptr)
         {
-            const char *dl_err = dlerror(); // dlerror() clears on read; call once
-            pal::logf(pal::LogLevel::Error, "overlay: dlopen(libvulkan.so.1, NOLOAD) failed: %s — overlay inert", dl_err ? dl_err : "(null)");
+            const char *dl_err = dlerror();
+            pal::logf(pal::LogLevel::Error, "overlay: dlopen(libvulkan.so.1, NOLOAD) failed: %s, overlay inert", dl_err ? dl_err : "(null)");
             return;
         }
 
         g_vkGetInstanceProcAddr = reinterpret_cast<PFN_vkGetInstanceProcAddr>(dlsym(vulkan_handle_, "vkGetInstanceProcAddr"));
         if (g_vkGetInstanceProcAddr == nullptr)
         {
-            pal::logf(pal::LogLevel::Error, "overlay: dlsym(vkGetInstanceProcAddr) failed — overlay inert");
+            pal::logf(pal::LogLevel::Error, "overlay: dlsym(vkGetInstanceProcAddr) failed - overlay inert");
             return;
         }
 
-        // Resolve the loader trampolines the game calls; hooking these catches it.
         struct Spec
         {
             const char *name;
@@ -1296,7 +1149,6 @@ class VulkanOverlay final : public IOverlay
             }
         }
 
-        // Resolve toggle key from environment, then install the ProcessSDLEvent hook.
         g_toggle_key = parse_console_key(std::getenv("MTHAP_CONSOLE_KEY"));
         pal::logf(pal::LogLevel::Info, "overlay: console toggle key = 0x%x (SDLK)", static_cast<int>(g_toggle_key));
 
@@ -1323,12 +1175,10 @@ class VulkanOverlay final : public IOverlay
 
     ~VulkanOverlay() override
     {
-        // Remove hooks FIRST so no detour fires mid-teardown.
         for (std::size_t i = 0; i < installed_; ++i)
             pal::hook_engine().remove_hook(ids_[i]);
         installed_ = 0;
 
-        // Tear down ImGui + every Vulkan object we created.
         shutdown_imgui();
         destroy_swapchain_resources();
 
@@ -1336,7 +1186,7 @@ class VulkanOverlay final : public IOverlay
 
         if (vulkan_handle_ != nullptr)
         {
-            dlclose(vulkan_handle_); // NOLOAD handle: balances our reference
+            dlclose(vulkan_handle_);
             vulkan_handle_ = nullptr;
         }
         pal::logf(pal::LogLevel::Info, "overlay: VulkanOverlay destroyed");
@@ -1348,8 +1198,8 @@ class VulkanOverlay final : public IOverlay
     }
 
   private:
-    static constexpr std::size_t kVkHookCount = 4;  // vkCreateInstance/Device/Swapchain/Present
-    static constexpr std::size_t kMaxHookCount = 5; // + SDL_PollEvent
+    static constexpr std::size_t kVkHookCount = 4;  // Instance/Device/Swapchain/Present
+    static constexpr std::size_t kMaxHookCount = 5; // + ProcessSDLEvent
     OverlayConfig cfg_;
     void *vulkan_handle_ = nullptr;
     HookId ids_[kMaxHookCount]{};
