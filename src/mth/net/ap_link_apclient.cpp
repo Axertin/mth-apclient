@@ -13,10 +13,8 @@
 
 namespace
 {
-// AP game name - placeholder until the Mina apworld defines its name.
-constexpr const char *kGameName = "Mina the Hollower";
-// items_handling bitmask: remote items + own-world items + starting inventory.
-constexpr int kItemHandling = 0b111;
+constexpr const char *kGameName = "Mina The Hollower"; // placeholder until apworld is named
+constexpr int kItemHandling = 0b111;                   // remote + own-world + starting inventory
 
 std::string build_uri(const std::string &server)
 {
@@ -146,7 +144,7 @@ void ApLink::run()
         }
         std::this_thread::sleep_for(10ms);
     }
-    do_disconnect(); // tear down the client on the net thread
+    do_disconnect();
 }
 
 void ApLink::do_connect(const std::string &server, const std::string &slot, const std::string &password)
@@ -191,10 +189,7 @@ void ApLink::do_disconnect()
 {
     if (!client_)
         return;
-    // Only emit a disconnect event if we were actually connected. The
-    // socket-disconnected handler already emits one on server-initiated drops
-    // (and leaves client_ alive so apclientpp can reconnect on the next poll),
-    // so guarding on connected_ here avoids a duplicate ApDisconnected.
+    // socket_disconnected handler already emits on server drops; guard avoids duplicate.
     const bool was_connected = connected_.exchange(false);
     client_.reset();
     if (was_connected)
@@ -222,9 +217,6 @@ void ApLink::setup_handlers(const std::string &slot, const std::string &password
         {
             connected_.store(true);
             std::list<std::string> tags;
-            // Mirror okami's proven connect flow: (re)assert items-handling/tags
-            // after the slot connects. send_items_handling=false, tags empty -
-            // effectively confirms the ConnectSlot negotiation.
             client_->ConnectUpdate(false, kItemHandling, true, tags);
             client_->StatusUpdate(APClient::ClientStatus::PLAYING);
 
