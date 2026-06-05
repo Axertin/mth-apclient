@@ -26,4 +26,9 @@ inline constexpr const char *player_trackable_get_pos = "_ZNK15PlayerTrackable6G
 // kind is the int at +0x28. Used only to log each grant's item kind (diagnostic).
 inline constexpr const char *s_r_items = "_ZN12_GLOBAL__N_18s_rItemsE";
 
+// Outbound (functional dummy). Pickup::Init is the single spawn convergence point (re-derives
+// itemType for locIdx>=0, stores it on the entity); Pickup::OnPickup is the collect chokepoint.
+inline constexpr const char *pickup_init = "_ZN6Pickup4InitEii";                         // Pickup::Init(int itemType, int locIdx)
+inline constexpr const char *pickup_on_pickup = "_ZN6Pickup8OnPickupEP14PickupListener"; // Pickup::OnPickup(PickupListener*)
+
 } // namespace mth::sym

@@ -1,6 +1,7 @@
 #include "mth/rando_hooks.hpp"
 
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <mutex>
 #include <vector>
@@ -48,6 +49,27 @@ constexpr int kItemEntryStride = 0x68;
 constexpr int kStorageKindOffset = 0x28;
 constexpr int kItemTypeCount = 195;
 
+// Pickup entity field offsets (BUILD-SPECIFIC; the only non-symbol dependency). locIdx is the
+// s_rItemCollection index; itemType is the effective spawned type. Verified by a startup
+// self-check (repl_pickup_init compares the stored locIdx to the Init arg); on mismatch we
+// disable the outbound redirect rather than corrupt pickups.
+constexpr std::ptrdiff_t kPickupLocIdxOff = 0x380;
+constexpr std::ptrdiff_t kPickupItemTypeOff = 0x384;
+bool g_pickup_offsets_ok = true; // cleared by the self-check on mismatch
+
+[[nodiscard]] int &pickup_loc_idx(void *self)
+{
+    return *reinterpret_cast<int *>(static_cast<char *>(self) + kPickupLocIdxOff);
+}
+[[nodiscard]] int &pickup_item_type(void *self)
+{
+    return *reinterpret_cast<int *>(static_cast<char *>(self) + kPickupItemTypeOff);
+}
+
+// The AP sentinel: kItemType_Magic_Small (37) -- secondary-weapon ammo with self-contained
+// valid assets; the least-valuable grantable item, so the native collect is harmless.
+constexpr int kApSentinelItemType = 37;
+
 // Pending inbound-grant queue.
 // grant() (called from the console present-hook thread AND the game thread via InboundGranter)
 // only ENQUEUES; drain() (called from a spawn-safe PRE-orig update hook, game thread) replays
@@ -84,14 +106,52 @@ void repl_trackable_update(void *self, void *ctx)
 
 void repl_on_pickup_done(int slot, int item_type, void *player, void *vec, int a5, int a6, unsigned int a7, bool a8)
 {
-    g_player = player; // refresh; this is exactly the grant-target player
+    g_player = player; // refresh the grant-target player for inbound replays
     if (g_orig_on_pickup_done)
         g_orig_on_pickup_done(slot, item_type, player, vec, a5, a6, a7, a8);
-    // Diagnostic: log every observed pickup (read-only MVP). Pickups are infrequent, so
-    // per-call logging is fine and confirms the detour fires even before AP is connected.
-    pal::logf(pal::LogLevel::Info, "OnPickupDone: slot=%d itemType=%d", slot, item_type);
-    if (g_bridge)
-        g_bridge->on_location_collected(slot);
+}
+
+pal::HookId g_id_pickup_init = pal::kInvalidHookId;
+void (*g_orig_pickup_init)(void *, int, int) = nullptr;
+
+void repl_pickup_init(void *self, int item_type, int loc_idx)
+{
+    if (g_orig_pickup_init)
+        g_orig_pickup_init(self, item_type, loc_idx); // entity now holds locIdx + derived type
+
+    // Offset self-check (once-effective): the just-constructed entity must store loc_idx at
+    // our locIdx offset. If not, the layout shifted (nightly update) -> disable the redirect.
+    if (g_pickup_offsets_ok && pickup_loc_idx(self) != loc_idx)
+    {
+        g_pickup_offsets_ok = false;
+        pal::logf(pal::LogLevel::Error, "Pickup offset check FAILED (stored=%d arg=%d); outbound redirect disabled", pickup_loc_idx(self), loc_idx);
+        return;
+    }
+    if (!g_pickup_offsets_ok || g_bridge == nullptr)
+        return;
+
+    if (g_bridge->is_ap_location(loc_idx))
+        pickup_item_type(self) = kApSentinelItemType; // show the harmless sentinel in-world
+}
+
+pal::HookId g_id_pickup_on_pickup = pal::kInvalidHookId;
+void (*g_orig_pickup_on_pickup)(void *, void *) = nullptr;
+
+void repl_pickup_on_pickup(void *self, void *listener)
+{
+    if (g_pickup_offsets_ok && g_bridge != nullptr)
+    {
+        const int loc_idx = pickup_loc_idx(self);
+        if (g_bridge->is_ap_location(loc_idx))
+        {
+            pal::logf(pal::LogLevel::Info, "outbound: collected AP location locIdx=%d", loc_idx);
+            g_bridge->on_location_collected(loc_idx); // mark_checked + persist + send if connected
+        }
+    }
+    // PATH A: forward the native collect. The sentinel grants a sliver of magic, the game sets
+    // its own collected-bit (locIdx) -> no respawn, and the pickup tears down normally.
+    if (g_orig_pickup_on_pickup)
+        g_orig_pickup_on_pickup(self, listener);
 }
 
 // Resolve + install a hook by symbol, logging the outcome. Returns the id (or invalid).
@@ -145,6 +205,11 @@ RandoHooks::RandoHooks(RandoBridge &bridge)
     g_s_r_items = pal::resolve_game_symbol(sym::s_r_items);
     if (g_s_r_items == 0)
         pal::logf(pal::LogLevel::Warn, "RandoHooks: s_rItems not found; item kind will log as -1 (grants still work)");
+
+    g_id_pickup_init =
+        hook_by_symbol(sym::pickup_init, reinterpret_cast<void *>(&repl_pickup_init), reinterpret_cast<void **>(&g_orig_pickup_init), "Pickup::Init");
+    g_id_pickup_on_pickup = hook_by_symbol(sym::pickup_on_pickup, reinterpret_cast<void *>(&repl_pickup_on_pickup),
+                                           reinterpret_cast<void **>(&g_orig_pickup_on_pickup), "Pickup::OnPickup");
 }
 
 RandoHooks::~RandoHooks()
@@ -153,6 +218,10 @@ RandoHooks::~RandoHooks()
         pal::hook_engine().remove_hook(g_id_trackable_update);
     if (g_id_player_ctor != pal::kInvalidHookId)
         pal::hook_engine().remove_hook(g_id_player_ctor);
+    if (g_id_pickup_init != pal::kInvalidHookId)
+        pal::hook_engine().remove_hook(g_id_pickup_init);
+    if (g_id_pickup_on_pickup != pal::kInvalidHookId)
+        pal::hook_engine().remove_hook(g_id_pickup_on_pickup);
     if (installed_)
         pal::hook_engine().remove_hook(g_id);
     g_bridge = nullptr;
