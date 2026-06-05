@@ -9,10 +9,8 @@
 namespace mth
 {
 
-// AP id scheme (MVP): ap_loc_id = kLocBase + collection idx (0..360),
-// ap_item_id = kItemBase + itemTypeId (0..194). The apworld MUST use identical bases.
-// Items use base 0 (ap_item_id == game itemType, identity): itemType 0 is the engine's
-// "None" sentinel, so ap_item_id 0 is reserved/ignored rather than a real grant.
+// ID scheme: ap_loc_id = kLocBase + collection idx; ap_item_id = kItemBase + itemType.
+// ap_item_id 0 = engine "None" sentinel, reserved/ignored.
 inline constexpr std::int64_t kLocBase = 1;
 inline constexpr std::int64_t kItemBase = 0;
 
@@ -21,9 +19,6 @@ inline constexpr std::int64_t ap_loc_id(int collection_idx)
     return kLocBase + collection_idx;
 }
 
-// Item ids mirror the location scheme: ap_item_id = kItemBase + game itemType
-// (itemType indexes the game's s_rItems table, 0..194). With kItemBase == 0 this is the
-// identity map. The apworld MUST use the same base. Inverse is used by the inbound granter.
 inline constexpr std::int64_t ap_item_id(int item_type)
 {
     return kItemBase + item_type;
@@ -36,28 +31,23 @@ inline constexpr int game_item_type(std::int64_t ap_item_id_)
 
 class ApSaveState; // defined in ap_save_state.hpp (same core lib)
 
-// Outbound side: turns a collected collection-slot into a server-validated,
-// deduplicated location check. Game-thread-only (no locks); reads ApState
-// (also game-thread) and pushes to IApLink (thread-safe command queue).
+// Outbound: maps a collected slot to a deduplicated server check. Game-thread-only.
 class RandoBridge
 {
   public:
     RandoBridge(IApLink &link, ApState &state);
 
-    // Attach the per-(seed,slot) durable state once it exists (on connect). Before this,
-    // checks are session-only (in-memory) and logged; after, they persist across restarts.
+    // Attach durable per-(seed,slot) state on connect; before this, checks are session-only.
     void attach_save_state(ApSaveState &save);
 
-    // A collected world location, by its s_rItemCollection index. Records it (persisted if
-    // attached), and sends the check if connected; otherwise it waits for flush().
+    // Record a collected slot (persisted if attached); send check if connected, else wait for flush().
     void on_location_collected(int collection_slot);
 
-    // Resend the whole checked-set (the server dedups). Call on (re)connect.
+    // Resend the full checked-set (server dedups). Call on (re)connect.
     void flush();
 
-    // Is this collection index a location the connected server owns? Used by the spawn /
-    // collect hooks to decide redirect + check.
     [[nodiscard]] bool is_ap_location(int collection_slot) const;
+    [[nodiscard]] bool is_checked(int collection_slot) const; // false for negative/non-location slots
 
   private:
     IApLink &link_;

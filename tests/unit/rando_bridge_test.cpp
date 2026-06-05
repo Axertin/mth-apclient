@@ -29,7 +29,7 @@ TEST_CASE("rando_bridge: valid location is sent once", "[mth][rando]")
     bridge.on_location_collected(5);
     REQUIRE(link.sent_locations == std::vector<std::int64_t>{ap_loc_id(5)});
 
-    bridge.on_location_collected(5); // duplicate -> not resent
+    bridge.on_location_collected(5);
     REQUIRE(link.sent_locations.size() == 1);
 }
 
@@ -39,7 +39,7 @@ TEST_CASE("rando_bridge: unknown location is dropped", "[mth][rando]")
     auto state = connected_with({ap_loc_id(5)});
     mth::RandoBridge bridge(link, state);
 
-    bridge.on_location_collected(7); // not in missing/checked
+    bridge.on_location_collected(7);
     REQUIRE(link.sent_locations.empty());
 }
 
@@ -49,7 +49,7 @@ TEST_CASE("rando_bridge: negative slot is ignored", "[mth][rando]")
     auto state = connected_with({ap_loc_id(0)});
     mth::RandoBridge bridge(link, state);
 
-    bridge.on_location_collected(-1); // non-location pickup (e.g. enemy drop)
+    bridge.on_location_collected(-1);
     REQUIRE(link.sent_locations.empty());
 }
 
@@ -87,7 +87,7 @@ TEST_CASE("rando_bridge: disconnected checks persist, flush on connect", "[mth][
     mth::RandoBridge bridge(link, state);
     bridge.attach_save_state(save);
 
-    bridge.on_location_collected(5); // offline: recorded, not sent
+    bridge.on_location_collected(5);
     REQUIRE(save.is_checked(5));
     REQUIRE(link.sent_locations.empty());
 
@@ -119,6 +119,37 @@ TEST_CASE("rando_bridge: double-collect of the same location sends once", "[mth]
     bridge.attach_save_state(save);
 
     bridge.on_location_collected(5);
-    bridge.on_location_collected(5); // same slot again -> no second send
+    bridge.on_location_collected(5);
     REQUIRE(link.sent_locations == std::vector<std::int64_t>{ap_loc_id(5)});
+}
+
+TEST_CASE("rando_bridge: is_checked reflects collected locations (durable)", "[mth][rando]")
+{
+    const auto path = std::filesystem::temp_directory_path() / "mthap_bridge_ischecked.state";
+    std::filesystem::remove(path);
+    mth::ApSaveState save(path);
+
+    mth::test::FakeApLink link;
+    link.connected = true;
+    auto state = connected_with({ap_loc_id(5), ap_loc_id(9)});
+    mth::RandoBridge bridge(link, state);
+    bridge.attach_save_state(save);
+
+    REQUIRE_FALSE(bridge.is_checked(5));
+    bridge.on_location_collected(5);
+    REQUIRE(bridge.is_checked(5));
+    REQUIRE_FALSE(bridge.is_checked(9));
+    REQUIRE_FALSE(bridge.is_checked(-1));
+}
+
+TEST_CASE("rando_bridge: is_checked uses the session set before a save attaches", "[mth][rando]")
+{
+    mth::test::FakeApLink link;
+    link.connected = true;
+    auto state = connected_with({ap_loc_id(5)});
+    mth::RandoBridge bridge(link, state); // no attach_save_state
+
+    REQUIRE_FALSE(bridge.is_checked(5));
+    bridge.on_location_collected(5);
+    REQUIRE(bridge.is_checked(5));
 }
