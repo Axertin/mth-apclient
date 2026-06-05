@@ -14,7 +14,8 @@ enum class CommandKind
     Clear,
     Status,
     Items,
-    Connect, // args: [server, slot, (optional) password]
+    GiveItem, // args: [ap_item_id]
+    Connect,  // args: [server, slot, (optional) password]
     Disconnect,
 };
 
@@ -25,8 +26,7 @@ struct ParsedCommand
     std::string verb;              // the raw first token (for Unknown messages)
 };
 
-// Splits on ASCII whitespace (no quoting) and maps the first token to a
-// CommandKind. Matching is case-insensitive. Empty input -> None.
+// Splits on whitespace, maps first token to CommandKind (case-insensitive). Empty input -> None.
 ParsedCommand parse_command(const std::string &line);
 
 } // namespace mth

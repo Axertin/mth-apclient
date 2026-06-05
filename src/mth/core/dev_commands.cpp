@@ -26,6 +26,8 @@ CommandKind verb_to_kind(const std::string &lower)
         return CommandKind::Status;
     if (lower == "items")
         return CommandKind::Items;
+    if (lower == "giveapitem")
+        return CommandKind::GiveItem;
     if (lower == "connect")
         return CommandKind::Connect;
     if (lower == "disconnect")

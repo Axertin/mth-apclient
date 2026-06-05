@@ -1,11 +1,14 @@
 #include "mth/ui/dev_console.hpp"
 
 #include <cfloat>
+#include <cstdint>
+#include <cstdio>
 
 #include <imgui.h>
 
 #include "mth/core/dev_commands.hpp"
 #include "mth/ui/command_sink.hpp"
+#include "mth_version.h"
 #include "pal/pal_log.hpp"
 
 namespace mth
@@ -13,8 +16,7 @@ namespace mth
 
 DevConsole::DevConsole(ICommandSink &sink) : sink_(sink)
 {
-    // Mirror the live log stream into the output pane. The observer runs on
-    // arbitrary threads; LogRing is thread-safe. It must never call pal::logf.
+    // Observer runs on arbitrary threads; must never call pal::logf.
     pal::set_log_observer([this](pal::LogLevel, std::string_view msg) { log_.push(msg); });
     println("mth dev console. type 'help'.");
 }
@@ -30,7 +32,27 @@ void DevConsole::println(const std::string &line)
     scroll_to_bottom_ = true;
 }
 
-void DevConsole::draw()
+void DevConsole::draw(bool console_open)
+{
+    draw_version_hud(); // always visible
+    if (console_open)
+        draw_console();
+}
+
+void DevConsole::draw_version_hud()
+{
+    // Foreground draw list: never steals input, always visible.
+    char label[64];
+    std::snprintf(label, sizeof(label), "mth-apclient v%.*s", static_cast<int>(version::string.size()), version::string.data());
+
+    const ImGuiViewport *vp = ImGui::GetMainViewport();
+    const ImVec2 pos(vp->WorkPos.x + 8.0f, vp->WorkPos.y + 6.0f);
+    ImDrawList *dl = ImGui::GetForegroundDrawList();
+    dl->AddText(ImVec2(pos.x + 1.0f, pos.y + 1.0f), IM_COL32(0, 0, 0, 180), label); // drop shadow
+    dl->AddText(pos, IM_COL32(255, 255, 255, 215), label);
+}
+
+void DevConsole::draw_console()
 {
     ImGui::SetNextWindowSize(ImVec2(720, 420), ImGuiCond_FirstUseEver);
     if (!ImGui::Begin("mth dev console"))
@@ -39,8 +61,6 @@ void DevConsole::draw()
         return;
     }
 
-    // Auto-scroll when the log grew since last frame, so lines arriving via the
-    // log observer (AP/tick output, not just typed commands) pin to the bottom.
     const auto lines = log_.snapshot();
     if (lines.size() != last_log_size_)
     {
@@ -66,7 +86,7 @@ void DevConsole::draw()
     if (ImGui::InputText("##input", input_.data(), input_.size(), ImGuiInputTextFlags_EnterReturnsTrue))
     {
         run_input();
-        ImGui::SetKeyboardFocusHere(-1); // keep focus on the input box after submit
+        ImGui::SetKeyboardFocusHere(-1); // keep input focus after submit
     }
 
     ImGui::End();
@@ -98,6 +118,15 @@ void DevConsole::run_input()
     case CommandKind::Items:
         for (const auto &l : sink_.item_lines())
             println(l);
+        break;
+    case CommandKind::GiveItem:
+        if (cmd.args.empty())
+            println("usage: giveapitem <ap_item_id>");
+        else
+        {
+            sink_.give_item(static_cast<std::int64_t>(std::stoll(cmd.args[0])));
+            println("granting item id " + cmd.args[0]);
+        }
         break;
     case CommandKind::Connect:
         if (cmd.args.size() < 2)

@@ -12,9 +12,7 @@ namespace mth
 
 class ICommandSink;
 
-// The dev console UI. Owns the output buffer; reads command effects through a
-// CommandSink. Registers itself as the pal log observer on construction so the
-// output pane mirrors the live log stream. Drawn each frame via draw().
+// Dev console UI. Registers as pal log observer; output pane mirrors the log stream.
 class DevConsole final : public pal::IOverlayUi
 {
   public:
@@ -24,17 +22,19 @@ class DevConsole final : public pal::IOverlayUi
     DevConsole(const DevConsole &) = delete;
     DevConsole &operator=(const DevConsole &) = delete;
 
-    void draw() override;
+    void draw(bool console_open) override;
 
   private:
-    void run_input();                      // parse + dispatch the current input buffer
-    void println(const std::string &line); // echo into the output pane
+    void draw_version_hud();
+    void draw_console();
+    void run_input();
+    void println(const std::string &line);
 
     ICommandSink &sink_;
     LogRing log_;
     std::array<char, 512> input_{};
     bool scroll_to_bottom_{true};
-    std::size_t last_log_size_{0}; // grows-check so observer-pushed log lines also pin to bottom
+    std::size_t last_log_size_{0}; // tracks growth for auto-scroll
 };
 
 } // namespace mth

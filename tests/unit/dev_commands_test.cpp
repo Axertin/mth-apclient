@@ -20,7 +20,6 @@ TEST_CASE("parse_command: known verbs map case-insensitively", "[mth][commands]"
     REQUIRE(parse_command("items").kind == CommandKind::Items);
     REQUIRE(parse_command("disconnect").kind == CommandKind::Disconnect);
 
-    // verb preserves the raw, original-case first token even for known commands.
     REQUIRE(parse_command("HELP").verb == "HELP");
 }
 
@@ -30,8 +29,6 @@ TEST_CASE("parse_command: connect captures args", "[mth][commands]")
     REQUIRE(c.kind == CommandKind::Connect);
     REQUIRE(c.args.size() == 3);
 
-    // Arg-count validation is the console layer's job, not the parser's: a bare
-    // "connect" still parses as Connect (with no args).
     REQUIRE(parse_command("connect").kind == CommandKind::Connect);
     REQUIRE(parse_command("connect").args.empty());
     REQUIRE(c.args[0] == "localhost:38281");
@@ -44,4 +41,12 @@ TEST_CASE("parse_command: unknown verb is reported with its text", "[mth][comman
     const auto c = parse_command("frobnicate x y");
     REQUIRE(c.kind == CommandKind::Unknown);
     REQUIRE(c.verb == "frobnicate");
+}
+
+TEST_CASE("parse_command recognizes giveapitem", "[dev_commands]")
+{
+    const auto cmd = mth::parse_command("giveapitem 17");
+    REQUIRE(cmd.kind == mth::CommandKind::GiveItem);
+    REQUIRE(cmd.args.size() == 1);
+    REQUIRE(cmd.args[0] == "17");
 }

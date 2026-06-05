@@ -11,7 +11,7 @@ namespace
 mth::ApState connected_with(std::vector<std::int64_t> missing)
 {
     mth::ApState s;
-    s.apply(mth::ApConnected{"{}", 1, {}, std::move(missing)});
+    s.apply(mth::ApConnected{{}, "{}", 1, {}, std::move(missing)});
     return s;
 }
 } // namespace

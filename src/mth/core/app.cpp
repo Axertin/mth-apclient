@@ -1,11 +1,11 @@
 #include "mth/core/app.hpp"
 
-#include <atomic>
 #include <cstdlib>
 
 #include "mth/core/ap_coordinator.hpp"
 #include "mth/core/ap_link.hpp"
 #include "mth/core/game_events.hpp"
+#include "mth/core/inbound_granter.hpp"
 #include "mth/core/rando_bridge.hpp"
 #include "mth/game_hooks.hpp"
 #include "mth/rando_hooks.hpp"
@@ -27,33 +27,26 @@
 namespace
 {
 
-// Tick sink: drives the AP coordinator on the fixed sim tick and logs its
-// first fire (so we know the detour is live without flooding at frame rate).
+// Thin forwarder - all tick logic lives in App so it owns all members. drive_tick runs
+// after Game::FixedUpdate; grants drain just before World::Update, the spawn-safe window
+// where the engine processes real pickups (so spawning item kinds don't hang the queue).
 class AppTickSink final : public mth::IGameEvents
 {
   public:
-    AppTickSink(mth::ApCoordinator &coord, mth::ApState &state) : coord_(coord), state_(state)
+    explicit AppTickSink(mth::App &app) : app_(app)
     {
     }
     void on_game_fixed_update() override
     {
-        if (!logged_.exchange(true, std::memory_order_relaxed))
-            pal::logf(pal::LogLevel::Info, "tick: Game::FixedUpdate live; AP coordinator pumping");
-        coord_.tick();
-        const int n = static_cast<int>(state_.received_items().size());
-        for (; logged_items_ < n; ++logged_items_)
-        {
-            const auto &it = state_.received_items()[static_cast<std::size_t>(logged_items_)];
-            pal::logf(pal::LogLevel::Info, "AP recv: item_id=%lld index=%d from=%d (not granted yet)", static_cast<long long>(it.item_id), it.index,
-                      it.player_from);
-        }
+        app_.drive_tick();
+    }
+    void on_world_update_pre() override
+    {
+        app_.drain_grants();
     }
 
   private:
-    mth::ApCoordinator &coord_;
-    mth::ApState &state_;
-    std::atomic<bool> logged_{false};
-    int logged_items_{0};
+    mth::App &app_;
 };
 
 } // namespace
@@ -81,7 +74,7 @@ App::App()
     link_ = std::make_unique<mth::NullApLink>();
 #endif
     coordinator_ = std::make_unique<ApCoordinator>(*link_, state_);
-    events_ = std::make_unique<AppTickSink>(*coordinator_, state_);
+    events_ = std::make_unique<AppTickSink>(*this);
     hooks_ = std::make_unique<GameHooks>(*events_);
     rando_ = std::make_unique<RandoBridge>(*link_, state_);
     rando_hooks_ = std::make_unique<RandoHooks>(*rando_);
@@ -132,6 +125,34 @@ void App::run()
     pal::logf(pal::LogLevel::Info, "App::run -- tick hooks installed; idling");
 }
 
+void App::drive_tick()
+{
+    if (!first_tick_logged_)
+    {
+        first_tick_logged_ = true;
+        pal::logf(pal::LogLevel::Info, "tick: Game::FixedUpdate live; AP coordinator pumping");
+    }
+    coordinator_->tick();
+    ensure_inbound_ready();
+    if (inbound_)
+        inbound_->tick();
+}
+
+void App::drain_grants()
+{
+    granter_.drain();
+}
+
+void App::ensure_inbound_ready()
+{
+    if (inbound_ || !state_.authenticated())
+        return;
+    const std::string key = "ap_" + state_.seed() + "_" + std::to_string(state_.player_slot()) + ".state";
+    save_state_.emplace(pal::log_dir() / key);
+    inbound_ = std::make_unique<InboundGranter>(granter_, state_, *save_state_);
+    pal::logf(pal::LogLevel::Info, "inbound: state loaded (%s); granter live", key.c_str());
+}
+
 #ifdef MTHAP_HAS_OVERLAY
 void App::connect(const std::string &server, const std::string &slot, const std::string &password)
 {
@@ -161,6 +182,19 @@ std::vector<std::string> App::item_lines() const
     if (out.empty())
         out.push_back("(no items received yet)");
     return out;
+}
+
+void App::give_item(std::int64_t ap_item_id)
+{
+    // Debug command: grants directly via the granter, independent of AP connection. The
+    // only prerequisite is a cached Player* (observed on the first in-world pickup); report
+    // clearly when that is not yet available rather than silently doing nothing.
+    const int item_type = mth::game_item_type(ap_item_id);
+    if (granter_.grant(item_type))
+        pal::logf(pal::LogLevel::Info, "console: giveapitem %lld (type=%d) granted", static_cast<long long>(ap_item_id), item_type);
+    else
+        pal::logf(pal::LogLevel::Warn, "console: giveapitem %lld not granted yet (collect any in-world pickup/coin first to capture a player + position)",
+                  static_cast<long long>(ap_item_id));
 }
 #endif
 
