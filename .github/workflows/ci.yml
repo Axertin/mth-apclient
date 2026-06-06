@@ -21,7 +21,7 @@ jobs:
           python3 -m venv /tmp/cf
           /tmp/cf/bin/pip install --quiet clang-format==21.1.8
           git ls-files -z '*.c' '*.cc' '*.cpp' '*.cxx' '*.h' '*.hpp' '*.hxx' \
-            | grep -zvE '^(external|build)/' \
+            | grep -zvE '^(external|build)/|^src/pal/windows/win_signatures_generated\.cpp$' \
             | xargs -0 -r /tmp/cf/bin/clang-format --dry-run --Werror
 
   native-tests:

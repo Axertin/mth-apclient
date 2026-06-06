@@ -1,0 +1,154 @@
+{
+  "_comment": "Per-symbol carving inputs. RVA = address minus image base. For DataRef, ref_site_rva is the address of the instruction that references the global; disp_off/next_insn are byte offsets within that instruction.",
+  "symbols": [
+    {
+      "name": "_ZN4Game11FixedUpdateEv",
+      "kind": "Code"
+    },
+    {
+      "name": "_ZN4Game6UpdateEf",
+      "kind": "Code"
+    },
+    {
+      "name": "_ZN5World6UpdateEP20ycUpdateQueueContext",
+      "kind": "Code"
+    },
+    {
+      "name": "_ZN13ycUpdateQueue6UpdateEf",
+      "kind": "Code"
+    },
+    {
+      "name": "_ZN5Items12OnPickupDoneEiiP6PlayerRK6ycVec3iijb",
+      "kind": "Code"
+    },
+    {
+      "name": "_Z15ProcessSDLEventR9SDL_Event",
+      "kind": "Code"
+    },
+    {
+      "name": "_ZN6PlayerC2EP8ycEntityP17GameComponentDescP11PlayerSetup",
+      "kind": "Code"
+    },
+    {
+      "name": "_ZN15PlayerTrackable6UpdateEP20ycUpdateQueueContext",
+      "kind": "Code"
+    },
+    {
+      "name": "_ZNK15PlayerTrackable6GetPosEv",
+      "kind": "Code"
+    },
+    {
+      "name": "_ZN6Pickup4InitEii",
+      "kind": "Code"
+    },
+    {
+      "name": "_ZN6Pickup8OnPickupEP14PickupListener",
+      "kind": "Code"
+    },
+    {
+      "name": "_ZN7ycWorld12QueueDestroyEP8ycEntityb",
+      "kind": "Code"
+    },
+    {
+      "name": "_ZN5Items16SetItemCollectedEibP14ItemCollectionP8SaveSlot",
+      "kind": "Code"
+    },
+    {
+      "name": "_ZN12_GLOBAL__N_18s_rItemsE",
+      "kind": "DataRef"
+    },
+    {
+      "name": "_ZN12_GLOBAL__N_117s_rItemCollectionE",
+      "kind": "DataRef"
+    }
+  ],
+  "windows": {
+    "_ZN4Game11FixedUpdateEv": {
+      "rva": 9813184
+    },
+    "_ZN4Game6UpdateEf": {
+      "rva": 9815952
+    },
+    "_ZN5World6UpdateEP20ycUpdateQueueContext": {
+      "rva": 11711872
+    },
+    "_ZN5Items12OnPickupDoneEiiP6PlayerRK6ycVec3iijb": {
+      "rva": 8527360
+    },
+    "_Z15ProcessSDLEventR9SDL_Event": {
+      "rva": 722912
+    },
+    "_ZN6PlayerC2EP8ycEntityP17GameComponentDescP11PlayerSetup": {
+      "rva": 9954816
+    },
+    "_ZN15PlayerTrackable6UpdateEP20ycUpdateQueueContext": {
+      "rva": 10513472
+    },
+    "_ZNK15PlayerTrackable6GetPosEv": {
+      "rva": 10512960
+    },
+    "_ZN6Pickup4InitEii": {
+      "rva": 9878096
+    },
+    "_ZN6Pickup8OnPickupEP14PickupListener": {
+      "rva": 9887200
+    },
+    "_ZN7ycWorld12QueueDestroyEP8ycEntityb": {
+      "rva": 1386048
+    },
+    "_ZN5Items16SetItemCollectedEibP14ItemCollectionP8SaveSlot": {
+      "rva": 8532848
+    },
+    "_ZN12_GLOBAL__N_18s_rItemsE": {
+      "ref_site_rva": 9888068,
+      "disp_off": 3,
+      "next_insn": 7
+    },
+    "_ZN12_GLOBAL__N_117s_rItemCollectionE": {
+      "ref_site_rva": 8534102,
+      "disp_off": 3,
+      "next_insn": 7
+    }
+  },
+  "linux": {
+    "_ZN4Game11FixedUpdateEv": {
+      "rva": 13163600
+    },
+    "_ZN4Game6UpdateEf": {
+      "rva": 13168320
+    },
+    "_ZN5World6UpdateEP20ycUpdateQueueContext": {
+      "rva": 15469168
+    },
+    "_ZN13ycUpdateQueue6UpdateEf": {
+      "rva": 3276656
+    },
+    "_ZN5Items12OnPickupDoneEiiP6PlayerRK6ycVec3iijb": {
+      "rva": 11768832
+    },
+    "_Z15ProcessSDLEventR9SDL_Event": {
+      "rva": 2160784
+    },
+    "_ZN6PlayerC2EP8ycEntityP17GameComponentDescP11PlayerSetup": {
+      "rva": 13358512
+    },
+    "_ZN15PlayerTrackable6UpdateEP20ycUpdateQueueContext": {
+      "rva": 14024608
+    },
+    "_ZNK15PlayerTrackable6GetPosEv": {
+      "rva": 14023408
+    },
+    "_ZN6Pickup4InitEii": {
+      "rva": 13277104
+    },
+    "_ZN6Pickup8OnPickupEP14PickupListener": {
+      "rva": 13291056
+    },
+    "_ZN7ycWorld12QueueDestroyEP8ycEntityb": {
+      "rva": 3285616
+    },
+    "_ZN5Items16SetItemCollectedEibP14ItemCollectionP8SaveSlot": {
+      "rva": 11775264
+    }
+  }
+}

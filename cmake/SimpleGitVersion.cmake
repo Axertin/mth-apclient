@@ -3,6 +3,25 @@
 function(add_git_version_info target)
   find_package(Git QUIET)
 
+  # Re-run configure (regenerating mth_version.h) when HEAD or the checked-out
+  # branch ref moves, so a new commit is reflected on the next build without a
+  # manual reconfigure. A commit rewrites .git/refs/heads/<branch>; a branch
+  # switch rewrites .git/HEAD; packed-refs is the fallback when refs are packed.
+  set(_git_head "${CMAKE_SOURCE_DIR}/.git/HEAD")
+  if(EXISTS "${_git_head}")
+    set_property(DIRECTORY "${CMAKE_SOURCE_DIR}" APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${_git_head}")
+    file(STRINGS "${_git_head}" _git_head_line LIMIT_COUNT 1)
+    if(_git_head_line MATCHES "^ref: (.+)$")
+      set(_git_ref "${CMAKE_SOURCE_DIR}/.git/${CMAKE_MATCH_1}")
+      if(EXISTS "${_git_ref}")
+        set_property(DIRECTORY "${CMAKE_SOURCE_DIR}" APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${_git_ref}")
+      endif()
+    endif()
+    if(EXISTS "${CMAKE_SOURCE_DIR}/.git/packed-refs")
+      set_property(DIRECTORY "${CMAKE_SOURCE_DIR}" APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/.git/packed-refs")
+    endif()
+  endif()
+
   if(NOT GIT_FOUND)
     set(VERSION_STRING "0.0.0-unknown")
     set(VERSION_HASH "unknown")

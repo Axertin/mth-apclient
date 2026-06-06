@@ -13,6 +13,8 @@ if(WIN32)
         windows/thread_windows.cpp
         windows/hook_engine_windows.cpp
         windows/symbol_windows.cpp
+        windows/signature_scan.cpp
+        windows/win_signatures_generated.cpp
         windows/proxy_version.cpp
         windows/cert_windows.cpp
         windows/overlay_windows.cpp

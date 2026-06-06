@@ -7,8 +7,13 @@
 #include <mutex>
 #include <vector>
 
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#else
 #include <sys/mman.h>
 #include <unistd.h>
+#endif
 
 #include "mth/core/game_symbols.hpp"
 #include "mth/core/rando_bridge.hpp"
@@ -115,6 +120,15 @@ void repurpose_dummy_item()
     const std::uintptr_t dst = g_s_r_items + static_cast<std::uintptr_t>(kApDummyItemType) * kItemEntryStride;
     const std::uintptr_t src = g_s_r_items + static_cast<std::uintptr_t>(kDummyAssetDonor) * kItemEntryStride;
 
+#ifdef _WIN32
+    DWORD old_protect = 0;
+    if (!VirtualProtect(reinterpret_cast<void *>(dst), static_cast<std::size_t>(kItemEntryStride), PAGE_READWRITE, &old_protect))
+    {
+        pal::logf(pal::LogLevel::Error, "dummy: VirtualProtect RW failed (err=%lu); s_rItems[%d] NOT patched", static_cast<unsigned long>(GetLastError()),
+                  kApDummyItemType);
+        return;
+    }
+#else
     const long pagesize = sysconf(_SC_PAGESIZE);
     const std::uintptr_t start = dst & ~static_cast<std::uintptr_t>(pagesize - 1);
     const std::uintptr_t end = (dst + kItemEntryStride + pagesize - 1) & ~static_cast<std::uintptr_t>(pagesize - 1);
@@ -123,6 +137,7 @@ void repurpose_dummy_item()
         pal::logf(pal::LogLevel::Error, "dummy: mprotect RW failed (errno=%d); s_rItems[%d] NOT patched", errno, kApDummyItemType);
         return;
     }
+#endif
 
     *reinterpret_cast<int *>(dst + kItemKindOff) = 0; // storage-kind None -> no grant
     *reinterpret_cast<const char **>(dst + kItemAtlasOff) = *reinterpret_cast<const char **>(src + kItemAtlasOff);

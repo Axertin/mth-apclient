@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #
 # Format all first-party C/C++ sources in-place with clang-format.
-# Excludes external/ (submodules) and build/. Selection matches the CI
-# format gate (.github/workflows/ci.yml) exactly.
+# Excludes external/ (submodules), build/, and the generated signature table.
+# Selection matches the CI format gate (.github/workflows/ci.yml) exactly.
 #
 # Pin note: CI uses clang-format 21.1.8.
 #
@@ -19,7 +19,7 @@ fi
 
 mapfile -d '' -t files < <(
     git ls-files -z '*.c' '*.cc' '*.cpp' '*.cxx' '*.h' '*.hpp' '*.hxx' \
-        | grep -zvE '^(external|build)/'
+        | grep -zvE '^(external|build)/|^src/pal/windows/win_signatures_generated\.cpp$'
 )
 
 if [ "${#files[@]}" -eq 0 ]; then
