@@ -3,6 +3,8 @@
 #include <type_traits>
 #include <variant>
 
+#include "pal/pal_log.hpp"
+
 namespace mth
 {
 
@@ -22,6 +24,15 @@ void ApState::apply(const ApEvent &ev)
                 valid_locations_.insert(e.missing_locations.begin(), e.missing_locations.end());
                 authenticated_ = true;
                 status_ = "Connected";
+
+                // The server's location-id space. ap_loc_id(slot)=kLocBase+slot must
+                // land inside [lo..hi] or is_ap_location() rejects every pickup.
+                const std::int64_t lo = valid_locations_.empty() ? 0 : *valid_locations_.begin();
+                const std::int64_t hi = valid_locations_.empty() ? 0 : *valid_locations_.rbegin();
+                pal::logf(pal::LogLevel::Info,
+                          "ap_state: CONNECTED slot=%d seed=%s slot_data=%zuB; valid_locations=%zu (checked=%zu missing=%zu) id_range=[%lld..%lld]",
+                          player_slot_, seed_.c_str(), slot_data_.size(), valid_locations_.size(), e.checked_locations.size(), e.missing_locations.size(),
+                          static_cast<long long>(lo), static_cast<long long>(hi));
             }
             else if constexpr (std::is_same_v<T, ApItemReceived>)
             {
@@ -29,12 +40,19 @@ void ApState::apply(const ApEvent &ev)
                 {
                     received_items_.push_back(e.item);
                     last_item_index_ = e.item.index;
+                    pal::logf(pal::LogLevel::Info, "ap_state: item received id=%lld index=%d from=%d flags=%u (total=%zu)",
+                              static_cast<long long>(e.item.item_id), e.item.index, e.item.player_from, e.item.flags, received_items_.size());
+                }
+                else
+                {
+                    pal::logf(pal::LogLevel::Debug, "ap_state: item index=%d <= cursor=%d, dropped as duplicate", e.item.index, last_item_index_);
                 }
             }
             else if constexpr (std::is_same_v<T, ApDisconnected>)
             {
                 authenticated_ = false;
                 status_ = "Disconnected";
+                pal::logf(pal::LogLevel::Warn, "ap_state: DISCONNECTED");
             }
             else if constexpr (std::is_same_v<T, ApConnectionRefused>)
             {
@@ -46,10 +64,12 @@ void ApState::apply(const ApEvent &ev)
                     msg += err;
                 }
                 status_ = msg;
+                pal::logf(pal::LogLevel::Error, "ap_state: connection %s", msg.c_str());
             }
             else if constexpr (std::is_same_v<T, ApStatusChanged>)
             {
                 status_ = e.text;
+                pal::logf(pal::LogLevel::Debug, "ap_state: status=%s", e.text.c_str());
             }
         },
         ev);

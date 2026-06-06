@@ -1,6 +1,7 @@
 #include "mth/core/rando_bridge.hpp"
 
 #include "mth/core/ap_save_state.hpp"
+#include "pal/pal_log.hpp"
 
 namespace mth
 {
@@ -13,11 +14,15 @@ void RandoBridge::attach_save_state(ApSaveState &save)
 {
     save_ = &save;
     sent_.clear(); // session fallback superseded by durable state
+    pal::logf(pal::LogLevel::Info, "bridge: save state attached (%zu already-checked); session fallback cleared", save.checked().size());
 }
 
 bool RandoBridge::is_ap_location(int collection_slot) const
 {
-    return collection_slot >= 0 && state_.is_valid_location(ap_loc_id(collection_slot));
+    const bool ok = collection_slot >= 0 && state_.is_valid_location(ap_loc_id(collection_slot));
+    pal::logf(pal::LogLevel::Debug, "bridge: is_ap_location slot=%d id=%lld -> %s", collection_slot, static_cast<long long>(ap_loc_id(collection_slot)),
+              ok ? "yes" : "NO");
+    return ok;
 }
 
 bool RandoBridge::is_checked(int collection_slot) const
@@ -31,15 +36,21 @@ bool RandoBridge::is_checked(int collection_slot) const
 
 void RandoBridge::on_location_collected(int collection_slot)
 {
-    if (!is_ap_location(collection_slot))
-        return;
-
     const std::int64_t id = ap_loc_id(collection_slot);
+    if (!is_ap_location(collection_slot))
+    {
+        pal::logf(pal::LogLevel::Warn, "bridge: on_location_collected slot=%d id=%lld is NOT a valid AP location; not sent", collection_slot,
+                  static_cast<long long>(id));
+        return;
+    }
 
     if (save_ != nullptr)
     {
         if (save_->is_checked(collection_slot))
+        {
+            pal::logf(pal::LogLevel::Debug, "bridge: slot=%d id=%lld already checked; not resending", collection_slot, static_cast<long long>(id));
             return;
+        }
         save_->mark_checked(collection_slot);
         save_->save();
     }
@@ -48,14 +59,20 @@ void RandoBridge::on_location_collected(int collection_slot)
         return; // session-only dedup
     }
 
-    if (link_.is_connected())
+    const bool connected = link_.is_connected();
+    pal::logf(pal::LogLevel::Info, "bridge: location slot=%d id=%lld checked+persisted; %s", collection_slot, static_cast<long long>(id),
+              connected ? "sending to server" : "queued (offline, will flush on connect)");
+    if (connected)
         link_.send_locations({id});
 }
 
 void RandoBridge::flush()
 {
     if (!link_.is_connected())
+    {
+        pal::logf(pal::LogLevel::Debug, "bridge: flush skipped (not connected)");
         return;
+    }
 
     std::vector<std::int64_t> ids;
     if (save_ != nullptr)
@@ -64,6 +81,7 @@ void RandoBridge::flush()
     else
         ids.assign(sent_.begin(), sent_.end());
 
+    pal::logf(pal::LogLevel::Info, "bridge: flush resending %zu checked location id(s)", ids.size());
     if (!ids.empty())
         link_.send_locations(ids);
 }

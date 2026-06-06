@@ -11,7 +11,7 @@ namespace mth
 
 // ID scheme: ap_loc_id = kLocBase + collection idx; ap_item_id = kItemBase + itemType.
 // ap_item_id 0 = engine "None" sentinel, reserved/ignored.
-inline constexpr std::int64_t kLocBase = 1;
+inline constexpr std::int64_t kLocBase = 0;
 inline constexpr std::int64_t kItemBase = 0;
 
 inline constexpr std::int64_t ap_loc_id(int collection_idx)

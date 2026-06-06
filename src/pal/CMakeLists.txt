@@ -18,6 +18,8 @@ if(WIN32)
         windows/proxy_version.cpp
         windows/cert_windows.cpp
         windows/crash_handler_windows.cpp
+        windows/mem_windows.cpp
+        windows/game_windows.cpp
     )
 else()
     set(_mthap_pal_sources
@@ -29,6 +31,8 @@ else()
         linux/symbol_linux.cpp
         linux/cert_linux.cpp
         linux/crash_handler_linux.cpp
+        linux/mem_linux.cpp
+        linux/game_linux.cpp
     )
 endif()
 
