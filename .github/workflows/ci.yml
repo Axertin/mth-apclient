@@ -73,10 +73,13 @@ jobs:
         run: cmake --preset clang-x64-release
       - name: Build
         run: cmake --build --preset clang-x64-release
+      - name: Read version
+        id: version
+        run: echo "version=$(cat build/clang-x64-release/version.txt)" >> "$GITHUB_OUTPUT"
       - name: Upload libmthap.so
         uses: actions/upload-artifact@v4
         with:
-          name: libmthap-linux
+          name: libmthap-linux-${{ steps.version.outputs.version }}
           path: build/clang-x64-release/src/mth/libmthap.so
           if-no-files-found: error
 
@@ -103,9 +106,13 @@ jobs:
         run: cmake --preset clang-cl-x64-release
       - name: Build
         run: cmake --build --preset clang-cl-x64-release
+      - name: Read version
+        id: version
+        shell: bash
+        run: echo "version=$(cat build/clang-cl-x64-release/version.txt)" >> "$GITHUB_OUTPUT"
       - name: Upload version.dll
         uses: actions/upload-artifact@v4
         with:
-          name: version-dll-windows
+          name: version-dll-windows-${{ steps.version.outputs.version }}
           path: build/clang-cl-x64-release/src/mth/version.dll
           if-no-files-found: error
