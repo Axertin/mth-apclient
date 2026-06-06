@@ -70,6 +70,7 @@ App::App()
     link_ = std::make_unique<mth::net::ApLink>();
 #else
     link_ = std::make_unique<mth::NullApLink>();
+    pal::logf(pal::LogLevel::Warn, "net: lane NOT compiled in (NullApLink); connect is a no-op");
 #endif
     coordinator_ = std::make_unique<ApCoordinator>(*link_, state_);
     events_ = std::make_unique<AppTickSink>(*this);

@@ -42,6 +42,13 @@ if(MTHAP_ENABLE_OVERLAY)
     endif()
 endif()
 
+# llvm-mingw + static link needs an __imp__vsnprintf shim for vcpkg's OpenSSL
+# (msvcrt dllimport); clang-cl/MSVC does not. Only relevant when the net lane
+# (which pulls OpenSSL) is built.
+if(MINGW AND MTHAP_ENABLE_NET)
+    list(APPEND _mthap_pal_sources windows/mingw_crt_shim.cpp)
+endif()
+
 add_library(mthap_pal OBJECT ${_mthap_pal_sources})
 
 target_include_directories(mthap_pal PUBLIC "${CMAKE_SOURCE_DIR}/src")

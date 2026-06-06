@@ -90,8 +90,11 @@
             "binaryDir": "${sourceDir}/build/${presetName}",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Debug",
-                "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/cmake/toolchains/llvm-mingw-x64.cmake",
+                "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/external/vcpkg/scripts/buildsystems/vcpkg.cmake",
+                "VCPKG_CHAINLOAD_TOOLCHAIN_FILE": "${sourceDir}/cmake/toolchains/llvm-mingw-x64.cmake",
+                "VCPKG_TARGET_TRIPLET": "x64-mingw-static",
                 "VCPKG_MANIFEST_FEATURES": "net",
+                "VCPKG_APPLOCAL_DEPS": "OFF",
                 "MTHAP_BUILD_TESTS": "OFF"
             },
             "condition": {
