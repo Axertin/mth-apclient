@@ -6,14 +6,15 @@
 # into the game SILENTLY -- the dynamic loader rejects the .so before our
 # constructor runs, so there is no log and the game window never opens.
 #
-# The runtime floor is GLIBC 2.38 (the base mod already requires __isoc23_*@2.38
-# via the net lane and loads fine in-game). If this check trips, find the new
-# symbols with `objdump -T <so> | grep GLIBC_2.<n>` and pin them to an old
-# version (see cmake/glibc_compat.h).
+# The game itself requires <= GLIBC_2.34, so the mod must not exceed the runtime glibc.
+# Floor is 2.35 today (covers Ubuntu 22.04): src/pal/linux/glibc_compat_linux.cpp provides
+# __isoc23_* and arc4random locally; the remaining _dl_find_object@2.35 comes from the static
+# unwinder, so reaching 2.34 would need it provided too. If this check trips, find the symbols
+# with `objdump -T <so> | grep GLIBC_2.<n>` and pin ours (glibc_compat_linux.cpp / glibc_compat.h).
 set -euo pipefail
 
 so="${1:?usage: check-glibc-max.sh <path-to-.so>}"
-max_allowed_minor=38
+max_allowed_minor=35
 
 command -v objdump >/dev/null 2>&1 || { echo "check-glibc-max: objdump not found; skipping" >&2; exit 0; }
 

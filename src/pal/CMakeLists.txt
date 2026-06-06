@@ -33,6 +33,7 @@ else()
         linux/crash_handler_linux.cpp
         linux/mem_linux.cpp
         linux/game_linux.cpp
+        linux/glibc_compat_linux.cpp
     )
 endif()
 
