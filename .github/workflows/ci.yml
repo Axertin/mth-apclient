@@ -37,7 +37,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .vcpkg-cache
-          key: vcpkg-native-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
+          key: vcpkg-native-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}-${{ github.run_id }}
+          restore-keys: |
+            vcpkg-native-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}-
       - name: Bootstrap vcpkg
         run: ./external/vcpkg/bootstrap-vcpkg.sh -disableMetrics
       - name: Configure
@@ -66,7 +68,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .vcpkg-cache
-          key: vcpkg-linux-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
+          key: vcpkg-linux-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}-${{ github.run_id }}
+          restore-keys: |
+            vcpkg-linux-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}-
       - name: Bootstrap vcpkg
         run: ./external/vcpkg/bootstrap-vcpkg.sh -disableMetrics
       - name: Configure
@@ -98,7 +102,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .vcpkg-cache
-          key: vcpkg-winclangcl-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
+          key: vcpkg-winclangcl-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}-${{ github.run_id }}
+          restore-keys: |
+            vcpkg-winclangcl-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}-
       - name: Bootstrap vcpkg
         shell: cmd
         run: external\vcpkg\bootstrap-vcpkg.bat -disableMetrics
