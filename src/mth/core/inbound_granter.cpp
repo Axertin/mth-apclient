@@ -28,8 +28,8 @@ void InboundGranter::tick()
         }
         save_.mark_granted(it.index);
         save_.save();
-        pal::logf(pal::LogLevel::Info, "inbound_granter: queued grant index=%d id=%lld (type=%d) and persisted", it.index,
-                  static_cast<long long>(it.item_id), game_type);
+        pal::logf(pal::LogLevel::Info, "inbound_granter: queued grant index=%d id=%lld (type=%d) and persisted", it.index, static_cast<long long>(it.item_id),
+                  game_type);
     }
 }
 

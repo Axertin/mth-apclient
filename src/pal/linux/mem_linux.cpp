@@ -1,8 +1,9 @@
-#include "pal/pal_mem.hpp"
-
 #include <cstdint>
+
 #include <sys/mman.h>
 #include <unistd.h>
+
+#include "pal/pal_mem.hpp"
 
 namespace pal
 {

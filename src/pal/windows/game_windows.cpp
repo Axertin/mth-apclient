@@ -1,6 +1,6 @@
-#include "pal/pal_game.hpp"
-
 #include <cstddef>
+
+#include "pal/pal_game.hpp"
 
 namespace pal
 {
