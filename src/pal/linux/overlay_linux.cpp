@@ -11,11 +11,13 @@
 
 #define VK_NO_PROTOTYPES
 #include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <mutex>
 #include <string_view>
+#include <thread>
 #include <vector>
 
 #include <SDL_events.h>
@@ -24,6 +26,7 @@
 #include <dlfcn.h>
 #include <imgui.h>
 #include <imgui_impl_vulkan.h>
+#include <link.h> // dl_iterate_phdr (libvulkan presence check without touching dlerror)
 #include <vulkan/vulkan.h>
 
 #include "pal/pal_hook.hpp"
@@ -1086,6 +1089,152 @@ VKAPI_ATTR VkResult VKAPI_CALL repl_vkQueuePresentKHR(VkQueue queue, const VkPre
 }
 
 // ---------------------------------------------------------------------------
+// Deferred hook installation.
+//
+// In the Steam pressure-vessel container libvulkan loads after our constructor, and the
+// vkCreate* hooks must be in place before the game's create calls (a game tick is too
+// late - it runs after renderer init). A background thread polls for libvulkan and
+// installs the instant it appears (the libvulkan-load -> vkCreateInstance gap is ~150ms).
+// We deliberately do NOT hook dlopen: interposing it makes glibc resolve $ORIGIN/RUNPATH
+// against our .so instead of the caller, breaking the game's relative dlopen of Steam.
+// ---------------------------------------------------------------------------
+
+std::mutex g_install_mtx;
+std::atomic<bool> g_vk_hooks_installed{false};
+void *g_libvulkan_handle = nullptr;
+std::uintptr_t g_process_sdl_event_addr = 0;
+
+std::thread g_vk_watch_thread;
+std::atomic<bool> g_vk_watch_stop{false};
+
+constexpr std::size_t kMaxOverlayHooks = 5; // 4 Vulkan + ProcessSDLEvent
+HookId g_overlay_hook_ids[kMaxOverlayHooks]{};
+std::size_t g_overlay_hook_count = 0;
+
+void record_overlay_hook(HookId id)
+{
+    if (id != pal::kInvalidHookId && g_overlay_hook_count < kMaxOverlayHooks)
+        g_overlay_hook_ids[g_overlay_hook_count++] = id;
+}
+
+// True if libvulkan is already mapped. Uses dl_iterate_phdr, which (unlike a failing
+// dlopen probe) never sets dlerror - critical because we run inside the game's own
+// dlopen and it checks dlerror() afterward (e.g. for the Steam library).
+bool libvulkan_loaded()
+{
+    bool found = false;
+    dl_iterate_phdr(
+        [](struct dl_phdr_info *info, std::size_t, void *data) -> int
+        {
+            if (info->dlpi_name != nullptr && std::strstr(info->dlpi_name, "libvulkan") != nullptr)
+            {
+                *static_cast<bool *>(data) = true;
+                return 1; // stop iterating
+            }
+            return 0;
+        },
+        &found);
+    return found;
+}
+
+// Install the Vulkan + SDL hooks once libvulkan is loaded. Called from the constructor
+// and the watch thread; the try_lock + installed flag make concurrent calls a no-op.
+bool try_install_vulkan_hooks()
+{
+    if (g_vk_hooks_installed.load(std::memory_order_acquire))
+        return true;
+
+    std::unique_lock<std::mutex> lk(g_install_mtx, std::try_to_lock);
+    if (!lk.owns_lock() || g_vk_hooks_installed.load(std::memory_order_relaxed))
+        return false;
+
+    if (!libvulkan_loaded())
+        return false; // not loaded yet
+
+    void *vk = dlopen("libvulkan.so.1", RTLD_NOW | RTLD_NOLOAD); // present -> succeeds
+    if (vk == nullptr)
+        return false;
+
+    auto gipa = reinterpret_cast<PFN_vkGetInstanceProcAddr>(dlsym(vk, "vkGetInstanceProcAddr"));
+    if (gipa == nullptr)
+    {
+        pal::logf(pal::LogLevel::Error, "overlay: dlsym(vkGetInstanceProcAddr) failed - overlay inert");
+        return false;
+    }
+    g_vkGetInstanceProcAddr = gipa;
+    g_libvulkan_handle = vk;
+
+    g_vk_hooks_installed.store(true, std::memory_order_release);
+
+    struct Spec
+    {
+        const char *name;
+        void *replacement;
+        void **trampoline;
+    };
+    const Spec specs[] = {
+        {"vkCreateInstance", reinterpret_cast<void *>(&repl_vkCreateInstance), reinterpret_cast<void **>(&g_orig_create_instance)},
+        {"vkCreateDevice", reinterpret_cast<void *>(&repl_vkCreateDevice), reinterpret_cast<void **>(&g_orig_create_device)},
+        {"vkCreateSwapchainKHR", reinterpret_cast<void *>(&repl_vkCreateSwapchainKHR), reinterpret_cast<void **>(&g_orig_create_swapchain)},
+        {"vkQueuePresentKHR", reinterpret_cast<void *>(&repl_vkQueuePresentKHR), reinterpret_cast<void **>(&g_orig_present)},
+    };
+    for (const auto &s : specs)
+    {
+        void *target = dlsym(vk, s.name);
+        if (target == nullptr)
+        {
+            pal::logf(pal::LogLevel::Error, "overlay: dlsym(%s) failed; not hooked", s.name);
+            continue;
+        }
+        HookId id = pal::hook_engine().install_hook(target, s.replacement, s.trampoline);
+        if (id == pal::kInvalidHookId)
+            pal::logf(pal::LogLevel::Error, "overlay: failed to hook %s at %p", s.name, target);
+        else
+        {
+            record_overlay_hook(id);
+            pal::logf(pal::LogLevel::Info, "overlay: hooked %s at %p (id=%llu)", s.name, target, static_cast<unsigned long long>(id));
+        }
+    }
+
+    if (g_process_sdl_event_addr != 0)
+    {
+        void *evt = reinterpret_cast<void *>(g_process_sdl_event_addr);
+        HookId id = pal::hook_engine().install_hook(evt, reinterpret_cast<void *>(&repl_process_sdl_event), reinterpret_cast<void **>(&g_orig_process));
+        if (id == pal::kInvalidHookId)
+            pal::logf(pal::LogLevel::Error, "overlay: failed to hook ProcessSDLEvent at %p; input unavailable", evt);
+        else
+        {
+            record_overlay_hook(id);
+            pal::logf(pal::LogLevel::Info, "overlay: hooked ProcessSDLEvent at %p (id=%llu)", evt, static_cast<unsigned long long>(id));
+        }
+    }
+
+    pal::logf(pal::LogLevel::Info, "overlay: Vulkan hooks installed (libvulkan ready)");
+    return true;
+}
+
+// libvulkan loads after we initialize (in the pressure-vessel container the game maps it
+// during renderer init, and the loader is inlined into ycEngine::Run - which is already
+// executing by the time we run, so its entry can't be hooked). So we poll for libvulkan
+// and install the moment it maps; the load -> vkCreateInstance gap is ~150ms, plenty of
+// margin. We deliberately do NOT hook dlopen: interposing it makes glibc resolve
+// $ORIGIN/RUNPATH against our .so instead of the caller, breaking the game's relative
+// dlopen of the Steam library.
+void watch_for_libvulkan()
+{
+    using namespace std::chrono_literals;
+    // Renderer init is within a couple seconds of launch; poll generously for slow loads.
+    for (int i = 0; i < 12000 && !g_vk_watch_stop.load(std::memory_order_relaxed); ++i) // ~60s @ 5ms
+    {
+        if (try_install_vulkan_hooks())
+            return;
+        std::this_thread::sleep_for(5ms);
+    }
+    if (!g_vk_hooks_installed.load(std::memory_order_acquire))
+        pal::logf(pal::LogLevel::Warn, "overlay: libvulkan did not appear; overlay inert");
+}
+
+// ---------------------------------------------------------------------------
 // VulkanOverlay.
 // ---------------------------------------------------------------------------
 
@@ -1096,98 +1245,42 @@ class VulkanOverlay final : public IOverlay
     {
         pal::logf(pal::LogLevel::Info, "overlay: VulkanOverlay constructing (event_proc=0x%llx)", static_cast<unsigned long long>(cfg_.process_sdl_event_addr));
 
-        vulkan_handle_ = dlopen("libvulkan.so.1", RTLD_NOW | RTLD_NOLOAD);
-        if (vulkan_handle_ == nullptr)
-        {
-            const char *dl_err = dlerror();
-            pal::logf(pal::LogLevel::Error, "overlay: dlopen(libvulkan.so.1, NOLOAD) failed: %s, overlay inert", dl_err ? dl_err : "(null)");
-            return;
-        }
-
-        g_vkGetInstanceProcAddr = reinterpret_cast<PFN_vkGetInstanceProcAddr>(dlsym(vulkan_handle_, "vkGetInstanceProcAddr"));
-        if (g_vkGetInstanceProcAddr == nullptr)
-        {
-            pal::logf(pal::LogLevel::Error, "overlay: dlsym(vkGetInstanceProcAddr) failed - overlay inert");
-            return;
-        }
-
-        struct Spec
-        {
-            const char *name;
-            void *replacement;
-            void **trampoline;
-        };
-        void *p_create_instance = dlsym(vulkan_handle_, "vkCreateInstance");
-        void *p_create_device = dlsym(vulkan_handle_, "vkCreateDevice");
-        void *p_create_swapchain = dlsym(vulkan_handle_, "vkCreateSwapchainKHR");
-        void *p_present = dlsym(vulkan_handle_, "vkQueuePresentKHR");
-
-        const Spec specs[kVkHookCount] = {
-            {"vkCreateInstance", reinterpret_cast<void *>(&repl_vkCreateInstance), reinterpret_cast<void **>(&g_orig_create_instance)},
-            {"vkCreateDevice", reinterpret_cast<void *>(&repl_vkCreateDevice), reinterpret_cast<void **>(&g_orig_create_device)},
-            {"vkCreateSwapchainKHR", reinterpret_cast<void *>(&repl_vkCreateSwapchainKHR), reinterpret_cast<void **>(&g_orig_create_swapchain)},
-            {"vkQueuePresentKHR", reinterpret_cast<void *>(&repl_vkQueuePresentKHR), reinterpret_cast<void **>(&g_orig_present)},
-        };
-        void *targets[kVkHookCount] = {p_create_instance, p_create_device, p_create_swapchain, p_present};
-
-        for (std::size_t i = 0; i < kVkHookCount; ++i)
-        {
-            if (targets[i] == nullptr)
-            {
-                pal::logf(pal::LogLevel::Error, "overlay: dlsym(%s) failed; not hooked", specs[i].name);
-                continue;
-            }
-            HookId id = pal::hook_engine().install_hook(targets[i], specs[i].replacement, specs[i].trampoline);
-            if (id == pal::kInvalidHookId)
-            {
-                pal::logf(pal::LogLevel::Error, "overlay: failed to hook %s at %p", specs[i].name, targets[i]);
-            }
-            else
-            {
-                ids_[installed_++] = id;
-                pal::logf(pal::LogLevel::Info, "overlay: hooked %s at %p (id=%llu)", specs[i].name, targets[i], static_cast<unsigned long long>(id));
-            }
-        }
-
+        g_process_sdl_event_addr = cfg_.process_sdl_event_addr;
+        if (cfg_.process_sdl_event_addr == 0)
+            pal::logf(pal::LogLevel::Warn, "overlay: process_sdl_event_addr == 0; input unavailable for this build (render-only mode)");
         g_toggle_key = parse_console_key(std::getenv("MTHAP_CONSOLE_KEY"));
         pal::logf(pal::LogLevel::Info, "overlay: console toggle key = 0x%x (SDLK)", static_cast<int>(g_toggle_key));
 
-        if (cfg_.process_sdl_event_addr != 0)
-        {
-            void *evt_target = reinterpret_cast<void *>(cfg_.process_sdl_event_addr);
-            HookId evt_id =
-                pal::hook_engine().install_hook(evt_target, reinterpret_cast<void *>(&repl_process_sdl_event), reinterpret_cast<void **>(&g_orig_process));
-            if (evt_id == pal::kInvalidHookId)
-            {
-                pal::logf(pal::LogLevel::Error, "overlay: failed to hook ProcessSDLEvent at %p; input unavailable", evt_target);
-            }
-            else
-            {
-                ids_[installed_++] = evt_id;
-                pal::logf(pal::LogLevel::Info, "overlay: hooked ProcessSDLEvent at %p (id=%llu)", evt_target, static_cast<unsigned long long>(evt_id));
-            }
-        }
-        else
-        {
-            pal::logf(pal::LogLevel::Warn, "overlay: process_sdl_event_addr == 0; input unavailable for this build (render-only mode)");
-        }
+        // Fast path: libvulkan already loaded (native run, or loaded before us).
+        if (try_install_vulkan_hooks())
+            return;
+
+        // Deferred path: watch for libvulkan on a background thread and install the moment
+        // it maps (before the engine's inlined vkCreateInstance).
+        pal::logf(pal::LogLevel::Info, "overlay: libvulkan not loaded yet; watching for it");
+        g_vk_watch_thread = std::thread(watch_for_libvulkan);
     }
 
     ~VulkanOverlay() override
     {
-        for (std::size_t i = 0; i < installed_; ++i)
-            pal::hook_engine().remove_hook(ids_[i]);
-        installed_ = 0;
+        g_vk_watch_stop.store(true, std::memory_order_release);
+        if (g_vk_watch_thread.joinable())
+            g_vk_watch_thread.join();
+
+        for (std::size_t i = 0; i < g_overlay_hook_count; ++i)
+            pal::hook_engine().remove_hook(g_overlay_hook_ids[i]);
+        g_overlay_hook_count = 0;
+        g_vk_hooks_installed.store(false, std::memory_order_release);
 
         shutdown_imgui();
         destroy_swapchain_resources();
 
         g_ui.store(nullptr, std::memory_order_release);
 
-        if (vulkan_handle_ != nullptr)
+        if (g_libvulkan_handle != nullptr)
         {
-            dlclose(vulkan_handle_);
-            vulkan_handle_ = nullptr;
+            dlclose(g_libvulkan_handle);
+            g_libvulkan_handle = nullptr;
         }
         pal::logf(pal::LogLevel::Info, "overlay: VulkanOverlay destroyed");
     }
@@ -1198,12 +1291,7 @@ class VulkanOverlay final : public IOverlay
     }
 
   private:
-    static constexpr std::size_t kVkHookCount = 4;  // Instance/Device/Swapchain/Present
-    static constexpr std::size_t kMaxHookCount = 5; // + ProcessSDLEvent
     OverlayConfig cfg_;
-    void *vulkan_handle_ = nullptr;
-    HookId ids_[kMaxHookCount]{};
-    std::size_t installed_ = 0;
 };
 
 } // namespace
