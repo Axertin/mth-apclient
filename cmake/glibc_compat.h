@@ -9,7 +9,7 @@
 //       fmodf                 -> @GLIBC_2.38
 //       powf                  -> @GLIBC_2.27
 //   A versioned symbol the runtime does not provide makes the dynamic loader reject
-//   libmthap.so at load time -- BEFORE our constructor runs, so the symptom is a
+//   libmthap.so at load time, BEFORE our constructor runs, so the symptom is a
 //   silent failure: the game window never opens and no log file is written.
 //
 //   Dear ImGui's anti-aliased geometry math is the only caller of these functions.
@@ -21,8 +21,8 @@
 
 // NOTE: this is a -include (force-include) header, processed BEFORE any system
 // header, so __GLIBC__ (from <features.h>) is not defined yet here. Guard only on
-// the compiler-predefined target macros, which are always available. CMake already
-// restricts this include to UNIX/non-Apple builds.
+// the compiler-predefined target macros, which are always available. CMake only
+// applies this include to non-Windows builds.
 #if defined(__linux__) && defined(__x86_64__)
 __asm__(".symver sqrtf,sqrtf@GLIBC_2.2.5");
 __asm__(".symver acosf,acosf@GLIBC_2.2.5");

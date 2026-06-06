@@ -17,13 +17,10 @@ option(MTHAP_BUILD_TESTS "Build unit tests (Catch2)" ON)
 option(MTHAP_BUILD_TESTS_ONLY "Build only tests, skip mod build" OFF)
 option(MTHAP_ENABLE_NET "Build the Archipelago network lane (apclientpp + TLS)" ON)
 
-# Overlay (Dear ImGui dev UI), Linux/Vulkan only this pass. Off for the
-# LLVM-MinGW dev cross (like the net lane); the Windows build gets a no-op stub
-# that needs none of the overlay's third-party deps.
-option(MTHAP_ENABLE_OVERLAY "Build the in-game Dear ImGui dev overlay (Linux/Vulkan)" ON)
-if(MINGW)
-    set(MTHAP_ENABLE_OVERLAY OFF)
-endif()
+# Overlay (Dear ImGui dev UI): Vulkan/SDL on Linux, D3D12/Win32 on Windows. The
+# mingw cross builds it too (its only third-party dep is system DirectX headers),
+# keeping the cross a faithful compile-check of the real clang-cl build.
+option(MTHAP_ENABLE_OVERLAY "Build the in-game Dear ImGui dev overlay" ON)
 
 include(compiler_setup)
 include(SimpleGitVersion)
@@ -50,7 +47,7 @@ if(NOT MTHAP_BUILD_TESTS_ONLY)
         include(ApClient)
     endif()
 
-    if(MTHAP_ENABLE_OVERLAY AND NOT WIN32)
+    if(MTHAP_ENABLE_OVERLAY)
         include(DearImGui)
     endif()
 endif()

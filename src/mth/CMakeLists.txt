@@ -14,6 +14,7 @@ add_library(mthap_core STATIC
     core/log_ring.cpp
     core/ap_save_state.cpp
     core/inbound_granter.cpp
+    core/sig_scan.cpp
 )
 
 target_include_directories(mthap_core PUBLIC "${CMAKE_SOURCE_DIR}/src")
@@ -80,9 +81,9 @@ if(NOT MTHAP_BUILD_TESTS_ONLY)
     # The ImGui OBJECT lib is linked PUBLIC into mthap_pal (another OBJECT lib),
     # which propagates its usage requirements (includes/defines) but NOT its
     # object files transitively to this MODULE. The final module must link the
-    # ImGui objects directly or the overlay's ImGui_ImplVulkan_*/ImGui:: symbols
-    # stay undefined. (Linux + overlay-enabled only, matching src/pal.)
-    if(NOT WIN32 AND MTHAP_ENABLE_OVERLAY)
+    # ImGui objects directly or the overlay's backend (ImGui_Impl*) / ImGui::
+    # symbols stay undefined. (Both platforms, overlay-enabled only; matches src/pal.)
+    if(MTHAP_ENABLE_OVERLAY)
         target_link_libraries(mthap PRIVATE mthap::imgui)
         target_sources(mthap PRIVATE ui/dev_console.cpp)
     endif()
