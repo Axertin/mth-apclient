@@ -1,6 +1,7 @@
 #include <cstdlib>
 #include <cstring>
 
+#include "pal/pal_crash.hpp"
 #include "pal/pal_entry.hpp"
 #include "pal/pal_log.hpp"
 #include "pal/pal_thread.hpp"
@@ -48,6 +49,7 @@ BOOL WINAPI DllMain(HINSTANCE hInstDll, DWORD reason, LPVOID /*reserved*/)
         if (!is_target_process())
             break;
         pal::log_init();
+        pal::install_crash_handler(); // before any mod work, so it catches everything
         pal::spawn_thread("mthap-main", &apclient_main_trampoline, nullptr);
         break;
     case DLL_PROCESS_DETACH:

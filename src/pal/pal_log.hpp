@@ -33,6 +33,11 @@ void vlogf(LogLevel, const char *fmt, std::va_list ap);
 
 std::filesystem::path log_dir();
 
+// Underlying file descriptor of the active file log, or -1 if unavailable. For
+// the crash handler to emit a backtrace using only async-signal-safe writes (no
+// logf/malloc). Real fd on Linux; -1 on Windows (its handler uses logf + minidump).
+int log_fd();
+
 ILog &default_log();
 void set_default_log(ILog *);
 

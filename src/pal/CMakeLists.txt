@@ -17,6 +17,7 @@ if(WIN32)
         windows/win_signatures_generated.cpp
         windows/proxy_version.cpp
         windows/cert_windows.cpp
+        windows/crash_handler_windows.cpp
     )
 else()
     set(_mthap_pal_sources
@@ -27,6 +28,7 @@ else()
         linux/hook_engine_linux.cpp
         linux/symbol_linux.cpp
         linux/cert_linux.cpp
+        linux/crash_handler_linux.cpp
     )
 endif()
 
@@ -56,7 +58,7 @@ if(WIN32)
     set_source_files_properties(windows/proxy_version.cpp
         PROPERTIES COMPILE_OPTIONS "-Wno-dll-attribute-on-redeclaration")
 
-    target_link_libraries(mthap_pal PUBLIC minhook::minhook crypt32)
+    target_link_libraries(mthap_pal PUBLIC minhook::minhook crypt32 dbghelp)
 else()
     target_link_libraries(mthap_pal PUBLIC frida::gum dl pthread)
 endif()

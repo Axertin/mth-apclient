@@ -135,6 +135,11 @@ void log_shutdown()
     }
 }
 
+int log_fd()
+{
+    return -1; // unused on Windows; the crash handler uses logf + MiniDumpWriteDump
+}
+
 ILog &default_log()
 {
     return *g_log.load(std::memory_order_acquire);

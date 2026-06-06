@@ -4,6 +4,7 @@
 
 #include <unistd.h>
 
+#include "pal/pal_crash.hpp"
 #include "pal/pal_entry.hpp"
 #include "pal/pal_log.hpp"
 #include "pal/pal_thread.hpp"
@@ -36,6 +37,7 @@ __attribute__((constructor(65535))) void mthap_init()
     if (!is_target_process())
         return;
     pal::log_init();
+    pal::install_crash_handler(); // before any mod work, so it catches everything
     pal::spawn_thread("mthap-main", &apclient_main_trampoline, nullptr);
 }
 

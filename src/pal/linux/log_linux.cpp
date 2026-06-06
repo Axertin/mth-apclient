@@ -71,6 +71,11 @@ class FileLog final : public pal::ILog
             std::fflush(fp_);
     }
 
+    int fd() const
+    {
+        return fp_ ? fileno(fp_) : -1;
+    }
+
   private:
     std::FILE *fp_{nullptr};
     std::mutex mu_;
@@ -135,6 +140,11 @@ void log_shutdown()
         delete g_file_log;
         g_file_log = nullptr;
     }
+}
+
+int log_fd()
+{
+    return g_file_log ? g_file_log->fd() : -1;
 }
 
 ILog &default_log()
