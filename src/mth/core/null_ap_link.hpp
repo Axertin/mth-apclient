@@ -25,6 +25,12 @@ class NullApLink final : public IApLink
     void set_goal() override
     {
     }
+    void enable_deathlink(bool) override
+    {
+    }
+    void send_death(const std::string &) override
+    {
+    }
     [[nodiscard]] std::vector<ApEvent> drain_events() override
     {
         return {};

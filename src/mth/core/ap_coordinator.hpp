@@ -1,5 +1,7 @@
 #pragma once
 
+#include <functional>
+
 namespace mth
 {
 
@@ -10,13 +12,14 @@ class ApState;
 class ApCoordinator
 {
   public:
-    ApCoordinator(IApLink &link, ApState &state);
+    ApCoordinator(IApLink &link, ApState &state, std::function<void()> on_death = {});
 
     void tick();
 
   private:
     IApLink &link_;
     ApState &state_;
+    std::function<void()> on_death_;
 };
 
 } // namespace mth

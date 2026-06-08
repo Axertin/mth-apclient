@@ -71,6 +71,11 @@ void ApState::apply(const ApEvent &ev)
                 status_ = e.text;
                 pal::logf(pal::LogLevel::Debug, "ap_state: status=%s", e.text.c_str());
             }
+            else if constexpr (std::is_same_v<T, ApDeathReceived>)
+            {
+                // Intentionally state-free: deathlink is handled by the ApCoordinator on_death
+                // callback (-> App applies the kill on the game thread), not by ApState.
+            }
         },
         ev);
 }

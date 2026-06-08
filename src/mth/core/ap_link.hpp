@@ -22,6 +22,9 @@ class IApLink
     virtual void send_locations(const std::vector<std::int64_t> &location_ids) = 0;
     virtual void set_goal() = 0;
 
+    virtual void enable_deathlink(bool on) = 0; // tag the connection; call before connect()
+    virtual void send_death(const std::string &cause) = 0;
+
     [[nodiscard]] virtual std::vector<ApEvent> drain_events() = 0;
 };
 

@@ -31,6 +31,8 @@ class ApLink final : public mth::IApLink
     [[nodiscard]] bool is_connected() const override;
     void send_locations(const std::vector<std::int64_t> &location_ids) override;
     void set_goal() override;
+    void enable_deathlink(bool on) override;
+    void send_death(const std::string &cause) override;
     [[nodiscard]] std::vector<mth::ApEvent> drain_events() override;
 
   private:
@@ -44,9 +46,11 @@ class ApLink final : public mth::IApLink
 
     std::unique_ptr<APClient> client_; // net thread only
     int last_item_index_{-1};          // net thread only
+    std::string slot_name_;            // net thread only; captured on connect for bounce source
 
     std::atomic<bool> running_{true};
     std::atomic<bool> connected_{false};
+    std::atomic<bool> deathlink_{false};
     std::mutex cmd_mutex_;
     std::queue<std::function<void()>> commands_;
     std::mutex event_mutex_;

@@ -35,6 +35,7 @@ if(NOT MTHAP_BUILD_TESTS_ONLY)
 
         add_library(mthap_net STATIC
             net/ap_link_apclient.cpp
+            net/deathlink.cpp
         )
         target_include_directories(mthap_net PUBLIC "${CMAKE_SOURCE_DIR}/src")
         target_compile_definitions(mthap_net PUBLIC
@@ -67,6 +68,7 @@ if(NOT MTHAP_BUILD_TESTS_ONLY)
         core/app.cpp
         game_hooks.cpp
         rando_hooks.cpp
+        death_hooks.cpp
     )
 
     target_link_libraries(mthap PRIVATE

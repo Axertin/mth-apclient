@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <memory>
 #include <optional>
 #include <string>
@@ -7,6 +8,7 @@
 
 #include "mth/core/ap_save_state.hpp"
 #include "mth/core/ap_state.hpp"
+#include "mth/death_hooks.hpp"
 #include "mth/game_item_granter.hpp"
 #ifdef MTHAP_HAS_OVERLAY
 #include "mth/ui/command_sink.hpp"
@@ -58,7 +60,8 @@ class App
 
   private:
     void ensure_inbound_ready(); // lazily builds save_state_/inbound_ once connected
-    // Destruction order: hooks_, events_, coordinator_, link_ (stops net thread), then state_.
+    // Destruction order: death_hooks_/rando_hooks_ first (remove game hooks), then events_/hooks_,
+    // coordinator_, link_ (stops net thread), then state_.
     ApState state_;
     std::unique_ptr<IApLink> link_;
     std::unique_ptr<ApCoordinator> coordinator_;
@@ -66,9 +69,11 @@ class App
     std::unique_ptr<GameHooks> hooks_;
     std::unique_ptr<RandoBridge> rando_;
     std::unique_ptr<RandoHooks> rando_hooks_;
+    std::unique_ptr<DeathHooks> death_hooks_;
     GameItemGranter granter_;
     std::optional<ApSaveState> save_state_;
     std::unique_ptr<InboundGranter> inbound_;
+    std::atomic<bool> pending_inbound_death_{false};
     bool first_tick_logged_{false};
 #ifdef MTHAP_HAS_OVERLAY
     std::unique_ptr<pal::IOverlay> overlay_;

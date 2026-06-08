@@ -40,7 +40,11 @@ struct ApStatusChanged
 {
     std::string text;
 };
+struct ApDeathReceived
+{
+    std::string cause;
+};
 
-using ApEvent = std::variant<ApConnected, ApItemReceived, ApDisconnected, ApConnectionRefused, ApStatusChanged>;
+using ApEvent = std::variant<ApConnected, ApItemReceived, ApDisconnected, ApConnectionRefused, ApStatusChanged, ApDeathReceived>;
 
 } // namespace mth
