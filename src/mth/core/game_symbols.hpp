@@ -36,4 +36,13 @@ inline constexpr const char *set_item_collected =
     "_ZN5Items16SetItemCollectedEibP14ItemCollectionP8SaveSlot";                            // Items::SetItemCollected(int, bool, ItemCollection*, SaveSlot*)
 inline constexpr const char *s_r_item_collection = "_ZN12_GLOBAL__N_117s_rItemCollectionE"; // s_rItemCollection location table
 
+// Live boss-death funnels (kill-time). SetBossDefeated was reload-path only (29/34 call sites are in
+// <Boss>::InitState corpse-spawn). Most bosses route through TriggerDeathSequence (its 1-arg variant
+// tail-jumps into this 2-arg one); Lionel/Maxi route through OnDefeatedNoSkeleton. Boss index is at
+// bossComponent+0x68. Some bosses hit both funnels in one death -> dedup at the bridge.
+inline constexpr const char *boss_trigger_death_sequence =
+    "_ZN13BossComponent20TriggerDeathSequenceEP15BossDeathParamsj"; // BossComponent::TriggerDeathSequence(BossDeathParams*, unsigned)
+inline constexpr const char *boss_on_defeated_no_skeleton =
+    "_ZN13BossComponent20OnDefeatedNoSkeletonER19BossDeathRewardInfo"; // BossComponent::OnDefeatedNoSkeleton(BossDeathRewardInfo&)
+
 } // namespace mth::sym
