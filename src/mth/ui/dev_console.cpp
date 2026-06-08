@@ -11,6 +11,25 @@
 #include "mth_version.h"
 #include "pal/pal_log.hpp"
 
+namespace
+{
+
+void textOutlined(const char *text, ImU32 textCol = IM_COL32_WHITE, ImU32 outlineCol = IM_COL32_BLACK)
+{
+    ImDrawList *dl = ImGui::GetWindowDrawList();
+    ImVec2 pos = ImGui::GetCursorScreenPos();
+
+    const ImVec2 offsets[] = {
+        {-1, -1}, {1, -1}, {-1, 1}, {1, 1}, {-1, 0}, {1, 0}, {0, -1}, {0, 1},
+    };
+
+    for (const ImVec2 &off : offsets)
+        dl->AddText(ImVec2(pos.x + off.x, pos.y + off.y), outlineCol, text);
+    dl->AddText(pos, textCol, text);
+    ImGui::Dummy(ImGui::CalcTextSize(text));
+}
+} // namespace
+
 namespace mth
 {
 
@@ -55,6 +74,7 @@ void DevConsole::draw_version_hud()
 void DevConsole::draw_console()
 {
     ImGui::SetNextWindowSize(ImVec2(720, 420), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowBgAlpha(0);
     if (!ImGui::Begin("mth dev console"))
     {
         ImGui::End();
@@ -72,7 +92,8 @@ void DevConsole::draw_console()
     if (ImGui::BeginChild("output", ImVec2(0, -footer), ImGuiChildFlags_None, ImGuiWindowFlags_HorizontalScrollbar))
     {
         for (const auto &line : lines)
-            ImGui::TextUnformatted(line.c_str());
+            // ImGui::TextUnformatted(line.c_str());
+            textOutlined(line.c_str());
         if (scroll_to_bottom_)
         {
             ImGui::SetScrollHereY(1.0f);
