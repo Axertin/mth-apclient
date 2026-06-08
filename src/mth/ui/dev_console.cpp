@@ -107,6 +107,7 @@ void DevConsole::run_input()
         break;
     case CommandKind::Help:
         println("commands: help, clear, status, items, connect <server> <slot> [pw], disconnect");
+        println("          giveapitem <ap_item_id>, removelock <slot>");
         break;
     case CommandKind::Clear:
         log_.clear();
@@ -126,6 +127,15 @@ void DevConsole::run_input()
         {
             sink_.give_item(static_cast<std::int64_t>(std::stoll(cmd.args[0])));
             println("granting item id " + cmd.args[0]);
+        }
+        break;
+    case CommandKind::RemoveLock:
+        if (cmd.args.empty())
+            println("usage: removelock <slot>");
+        else
+        {
+            sink_.remove_lock(static_cast<int>(std::stoi(cmd.args[0])));
+            println("removing lock slot " + cmd.args[0]);
         }
         break;
     case CommandKind::Connect:

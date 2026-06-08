@@ -50,3 +50,11 @@ TEST_CASE("parse_command recognizes giveapitem", "[dev_commands]")
     REQUIRE(cmd.args.size() == 1);
     REQUIRE(cmd.args[0] == "17");
 }
+
+TEST_CASE("parse_command recognizes removelock with a slot arg", "[commands]")
+{
+    const auto cmd = mth::parse_command("removelock 42");
+    REQUIRE(cmd.kind == mth::CommandKind::RemoveLock);
+    REQUIRE(cmd.args.size() == 1);
+    REQUIRE(cmd.args[0] == "42");
+}

@@ -28,6 +28,7 @@ add_executable(mthap_unit_tests
     unit/ap_save_state_test.cpp
     unit/inbound_granter_test.cpp
     unit/sig_scan_test.cpp
+    unit/lock_registry_test.cpp
 )
 
 target_include_directories(mthap_unit_tests PRIVATE
