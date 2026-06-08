@@ -60,6 +60,30 @@
     {
       "name": "_ZN12_GLOBAL__N_117s_rItemCollectionE",
       "kind": "DataRef"
+    },
+    {
+      "name": "_ZN13BossComponent20TriggerDeathSequenceEP15BossDeathParamsj",
+      "kind": "Code"
+    },
+    {
+      "name": "_ZN13BossComponent20OnDefeatedNoSkeletonER19BossDeathRewardInfo",
+      "kind": "Code"
+    },
+    {
+      "name": "_ZN8KeyBlock6UpdateEP20ycUpdateQueueContext",
+      "kind": "Code"
+    },
+    {
+      "name": "_ZN6Player9InitDeathEb",
+      "kind": "Code"
+    },
+    {
+      "name": "_ZN6Player12TriggerDeathEv",
+      "kind": "Code"
+    },
+    {
+      "name": "_ZN8ShopMenu9InitStateEv",
+      "kind": "Code"
     }
   ],
   "windows": {
@@ -108,6 +132,24 @@
       "ref_site_rva": 8534102,
       "disp_off": 3,
       "next_insn": 7
+    },
+    "_ZN13BossComponent20TriggerDeathSequenceEP15BossDeathParamsj": {
+      "rva": 5324688
+    },
+    "_ZN13BossComponent20OnDefeatedNoSkeletonER19BossDeathRewardInfo": {
+      "rva": 5330880
+    },
+    "_ZN8KeyBlock6UpdateEP20ycUpdateQueueContext": {
+      "rva": 8565152
+    },
+    "_ZN6Player9InitDeathEb": {
+      "rva": 10226880
+    },
+    "_ZN6Player12TriggerDeathEv": {
+      "rva": 10359136
+    },
+    "_ZN8ShopMenu9InitStateEv": {
+      "rva": 10916368
     }
   },
   "linux": {

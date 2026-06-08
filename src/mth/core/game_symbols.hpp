@@ -26,6 +26,8 @@ inline constexpr const char *pickup_on_pickup = "_ZN6Pickup8OnPickupEP14PickupLi
 // ShopMenu::ItemPresent(): shop-buy grant funnel; calls Items::OnPickup directly (no Pickup entity).
 // Menu stashes locIdx at ShopMenu+0x218 and itemType at +0x21c before this fires.
 inline constexpr const char *shop_item_present = "_ZN8ShopMenu11ItemPresentEv"; // ShopMenu::ItemPresent()
+// Windows: ShopMenu::ItemPresent is inlined into ShopMenu::InitState; hook InitState there.
+inline constexpr const char *shop_init_state = "_ZN8ShopMenu9InitStateEv"; // ShopMenu::InitState()
 
 // ycWorld::QueueDestroy: unconditional teardown (no SpawnPoint gate); writes no save/grant state.
 inline constexpr const char *queue_destroy = "_ZN7ycWorld12QueueDestroyEP8ycEntityb"; // ycWorld::QueueDestroy(ycEntity*, bool)

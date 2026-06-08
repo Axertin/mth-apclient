@@ -1,9 +1,11 @@
 #include "pal/windows/signature_scan.hpp"
 
 #include <cstring>
+#include <span>
 #include <string>
 #include <unordered_map>
 
+#include "mth/core/sig_scan.hpp"
 #include "pal/pal_log.hpp"
 #include "pal/pal_module.hpp"
 
@@ -54,6 +56,26 @@ std::uintptr_t scan_resolve(const char *mangled_name)
     static std::unordered_map<std::string, std::uintptr_t> cache;
     if (auto it = cache.find(mangled_name); it != cache.end())
         return it->second;
+
+    // g_saveManager is too hot to carve as a DataRef; anchor on Items::SetItemCollected,
+    // whose `cmove r9,[rip+g_saveManager]` (4c 0f 44 0d, 8-byte) loads the global.
+    if (std::strcmp(mangled_name, "g_saveManager") == 0)
+    {
+        const std::uintptr_t setic = scan_resolve("_ZN5Items16SetItemCollectedEibP14ItemCollectionP8SaveSlot");
+        std::uintptr_t addr = 0;
+        if (setic != 0)
+        {
+            static const std::uint8_t kCmove[] = {0x4c, 0x0f, 0x44, 0x0d};
+            const std::span<const std::uint8_t> window{reinterpret_cast<const std::uint8_t *>(setic), 0x60};
+            addr = mth::sig::find_riprel_load(window, setic, kCmove, sizeof(kCmove), /*disp_off=*/4, /*insn_len=*/8);
+        }
+        if (addr == 0)
+            logf(LogLevel::Error, "sig: g_saveManager not resolved (SetItemCollected anchor failed)");
+        else
+            logf(LogLevel::Info, "sig: resolved g_saveManager -> %p", reinterpret_cast<void *>(addr));
+        cache[mangled_name] = addr;
+        return addr;
+    }
 
     const ModuleInfo gm = game_module();
     const std::span<const std::uint8_t> text = text_section(gm.base);

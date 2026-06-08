@@ -1,5 +1,7 @@
 #include "mth/core/sig_scan.hpp"
 
+#include <algorithm>
+
 namespace mth::sig
 {
 
@@ -64,6 +66,35 @@ std::uintptr_t resolve(std::span<const std::uint8_t> region, std::uintptr_t regi
     const std::int32_t disp = read_i32le(region.data() + disp_at);
     const std::uintptr_t next_ip = region_base + m.offset + static_cast<std::size_t>(entry.next_insn);
     return next_ip + static_cast<std::intptr_t>(disp);
+}
+
+std::uintptr_t read_riprel_target(const std::uint8_t *insn, std::uintptr_t insn_addr, int disp_off, int insn_len)
+{
+    std::int32_t disp =
+        static_cast<std::int32_t>(static_cast<std::uint32_t>(insn[disp_off]) | (static_cast<std::uint32_t>(insn[disp_off + 1]) << 8) |
+                                  (static_cast<std::uint32_t>(insn[disp_off + 2]) << 16) | (static_cast<std::uint32_t>(insn[disp_off + 3]) << 24));
+    return insn_addr + static_cast<std::uintptr_t>(insn_len) + static_cast<std::uintptr_t>(static_cast<std::intptr_t>(disp));
+}
+
+std::uintptr_t find_riprel_load(std::span<const std::uint8_t> region, std::uintptr_t region_base, const std::uint8_t *op, std::size_t op_len, int disp_off,
+                                int insn_len)
+{
+    const std::size_t need = std::max(static_cast<std::size_t>(insn_len), op_len);
+    if (region.size() < need)
+        return 0;
+    for (std::size_t i = 0; i + need <= region.size(); ++i)
+    {
+        bool hit = true;
+        for (std::size_t j = 0; j < op_len; ++j)
+            if (region[i + j] != op[j])
+            {
+                hit = false;
+                break;
+            }
+        if (hit)
+            return read_riprel_target(region.data() + i, region_base + i, disp_off, insn_len);
+    }
+    return 0;
 }
 
 } // namespace mth::sig
