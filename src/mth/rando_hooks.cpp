@@ -58,6 +58,7 @@ constexpr int kLocationCount = 361;
 constexpr std::ptrdiff_t kPickupLocIdxOff = 0x380;
 constexpr std::ptrdiff_t kPickupItemTypeOff = 0x384;
 bool g_pickup_offsets_ok = true; // cleared by the self-check on mismatch
+bool g_shop_offsets_ok = true;   // cleared on first out-of-range read in repl_shop_item_present
 
 [[nodiscard]] int &pickup_loc_idx(void *self)
 {
@@ -241,6 +242,46 @@ void repl_pickup_on_pickup(void *self, void *listener)
         g_orig_pickup_on_pickup(self, listener);
 }
 
+// ShopMenu field offsets (build-specific; verified by self-check in repl_shop_item_present).
+constexpr std::ptrdiff_t kShopLocIdxOff = 0x218;
+constexpr std::ptrdiff_t kShopItemTypeOff = 0x21c;
+
+pal::HookId g_id_shop_item_present = pal::kInvalidHookId;
+void (*g_orig_shop_item_present)(void *) = nullptr;
+
+void repl_shop_item_present(void *self)
+{
+    if (g_shop_offsets_ok && g_bridge != nullptr)
+    {
+        int &loc_idx = *reinterpret_cast<int *>(static_cast<char *>(self) + kShopLocIdxOff);
+        int &item_type = *reinterpret_cast<int *>(static_cast<char *>(self) + kShopItemTypeOff);
+        pal::logf(pal::LogLevel::Debug, "ShopMenu::ItemPresent locIdx=%d itemType=%d", loc_idx, item_type);
+
+        // Offset self-check: garbage reads mean the ShopMenu layout shifted; disable the redirect.
+        if (loc_idx < -1 || loc_idx >= kLocationCount || item_type < 0 || item_type >= kItemTypeCount)
+        {
+            g_shop_offsets_ok = false;
+            pal::logf(pal::LogLevel::Error, "ShopMenu offset check FAILED (locIdx=%d itemType=%d); shop redirect disabled", loc_idx, item_type);
+        }
+        else if (g_bridge->is_ap_location(loc_idx))
+        {
+            pal::logf(pal::LogLevel::Info, "outbound: bought AP shop item locIdx=%d", loc_idx);
+            g_bridge->on_location_collected(loc_idx);
+
+            const int kind = native_location_kind(loc_idx);
+            if (g_set_item_collected != nullptr && is_durable_bit_kind(kind))
+            {
+                g_set_item_collected(loc_idx, true, nullptr, nullptr);
+                pal::logf(pal::LogLevel::Info, "outbound: SetItemCollected(locIdx=%d kind=%d) -> native reload suppression", loc_idx, kind);
+            }
+
+            item_type = kApDummyItemType; // suppress vanilla grant; real item arrives via AP inbound granter
+        }
+    }
+    if (g_orig_shop_item_present)
+        g_orig_shop_item_present(self);
+}
+
 pal::HookId hook_by_symbol(const char *symbol, void *replacement, void **trampoline, const char *label)
 {
     const auto addr = pal::resolve_game_symbol(symbol);
@@ -300,6 +341,8 @@ RandoHooks::RandoHooks(RandoBridge &bridge)
         hook_by_symbol(sym::pickup_init, reinterpret_cast<void *>(&repl_pickup_init), reinterpret_cast<void **>(&g_orig_pickup_init), "Pickup::Init");
     g_id_pickup_on_pickup = hook_by_symbol(sym::pickup_on_pickup, reinterpret_cast<void *>(&repl_pickup_on_pickup),
                                            reinterpret_cast<void **>(&g_orig_pickup_on_pickup), "Pickup::OnPickup");
+    g_id_shop_item_present = hook_by_symbol(sym::shop_item_present, reinterpret_cast<void *>(&repl_shop_item_present),
+                                            reinterpret_cast<void **>(&g_orig_shop_item_present), "ShopMenu::ItemPresent");
 }
 
 RandoHooks::~RandoHooks()
@@ -312,6 +355,8 @@ RandoHooks::~RandoHooks()
         pal::hook_engine().remove_hook(g_id_pickup_init);
     if (g_id_pickup_on_pickup != pal::kInvalidHookId)
         pal::hook_engine().remove_hook(g_id_pickup_on_pickup);
+    if (g_id_shop_item_present != pal::kInvalidHookId)
+        pal::hook_engine().remove_hook(g_id_shop_item_present);
     if (installed_)
         pal::hook_engine().remove_hook(g_id);
     g_bridge = nullptr;
