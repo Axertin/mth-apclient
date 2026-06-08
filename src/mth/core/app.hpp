@@ -53,6 +53,7 @@ class App
     [[nodiscard]] std::vector<std::string> status_lines() const override;
     [[nodiscard]] std::vector<std::string> item_lines() const override;
     void give_item(std::int64_t ap_item_id) override;
+    void remove_lock(int slot) override;
 #endif
 
   private:

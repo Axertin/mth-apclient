@@ -20,6 +20,7 @@ class ICommandSink
     [[nodiscard]] virtual std::vector<std::string> item_lines() const = 0;
 
     virtual void give_item(std::int64_t ap_item_id) = 0; // manual test path; bypasses dedup
+    virtual void remove_lock(int slot) = 0;              // pre-open/remove a KeyBlock by slot (AP runtime path)
 };
 
 } // namespace mth

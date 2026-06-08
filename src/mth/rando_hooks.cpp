@@ -4,10 +4,12 @@
 #include <cstddef>
 #include <cstdint>
 #include <mutex>
+#include <set>
 #include <vector>
 
 #include "mth/core/boss_checks.hpp"
 #include "mth/core/game_symbols.hpp"
+#include "mth/core/lock_registry.hpp"
 #include "mth/core/rando_bridge.hpp"
 #include "mth/game_item_granter.hpp"
 #include "pal/pal_game.hpp"
@@ -325,6 +327,97 @@ void repl_boss_on_defeated(void *self, void *reward_info)
     boss_defeated_from(self, "OnDefeatedNoSkeleton");
 }
 
+// KeyBlock identity + pre-seed disable. Slot offset verified; pre-seed replicates SetSaveUnlocked's
+// exact bit math so the game's own ctor gate opens the lock (no fragile open-state writes).
+constexpr std::ptrdiff_t kKeyBlockSlotOff = 0x2d0;    // int: s_rItemCollection slot, -1 = cosmetic (PairLock only)
+constexpr std::ptrdiff_t kSaveSlotPtrOff = 0x18;      // active SaveSlot* = *(g_saveManager+0x18)
+constexpr std::ptrdiff_t kSaveBlockUnlockOff = 0x200; // u64 lock-unlocked bitfield in the SaveSlot
+constexpr std::ptrdiff_t kCollectionBitIdxOff = 0x1c; // uint8 bit index within that u64, per slot
+
+mth::LockRegistry *g_locks = nullptr;
+std::uintptr_t g_save_manager = 0;
+bool g_seed_logged = false;
+
+// Resolve a live KeyBlock's effective s_rItemCollection slot (the warp-resolved id the unlock bit
+// uses). KeyBlock+0x2d0 is only cached for "PairLock" locks; otherwise it is -1 and the game
+// name-scans. Mirrors the SetSaveUnlocked fallback. Returns -1 if genuinely unmatched.
+// out_key (optional): receives the derived name-hash compare key (0 on the cached fast path),
+// for diagnosing an unresolved (-1) lock in one in-game pass (key==0 => entity chain broke).
+[[nodiscard]] int resolve_effective_slot(void *self, std::uint64_t *out_key = nullptr)
+{
+    if (out_key != nullptr)
+        *out_key = 0;
+    if (g_s_r_item_collection == 0 || self == nullptr)
+        return -1;
+    const auto *ic = reinterpret_cast<const unsigned char *>(g_s_r_item_collection);
+
+    // Fast path: PairLock locks have the ctor-cached, already-warp-resolved slot.
+    const int cached = *reinterpret_cast<int *>(static_cast<char *>(self) + kKeyBlockSlotOff);
+    if (cached >= 0)
+        return cached;
+
+    // Derive the name-hash compare key from the entity (SetSaveUnlocked b4a81b..b4a849).
+    void *rcx = *reinterpret_cast<void **>(static_cast<char *>(self) + 0xa8);
+    void *rax = rcx != nullptr ? *reinterpret_cast<void **>(static_cast<char *>(rcx) + 0x40) : nullptr;
+    std::uint64_t key = rax != nullptr ? *reinterpret_cast<std::uint64_t *>(static_cast<char *>(rax) + 0xd0) : 0;
+    if (key == 0)
+    {
+        void *r = rax != nullptr ? *reinterpret_cast<void **>(rax) : nullptr;
+        key = r != nullptr ? *reinterpret_cast<std::uint64_t *>(static_cast<char *>(r) + 0x28) : 0;
+    }
+    if (out_key != nullptr)
+        *out_key = key;
+
+    // Linear scan s_rItemCollection (compare +0x00, stride 0x50, cap 0x168) for the match.
+    int matched = -1;
+    for (int i = 0; i < 0x168; ++i)
+    {
+        if (*reinterpret_cast<const std::uint64_t *>(ic + static_cast<std::size_t>(i) * kCollectionEntryStride) == key)
+        {
+            matched = i;
+            break;
+        }
+    }
+    if (matched < 0)
+        return -1;
+
+    // Apply the +0x4c warp remap; if no remap (<0), the matched index itself is the slot.
+    const int warp = *reinterpret_cast<const int *>(ic + static_cast<std::size_t>(matched) * kCollectionEntryStride + 0x4c);
+    return warp < 0 ? matched : warp;
+}
+
+pal::HookId g_id_key_block_update = pal::kInvalidHookId;
+void (*g_orig_key_block_update)(void *, void *) = nullptr;
+
+std::set<int> g_logged_lock_slots; // identity log dedup (game-thread only)
+
+// A lock already spawned solid when its slot was removed won't self-open (the unlock bit is only
+// read at spawn). Remove the block live; seed_removed_locks has set the persistent bit so the chain
+// "all-opened" door still fires and the lock re-spawns open on room re-entry. QueueDestroy is idempotent.
+void repl_key_block_update(void *self, void *ctx)
+{
+    if (g_orig_key_block_update)
+        g_orig_key_block_update(self, ctx);
+
+    if (g_locks == nullptr)
+        return;
+
+    std::uint64_t key = 0;
+    const int slot = resolve_effective_slot(self, &key);
+    if (g_logged_lock_slots.insert(slot).second)
+        pal::logf(pal::LogLevel::Debug, "KeyBlock slot=%d (raw +0x2d0=%d key=0x%llx)", slot,
+                  *reinterpret_cast<int *>(static_cast<char *>(self) + kKeyBlockSlotOff), static_cast<unsigned long long>(key));
+
+    if (slot < 0 || g_queue_destroy == nullptr || !g_locks->is_removed(slot))
+        return;
+
+    // ycEntity = self+0x10, ycWorld = ycEntity+0x50 (same idiom as repl_pickup_init).
+    void *ent = *reinterpret_cast<void **>(static_cast<char *>(self) + 0x10);
+    void *world = ent != nullptr ? *reinterpret_cast<void **>(static_cast<char *>(ent) + 0x50) : nullptr;
+    if (ent != nullptr && world != nullptr)
+        g_queue_destroy(world, ent, false);
+}
+
 pal::HookId hook_by_symbol(const char *symbol, void *replacement, void **trampoline, const char *label)
 {
     const auto addr = pal::resolve_game_symbol(symbol);
@@ -390,6 +483,13 @@ RandoHooks::RandoHooks(RandoBridge &bridge)
                                              reinterpret_cast<void **>(&g_orig_boss_trigger_death), "BossComponent::TriggerDeathSequence");
     g_id_boss_on_defeated = hook_by_symbol(sym::boss_on_defeated_no_skeleton, reinterpret_cast<void *>(&repl_boss_on_defeated),
                                            reinterpret_cast<void **>(&g_orig_boss_on_defeated), "BossComponent::OnDefeatedNoSkeleton");
+
+    g_locks = &locks_;
+    g_save_manager = pal::resolve_game_symbol(sym::save_manager);
+    if (g_save_manager == 0)
+        pal::logf(pal::LogLevel::Warn, "RandoHooks: g_saveManager not resolved; lock removal disabled");
+    g_id_key_block_update = hook_by_symbol(sym::key_block_update, reinterpret_cast<void *>(&repl_key_block_update),
+                                           reinterpret_cast<void **>(&g_orig_key_block_update), "KeyBlock::Update");
 }
 
 RandoHooks::~RandoHooks()
@@ -408,9 +508,50 @@ RandoHooks::~RandoHooks()
         pal::hook_engine().remove_hook(g_id_boss_trigger_death);
     if (g_id_boss_on_defeated != pal::kInvalidHookId)
         pal::hook_engine().remove_hook(g_id_boss_on_defeated);
+    if (g_id_key_block_update != pal::kInvalidHookId)
+        pal::hook_engine().remove_hook(g_id_key_block_update);
+    g_logged_lock_slots.clear();
+    g_locks = nullptr;
+    g_seed_logged = false;
     if (installed_)
         pal::hook_engine().remove_hook(g_id);
     g_bridge = nullptr;
+}
+
+LockRegistry &RandoHooks::locks()
+{
+    return locks_;
+}
+
+// Set the native unlock bit for every removed lock so the KeyBlock ctor gate spawns it open.
+// Idempotent; runs each tick in the pre-World::Update window. Replicates KeyBlock::SetSaveUnlocked's math.
+void RandoHooks::seed_removed_locks()
+{
+    if (g_save_manager == 0 || g_s_r_item_collection == 0)
+        return;
+    void *saveslot = *reinterpret_cast<void **>(g_save_manager + kSaveSlotPtrOff);
+    if (saveslot == nullptr)
+        return; // no active save (e.g. title/menus)
+
+    const std::vector<int> slots = locks_.removed_slots();
+    if (slots.empty())
+        return;
+
+    auto &field = *reinterpret_cast<std::uint64_t *>(static_cast<char *>(saveslot) + kSaveBlockUnlockOff);
+    for (int slot : slots)
+    {
+        if (slot < 0 || slot >= kLocationCount)
+            continue;
+        const std::uint8_t bit =
+            *reinterpret_cast<std::uint8_t *>(g_s_r_item_collection + static_cast<std::uintptr_t>(slot) * kCollectionEntryStride + kCollectionBitIdxOff);
+        field |= (std::uint64_t{1} << bit);
+    }
+
+    if (!g_seed_logged)
+    {
+        g_seed_logged = true;
+        pal::logf(pal::LogLevel::Info, "locks: seeded %zu removed lock(s) into SaveSlot unlock bitfield", slots.size());
+    }
 }
 
 bool GameItemGranter::grant(int item_type)

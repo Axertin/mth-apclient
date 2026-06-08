@@ -1,5 +1,7 @@
 #pragma once
 
+#include "mth/core/lock_registry.hpp"
+
 namespace mth
 {
 
@@ -15,8 +17,12 @@ class RandoHooks
     RandoHooks(const RandoHooks &) = delete;
     RandoHooks &operator=(const RandoHooks &) = delete;
 
+    LockRegistry &locks();     // populated by env/console seams
+    void seed_removed_locks(); // game-thread, pre-World::Update window
+
   private:
     bool installed_{false};
+    LockRegistry locks_;
 };
 
 } // namespace mth

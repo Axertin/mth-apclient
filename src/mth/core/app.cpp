@@ -78,6 +78,12 @@ App::App()
     rando_ = std::make_unique<RandoBridge>(*link_, state_);
     rando_hooks_ = std::make_unique<RandoHooks>(*rando_);
 
+    if (const char *locks = std::getenv("MTHAP_REMOVE_LOCKS"); locks && *locks)
+    {
+        rando_hooks_->locks().add_from_list(locks);
+        pal::logf(pal::LogLevel::Info, "locks: removed-set seeded from MTHAP_REMOVE_LOCKS=%s", locks);
+    }
+
     // MTHAP_MOCK_AP: offline test mode; fakes AP-connected state for locations 0..N (default N=1024).
     if (const char *mock = std::getenv("MTHAP_MOCK_AP"); mock && *mock)
     {
@@ -151,6 +157,8 @@ void App::drive_tick()
 
 void App::drain_grants()
 {
+    if (rando_hooks_)
+        rando_hooks_->seed_removed_locks();
     granter_.drain();
 }
 
@@ -206,6 +214,12 @@ void App::give_item(std::int64_t ap_item_id)
     else
         pal::logf(pal::LogLevel::Warn, "console: giveapitem %lld not ready (collect any pickup first to capture player + position)",
                   static_cast<long long>(ap_item_id));
+}
+
+void App::remove_lock(int slot)
+{
+    rando_hooks_->locks().set_removed(slot);
+    pal::logf(pal::LogLevel::Info, "console: removelock %d (live if spawned; opens on entry otherwise)", slot);
 }
 #endif
 

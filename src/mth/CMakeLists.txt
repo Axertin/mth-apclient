@@ -15,6 +15,7 @@ add_library(mthap_core STATIC
     core/ap_save_state.cpp
     core/inbound_granter.cpp
     core/sig_scan.cpp
+    core/lock_registry.cpp
 )
 
 target_include_directories(mthap_core PUBLIC "${CMAKE_SOURCE_DIR}/src")
