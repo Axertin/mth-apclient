@@ -67,27 +67,19 @@ function(add_git_version_info target)
         set(BASE_VERSION "${BASE_VERSION}-${VERSION_PRERELEASE}")
       endif()
 
-      if(GIT_DESCRIBE MATCHES "^v?[0-9]+\\.[0-9]+\\.[0-9]+(-[a-zA-Z][a-zA-Z0-9.-]*)?$")
-        set(VERSION_STRING "${BASE_VERSION}")
-      else()
-        if(GIT_DESCRIBE MATCHES "^v?[0-9]+\\.[0-9]+\\.[0-9]+(-[a-zA-Z][a-zA-Z0-9.-]*)?-([0-9]+)-g[a-f0-9]+")
-          set(COMMITS_SINCE_TAG ${CMAKE_MATCH_2})
-          if(VERSION_PRERELEASE)
-            set(VERSION_STRING "${BASE_VERSION}.${COMMITS_SINCE_TAG}")
-          else()
-            set(VERSION_STRING "${BASE_VERSION}-dev.${COMMITS_SINCE_TAG}")
-          endif()
-        else()
-          if(VERSION_PRERELEASE)
-            set(VERSION_STRING "${BASE_VERSION}")
-          else()
-            set(VERSION_STRING "${BASE_VERSION}-dev")
-          endif()
-        endif()
-
+      if(GIT_DESCRIBE MATCHES "-([0-9]+)-g[a-f0-9]+")
+        # Ahead of the most recent tag by N commits. The next release is at least the next patch, and a
+        # -dev prerelease of it sorts AFTER the tag (including prerelease tags -beta/-rc/...), which a
+        # same-core -dev would not reliably outsort. So bump the patch and drop any prerelease suffix.
+        set(COMMITS_SINCE_TAG ${CMAKE_MATCH_1})
+        math(EXPR VERSION_PATCH "${VERSION_PATCH} + 1")
+        set(VERSION_STRING "${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}-dev.${COMMITS_SINCE_TAG}")
         if(GIT_DESCRIBE MATCHES "dirty$")
           set(VERSION_STRING "${VERSION_STRING}-dirty")
         endif()
+      else()
+        # Exactly on the tag (any -dirty / prerelease suffix is already folded into BASE_VERSION).
+        set(VERSION_STRING "${BASE_VERSION}")
       endif()
     else()
       execute_process(
