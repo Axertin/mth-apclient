@@ -6,6 +6,7 @@
 #include <mutex>
 #include <vector>
 
+#include "mth/core/boss_checks.hpp"
 #include "mth/core/game_symbols.hpp"
 #include "mth/core/rando_bridge.hpp"
 #include "mth/game_item_granter.hpp"
@@ -282,6 +283,48 @@ void repl_shop_item_present(void *self)
         g_orig_shop_item_present(self);
 }
 
+// BossComponent field offset (build-specific; verified by the in-game log in the funnels below).
+constexpr std::ptrdiff_t kBossIndexOff = 0x68;
+
+pal::HookId g_id_boss_trigger_death = pal::kInvalidHookId;
+void (*g_orig_boss_trigger_death)(void *, void *, unsigned) = nullptr;
+pal::HookId g_id_boss_on_defeated = pal::kInvalidHookId;
+void (*g_orig_boss_on_defeated)(void *, void *) = nullptr;
+
+// A boss reached a live-death funnel. Bridge dedups per seed+slot, so bosses that hit both funnels
+// in one death (and re-entries) send at most one check.
+void boss_defeated_from(void *boss_component, const char *funnel)
+{
+    if (g_bridge == nullptr)
+        return;
+    const int boss_index = *reinterpret_cast<unsigned char *>(static_cast<char *>(boss_component) + kBossIndexOff);
+    if (!mth::is_boss_index(boss_index))
+    {
+        pal::logf(pal::LogLevel::Warn, "boss: %s index=%d out of range; offset may have shifted", funnel, boss_index);
+        return;
+    }
+    const int slot = mth::boss_location_slot(boss_index);
+    pal::logf(pal::LogLevel::Info, "outbound: boss defeated index=%d -> loc slot=%d (%s)", boss_index, slot, funnel);
+    if (g_bridge->is_ap_location(slot))
+        g_bridge->on_location_collected(slot);
+    else
+        pal::logf(pal::LogLevel::Debug, "boss: slot=%d not a valid AP location (apworld may not define this boss)", slot);
+}
+
+void repl_boss_trigger_death(void *self, void *params, unsigned a3)
+{
+    if (g_orig_boss_trigger_death)
+        g_orig_boss_trigger_death(self, params, a3);
+    boss_defeated_from(self, "TriggerDeathSequence");
+}
+
+void repl_boss_on_defeated(void *self, void *reward_info)
+{
+    if (g_orig_boss_on_defeated)
+        g_orig_boss_on_defeated(self, reward_info);
+    boss_defeated_from(self, "OnDefeatedNoSkeleton");
+}
+
 pal::HookId hook_by_symbol(const char *symbol, void *replacement, void **trampoline, const char *label)
 {
     const auto addr = pal::resolve_game_symbol(symbol);
@@ -343,6 +386,10 @@ RandoHooks::RandoHooks(RandoBridge &bridge)
                                            reinterpret_cast<void **>(&g_orig_pickup_on_pickup), "Pickup::OnPickup");
     g_id_shop_item_present = hook_by_symbol(sym::shop_item_present, reinterpret_cast<void *>(&repl_shop_item_present),
                                             reinterpret_cast<void **>(&g_orig_shop_item_present), "ShopMenu::ItemPresent");
+    g_id_boss_trigger_death = hook_by_symbol(sym::boss_trigger_death_sequence, reinterpret_cast<void *>(&repl_boss_trigger_death),
+                                             reinterpret_cast<void **>(&g_orig_boss_trigger_death), "BossComponent::TriggerDeathSequence");
+    g_id_boss_on_defeated = hook_by_symbol(sym::boss_on_defeated_no_skeleton, reinterpret_cast<void *>(&repl_boss_on_defeated),
+                                           reinterpret_cast<void **>(&g_orig_boss_on_defeated), "BossComponent::OnDefeatedNoSkeleton");
 }
 
 RandoHooks::~RandoHooks()
@@ -357,6 +404,10 @@ RandoHooks::~RandoHooks()
         pal::hook_engine().remove_hook(g_id_pickup_on_pickup);
     if (g_id_shop_item_present != pal::kInvalidHookId)
         pal::hook_engine().remove_hook(g_id_shop_item_present);
+    if (g_id_boss_trigger_death != pal::kInvalidHookId)
+        pal::hook_engine().remove_hook(g_id_boss_trigger_death);
+    if (g_id_boss_on_defeated != pal::kInvalidHookId)
+        pal::hook_engine().remove_hook(g_id_boss_on_defeated);
     if (installed_)
         pal::hook_engine().remove_hook(g_id);
     g_bridge = nullptr;
