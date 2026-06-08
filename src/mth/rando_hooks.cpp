@@ -61,7 +61,7 @@ constexpr int kLocationCount = 361;
 constexpr std::ptrdiff_t kPickupLocIdxOff = 0x380;
 constexpr std::ptrdiff_t kPickupItemTypeOff = 0x384;
 bool g_pickup_offsets_ok = true; // cleared by the self-check on mismatch
-bool g_shop_offsets_ok = true;   // cleared on first out-of-range read in repl_shop_item_present
+bool g_shop_offsets_ok = true;   // cleared on first out-of-range read in on_shop_buy
 
 [[nodiscard]] int &pickup_loc_idx(void *self)
 {
@@ -245,44 +245,34 @@ void repl_pickup_on_pickup(void *self, void *listener)
         g_orig_pickup_on_pickup(self, listener);
 }
 
-// ShopMenu field offsets (build-specific; verified by self-check in repl_shop_item_present).
-constexpr std::ptrdiff_t kShopLocIdxOff = 0x218;
-constexpr std::ptrdiff_t kShopItemTypeOff = 0x21c;
-
-pal::HookId g_id_shop_item_present = pal::kInvalidHookId;
-void (*g_orig_shop_item_present)(void *) = nullptr;
-
-void repl_shop_item_present(void *self)
+// Shared shop-purchase AP logic; the PAL owns the per-platform hook + field reads and calls this.
+// Returns the itemType to store: a dummy to suppress the vanilla grant (where the platform redirects), else unchanged.
+int on_shop_buy(int loc_idx, int item_type)
 {
-    if (g_shop_offsets_ok && g_bridge != nullptr)
+    if (!g_shop_offsets_ok || g_bridge == nullptr)
+        return item_type;
+
+    // Offset self-check: garbage reads mean the ShopMenu layout shifted; disable the check.
+    if (loc_idx < -1 || loc_idx >= kLocationCount || item_type < 0 || item_type >= kItemTypeCount)
     {
-        int &loc_idx = *reinterpret_cast<int *>(static_cast<char *>(self) + kShopLocIdxOff);
-        int &item_type = *reinterpret_cast<int *>(static_cast<char *>(self) + kShopItemTypeOff);
-        pal::logf(pal::LogLevel::Debug, "ShopMenu::ItemPresent locIdx=%d itemType=%d", loc_idx, item_type);
-
-        // Offset self-check: garbage reads mean the ShopMenu layout shifted; disable the redirect.
-        if (loc_idx < -1 || loc_idx >= kLocationCount || item_type < 0 || item_type >= kItemTypeCount)
-        {
-            g_shop_offsets_ok = false;
-            pal::logf(pal::LogLevel::Error, "ShopMenu offset check FAILED (locIdx=%d itemType=%d); shop redirect disabled", loc_idx, item_type);
-        }
-        else if (g_bridge->is_ap_location(loc_idx))
-        {
-            pal::logf(pal::LogLevel::Info, "outbound: bought AP shop item locIdx=%d", loc_idx);
-            g_bridge->on_location_collected(loc_idx);
-
-            const int kind = native_location_kind(loc_idx);
-            if (g_set_item_collected != nullptr && is_durable_bit_kind(kind))
-            {
-                g_set_item_collected(loc_idx, true, nullptr, nullptr);
-                pal::logf(pal::LogLevel::Info, "outbound: SetItemCollected(locIdx=%d kind=%d) -> native reload suppression", loc_idx, kind);
-            }
-
-            item_type = kApDummyItemType; // suppress vanilla grant; real item arrives via AP inbound granter
-        }
+        g_shop_offsets_ok = false;
+        pal::logf(pal::LogLevel::Error, "shop offset check FAILED (locIdx=%d itemType=%d); shop check disabled", loc_idx, item_type);
+        return item_type;
     }
-    if (g_orig_shop_item_present)
-        g_orig_shop_item_present(self);
+    if (g_bridge->is_ap_location(loc_idx))
+    {
+        pal::logf(pal::LogLevel::Info, "outbound: bought AP shop item locIdx=%d", loc_idx);
+        g_bridge->on_location_collected(loc_idx);
+
+        const int kind = native_location_kind(loc_idx);
+        if (g_set_item_collected != nullptr && is_durable_bit_kind(kind))
+        {
+            g_set_item_collected(loc_idx, true, nullptr, nullptr);
+            pal::logf(pal::LogLevel::Info, "outbound: SetItemCollected(locIdx=%d kind=%d) -> native reload suppression", loc_idx, kind);
+        }
+        return kApDummyItemType; // suppress vanilla grant; real item arrives via AP inbound granter
+    }
+    return item_type;
 }
 
 // BossComponent field offset (build-specific; verified by the in-game log in the funnels below).
@@ -330,7 +320,6 @@ void repl_boss_on_defeated(void *self, void *reward_info)
 // KeyBlock identity + pre-seed disable. Slot offset verified; pre-seed replicates SetSaveUnlocked's
 // exact bit math so the game's own ctor gate opens the lock (no fragile open-state writes).
 constexpr std::ptrdiff_t kKeyBlockSlotOff = 0x2d0;    // int: s_rItemCollection slot, -1 = cosmetic (PairLock only)
-constexpr std::ptrdiff_t kSaveSlotPtrOff = 0x18;      // active SaveSlot* = *(g_saveManager+0x18)
 constexpr std::ptrdiff_t kSaveBlockUnlockOff = 0x200; // u64 lock-unlocked bitfield in the SaveSlot
 constexpr std::ptrdiff_t kCollectionBitIdxOff = 0x1c; // uint8 bit index within that u64, per slot
 
@@ -477,8 +466,7 @@ RandoHooks::RandoHooks(RandoBridge &bridge)
         hook_by_symbol(sym::pickup_init, reinterpret_cast<void *>(&repl_pickup_init), reinterpret_cast<void **>(&g_orig_pickup_init), "Pickup::Init");
     g_id_pickup_on_pickup = hook_by_symbol(sym::pickup_on_pickup, reinterpret_cast<void *>(&repl_pickup_on_pickup),
                                            reinterpret_cast<void **>(&g_orig_pickup_on_pickup), "Pickup::OnPickup");
-    g_id_shop_item_present = hook_by_symbol(sym::shop_item_present, reinterpret_cast<void *>(&repl_shop_item_present),
-                                            reinterpret_cast<void **>(&g_orig_shop_item_present), "ShopMenu::ItemPresent");
+    pal::install_shop_purchase_hook(&on_shop_buy);
     g_id_boss_trigger_death = hook_by_symbol(sym::boss_trigger_death_sequence, reinterpret_cast<void *>(&repl_boss_trigger_death),
                                              reinterpret_cast<void **>(&g_orig_boss_trigger_death), "BossComponent::TriggerDeathSequence");
     g_id_boss_on_defeated = hook_by_symbol(sym::boss_on_defeated_no_skeleton, reinterpret_cast<void *>(&repl_boss_on_defeated),
@@ -502,8 +490,7 @@ RandoHooks::~RandoHooks()
         pal::hook_engine().remove_hook(g_id_pickup_init);
     if (g_id_pickup_on_pickup != pal::kInvalidHookId)
         pal::hook_engine().remove_hook(g_id_pickup_on_pickup);
-    if (g_id_shop_item_present != pal::kInvalidHookId)
-        pal::hook_engine().remove_hook(g_id_shop_item_present);
+    pal::remove_shop_purchase_hook();
     if (g_id_boss_trigger_death != pal::kInvalidHookId)
         pal::hook_engine().remove_hook(g_id_boss_trigger_death);
     if (g_id_boss_on_defeated != pal::kInvalidHookId)
@@ -534,7 +521,7 @@ void RandoHooks::seed_removed_locks()
 {
     if (g_save_manager == 0 || g_s_r_item_collection == 0)
         return;
-    void *saveslot = *reinterpret_cast<void **>(g_save_manager + kSaveSlotPtrOff);
+    void *saveslot = pal::active_save_slot(g_save_manager);
     if (saveslot == nullptr)
         return; // no active save (e.g. title/menus)
 
