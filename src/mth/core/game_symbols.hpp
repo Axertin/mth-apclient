@@ -50,4 +50,9 @@ inline constexpr const char *key_block_update = "_ZN8KeyBlock6UpdateEP20ycUpdate
 // Active SaveSlot* = *(g_saveManager+0x18); lock-unlocked bits live in a u64 at SaveSlot+0x200.
 inline constexpr const char *save_manager = "g_saveManager";
 
+// Deathlink. InitDeath = deepest once-per-death convergence (DETECT, edge via Player+0x1380);
+// TriggerDeath = APPLY (call on the live Player to kill). Player+0x1380 = once-per-death guard byte.
+inline constexpr const char *player_init_death = "_ZN6Player9InitDeathEb";        // Player::InitDeath(bool)
+inline constexpr const char *player_trigger_death = "_ZN6Player12TriggerDeathEv"; // Player::TriggerDeath()
+
 } // namespace mth::sym

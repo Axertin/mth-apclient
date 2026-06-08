@@ -7,6 +7,7 @@
 #include "mth/core/game_events.hpp"
 #include "mth/core/inbound_granter.hpp"
 #include "mth/core/rando_bridge.hpp"
+#include "mth/death_hooks.hpp"
 #include "mth/game_hooks.hpp"
 #include "mth/rando_hooks.hpp"
 #include "mth_version.h"
@@ -72,11 +73,13 @@ App::App()
     link_ = std::make_unique<mth::NullApLink>();
     pal::logf(pal::LogLevel::Warn, "net: lane NOT compiled in (NullApLink); connect is a no-op");
 #endif
-    coordinator_ = std::make_unique<ApCoordinator>(*link_, state_);
+    coordinator_ = std::make_unique<ApCoordinator>(*link_, state_, [this] { pending_inbound_death_.store(true); });
     events_ = std::make_unique<AppTickSink>(*this);
     hooks_ = std::make_unique<GameHooks>(*events_);
     rando_ = std::make_unique<RandoBridge>(*link_, state_);
     rando_hooks_ = std::make_unique<RandoHooks>(*rando_);
+    death_hooks_ =
+        std::make_unique<DeathHooks>([this] { link_->send_death("Mina the Hollower"); }, [this]() -> void * { return rando_hooks_->current_player(); });
 
     if (const char *locks = std::getenv("MTHAP_REMOVE_LOCKS"); locks && *locks)
     {
@@ -97,6 +100,12 @@ App::App()
             ev.missing_locations.push_back(ap_loc_id(i));
         state_.apply(ev);
         pal::logf(pal::LogLevel::Info, "AP: MOCK state injected (every pickup is an AP location, idx 0..%d)", max_idx);
+    }
+
+    if (const char *dl = std::getenv("MTHAP_DEATHLINK"); dl && *dl && std::atoi(dl) != 0)
+    {
+        link_->enable_deathlink(true);
+        pal::logf(pal::LogLevel::Info, "deathlink: enabled (MTHAP_DEATHLINK)");
     }
 
     if (const char *server = std::getenv("MTHAP_AP_SERVER"); server && *server)
@@ -127,6 +136,7 @@ App::~App()
     overlay_.reset(); // removes render/input hooks + stops drawing first
     console_.reset(); // then unregister the log observer
 #endif
+    death_hooks_.reset();
     rando_hooks_.reset();
     rando_.reset();
     hooks_.reset();
@@ -150,6 +160,8 @@ void App::drive_tick()
         pal::logf(pal::LogLevel::Info, "tick: Game::FixedUpdate live; AP coordinator pumping");
     }
     coordinator_->tick();
+    if (pending_inbound_death_.exchange(false) && death_hooks_)
+        death_hooks_->kill();
     ensure_inbound_ready();
     if (inbound_)
         inbound_->tick();

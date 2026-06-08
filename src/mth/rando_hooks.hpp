@@ -19,6 +19,7 @@ class RandoHooks
 
     LockRegistry &locks();     // populated by env/console seams
     void seed_removed_locks(); // game-thread, pre-World::Update window
+    [[nodiscard]] void *current_player() const;
 
   private:
     bool installed_{false};

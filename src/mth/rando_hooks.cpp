@@ -525,6 +525,11 @@ LockRegistry &RandoHooks::locks()
 
 // Set the native unlock bit for every removed lock so the KeyBlock ctor gate spawns it open.
 // Idempotent; runs each tick in the pre-World::Update window. Replicates KeyBlock::SetSaveUnlocked's math.
+void *RandoHooks::current_player() const
+{
+    return g_player;
+}
+
 void RandoHooks::seed_removed_locks()
 {
     if (g_save_manager == 0 || g_s_r_item_collection == 0)

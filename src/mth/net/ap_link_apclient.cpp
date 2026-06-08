@@ -1,6 +1,8 @@
 #include "mth/net/ap_link_apclient.hpp"
 
+#include <algorithm>
 #include <chrono>
+#include <ctime>
 #include <exception>
 #include <list>
 #include <utility>
@@ -8,6 +10,7 @@
 #include <apclient.hpp>
 #include <apuuid.hpp>
 
+#include "mth/net/deathlink.hpp"
 #include "pal/pal_cert.hpp"
 #include "pal/pal_log.hpp"
 
@@ -110,6 +113,33 @@ void ApLink::set_goal()
         });
 }
 
+void ApLink::enable_deathlink(bool on)
+{
+    deathlink_.store(on);
+}
+
+void ApLink::send_death(const std::string &cause)
+{
+    enqueue(
+        [this, cause]
+        {
+            if (!client_ || !deathlink_.load())
+                return;
+            const double now = static_cast<double>(std::time(nullptr));
+            nlohmann::json data = nlohmann::json::parse(mth::net::make_deathlink_payload(slot_name_, cause, now));
+            std::list<std::string> tags{"DeathLink"};
+            try
+            {
+                client_->Bounce(data, {}, {}, tags);
+                pal::logf(pal::LogLevel::Info, "deathlink: sent bounce (cause=%s)", cause.c_str());
+            }
+            catch (const std::exception &e)
+            {
+                pal::logf(pal::LogLevel::Warn, "deathlink: Bounce failed: %s", e.what());
+            }
+        });
+}
+
 void ApLink::run()
 {
     using namespace std::chrono_literals;
@@ -150,6 +180,7 @@ void ApLink::run()
 void ApLink::do_connect(const std::string &server, const std::string &slot, const std::string &password)
 {
     do_disconnect();
+    slot_name_ = slot;
 
     if (server.empty() || slot.empty())
     {
@@ -209,6 +240,8 @@ void ApLink::setup_handlers(const std::string &slot, const std::string &password
         [this, slot, password]
         {
             std::list<std::string> tags;
+            if (deathlink_.load())
+                tags.push_back("DeathLink");
             client_->ConnectSlot(slot, password, kItemHandling, tags);
         });
 
@@ -217,6 +250,8 @@ void ApLink::setup_handlers(const std::string &slot, const std::string &password
         {
             connected_.store(true);
             std::list<std::string> tags;
+            if (deathlink_.load())
+                tags.push_back("DeathLink");
             client_->ConnectUpdate(false, kItemHandling, true, tags);
             client_->StatusUpdate(APClient::ClientStatus::PLAYING);
 
@@ -243,6 +278,22 @@ void ApLink::setup_handlers(const std::string &slot, const std::string &password
                 push_event(mth::ApItemReceived{mth::ReceivedItem{item.item, item.index, item.player, static_cast<unsigned>(item.flags)}});
                 last_item_index_ = item.index;
             }
+        });
+
+    client_->set_bounced_handler(
+        [this](const nlohmann::json &cmd)
+        {
+            if (!deathlink_.load())
+                return;
+            if (auto t = cmd.find("tags"); t == cmd.end() || std::find(t->begin(), t->end(), "DeathLink") == t->end())
+                return;
+            std::string payload = cmd.contains("data") ? cmd["data"].dump() : std::string{};
+            auto dl = mth::net::parse_deathlink_payload(payload);
+            if (dl && dl->source == slot_name_)
+                return; // our own death echoed back by the server; ignore
+            std::string cause = dl ? dl->cause : std::string{};
+            push_event(mth::ApDeathReceived{cause});
+            pal::logf(pal::LogLevel::Info, "deathlink: received bounce (cause=%s)", cause.c_str());
         });
 }
 

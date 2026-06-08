@@ -32,3 +32,18 @@ TEST_CASE("ap_coordinator: tick with no events is a no-op", "[mth][ap_coordinato
     REQUIRE_FALSE(state.authenticated());
     REQUIRE(state.status() == "Idle");
 }
+
+TEST_CASE("ap_coordinator: on_death called when ApDeathReceived event drained", "[mth][ap_coordinator]")
+{
+    mth::test::FakeApLink link;
+    mth::ApState state;
+    bool death_called = false;
+    mth::ApCoordinator coord(link, state, [&death_called] { death_called = true; });
+
+    link.pending.push_back(mth::ApDeathReceived{"a rival player died"});
+
+    coord.tick();
+
+    REQUIRE(death_called);
+    REQUIRE(link.pending.empty());
+}
