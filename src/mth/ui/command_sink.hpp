@@ -21,6 +21,8 @@ class ICommandSink
 
     virtual void give_item(std::int64_t ap_item_id) = 0; // manual test path; bypasses dedup
     virtual void remove_lock(int slot) = 0;              // pre-open/remove a KeyBlock by slot (AP runtime path)
+    virtual void set_modifier(int idx, bool on) = 0;     // live toggle a continuous modifier
+    virtual void lock_modifiers(bool armed) = 0;         // arm/disarm gameplay-modifier lockdown
 };
 
 } // namespace mth

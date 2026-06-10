@@ -57,4 +57,12 @@ inline constexpr const char *save_manager = "g_saveManager";
 inline constexpr const char *player_init_death = "_ZN6Player9InitDeathEb";        // Player::InitDeath(bool)
 inline constexpr const char *player_trigger_death = "_ZN6Player12TriggerDeathEv"; // Player::TriggerDeath()
 
+// Modifiers ("cheats"). Apply hub reads SaveSlot at *(g_saveManager+0x08); live gameplay uses
+// *(g_saveManager+0x18). ToggleCheat (menu) + SetCheatApplied (cheat-code) are the only two
+// player write paths; ActivateSaveCheats rebuilds the runtime mirror at [CheatManager+0x20].
+inline constexpr const char *activate_save_slot = "_ZN14SessionManager16ActivateSaveSlotEb";        // SessionManager::ActivateSaveSlot(bool)
+inline constexpr const char *activate_save_cheats = "_ZN12CheatManager18ActivateSaveCheatsEv";      // CheatManager::ActivateSaveCheats()
+inline constexpr const char *toggle_cheat = "_ZN12CheatManager11ToggleCheatEibP8SaveSlotbi";        // CheatManager::ToggleCheat(int,bool,SaveSlot*,bool,int)
+inline constexpr const char *set_cheat_applied = "_ZN12CheatManager15SetCheatAppliedEibP8SaveSlot"; // CheatManager::SetCheatApplied(int,bool,SaveSlot*)
+
 } // namespace mth::sym

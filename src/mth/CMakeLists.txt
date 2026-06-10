@@ -16,6 +16,8 @@ add_library(mthap_core STATIC
     core/inbound_granter.cpp
     core/sig_scan.cpp
     core/lock_registry.cpp
+    core/modifier_config.cpp
+    core/modifier_table.cpp
 )
 
 target_include_directories(mthap_core PUBLIC "${CMAKE_SOURCE_DIR}/src")
@@ -69,6 +71,7 @@ if(NOT MTHAP_BUILD_TESTS_ONLY)
         game_hooks.cpp
         rando_hooks.cpp
         death_hooks.cpp
+        modifier_hooks.cpp
     )
 
     target_link_libraries(mthap PRIVATE

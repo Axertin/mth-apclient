@@ -14,9 +14,11 @@ enum class CommandKind
     Clear,
     Status,
     Items,
-    GiveItem,   // args: [ap_item_id]
-    RemoveLock, // args: [slot]
-    Connect,    // args: [server, slot, (optional) password]
+    GiveItem,     // args: [ap_item_id]
+    RemoveLock,   // args: [slot]
+    Modifier,     // args: [idx, on|off]
+    ModifierLock, // args: [] (status), [lock|unlock|on|off]
+    Connect,      // args: [server, slot, (optional) password]
     Disconnect,
 };
 

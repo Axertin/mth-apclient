@@ -129,6 +129,7 @@ void DevConsole::run_input()
     case CommandKind::Help:
         println("commands: help, clear, status, items, connect <server> <slot> [pw], disconnect");
         println("          giveapitem <ap_item_id>, removelock <slot>");
+        println("          modifier <idx> on|off, modifiers [lock|unlock]");
         break;
     case CommandKind::Clear:
         log_.clear();
@@ -157,6 +158,29 @@ void DevConsole::run_input()
         {
             sink_.remove_lock(static_cast<int>(std::stoi(cmd.args[0])));
             println("removing lock slot " + cmd.args[0]);
+        }
+        break;
+    case CommandKind::Modifier:
+        if (cmd.args.size() < 2)
+            println("usage: modifier <idx> on|off");
+        else
+        {
+            const bool on = cmd.args[1] == "on" || cmd.args[1] == "1" || cmd.args[1] == "true";
+            sink_.set_modifier(static_cast<int>(std::stoi(cmd.args[0])), on);
+            println("modifier " + cmd.args[0] + " " + (on ? "on" : "off"));
+        }
+        break;
+    case CommandKind::ModifierLock:
+        if (cmd.args.empty())
+        {
+            for (const auto &l : sink_.status_lines())
+                println(l);
+        }
+        else
+        {
+            const bool armed = cmd.args[0] == "lock" || cmd.args[0] == "on" || cmd.args[0] == "1";
+            sink_.lock_modifiers(armed);
+            println(std::string("modifiers ") + (armed ? "locked" : "unlocked"));
         }
         break;
     case CommandKind::Connect:

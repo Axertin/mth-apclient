@@ -24,6 +24,17 @@ class ApSaveState
     void mark_checked(int location_index);
     void mark_granted(int item_index);
 
+    // The game's 0-based save-slot index this AP game lives on (-1 = not yet known). Lets the mod
+    // enforce modifiers on only this slot across sessions, never a vanilla profile.
+    [[nodiscard]] int game_slot() const
+    {
+        return game_slot_;
+    }
+    void set_game_slot(int slot)
+    {
+        game_slot_ = slot;
+    }
+
     void save() const; // write-tmp-then-rename
 
   private:
@@ -32,6 +43,7 @@ class ApSaveState
     std::filesystem::path path_;
     std::set<int> checked_;
     std::set<int> granted_;
+    int game_slot_{-1};
 };
 
 } // namespace mth

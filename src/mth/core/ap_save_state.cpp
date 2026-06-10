@@ -6,7 +6,7 @@
 namespace mth
 {
 
-// File format: "c <int>" = checked location, "g <int>" = granted item
+// File format: "c <int>" = checked location, "g <int>" = granted item, "s <int>" = game save slot
 ApSaveState::ApSaveState(std::filesystem::path path) : path_(std::move(path))
 {
     load();
@@ -25,6 +25,8 @@ void ApSaveState::load()
             checked_.insert(value);
         else if (tag == 'g')
             granted_.insert(value);
+        else if (tag == 's')
+            game_slot_ = value;
     }
 }
 
@@ -63,6 +65,8 @@ void ApSaveState::save() const
             out << "c " << v << '\n';
         for (int v : granted_)
             out << "g " << v << '\n';
+        if (game_slot_ >= 0)
+            out << "s " << game_slot_ << '\n';
     }
     std::filesystem::rename(tmp, path_, ec); // atomic replace
 }

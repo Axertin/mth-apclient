@@ -6,6 +6,7 @@
 #include "mth/core/ap_link.hpp"
 #include "mth/core/game_events.hpp"
 #include "mth/core/inbound_granter.hpp"
+#include "mth/core/modifier_config.hpp"
 #include "mth/core/rando_bridge.hpp"
 #include "mth/death_hooks.hpp"
 #include "mth/game_hooks.hpp"
@@ -87,6 +88,17 @@ App::App()
         pal::logf(pal::LogLevel::Info, "locks: removed-set seeded from MTHAP_REMOVE_LOCKS=%s", locks);
     }
 
+    {
+        mth::ModifierRequest mreq;
+        if (const char *m = std::getenv("MTHAP_MODIFIERS"); m && *m)
+        {
+            mreq = mth::parse_modifier_indices(m);
+            modifiers_from_env_ = true; // offline test mode: enforce without an AP connection
+            pal::logf(pal::LogLevel::Info, "modifiers: %zu index(es) from MTHAP_MODIFIERS (offline test mode)", mreq.indices.size());
+        }
+        modifier_hooks_ = std::make_unique<ModifierHooks>(std::move(mreq));
+    }
+
     // MTHAP_MOCK_AP: offline test mode; fakes AP-connected state for locations 0..N (default N=1024).
     if (const char *mock = std::getenv("MTHAP_MOCK_AP"); mock && *mock)
     {
@@ -137,6 +149,7 @@ App::~App()
     console_.reset(); // then unregister the log observer
 #endif
     death_hooks_.reset();
+    modifier_hooks_.reset();
     rando_hooks_.reset();
     rando_.reset();
     hooks_.reset();
@@ -160,11 +173,31 @@ void App::drive_tick()
         pal::logf(pal::LogLevel::Info, "tick: Game::FixedUpdate live; AP coordinator pumping");
     }
     coordinator_->tick();
+    if (modifier_hooks_)
+    {
+        // Enforce (seed + lockdown) only in an AP session, offline test mode, or once the console
+        // drove modifiers; ap_scoped (authed only) restricts the seed to the captured AP-game slot.
+        const bool authed = state_.authenticated();
+        modifier_hooks_->set_enforce_live(authed || modifiers_from_env_ || modifiers_console_active_);
+        modifier_hooks_->set_ap_scoped(authed);
+        modifier_hooks_->drain_live();
+    }
     if (pending_inbound_death_.exchange(false) && death_hooks_)
         death_hooks_->kill();
     ensure_inbound_ready();
     if (inbound_)
         inbound_->tick();
+    // Persist a freshly captured AP-game slot so it's known on the next load/session.
+    if (modifier_hooks_ && save_state_)
+    {
+        const int s = modifier_hooks_->captured_ap_slot();
+        if (s >= 0 && s != save_state_->game_slot())
+        {
+            save_state_->set_game_slot(s);
+            save_state_->save();
+            pal::logf(pal::LogLevel::Info, "modifiers: persisted AP-game slot %d", s);
+        }
+    }
 }
 
 void App::drain_grants()
@@ -182,6 +215,8 @@ void App::ensure_inbound_ready()
     save_state_.emplace(pal::log_dir() / key);
     inbound_ = std::make_unique<InboundGranter>(granter_, state_, *save_state_);
     pal::logf(pal::LogLevel::Info, "inbound: state loaded (%s); granter live", key.c_str());
+    if (modifier_hooks_)
+        modifier_hooks_->set_ap_slot(save_state_->game_slot()); // restore the AP-game slot (skip capture if known)
     rando_->attach_save_state(*save_state_);
     rando_->flush(); // resend any checks recorded before/while disconnected
     pal::logf(pal::LogLevel::Info, "outbound: bridge attached to %s; flushed checked-set", key.c_str());
@@ -205,6 +240,9 @@ std::vector<std::string> App::status_lines() const
     out.push_back("ap status: " + state_.status());
     out.push_back("player slot: " + std::to_string(state_.player_slot()));
     out.push_back("received items: " + std::to_string(state_.received_items().size()));
+    if (modifier_hooks_)
+        for (const auto &l : modifier_hooks_->status_lines())
+            out.push_back(l);
     return out;
 }
 
@@ -232,6 +270,22 @@ void App::remove_lock(int slot)
 {
     rando_hooks_->locks().set_removed(slot);
     pal::logf(pal::LogLevel::Info, "console: removelock %d (live if spawned; opens on entry otherwise)", slot);
+}
+
+void App::set_modifier(int idx, bool on)
+{
+    modifiers_console_active_ = true; // dev is driving modifiers -> enforcement (incl. lockdown) is live
+    if (modifier_hooks_)
+        modifier_hooks_->set_live(idx, on);
+    pal::logf(pal::LogLevel::Info, "console: modifier %d %s", idx, on ? "on" : "off");
+}
+
+void App::lock_modifiers(bool armed)
+{
+    modifiers_console_active_ = true; // explicit console lock/unlock -> enforcement is live this session
+    if (modifier_hooks_)
+        modifier_hooks_->set_armed(armed);
+    pal::logf(pal::LogLevel::Info, "console: modifiers %s", armed ? "locked" : "unlocked");
 }
 #endif
 

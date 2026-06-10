@@ -30,6 +30,10 @@ CommandKind verb_to_kind(const std::string &lower)
         return CommandKind::GiveItem;
     if (lower == "removelock")
         return CommandKind::RemoveLock;
+    if (lower == "modifier")
+        return CommandKind::Modifier;
+    if (lower == "modifiers")
+        return CommandKind::ModifierLock;
     if (lower == "connect")
         return CommandKind::Connect;
     if (lower == "disconnect")

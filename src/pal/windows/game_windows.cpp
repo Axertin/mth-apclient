@@ -1,5 +1,7 @@
 #include <cstddef>
 #include <cstdint>
+#include <functional>
+#include <utility>
 
 #include "mth/core/game_symbols.hpp"
 #include "pal/pal_game.hpp"
@@ -57,6 +59,105 @@ void repl_init_state(void *self)
             g_shop_last_locidx = -1; // left the buy state; allow the next buy
         }
     }
+}
+
+// ---- modifier control (Windows). Cheat mask = SaveSlot+0xcb0; live slot = *(g_saveManager); slot
+// index = *(g_saveManager+0x8); CheatManager captured via the ActivateSaveCheats hook. Lockdown hooks
+// ToggleCheat (menu: sets the runtime mirror + persists) AND SetCheatApplied (typed cheat-code).
+constexpr std::ptrdiff_t kCheatMaskOff = 0xcb0;
+constexpr std::ptrdiff_t kSlotIndexOff = 0x8;
+
+std::uintptr_t g_mod_save_manager = 0;
+void *g_cheat_mgr = nullptr;
+bool g_mod_resolved = false;
+bool g_mod_ok = false;
+pal::SeedFn g_seed_fn;
+pal::BlockFn g_block_fn;
+std::uintptr_t g_addr_activate_slot = 0, g_addr_activate_cheats = 0, g_addr_toggle = 0, g_addr_set_applied = 0;
+pal::HookId g_id_activate_slot = pal::kInvalidHookId;
+pal::HookId g_id_activate_cheats = pal::kInvalidHookId;
+pal::HookId g_id_toggle = pal::kInvalidHookId;
+pal::HookId g_id_set_applied = pal::kInvalidHookId;
+void (*g_orig_activate_slot)(void *, bool) = nullptr;
+void (*g_orig_activate_cheats)(void *) = nullptr;
+void (*g_orig_toggle)(void *, int, bool, void *, bool, int) = nullptr;
+void (*g_orig_set_applied)(void *, int, bool, void *) = nullptr;
+
+bool slot_looks_valid(void *p)
+{
+    const auto v = reinterpret_cast<std::uintptr_t>(p);
+    return v >= 0x10000 && v < 0x0000800000000000;
+}
+void *mod_live_slot()
+{
+    return g_mod_save_manager != 0 ? *reinterpret_cast<void **>(g_mod_save_manager) : nullptr;
+}
+int mod_slot_index()
+{
+    return g_mod_save_manager != 0 ? *reinterpret_cast<int *>(g_mod_save_manager + kSlotIndexOff) : -1;
+}
+void set_mask_bit(void *slot, int idx, bool on)
+{
+    if (!slot_looks_valid(slot))
+        return;
+    auto *mask = reinterpret_cast<std::uint32_t *>(static_cast<char *>(slot) + kCheatMaskOff);
+    const std::uint32_t bit = 1u << (static_cast<unsigned>(idx) & 31u);
+    if (on)
+        mask[idx >> 5] |= bit;
+    else
+        mask[idx >> 5] &= ~bit;
+}
+
+void repl_activate_slot(void *self, bool flag)
+{
+    void *slot = mod_live_slot();
+    const int slot_index = mod_slot_index();
+    pal::logf(pal::LogLevel::Debug, "modifiers: ActivateSaveSlot flag=%d slot_index=%d live=%p", static_cast<int>(flag), slot_index, slot);
+    if (g_seed_fn && flag && slot_looks_valid(slot))
+    {
+        auto *mask = reinterpret_cast<std::uint32_t *>(static_cast<char *>(slot) + kCheatMaskOff);
+        std::uint32_t words[8];
+        for (int i = 0; i < 8; ++i)
+            words[i] = mask[i];
+        g_seed_fn(slot_index, words);
+        for (int i = 0; i < 8; ++i)
+            mask[i] = words[i];
+        pal::logf(pal::LogLevel::Debug, "modifiers: seeded cheat mask on slot=%p (slot_index=%d)", slot, slot_index);
+    }
+    if (g_orig_activate_slot)
+        g_orig_activate_slot(self, flag);
+}
+void repl_activate_cheats(void *self)
+{
+    g_cheat_mgr = self; // capture the CheatManager singleton (not a player path)
+    if (g_orig_activate_cheats)
+        g_orig_activate_cheats(self);
+}
+// ToggleCheat (menu toggle) writes the runtime mirror + persists; block it to keep a gameplay modifier
+// off. The checkbox flips transiently but re-syncs on cursor-over. idx = 2nd arg (edx).
+void repl_toggle(void *self, int idx, bool enable, void *slot, bool b, int i)
+{
+    if (g_cheat_mgr == nullptr)
+        g_cheat_mgr = self;
+    const bool blocked = g_block_fn && g_block_fn(idx);
+    pal::logf(pal::LogLevel::Debug, "modifiers: ToggleCheat idx=%d enable=%d -> %s", idx, static_cast<int>(enable), blocked ? "BLOCKED" : "allowed");
+    if (blocked)
+        return;
+    if (g_orig_toggle)
+        g_orig_toggle(self, idx, enable, slot, b, i);
+}
+// SetCheatApplied: the persist writer the typed cheat-code path reaches directly (the menu goes
+// through ToggleCheat above). idx = 2nd arg.
+void repl_set_applied(void *self, int idx, bool applied, void *slot)
+{
+    if (g_cheat_mgr == nullptr)
+        g_cheat_mgr = self;
+    const bool blocked = g_block_fn && g_block_fn(idx);
+    pal::logf(pal::LogLevel::Debug, "modifiers: SetCheatApplied idx=%d applied=%d -> %s", idx, static_cast<int>(applied), blocked ? "BLOCKED" : "allowed");
+    if (blocked)
+        return;
+    if (g_orig_set_applied)
+        g_orig_set_applied(self, idx, applied, slot);
 }
 } // namespace
 
@@ -124,6 +225,86 @@ void remove_shop_purchase_hook()
         hook_engine().remove_hook(g_shop_hook);
     g_shop_hook = kInvalidHookId;
     g_on_shop_buy = nullptr;
+}
+
+bool modifiers_available()
+{
+    if (g_mod_resolved)
+        return g_mod_ok;
+    g_mod_resolved = true;
+    g_mod_save_manager = resolve_game_symbol(mth::sym::save_manager);
+    g_addr_activate_slot = resolve_game_symbol(mth::sym::activate_save_slot);
+    g_addr_activate_cheats = resolve_game_symbol(mth::sym::activate_save_cheats);
+    g_addr_toggle = resolve_game_symbol(mth::sym::toggle_cheat);
+    g_addr_set_applied = resolve_game_symbol(mth::sym::set_cheat_applied);
+    g_mod_ok = g_mod_save_manager != 0 && g_addr_activate_slot != 0 && g_addr_activate_cheats != 0 && g_addr_toggle != 0 && g_addr_set_applied != 0;
+    if (!g_mod_ok)
+        logf(LogLevel::Warn, "modifiers: Windows symbols unresolved (mgr=0x%llx slot=0x%llx cheats=0x%llx set=0x%llx); feature disabled",
+             static_cast<unsigned long long>(g_mod_save_manager), static_cast<unsigned long long>(g_addr_activate_slot),
+             static_cast<unsigned long long>(g_addr_activate_cheats), static_cast<unsigned long long>(g_addr_set_applied));
+    return g_mod_ok;
+}
+void set_new_game_modifier_seed(SeedFn seed)
+{
+    if (!modifiers_available())
+        return;
+    g_seed_fn = std::move(seed);
+    g_id_activate_cheats = hook_engine().install_hook(reinterpret_cast<void *>(g_addr_activate_cheats), reinterpret_cast<void *>(&repl_activate_cheats),
+                                                      reinterpret_cast<void **>(&g_orig_activate_cheats));
+    g_id_activate_slot = hook_engine().install_hook(reinterpret_cast<void *>(g_addr_activate_slot), reinterpret_cast<void *>(&repl_activate_slot),
+                                                    reinterpret_cast<void **>(&g_orig_activate_slot));
+    if (g_id_activate_cheats == kInvalidHookId)
+        logf(LogLevel::Error, "modifiers: ActivateSaveCheats capture hook FAILED (live-set mirror rebuilds will be skipped)");
+    if (g_id_activate_slot == kInvalidHookId)
+        logf(LogLevel::Error, "modifiers: ActivateSaveSlot seed hook FAILED (new-game seeding disabled)");
+    else
+        logf(LogLevel::Info, "modifiers: seed hooks installed (Windows)");
+}
+void set_modifier_lockdown(BlockFn block)
+{
+    if (!modifiers_available())
+        return;
+    g_block_fn = std::move(block);
+    // ToggleCheat = the options-menu path (mirror + persist); SetCheatApplied = the typed cheat-code path.
+    g_id_toggle =
+        hook_engine().install_hook(reinterpret_cast<void *>(g_addr_toggle), reinterpret_cast<void *>(&repl_toggle), reinterpret_cast<void **>(&g_orig_toggle));
+    g_id_set_applied = hook_engine().install_hook(reinterpret_cast<void *>(g_addr_set_applied), reinterpret_cast<void *>(&repl_set_applied),
+                                                  reinterpret_cast<void **>(&g_orig_set_applied));
+    if (g_id_toggle == kInvalidHookId)
+        logf(LogLevel::Error, "modifiers: ToggleCheat hook FAILED (menu lockdown disabled)");
+    if (g_id_set_applied == kInvalidHookId)
+        logf(LogLevel::Error, "modifiers: SetCheatApplied hook FAILED (cheat-code lockdown disabled)");
+    if (g_id_toggle != kInvalidHookId && g_id_set_applied != kInvalidHookId)
+        logf(LogLevel::Info, "modifiers: lockdown hooks installed (Windows)");
+}
+bool apply_live_modifier(int idx, bool on)
+{
+    if (!modifiers_available() || idx < 0 || idx >= 254)
+        return false;
+    void *slot = mod_live_slot();
+    if (!slot_looks_valid(slot))
+    {
+        logf(LogLevel::Warn, "modifiers: live set idx=%d failed (no valid save slot)", idx);
+        return false;
+    }
+    set_mask_bit(slot, idx, on);
+    if (g_cheat_mgr != nullptr && g_orig_activate_cheats != nullptr)
+        g_orig_activate_cheats(g_cheat_mgr); // rebuild the runtime mirror from the mask
+    else
+        logf(LogLevel::Warn, "modifiers: live set idx=%d bit written but mirror NOT rebuilt (CheatManager not captured yet)", idx);
+    logf(LogLevel::Info, "modifiers: live set idx=%d on=%d slot=%p", idx, static_cast<int>(on), slot);
+    return true;
+}
+void remove_modifier_hooks()
+{
+    for (HookId *id : {&g_id_activate_slot, &g_id_activate_cheats, &g_id_toggle, &g_id_set_applied})
+    {
+        if (*id != kInvalidHookId)
+            hook_engine().remove_hook(*id);
+        *id = kInvalidHookId;
+    }
+    g_seed_fn = nullptr;
+    g_block_fn = nullptr;
 }
 
 } // namespace pal

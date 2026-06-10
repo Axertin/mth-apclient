@@ -84,6 +84,22 @@
     {
       "name": "_ZN8ShopMenu9InitStateEv",
       "kind": "Code"
+    },
+    {
+      "name": "_ZN14SessionManager16ActivateSaveSlotEb",
+      "kind": "Code"
+    },
+    {
+      "name": "_ZN12CheatManager18ActivateSaveCheatsEv",
+      "kind": "Code"
+    },
+    {
+      "name": "_ZN12CheatManager15SetCheatAppliedEibP8SaveSlot",
+      "kind": "Code"
+    },
+    {
+      "name": "_ZN12CheatManager11ToggleCheatEibP8SaveSlotbi",
+      "kind": "Code"
     }
   ],
   "windows": {
@@ -150,6 +166,18 @@
     },
     "_ZN8ShopMenu9InitStateEv": {
       "rva": 10916368
+    },
+    "_ZN14SessionManager16ActivateSaveSlotEb": {
+      "rva": 10746240
+    },
+    "_ZN12CheatManager18ActivateSaveCheatsEv": {
+      "rva": 1524736
+    },
+    "_ZN12CheatManager15SetCheatAppliedEibP8SaveSlot": {
+      "rva": 1530160
+    },
+    "_ZN12CheatManager11ToggleCheatEibP8SaveSlotbi": {
+      "rva": 1511296
     }
   },
   "linux": {
