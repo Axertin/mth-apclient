@@ -37,6 +37,25 @@ TEST_CASE("ApSaveState on a missing file starts empty", "[ap_save_state]")
     REQUIRE_FALSE(s.is_checked(0));
 }
 
+TEST_CASE("ApSaveState round-trips the game save slot", "[ap_save_state]")
+{
+    const auto path = std::filesystem::temp_directory_path() / "mthap_slot_state.txt";
+    std::filesystem::remove(path);
+
+    {
+        mth::ApSaveState s(path);
+        REQUIRE(s.game_slot() == -1); // unknown by default
+        s.set_game_slot(3);
+        REQUIRE(s.game_slot() == 3);
+        s.save();
+    }
+    {
+        mth::ApSaveState s(path);
+        REQUIRE(s.game_slot() == 3);
+    }
+    std::filesystem::remove(path);
+}
+
 TEST_CASE("ApSaveState exposes the checked set for flush", "[ap_save_state]")
 {
     const auto path = std::filesystem::temp_directory_path() / "mthap_checked_accessor.state";

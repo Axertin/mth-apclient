@@ -30,6 +30,8 @@ add_executable(mthap_unit_tests
     unit/sig_scan_test.cpp
     unit/riprel_test.cpp
     unit/lock_registry_test.cpp
+    unit/modifier_config_test.cpp
+    unit/modifier_table_test.cpp
 )
 
 target_include_directories(mthap_unit_tests PRIVATE

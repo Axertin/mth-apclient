@@ -58,3 +58,11 @@ TEST_CASE("parse_command recognizes removelock with a slot arg", "[commands]")
     REQUIRE(cmd.args.size() == 1);
     REQUIRE(cmd.args[0] == "42");
 }
+
+TEST_CASE("parse_command recognizes modifier verbs", "[dev_commands]")
+{
+    REQUIRE(mth::parse_command("modifier 31 on").kind == mth::CommandKind::Modifier);
+    REQUIRE(mth::parse_command("modifier 31 on").args == std::vector<std::string>{"31", "on"});
+    REQUIRE(mth::parse_command("modifiers lock").kind == mth::CommandKind::ModifierLock);
+    REQUIRE(mth::parse_command("modifiers").kind == mth::CommandKind::ModifierLock);
+}

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
 
 namespace pal
 {
@@ -27,5 +28,32 @@ using ShopBuyFn = int (*)(int loc_idx, int item_type);
 // commit detection; on a committed buy it invokes on_buy. Returns false if not installed.
 bool install_shop_purchase_hook(ShopBuyFn on_buy);
 void remove_shop_purchase_hook();
+
+// ---- Modifier ("cheat") control. All offset/symbol/game-call divergence lives in the PAL impl. ----
+
+// True once every modifier symbol (ActivateSaveSlot, ActivateSaveCheats, ToggleCheat,
+// SetCheatApplied, g_saveManager) resolves. The feature no-ops if false. Resolves + caches on
+// first call.
+bool modifiers_available();
+
+// Install the ActivateSaveSlot prologue hook (and an ActivateSaveCheats capture hook). `seed` is
+// invoked on the game thread before the original, with the active 0-based save-slot index and the
+// slot's 8 cheat-mask words (in/out); it mutates only the words it wants. No-op if modifiers
+// unavailable.
+using SeedFn = std::function<void(int slot_index, std::uint32_t *words /*[8]*/)>;
+void set_new_game_modifier_seed(SeedFn seed);
+
+// Install the ToggleCheat + SetCheatApplied lockdown hooks. `block(idx)` returns true to suppress
+// that player change (early-return). No-op if modifiers unavailable.
+using BlockFn = std::function<bool(int idx)>;
+void set_modifier_lockdown(BlockFn block);
+
+// Set/clear a modifier's enable bit on the live slot(s) and rebuild the runtime mirror so the
+// effect is live. Game-thread only (calls ActivateSaveCheats). Returns false if unavailable or idx
+// invalid. Writes both the apply-path and live slots to sidestep the unresolved aliasing.
+bool apply_live_modifier(int idx, bool on);
+
+// Remove the modifier hooks and clear the callbacks. Called by the mth/ owner's destructor.
+void remove_modifier_hooks();
 
 } // namespace pal
