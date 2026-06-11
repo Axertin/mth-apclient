@@ -100,6 +100,10 @@
     {
       "name": "_ZN12CheatManager11ToggleCheatEibP8SaveSlotbi",
       "kind": "Code"
+    },
+    {
+      "name": "_ZN11LevelUpMenu6UpdateEP20ycUpdateQueueContext",
+      "kind": "Code"
     }
   ],
   "windows": {
@@ -178,6 +182,9 @@
     },
     "_ZN12CheatManager11ToggleCheatEibP8SaveSlotbi": {
       "rva": 1511296
+    },
+    "_ZN11LevelUpMenu6UpdateEP20ycUpdateQueueContext": {
+      "rva": 8593024
     }
   },
   "linux": {
