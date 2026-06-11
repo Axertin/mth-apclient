@@ -57,20 +57,23 @@ std::uintptr_t scan_resolve(const char *mangled_name)
     if (auto it = cache.find(mangled_name); it != cache.end())
         return it->second;
 
-    // g_saveManager is too hot to carve as a DataRef; anchor on Items::SetItemCollected,
-    // whose `cmove r9,[rip+g_saveManager]` (4c 0f 44 0d, 8-byte) loads the global.
+    // g_saveManager is too hot to carve as a DataRef (~2300 xrefs). But the game's only
+    // `cmove r9,[rip+g_saveManager]` (4c 0f 44 0d, 8-byte) -- the "default a null SaveSlot* to the
+    // active slot" idiom -- is UNIQUE in .text, so scan the whole section for it and read its RIP
+    // target. Survives function moves across builds (no anchor symbol needed); a future build that
+    // adds a second such cmov would shift this to the first match (caught by the logged address).
     if (std::strcmp(mangled_name, "g_saveManager") == 0)
     {
-        const std::uintptr_t setic = scan_resolve("_ZN5Items16SetItemCollectedEibP14ItemCollectionP8SaveSlot");
         std::uintptr_t addr = 0;
-        if (setic != 0)
+        const std::span<const std::uint8_t> text = text_section(game_module().base);
+        if (!text.empty())
         {
             static const std::uint8_t kCmove[] = {0x4c, 0x0f, 0x44, 0x0d};
-            const std::span<const std::uint8_t> window{reinterpret_cast<const std::uint8_t *>(setic), 0x60};
-            addr = mth::sig::find_riprel_load(window, setic, kCmove, sizeof(kCmove), /*disp_off=*/4, /*insn_len=*/8);
+            const std::uintptr_t text_base = reinterpret_cast<std::uintptr_t>(text.data());
+            addr = mth::sig::find_riprel_load(text, text_base, kCmove, sizeof(kCmove), /*disp_off=*/4, /*insn_len=*/8);
         }
         if (addr == 0)
-            logf(LogLevel::Error, "sig: g_saveManager not resolved (SetItemCollected anchor failed)");
+            logf(LogLevel::Error, "sig: g_saveManager not resolved (no `cmov r9,[rip]` in .text)");
         else
             logf(LogLevel::Info, "sig: resolved g_saveManager -> %p", reinterpret_cast<void *>(addr));
         cache[mangled_name] = addr;
