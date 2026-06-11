@@ -18,6 +18,7 @@ add_library(mthap_core STATIC
     core/lock_registry.cpp
     core/modifier_config.cpp
     core/modifier_table.cpp
+    core/stat_cap_state.cpp
 )
 
 target_include_directories(mthap_core PUBLIC "${CMAKE_SOURCE_DIR}/src")
@@ -72,6 +73,7 @@ if(NOT MTHAP_BUILD_TESTS_ONLY)
         rando_hooks.cpp
         death_hooks.cpp
         modifier_hooks.cpp
+        levelcap_hooks.cpp
     )
 
     target_link_libraries(mthap PRIVATE

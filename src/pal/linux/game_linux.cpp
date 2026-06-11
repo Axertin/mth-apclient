@@ -1,6 +1,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <utility>
 
 #include "mth/core/game_symbols.hpp"
 #include "pal/pal_game.hpp"
@@ -151,6 +152,43 @@ void repl_set_applied(void *self, int idx, bool applied, void *slot)
     if (g_orig_set_applied)
         g_orig_set_applied(self, idx, applied, slot);
 }
+
+// ---- per-stat level cap ----
+// LevelUpMenu cursor-selected stat index, read as int at this byte offset (build 16280b26 decompile
+// of LevelUpMenu::UpdateState; state machine is at +0x64). Build-specific: repl_max_level logs the
+// read value so it can be runtime-confirmed against the shipping build.
+constexpr std::ptrdiff_t kLevelUpMenuStatOff = 0xb8;
+
+bool g_lc_resolved = false;
+bool g_lc_ok = false;
+std::uintptr_t g_addr_lvlup_update = 0;
+std::uintptr_t g_addr_max_level = 0;
+pal::HookId g_id_lvlup_update = pal::kInvalidHookId;
+pal::HookId g_id_max_level = pal::kInvalidHookId;
+void (*g_orig_lvlup_update)(void *) = nullptr;
+int (*g_orig_max_level)(int, int, void *) = nullptr;
+pal::LevelCapFn g_cap_fn;
+void *g_active_lvlup_menu = nullptr; // set only while inside UpdateState (game thread; nested call)
+
+void repl_lvlup_update(void *self)
+{
+    void *prev = g_active_lvlup_menu;
+    g_active_lvlup_menu = self;
+    if (g_orig_lvlup_update)
+        g_orig_lvlup_update(self);
+    g_active_lvlup_menu = prev;
+}
+
+int repl_max_level(int a, int b, void *slot)
+{
+    const int vanilla = g_orig_max_level(a, b, slot);
+    if (g_active_lvlup_menu == nullptr || !g_cap_fn)
+        return vanilla; // called outside the level-up menu: never restrict
+    const int stat = *reinterpret_cast<const int *>(static_cast<const char *>(g_active_lvlup_menu) + kLevelUpMenuStatOff);
+    const int capped = g_cap_fn(stat, vanilla);
+    pal::logf(pal::LogLevel::Debug, "levelcap: buy-gate stat=%d vanilla=%d -> cap=%d", stat, vanilla, capped);
+    return capped;
+}
 } // namespace
 
 namespace pal
@@ -297,6 +335,52 @@ void remove_modifier_hooks()
     }
     g_seed_fn = nullptr;
     g_block_fn = nullptr;
+}
+
+bool level_cap_available()
+{
+    if (g_lc_resolved)
+        return g_lc_ok;
+    g_lc_resolved = true;
+    g_addr_lvlup_update = resolve_game_symbol(mth::sym::level_up_menu_update_state);
+    g_addr_max_level = resolve_game_symbol(mth::sym::get_new_game_max_level_player);
+    g_lc_ok = g_addr_lvlup_update != 0 && g_addr_max_level != 0;
+    if (!g_lc_ok)
+        logf(LogLevel::Warn, "levelcap: symbols unresolved (update=0x%llx maxlevel=0x%llx); feature disabled",
+             static_cast<unsigned long long>(g_addr_lvlup_update), static_cast<unsigned long long>(g_addr_max_level));
+    return g_lc_ok;
+}
+
+void set_level_cap_provider(LevelCapFn cap)
+{
+    if (!level_cap_available())
+        return;
+    g_cap_fn = std::move(cap);
+    g_id_lvlup_update = hook_engine().install_hook(reinterpret_cast<void *>(g_addr_lvlup_update), reinterpret_cast<void *>(&repl_lvlup_update),
+                                                   reinterpret_cast<void **>(&g_orig_lvlup_update));
+    g_id_max_level = hook_engine().install_hook(reinterpret_cast<void *>(g_addr_max_level), reinterpret_cast<void *>(&repl_max_level),
+                                                reinterpret_cast<void **>(&g_orig_max_level));
+    if (g_id_lvlup_update == kInvalidHookId || g_id_max_level == kInvalidHookId)
+    {
+        logf(LogLevel::Error, "levelcap: hook install FAILED (update id=%llu maxlevel id=%llu); rolling back",
+             static_cast<unsigned long long>(g_id_lvlup_update), static_cast<unsigned long long>(g_id_max_level));
+        remove_level_cap_hook(); // all-or-nothing: drop any partial hook + clear the callback
+        return;
+    }
+    logf(LogLevel::Info, "levelcap: hooks installed (update=0x%llx maxlevel=0x%llx)", static_cast<unsigned long long>(g_addr_lvlup_update),
+         static_cast<unsigned long long>(g_addr_max_level));
+}
+
+void remove_level_cap_hook()
+{
+    for (HookId *id : {&g_id_lvlup_update, &g_id_max_level})
+    {
+        if (*id != kInvalidHookId)
+            hook_engine().remove_hook(*id);
+        *id = kInvalidHookId;
+    }
+    g_cap_fn = nullptr;
+    g_active_lvlup_menu = nullptr;
 }
 
 } // namespace pal

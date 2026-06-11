@@ -34,6 +34,8 @@ CommandKind verb_to_kind(const std::string &lower)
         return CommandKind::Modifier;
     if (lower == "modifiers")
         return CommandKind::ModifierLock;
+    if (lower == "caps")
+        return CommandKind::StatCaps;
     if (lower == "connect")
         return CommandKind::Connect;
     if (lower == "disconnect")

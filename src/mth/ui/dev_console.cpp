@@ -130,6 +130,7 @@ void DevConsole::run_input()
         println("commands: help, clear, status, items, connect <server> <slot> [pw], disconnect");
         println("          giveapitem <ap_item_id>, removelock <slot>");
         println("          modifier <idx> on|off, modifiers [lock|unlock]");
+        println("          caps <attack> <defense> <sidearm>  (per-stat level cap-ups; 0 = frozen)");
         break;
     case CommandKind::Clear:
         log_.clear();
@@ -192,6 +193,15 @@ void DevConsole::run_input()
         {
             sink_.connect(cmd.args[0], cmd.args[1], cmd.args.size() > 2 ? cmd.args[2] : std::string());
             println("connecting to " + cmd.args[0] + " as " + cmd.args[1] + " ...");
+        }
+        break;
+    case CommandKind::StatCaps:
+        if (cmd.args.size() < 3)
+            println("usage: caps <attack> <defense> <sidearm>  (per-stat cap-ups; 0 = frozen at level 1)");
+        else
+        {
+            sink_.set_stat_caps(std::stoi(cmd.args[0]), std::stoi(cmd.args[1]), std::stoi(cmd.args[2]));
+            println("stat caps set: attack=" + cmd.args[0] + " defense=" + cmd.args[1] + " sidearm=" + cmd.args[2]);
         }
         break;
     case CommandKind::Disconnect:

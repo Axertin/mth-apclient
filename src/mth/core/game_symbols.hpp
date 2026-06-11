@@ -65,4 +65,13 @@ inline constexpr const char *activate_save_cheats = "_ZN12CheatManager18Activate
 inline constexpr const char *toggle_cheat = "_ZN12CheatManager11ToggleCheatEibP8SaveSlotbi";        // CheatManager::ToggleCheat(int,bool,SaveSlot*,bool,int)
 inline constexpr const char *set_cheat_applied = "_ZN12CheatManager15SetCheatAppliedEibP8SaveSlot"; // CheatManager::SetCheatApplied(int,bool,SaveSlot*)
 
+// Per-stat level cap. Linux detours GetNewGameMaxLevelPlayer (the buy-gate's only live caller) to return
+// the per-stat cap, with UpdateState wrapped to supply the cursor stat. Windows inlines the cap and the
+// standalone UpdateState is dead code, so it hooks the per-frame LevelUpMenu::Update and presents capped
+// stats as already-maxed so the inlined cap gate trips.
+inline constexpr const char *level_up_menu_update_state = "_ZN11LevelUpMenu11UpdateStateEv"; // LevelUpMenu::UpdateState() [Linux]
+inline constexpr const char *get_new_game_max_level_player =
+    "_ZN10CombatData24GetNewGameMaxLevelPlayerEiiP8SaveSlot";                                          // CombatData::GetNewGameMaxLevelPlayer [Linux]
+inline constexpr const char *level_up_menu_update = "_ZN11LevelUpMenu6UpdateEP20ycUpdateQueueContext"; // LevelUpMenu::Update(...) [Windows]
+
 } // namespace mth::sym

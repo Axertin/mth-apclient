@@ -17,6 +17,8 @@ void InboundGranter::tick()
 {
     for (const auto &it : state_.received_items())
     {
+        if (is_stat_cap_item(it.item_id)) // derived state (StatCapState), not a one-shot game grant
+            continue;
         if (save_.is_granted(it.index)) // already granted: silent (runs every tick)
             continue;
         const int game_type = game_item_type(it.item_id);

@@ -10,6 +10,7 @@
 #include "mth/core/ap_state.hpp"
 #include "mth/death_hooks.hpp"
 #include "mth/game_item_granter.hpp"
+#include "mth/levelcap_hooks.hpp"
 #include "mth/modifier_hooks.hpp"
 #ifdef MTHAP_HAS_OVERLAY
 #include "mth/ui/command_sink.hpp"
@@ -59,12 +60,13 @@ class App
     void remove_lock(int slot) override;
     void set_modifier(int idx, bool on) override;
     void lock_modifiers(bool armed) override;
+    void set_stat_caps(int attack, int defense, int sidearm) override;
 #endif
 
   private:
     void ensure_inbound_ready(); // lazily builds save_state_/inbound_ once connected
-    // Destruction order: modifier_hooks_/death_hooks_/rando_hooks_ first (remove game hooks), then
-    // events_/hooks_, coordinator_, link_ (stops net thread), then state_.
+    // Destruction order: modifier_hooks_/level_cap_hooks_/death_hooks_/rando_hooks_ first (remove
+    // game hooks), then events_/hooks_, coordinator_, link_ (stops net thread), then state_.
     ApState state_;
     std::unique_ptr<IApLink> link_;
     std::unique_ptr<ApCoordinator> coordinator_;
@@ -74,6 +76,7 @@ class App
     std::unique_ptr<RandoHooks> rando_hooks_;
     std::unique_ptr<DeathHooks> death_hooks_;
     std::unique_ptr<ModifierHooks> modifier_hooks_;
+    std::unique_ptr<LevelCapHooks> level_cap_hooks_;
     GameItemGranter granter_;
     std::optional<ApSaveState> save_state_;
     std::unique_ptr<InboundGranter> inbound_;
@@ -81,6 +84,7 @@ class App
     bool first_tick_logged_{false};
     bool modifiers_from_env_{false};       // MTHAP_MODIFIERS set: enforce modifiers without an AP connection (test)
     bool modifiers_console_active_{false}; // dev console used to drive modifiers: enforcement live this session
+    bool caps_forced_{false};              // MTHAP_STAT_CAPS set: enforce fixed caps without AP (offline test)
 #ifdef MTHAP_HAS_OVERLAY
     std::unique_ptr<pal::IOverlay> overlay_;
     std::unique_ptr<DevConsole> console_;

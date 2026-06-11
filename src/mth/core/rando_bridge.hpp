@@ -29,6 +29,23 @@ inline constexpr int game_item_type(std::int64_t ap_item_id_)
     return static_cast<int>(ap_item_id_ - kItemBase);
 }
 
+// Stat-cap "cap up" items are NOT real game items. Reserve a virtual id range above the game-item
+// id space (kItemBase..kItemBase+194): one id per stat. Receiving one raises that stat's level cap
+// by 1 (see StatCapState). The InboundGranter skips these; they are derived state, not one-shot grants.
+// Contract: the AP world generator must mint cap-up item ids matching this range (kStatCapItemBase+stat).
+inline constexpr std::int64_t kStatCapItemBase = 1000;
+inline constexpr int kStatCount = 3; // 0=attack, 1=defense, 2=sidearm/magic
+
+inline constexpr bool is_stat_cap_item(std::int64_t ap_item_id_)
+{
+    return ap_item_id_ >= kStatCapItemBase && ap_item_id_ < kStatCapItemBase + kStatCount;
+}
+
+inline constexpr int stat_cap_item_stat(std::int64_t ap_item_id_)
+{
+    return static_cast<int>(ap_item_id_ - kStatCapItemBase); // valid only when is_stat_cap_item()
+}
+
 class ApSaveState; // defined in ap_save_state.hpp (same core lib)
 
 // Outbound: maps a collected slot to a deduplicated server check. Game-thread-only.
