@@ -308,3 +308,105 @@ void remove_modifier_hooks()
 }
 
 } // namespace pal
+
+// ---- per-stat level cap (Windows). The cap is inlined into the menu's state machine (no cap fn to
+// detour like Linux) and the standalone UpdateState is dead code, so we wrap the per-frame entry
+// LevelUpMenu::Update and, before it runs the inlined buy-gate, overwrite the stored level of every
+// at-cap stat so the game's own cap gate trips (native "max level", no buy, no spend); restored after.
+// Safe: the only stat-array writer is the purchase-commit, which a maxed stat never reaches.
+namespace
+{
+constexpr std::ptrdiff_t kSaveStatArrOff = 0x174; // *(saveSlot + 0x174 + stat*4) = int stat level
+constexpr int kLvlMaxRealStat = 2;                // stats 0..2 = attack/defense/sidearm; 3 = bone bank
+constexpr int kMaxedLevel = 1000;                 // present an at-cap stat as this so the inlined cap gate trips
+
+std::uintptr_t g_lc_save_manager = 0; // g_saveManager; *(g_lc_save_manager) = the active SaveSlot the menu reads
+std::uintptr_t g_lc_addr_update = 0;
+pal::HookId g_lc_id_update = pal::kInvalidHookId;
+void (*g_lc_orig_update)(void *, void *) = nullptr; // LevelUpMenu::Update(this, ycUpdateQueueContext*)
+pal::LevelCapFn g_lc_cap_fn;
+bool g_lc_resolved = false;
+bool g_lc_ok = false;
+
+void *lc_active_slot()
+{
+    if (g_lc_save_manager == 0)
+        return nullptr;
+    void *slot = *reinterpret_cast<void **>(g_lc_save_manager);
+    return slot_looks_valid(slot) ? slot : nullptr;
+}
+
+// LevelUpMenu::Update wrapper. Before the original runs the inlined buy-gate, overwrite the stored level
+// of every real stat that has reached our cap so the inlined cap gate sees it as maxed; restore after.
+// provide(stat, sentinel) returns the granted count while enforcing and the sentinel otherwise, so
+// vanilla play never inflates (level < sentinel) and is untouched.
+void repl_lvlup_update(void *self, void *ctx)
+{
+    void *slot = lc_active_slot();
+    int saved[3] = {-1, -1, -1};
+    if (slot != nullptr && g_lc_cap_fn)
+    {
+        for (int s = 0; s <= kLvlMaxRealStat; ++s)
+        {
+            int *lvl = reinterpret_cast<int *>(static_cast<char *>(slot) + kSaveStatArrOff + static_cast<std::ptrdiff_t>(s) * 4);
+            if (*lvl >= g_lc_cap_fn(s, 0x7fffffff))
+            {
+                saved[s] = *lvl;
+                *lvl = kMaxedLevel;
+            }
+        }
+    }
+    if (g_lc_orig_update)
+        g_lc_orig_update(self, ctx);
+    if (slot != nullptr)
+        for (int s = 0; s <= kLvlMaxRealStat; ++s)
+            if (saved[s] >= 0)
+                *reinterpret_cast<int *>(static_cast<char *>(slot) + kSaveStatArrOff + static_cast<std::ptrdiff_t>(s) * 4) = saved[s];
+}
+} // namespace
+
+namespace pal
+{
+
+bool level_cap_available()
+{
+    if (g_lc_resolved)
+        return g_lc_ok;
+    g_lc_resolved = true;
+    g_lc_save_manager = resolve_game_symbol(mth::sym::save_manager);        // g_saveManager (whole-.text cmov scan)
+    g_lc_addr_update = resolve_game_symbol(mth::sym::level_up_menu_update); // LevelUpMenu::Update (per-frame entry)
+    g_lc_ok = g_lc_save_manager != 0 && g_lc_addr_update != 0;
+    if (g_lc_ok)
+        logf(LogLevel::Info, "levelcap: Windows resolved save-base=0x%llx update=0x%llx", static_cast<unsigned long long>(g_lc_save_manager),
+             static_cast<unsigned long long>(g_lc_addr_update));
+    else
+        logf(LogLevel::Warn, "levelcap: Windows symbols unresolved (save=0x%llx update=0x%llx); feature disabled",
+             static_cast<unsigned long long>(g_lc_save_manager), static_cast<unsigned long long>(g_lc_addr_update));
+    return g_lc_ok;
+}
+
+void set_level_cap_provider(LevelCapFn cap)
+{
+    if (!level_cap_available())
+        return;
+    g_lc_cap_fn = std::move(cap);
+    g_lc_id_update = hook_engine().install_hook(reinterpret_cast<void *>(g_lc_addr_update), reinterpret_cast<void *>(&repl_lvlup_update),
+                                                reinterpret_cast<void **>(&g_lc_orig_update));
+    if (g_lc_id_update == kInvalidHookId)
+    {
+        logf(LogLevel::Error, "levelcap: Windows hook install FAILED (LevelUpMenu::Update)");
+        remove_level_cap_hook();
+        return;
+    }
+    logf(LogLevel::Info, "levelcap: Windows hook installed (LevelUpMenu::Update=0x%llx)", static_cast<unsigned long long>(g_lc_addr_update));
+}
+
+void remove_level_cap_hook()
+{
+    if (g_lc_id_update != kInvalidHookId)
+        hook_engine().remove_hook(g_lc_id_update);
+    g_lc_id_update = kInvalidHookId;
+    g_lc_cap_fn = nullptr;
+}
+
+} // namespace pal
