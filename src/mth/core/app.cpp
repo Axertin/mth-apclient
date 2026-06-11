@@ -1,5 +1,6 @@
 #include "mth/core/app.hpp"
 
+#include <cstdio>
 #include <cstdlib>
 
 #include "mth/core/ap_coordinator.hpp"
@@ -99,6 +100,22 @@ App::App()
         modifier_hooks_ = std::make_unique<ModifierHooks>(std::move(mreq));
     }
 
+    level_cap_hooks_ = std::make_unique<LevelCapHooks>();
+    if (const char *sc = std::getenv("MTHAP_STAT_CAPS"); sc && *sc)
+    {
+        int a = 0, b = 0, c = 0;
+        if (std::sscanf(sc, "%d,%d,%d", &a, &b, &c) == 3)
+        {
+            level_cap_hooks_->set_counts(a, b, c);
+            caps_forced_ = true;
+            pal::logf(pal::LogLevel::Info, "levelcap: forced caps attack=%d defense=%d sidearm=%d (offline test)", a, b, c);
+        }
+        else
+        {
+            pal::logf(pal::LogLevel::Warn, "levelcap: MTHAP_STAT_CAPS=%s malformed (want a,b,c); ignored", sc);
+        }
+    }
+
     // MTHAP_MOCK_AP: offline test mode; fakes AP-connected state for locations 0..N (default N=1024).
     if (const char *mock = std::getenv("MTHAP_MOCK_AP"); mock && *mock)
     {
@@ -150,6 +167,7 @@ App::~App()
 #endif
     death_hooks_.reset();
     modifier_hooks_.reset();
+    level_cap_hooks_.reset();
     rando_hooks_.reset();
     rando_.reset();
     hooks_.reset();
@@ -181,6 +199,12 @@ void App::drive_tick()
         modifier_hooks_->set_enforce_live(authed || modifiers_from_env_ || modifiers_console_active_);
         modifier_hooks_->set_ap_scoped(authed);
         modifier_hooks_->drain_live();
+    }
+    if (level_cap_hooks_)
+    {
+        level_cap_hooks_->set_enforce_live(state_.authenticated() || caps_forced_);
+        if (!caps_forced_)
+            level_cap_hooks_->recompute(state_);
     }
     if (pending_inbound_death_.exchange(false) && death_hooks_)
         death_hooks_->kill();
@@ -243,6 +267,9 @@ std::vector<std::string> App::status_lines() const
     if (modifier_hooks_)
         for (const auto &l : modifier_hooks_->status_lines())
             out.push_back(l);
+    if (level_cap_hooks_)
+        for (const auto &l : level_cap_hooks_->status_lines())
+            out.push_back(l);
     return out;
 }
 
@@ -286,6 +313,14 @@ void App::lock_modifiers(bool armed)
     if (modifier_hooks_)
         modifier_hooks_->set_armed(armed);
     pal::logf(pal::LogLevel::Info, "console: modifiers %s", armed ? "locked" : "unlocked");
+}
+
+void App::set_stat_caps(int attack, int defense, int sidearm)
+{
+    caps_forced_ = true; // console drove caps -> enforce this session (like MTHAP_STAT_CAPS); skips AP recompute
+    if (level_cap_hooks_)
+        level_cap_hooks_->set_counts(attack, defense, sidearm);
+    pal::logf(pal::LogLevel::Info, "console: stat caps attack=%d defense=%d sidearm=%d", attack, defense, sidearm);
 }
 #endif
 

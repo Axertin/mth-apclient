@@ -79,3 +79,21 @@ TEST_CASE("InboundGranter does not mark on failure and retries", "[inbound]")
     REQUIRE(save.is_granted(0));
     std::filesystem::remove(path);
 }
+
+TEST_CASE("InboundGranter skips stat-cap items", "[inbound]")
+{
+    const auto path = std::filesystem::temp_directory_path() / "mthap_inbound_caps.txt";
+    std::filesystem::remove(path);
+
+    mth::ApState state;
+    mth::ApSaveState save(path);
+    FakeGranter granter;
+    mth::InboundGranter inbound(granter, state, save);
+
+    state.apply(recv(mth::kStatCapItemBase + 0, 0)); // attack cap-up: must be skipped
+    state.apply(recv(mth::ap_item_id(9), 1));        // a real item: must be granted
+    inbound.tick();
+    REQUIRE(granter.granted == std::vector<int>{9});
+
+    std::filesystem::remove(path);
+}

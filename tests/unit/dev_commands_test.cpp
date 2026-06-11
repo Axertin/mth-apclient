@@ -66,3 +66,10 @@ TEST_CASE("parse_command recognizes modifier verbs", "[dev_commands]")
     REQUIRE(mth::parse_command("modifiers lock").kind == mth::CommandKind::ModifierLock);
     REQUIRE(mth::parse_command("modifiers").kind == mth::CommandKind::ModifierLock);
 }
+
+TEST_CASE("parse_command recognizes caps with three args", "[dev_commands]")
+{
+    const auto cmd = mth::parse_command("caps 1 4 0");
+    REQUIRE(cmd.kind == mth::CommandKind::StatCaps);
+    REQUIRE(cmd.args == std::vector<std::string>{"1", "4", "0"});
+}

@@ -18,6 +18,7 @@ enum class CommandKind
     RemoveLock,   // args: [slot]
     Modifier,     // args: [idx, on|off]
     ModifierLock, // args: [] (status), [lock|unlock|on|off]
+    StatCaps,     // args: [attack, defense, sidearm] per-stat cap-up counts (0 = frozen)
     Connect,      // args: [server, slot, (optional) password]
     Disconnect,
 };

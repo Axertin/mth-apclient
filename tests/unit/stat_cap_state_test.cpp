@@ -1,0 +1,75 @@
+#include <vector>
+
+#include <catch2/catch_test_macros.hpp>
+
+#include "mth/core/ap_events.hpp"
+#include "mth/core/ap_state.hpp"
+#include "mth/core/rando_bridge.hpp"
+#include "mth/core/stat_cap_state.hpp"
+
+namespace
+{
+mth::ApState make_state(const std::vector<std::int64_t> &item_ids)
+{
+    mth::ApState s;
+    int idx = 0;
+    for (auto id : item_ids)
+    {
+        mth::ApItemReceived e;
+        e.item.item_id = id;
+        e.item.index = idx++; // ApState dedups on strictly-increasing index
+        s.apply(e);
+    }
+    return s;
+}
+} // namespace
+
+TEST_CASE("default caps are zero (stat frozen at start)", "[stat_cap]")
+{
+    mth::StatCapState caps;
+    REQUIRE(caps.enforced_cap(0, 9) == 0);
+    REQUIRE(caps.enforced_cap(1, 9) == 0);
+    REQUIRE(caps.enforced_cap(2, 9) == 0);
+}
+
+TEST_CASE("cap-up items raise only their own stat", "[stat_cap]")
+{
+    mth::StatCapState caps;
+    caps.recompute(make_state({mth::kStatCapItemBase + 0, mth::kStatCapItemBase + 0, mth::kStatCapItemBase + 2}));
+    REQUIRE(caps.enforced_cap(0, 9) == 2);
+    REQUIRE(caps.enforced_cap(1, 9) == 0);
+    REQUIRE(caps.enforced_cap(2, 9) == 1);
+    REQUIRE(caps.granted(0) == 2);
+    REQUIRE(caps.granted(2) == 1);
+}
+
+TEST_CASE("enforced cap never exceeds vanilla", "[stat_cap]")
+{
+    mth::StatCapState caps;
+    caps.set_counts(20, 0, 0);
+    REQUIRE(caps.enforced_cap(0, 9) == 9);
+}
+
+TEST_CASE("enforced cap passes through at and below vanilla", "[stat_cap]")
+{
+    mth::StatCapState caps;
+    caps.set_counts(9, 5, 0);
+    REQUIRE(caps.enforced_cap(0, 9) == 9); // count == vanilla: full unlock (displayed level 10)
+    REQUIRE(caps.enforced_cap(1, 9) == 5); // count < vanilla: passes through unchanged
+}
+
+TEST_CASE("non-cap item ids are ignored", "[stat_cap]")
+{
+    mth::StatCapState caps;
+    caps.recompute(make_state({mth::ap_item_id(5), mth::ap_item_id(42)}));
+    REQUIRE(caps.granted(0) == 0);
+    REQUIRE(caps.granted(1) == 0);
+    REQUIRE(caps.granted(2) == 0);
+}
+
+TEST_CASE("out-of-range stat yields vanilla cap", "[stat_cap]")
+{
+    mth::StatCapState caps;
+    REQUIRE(caps.enforced_cap(3, 9) == 9);
+    REQUIRE(caps.enforced_cap(-1, 9) == 9);
+}

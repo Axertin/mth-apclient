@@ -56,4 +56,19 @@ bool apply_live_modifier(int idx, bool on);
 // Remove the modifier hooks and clear the callbacks. Called by the mth/ owner's destructor.
 void remove_modifier_hooks();
 
+// ---- Per-stat level cap. All symbol/offset/game-call divergence lives in the PAL impl. ----
+
+// True once LevelUpMenu::UpdateState and CombatData::GetNewGameMaxLevelPlayer both resolve.
+// Resolves + caches on first call. The feature no-ops if false.
+bool level_cap_available();
+
+// Install the level-cap hooks. `cap(stat, vanilla_cap)` runs on the game thread during the
+// LevelUpMenu buy-gate and returns the cap to enforce for `stat` (0=attack,1=defense,2=sidearm);
+// return vanilla_cap for "no restriction". No-op if unavailable.
+using LevelCapFn = std::function<int(int stat, int vanilla_cap)>;
+void set_level_cap_provider(LevelCapFn cap);
+
+// Remove the level-cap hooks and clear the callback. Called by the mth/ owner's destructor.
+void remove_level_cap_hook();
+
 } // namespace pal
