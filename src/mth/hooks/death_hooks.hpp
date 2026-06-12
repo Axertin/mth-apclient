@@ -2,6 +2,8 @@
 
 #include <functional>
 
+#include "mth/hooks/scoped_hook.hpp"
+
 namespace mth
 {
 
@@ -19,7 +21,7 @@ class DeathHooks
     [[nodiscard]] bool ready() const;
 
   private:
-    bool installed_{false};
+    ScopedHook init_death_;
 };
 
 } // namespace mth
