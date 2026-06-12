@@ -242,7 +242,6 @@ void App::ensure_inbound_ready()
     pal::logf(pal::LogLevel::Info, "outbound: bridge attached to %s; flushed checked-set", key.c_str());
 }
 
-#ifdef MTHAP_HAS_OVERLAY
 void App::connect(const std::string &server, const std::string &slot, const std::string &password)
 {
     link_->connect(server, slot, password);
@@ -318,6 +317,5 @@ void App::set_stat_caps(int attack, int defense, int sidearm)
         level_cap_hooks_->set_counts(attack, defense, sidearm);
     pal::logf(pal::LogLevel::Info, "console: stat caps attack=%d defense=%d sidearm=%d", attack, defense, sidearm);
 }
-#endif
 
 } // namespace mth
