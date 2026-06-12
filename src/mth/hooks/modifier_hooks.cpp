@@ -1,4 +1,4 @@
-#include "mth/modifier_hooks.hpp"
+#include "mth/hooks/modifier_hooks.hpp"
 
 #include <cstdint>
 #include <utility>

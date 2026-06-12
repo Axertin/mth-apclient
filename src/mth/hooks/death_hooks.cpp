@@ -1,4 +1,4 @@
-#include "mth/death_hooks.hpp"
+#include "mth/hooks/death_hooks.hpp"
 
 #include <cstdint>
 #include <utility>

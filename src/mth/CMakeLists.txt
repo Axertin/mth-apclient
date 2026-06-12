@@ -69,11 +69,11 @@ if(NOT MTHAP_BUILD_TESTS_ONLY)
     add_library(mthap MODULE
         mth-apclient.cpp
         core/app.cpp
-        game_hooks.cpp
-        rando_hooks.cpp
-        death_hooks.cpp
-        modifier_hooks.cpp
-        levelcap_hooks.cpp
+        hooks/game_hooks.cpp
+        hooks/rando_hooks.cpp
+        hooks/death_hooks.cpp
+        hooks/modifier_hooks.cpp
+        hooks/levelcap_hooks.cpp
     )
 
     target_link_libraries(mthap PRIVATE

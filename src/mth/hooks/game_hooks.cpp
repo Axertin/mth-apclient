@@ -1,4 +1,4 @@
-#include "mth/game_hooks.hpp"
+#include "mth/hooks/game_hooks.hpp"
 
 #include <cstdint>
 
