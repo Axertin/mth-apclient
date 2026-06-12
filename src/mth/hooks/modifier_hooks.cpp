@@ -44,7 +44,7 @@ ModifierHooks::~ModifierHooks()
         armed_ = false; // disarm first so any in-flight seed/block bails before the hooks are removed
     }
     if (installed_)
-        pal::remove_modifier_hooks(); // synchronous removal, same teardown contract as DeathHooks/RandoHooks
+        pal::remove_modifier_hooks(); // synchronous removal, same teardown contract as DeathHooks/LocationHooks
     std::lock_guard<std::mutex> lk(mtx_);
     enforced_.clear();
     pending_live_.clear();

@@ -10,11 +10,13 @@
 #include "mth/core/inbound_granter.hpp"
 #include "mth/core/modifier_config.hpp"
 #include "mth/core/rando_bridge.hpp"
+#include "mth/hooks/boss_hooks.hpp"
 #include "mth/hooks/death_hooks.hpp"
 #include "mth/hooks/game_hooks.hpp"
 #include "mth/hooks/item_granter.hpp"
+#include "mth/hooks/location_hooks.hpp"
+#include "mth/hooks/lock_hooks.hpp"
 #include "mth/hooks/player_tracker.hpp"
-#include "mth/hooks/rando_hooks.hpp"
 #include "mth_version.h"
 #include "pal/pal_hook.hpp"
 #include "pal/pal_log.hpp"
@@ -84,12 +86,14 @@ App::App()
     tracker_ = std::make_unique<PlayerTracker>();
     granter_ = std::make_unique<ItemGranter>(*tracker_);
     rando_ = std::make_unique<RandoBridge>(*link_, state_);
-    rando_hooks_ = std::make_unique<RandoHooks>(*rando_);
+    location_hooks_ = std::make_unique<LocationHooks>(*rando_);
+    boss_hooks_ = std::make_unique<BossHooks>(*rando_);
+    lock_hooks_ = std::make_unique<LockHooks>();
     death_hooks_ = std::make_unique<DeathHooks>([this] { link_->send_death("Mina the Hollower"); }, [this]() -> void * { return tracker_->player(); });
 
     if (const char *locks = std::getenv("MTHAP_REMOVE_LOCKS"); locks && *locks)
     {
-        rando_hooks_->locks().add_from_list(locks);
+        lock_hooks_->locks().add_from_list(locks);
         pal::logf(pal::LogLevel::Info, "locks: removed-set seeded from MTHAP_REMOVE_LOCKS=%s", locks);
     }
 
@@ -172,7 +176,9 @@ App::~App()
     death_hooks_.reset();
     modifier_hooks_.reset();
     level_cap_hooks_.reset();
-    rando_hooks_.reset();
+    location_hooks_.reset();
+    boss_hooks_.reset();
+    lock_hooks_.reset();
     rando_.reset();
     granter_.reset();
     tracker_.reset();
@@ -232,9 +238,10 @@ void App::drive_tick()
 
 void App::drain_grants()
 {
-    if (rando_hooks_)
-        rando_hooks_->seed_removed_locks();
-    granter_->drain();
+    if (lock_hooks_)
+        lock_hooks_->seed_removed_locks();
+    if (granter_)
+        granter_->drain();
 }
 
 void App::ensure_inbound_ready()
@@ -301,7 +308,7 @@ void App::give_item(std::int64_t ap_item_id)
 
 void App::remove_lock(int slot)
 {
-    rando_hooks_->locks().set_removed(slot);
+    lock_hooks_->locks().set_removed(slot);
     pal::logf(pal::LogLevel::Info, "console: removelock %d (live if spawned; opens on entry otherwise)", slot);
 }
 

@@ -73,7 +73,9 @@ if(NOT MTHAP_BUILD_TESTS_ONLY)
         hooks/game_tables.cpp
         hooks/player_tracker.cpp
         hooks/item_granter.cpp
-        hooks/rando_hooks.cpp
+        hooks/location_hooks.cpp
+        hooks/boss_hooks.cpp
+        hooks/lock_hooks.cpp
         hooks/death_hooks.cpp
         hooks/modifier_hooks.cpp
         hooks/levelcap_hooks.cpp
