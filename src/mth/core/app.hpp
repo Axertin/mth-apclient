@@ -8,18 +8,18 @@
 
 #include "mth/core/ap_save_state.hpp"
 #include "mth/core/ap_state.hpp"
+#include "mth/core/command_sink.hpp"
 #include "mth/core/session_policy.hpp"
 #include "mth/hooks/death_hooks.hpp"
 #include "mth/hooks/levelcap_hooks.hpp"
 #include "mth/hooks/modifier_hooks.hpp"
-#ifdef MTHAP_HAS_OVERLAY
-#include "mth/ui/command_sink.hpp"
-#endif
 
+#ifdef MTHAP_HAS_OVERLAY
 namespace pal
 {
 class IOverlay;
 }
+#endif
 
 namespace mth
 {
@@ -38,10 +38,9 @@ class LockHooks;
 class DevConsole;
 
 // Composition root. Logger and hook engine are PAL globals; App owns everything else.
-class App
-#ifdef MTHAP_HAS_OVERLAY
-    : public ICommandSink
-#endif
+// Implements ICommandSink unconditionally (the dev console is the only caller today,
+// but the sink itself has no overlay dependency).
+class App : public ICommandSink
 {
   public:
     App();
@@ -55,7 +54,6 @@ class App
     void drive_tick();   // called by tick sink each fixed update
     void drain_grants(); // called by tick sink from World::Update pre-hook
 
-#ifdef MTHAP_HAS_OVERLAY
     void connect(const std::string &server, const std::string &slot, const std::string &password) override;
     void disconnect() override;
     [[nodiscard]] std::vector<std::string> status_lines() const override;
@@ -65,7 +63,6 @@ class App
     void set_modifier(int idx, bool on) override;
     void lock_modifiers(bool armed) override;
     void set_stat_caps(int attack, int defense, int sidearm) override;
-#endif
 
   private:
     void ensure_inbound_ready(); // lazily builds save_state_/inbound_ once connected
