@@ -7,7 +7,7 @@
 #include <set>
 #include <vector>
 
-#include "mth/core/boss_checks.hpp"
+#include "mth/core/ap_ids.hpp"
 #include "mth/core/game_symbols.hpp"
 #include "mth/core/lock_registry.hpp"
 #include "mth/core/rando_bridge.hpp"
