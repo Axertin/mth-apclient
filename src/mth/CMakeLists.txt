@@ -71,6 +71,8 @@ if(NOT MTHAP_BUILD_TESTS_ONLY)
         core/app.cpp
         hooks/game_hooks.cpp
         hooks/game_tables.cpp
+        hooks/player_tracker.cpp
+        hooks/item_granter.cpp
         hooks/rando_hooks.cpp
         hooks/death_hooks.cpp
         hooks/modifier_hooks.cpp
