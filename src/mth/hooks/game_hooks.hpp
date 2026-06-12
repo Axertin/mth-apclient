@@ -1,8 +1,6 @@
 #pragma once
 
-#include <cstddef>
-
-#include "pal/pal_hook.hpp"
+#include "mth/hooks/scoped_hook.hpp"
 
 namespace mth
 {
@@ -20,9 +18,10 @@ class GameHooks
     GameHooks &operator=(const GameHooks &) = delete;
 
   private:
-    static constexpr std::size_t kCount = 4;
-    pal::HookId ids_[kCount]{};
-    std::size_t installed_{0};
+    ScopedHook fixed_update_;
+    ScopedHook update_;
+    ScopedHook world_update_;
+    ScopedHook update_queue_;
 };
 
 } // namespace mth

@@ -1,11 +1,7 @@
 #include "mth/hooks/game_hooks.hpp"
 
-#include <cstdint>
-
 #include "mth/core/game_events.hpp"
 #include "mth/core/game_symbols.hpp"
-#include "pal/pal_log.hpp"
-#include "pal/pal_module.hpp"
 
 // File-scope globals: Frida replacements have no user context; exactly one GameHooks exists.
 namespace
@@ -60,47 +56,19 @@ namespace mth
 GameHooks::GameHooks(IGameEvents &sink)
 {
     g_sink = &sink;
-
-    struct Spec
-    {
-        const char *label;
-        const char *symbol;
-        void *replacement;
-        void **trampoline;
-    };
-    const Spec specs[kCount] = {
-        {"Game::FixedUpdate", sym::game_fixed_update, reinterpret_cast<void *>(&repl_game_fixed_update), reinterpret_cast<void **>(&g_orig_game_fixed_update)},
-        {"Game::Update", sym::game_update, reinterpret_cast<void *>(&repl_game_update), reinterpret_cast<void **>(&g_orig_game_update)},
-        {"World::Update", sym::world_update, reinterpret_cast<void *>(&repl_world_update), reinterpret_cast<void **>(&g_orig_world_update)},
-        {"ycUpdateQueue::Update", sym::update_queue, reinterpret_cast<void *>(&repl_update_queue), reinterpret_cast<void **>(&g_orig_update_queue)},
-    };
-
-    for (const auto &s : specs)
-    {
-        const auto addr = pal::resolve_game_symbol(s.symbol);
-        if (addr == 0)
-        {
-            pal::logf(pal::LogLevel::Error, "GameHooks: symbol %s not found; %s not hooked", s.symbol, s.label);
-            continue;
-        }
-        void *target = reinterpret_cast<void *>(addr);
-        const auto id = pal::hook_engine().install_hook(target, s.replacement, s.trampoline);
-        if (id == pal::kInvalidHookId)
-        {
-            pal::logf(pal::LogLevel::Error, "GameHooks: failed to hook %s at %p", s.label, target);
-        }
-        else
-        {
-            ids_[installed_++] = id;
-            pal::logf(pal::LogLevel::Info, "GameHooks: hooked %s at %p via symbol (id=%llu)", s.label, target, static_cast<unsigned long long>(id));
-        }
-    }
+    fixed_update_ = ScopedHook(sym::game_fixed_update, reinterpret_cast<void *>(&repl_game_fixed_update), reinterpret_cast<void **>(&g_orig_game_fixed_update),
+                               "Game::FixedUpdate");
+    update_ = ScopedHook(sym::game_update, reinterpret_cast<void *>(&repl_game_update), reinterpret_cast<void **>(&g_orig_game_update), "Game::Update");
+    world_update_ =
+        ScopedHook(sym::world_update, reinterpret_cast<void *>(&repl_world_update), reinterpret_cast<void **>(&g_orig_world_update), "World::Update");
+    update_queue_ =
+        ScopedHook(sym::update_queue, reinterpret_cast<void *>(&repl_update_queue), reinterpret_cast<void **>(&g_orig_update_queue), "ycUpdateQueue::Update");
 }
 
 GameHooks::~GameHooks()
 {
-    for (std::size_t i = 0; i < installed_; ++i)
-        pal::hook_engine().remove_hook(ids_[i]);
+    // g_sink cleared first; the repls null-check it, so a hook firing during member
+    // teardown is a safe no-op forward.
     g_sink = nullptr;
 }
 

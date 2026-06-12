@@ -1,11 +1,9 @@
 #include "mth/hooks/death_hooks.hpp"
 
-#include <cstdint>
 #include <utility>
 
 #include "mth/core/game_layout.hpp"
 #include "mth/core/game_symbols.hpp"
-#include "pal/pal_hook.hpp"
 #include "pal/pal_log.hpp"
 #include "pal/pal_module.hpp"
 
@@ -16,7 +14,6 @@ std::function<void()> g_on_local_death;
 std::function<void *()> g_get_player;
 bool g_suppress_next_death = false; // edge-latched: set on apply, consumed in the InitDeath detect
 
-pal::HookId g_id_init_death = pal::kInvalidHookId;
 void (*g_orig_init_death)(void *, bool) = nullptr;
 bool (*g_trigger_death)(void *) = nullptr; // resolved for APPLY; not hooked
 
@@ -64,22 +61,14 @@ DeathHooks::DeathHooks(std::function<void()> on_local_death, std::function<void 
     if (g_trigger_death == nullptr)
         pal::logf(pal::LogLevel::Warn, "DeathHooks: Player::TriggerDeath not resolved; inbound deathlink apply disabled");
 
-    const auto addr = pal::resolve_game_symbol(sym::player_init_death);
-    if (addr == 0)
-    {
-        pal::logf(pal::LogLevel::Warn, "DeathHooks: Player::InitDeath not found; deathlink detect disabled");
-        return;
-    }
-    g_id_init_death = pal::hook_engine().install_hook(reinterpret_cast<void *>(addr), reinterpret_cast<void *>(&repl_init_death),
-                                                      reinterpret_cast<void **>(&g_orig_init_death));
-    installed_ = g_id_init_death != pal::kInvalidHookId;
-    pal::logf(installed_ ? pal::LogLevel::Info : pal::LogLevel::Error, "DeathHooks: Player::InitDeath hook %s", installed_ ? "installed" : "FAILED");
+    init_death_ =
+        ScopedHook(sym::player_init_death, reinterpret_cast<void *>(&repl_init_death), reinterpret_cast<void **>(&g_orig_init_death), "Player::InitDeath");
+    if (!init_death_.installed())
+        pal::logf(pal::LogLevel::Warn, "DeathHooks: deathlink detect disabled");
 }
 
 DeathHooks::~DeathHooks()
 {
-    if (g_id_init_death != pal::kInvalidHookId)
-        pal::hook_engine().remove_hook(g_id_init_death);
     g_on_local_death = nullptr;
     g_get_player = nullptr;
     g_trigger_death = nullptr;
@@ -88,13 +77,13 @@ DeathHooks::~DeathHooks()
 
 bool DeathHooks::ready() const
 {
-    return installed_ && g_trigger_death != nullptr && g_get_player && g_get_player() != nullptr;
+    return init_death_.installed() && g_trigger_death != nullptr && g_get_player && g_get_player() != nullptr;
 }
 
 void DeathHooks::kill()
 {
     void *p = g_get_player ? g_get_player() : nullptr;
-    if (!installed_ || g_trigger_death == nullptr || p == nullptr)
+    if (!init_death_.installed() || g_trigger_death == nullptr || p == nullptr)
     {
         pal::logf(pal::LogLevel::Warn, "deathlink: inbound death not applied (player not captured yet)");
         return;
