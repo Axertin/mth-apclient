@@ -1,4 +1,4 @@
-#include "mth/rando_hooks.hpp"
+#include "mth/hooks/rando_hooks.hpp"
 
 #include <cmath>
 #include <cstddef>
@@ -11,7 +11,7 @@
 #include "mth/core/game_symbols.hpp"
 #include "mth/core/lock_registry.hpp"
 #include "mth/core/rando_bridge.hpp"
-#include "mth/game_item_granter.hpp"
+#include "mth/hooks/game_item_granter.hpp"
 #include "pal/pal_game.hpp"
 #include "pal/pal_hook.hpp"
 #include "pal/pal_log.hpp"

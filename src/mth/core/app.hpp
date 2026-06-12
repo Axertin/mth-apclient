@@ -8,10 +8,10 @@
 
 #include "mth/core/ap_save_state.hpp"
 #include "mth/core/ap_state.hpp"
-#include "mth/death_hooks.hpp"
-#include "mth/game_item_granter.hpp"
-#include "mth/levelcap_hooks.hpp"
-#include "mth/modifier_hooks.hpp"
+#include "mth/hooks/death_hooks.hpp"
+#include "mth/hooks/game_item_granter.hpp"
+#include "mth/hooks/levelcap_hooks.hpp"
+#include "mth/hooks/modifier_hooks.hpp"
 #ifdef MTHAP_HAS_OVERLAY
 #include "mth/ui/command_sink.hpp"
 #endif
