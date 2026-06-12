@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <utility>
 
+#include "mth/core/game_layout.hpp"
 #include "mth/core/game_symbols.hpp"
 #include "pal/pal_hook.hpp"
 #include "pal/pal_log.hpp"
@@ -15,15 +16,13 @@ std::function<void()> g_on_local_death;
 std::function<void *()> g_get_player;
 bool g_suppress_next_death = false; // edge-latched: set on apply, consumed in the InitDeath detect
 
-constexpr std::ptrdiff_t kPlayerDeathGuardOff = 0x1380; // once-per-death guard byte (0 = fresh death)
-
 pal::HookId g_id_init_death = pal::kInvalidHookId;
 void (*g_orig_init_death)(void *, bool) = nullptr;
 bool (*g_trigger_death)(void *) = nullptr; // resolved for APPLY; not hooked
 
 [[nodiscard]] bool is_dying(void *player)
 {
-    return player != nullptr && *reinterpret_cast<unsigned char *>(static_cast<char *>(player) + kPlayerDeathGuardOff) != 0;
+    return player != nullptr && *reinterpret_cast<unsigned char *>(static_cast<char *>(player) + mth::layout::kPlayerDeathGuardOff) != 0;
 }
 
 void repl_init_death(void *self, bool b)
