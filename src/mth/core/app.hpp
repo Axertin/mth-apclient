@@ -9,7 +9,6 @@
 #include "mth/core/ap_save_state.hpp"
 #include "mth/core/ap_state.hpp"
 #include "mth/hooks/death_hooks.hpp"
-#include "mth/hooks/game_item_granter.hpp"
 #include "mth/hooks/levelcap_hooks.hpp"
 #include "mth/hooks/modifier_hooks.hpp"
 #ifdef MTHAP_HAS_OVERLAY
@@ -29,6 +28,8 @@ class GameHooks;
 class IApLink;
 class ApCoordinator;
 class InboundGranter;
+class PlayerTracker;
+class ItemGranter;
 class RandoBridge;
 class RandoHooks;
 class DevConsole;
@@ -65,19 +66,20 @@ class App
 
   private:
     void ensure_inbound_ready(); // lazily builds save_state_/inbound_ once connected
-    // Destruction order: modifier_hooks_/level_cap_hooks_/death_hooks_/rando_hooks_ first (remove
-    // game hooks), then events_/hooks_, coordinator_, link_ (stops net thread), then state_.
+    // Destruction order: feature hooks first (remove game hooks), then granter_/tracker_,
+    // then events_/hooks_, coordinator_, link_ (stops net thread), then state_.
     ApState state_;
     std::unique_ptr<IApLink> link_;
     std::unique_ptr<ApCoordinator> coordinator_;
     std::unique_ptr<IGameEvents> events_;
     std::unique_ptr<GameHooks> hooks_;
+    std::unique_ptr<PlayerTracker> tracker_;
+    std::unique_ptr<ItemGranter> granter_;
     std::unique_ptr<RandoBridge> rando_;
     std::unique_ptr<RandoHooks> rando_hooks_;
     std::unique_ptr<DeathHooks> death_hooks_;
     std::unique_ptr<ModifierHooks> modifier_hooks_;
     std::unique_ptr<LevelCapHooks> level_cap_hooks_;
-    GameItemGranter granter_;
     std::optional<ApSaveState> save_state_;
     std::unique_ptr<InboundGranter> inbound_;
     std::atomic<bool> pending_inbound_death_{false};

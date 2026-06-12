@@ -8,7 +8,7 @@ namespace mth
 class RandoBridge;
 
 // Installs Pickup::Init (spawn redirect/despawn), Pickup::OnPickup (collect detect),
-// and OnPickupDone/Player plumbing for inbound grants. Symbols resolved at construction.
+// shop/boss/KeyBlock hooks. Symbols resolved at construction.
 class RandoHooks
 {
   public:
@@ -19,10 +19,8 @@ class RandoHooks
 
     LockRegistry &locks();     // populated by env/console seams
     void seed_removed_locks(); // game-thread, pre-World::Update window
-    [[nodiscard]] void *current_player() const;
 
   private:
-    bool installed_{false};
     LockRegistry locks_;
 };
 

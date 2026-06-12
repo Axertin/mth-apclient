@@ -1,9 +1,7 @@
 #include "mth/hooks/rando_hooks.hpp"
 
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <mutex>
 #include <set>
 #include <vector>
 
@@ -12,7 +10,6 @@
 #include "mth/core/game_symbols.hpp"
 #include "mth/core/lock_registry.hpp"
 #include "mth/core/rando_bridge.hpp"
-#include "mth/hooks/game_item_granter.hpp"
 #include "mth/hooks/game_tables.hpp"
 #include "pal/pal_game.hpp"
 #include "pal/pal_hook.hpp"
@@ -24,24 +21,6 @@ namespace
 {
 
 mth::RandoBridge *g_bridge = nullptr;
-pal::HookId g_id = pal::kInvalidHookId;
-
-// Items::OnPickupDone(int slot, int itemType, Player*, ycVec3 const&, int, int, unsigned int, bool)
-void (*g_orig_on_pickup_done)(int, int, void *, void *, int, int, unsigned int, bool) = nullptr;
-
-// Live Player* and position for inbound replays. All game-thread-only.
-struct YcVec3
-{
-    float x, y, z;
-};
-
-void *g_player = nullptr;
-void *g_trackable = nullptr;
-
-// Position cached in PlayerTrackable::Update (in-context); drain() consumes it rather than
-// reading in the pre-World::Update spawn window. Game-thread-only.
-YcVec3 g_last_pos{};
-bool g_have_pos = false;
 
 // ycWorld::QueueDestroy: tears down a pickup entity; used for already-checked locations not covered by the native gate.
 void (*g_queue_destroy)(void *, void *, bool) = nullptr;
@@ -62,44 +41,6 @@ bool g_shop_offsets_ok = true;   // cleared on first out-of-range read in on_sho
 [[nodiscard]] int &pickup_item_type(void *self)
 {
     return *reinterpret_cast<int *>(static_cast<char *>(self) + kPickupItemTypeOff);
-}
-
-// Inbound-grant queue: grant() enqueues, drain() replays inside the engine's update window.
-std::mutex g_pending_mtx;
-std::vector<int> g_pending;
-
-pal::HookId g_id_player_ctor = pal::kInvalidHookId;
-pal::HookId g_id_trackable_update = pal::kInvalidHookId;
-void (*g_orig_player_ctor)(void *, void *, void *, void *) = nullptr;
-void (*g_orig_trackable_update)(void *, void *) = nullptr;
-
-void repl_player_ctor(void *self, void *entity, void *desc, void *setup)
-{
-    if (g_orig_player_ctor)
-        g_orig_player_ctor(self, entity, desc, setup);
-    g_player = self; // available before any pickup
-}
-
-void repl_trackable_update(void *self, void *ctx)
-{
-    g_trackable = self; // refreshed each frame
-    if (g_orig_trackable_update)
-        g_orig_trackable_update(self, ctx);
-
-    // In-context capture: drain() must not read the position in the pre-World::Update window.
-    float p[3];
-    if (pal::read_player_position(self, p) && std::isfinite(p[0]) && std::isfinite(p[1]) && std::isfinite(p[2]))
-    {
-        g_last_pos = YcVec3{p[0], p[1], p[2]};
-        g_have_pos = true;
-    }
-}
-
-void repl_on_pickup_done(int slot, int item_type, void *player, void *vec, int a5, int a6, unsigned int a7, bool a8)
-{
-    g_player = player; // refresh the grant-target player for inbound replays
-    if (g_orig_on_pickup_done)
-        g_orig_on_pickup_done(slot, item_type, player, vec, a5, a6, a7, a8);
 }
 
 pal::HookId g_id_pickup_init = pal::kInvalidHookId;
@@ -363,21 +304,6 @@ RandoHooks::RandoHooks(RandoBridge &bridge)
 {
     g_bridge = &bridge;
 
-    g_id =
-        hook_by_symbol(sym::on_pickup_done, reinterpret_cast<void *>(&repl_on_pickup_done), reinterpret_cast<void **>(&g_orig_on_pickup_done), "OnPickupDone");
-    if (g_id == pal::kInvalidHookId)
-    {
-        g_bridge = nullptr;
-        return;
-    }
-    installed_ = true;
-
-    // Player* and position plumbing for inbound grants. Best-effort: missing symbols log and skip.
-    g_id_player_ctor =
-        hook_by_symbol(sym::player_ctor, reinterpret_cast<void *>(&repl_player_ctor), reinterpret_cast<void **>(&g_orig_player_ctor), "Player::Player");
-    g_id_trackable_update = hook_by_symbol(sym::player_trackable_update, reinterpret_cast<void *>(&repl_trackable_update),
-                                           reinterpret_cast<void **>(&g_orig_trackable_update), "PlayerTrackable::Update");
-
     tables::resolve();
     tables::repurpose_dummy_item();
 
@@ -409,10 +335,6 @@ RandoHooks::RandoHooks(RandoBridge &bridge)
 
 RandoHooks::~RandoHooks()
 {
-    if (g_id_trackable_update != pal::kInvalidHookId)
-        pal::hook_engine().remove_hook(g_id_trackable_update);
-    if (g_id_player_ctor != pal::kInvalidHookId)
-        pal::hook_engine().remove_hook(g_id_player_ctor);
     if (g_id_pickup_init != pal::kInvalidHookId)
         pal::hook_engine().remove_hook(g_id_pickup_init);
     if (g_id_pickup_on_pickup != pal::kInvalidHookId)
@@ -427,8 +349,6 @@ RandoHooks::~RandoHooks()
     g_logged_lock_slots.clear();
     g_locks = nullptr;
     g_seed_logged = false;
-    if (installed_)
-        pal::hook_engine().remove_hook(g_id);
     g_bridge = nullptr;
 }
 
@@ -439,11 +359,6 @@ LockRegistry &RandoHooks::locks()
 
 // Set the native unlock bit for every removed lock so the KeyBlock ctor gate spawns it open.
 // Idempotent; runs each tick in the pre-World::Update window. Replicates KeyBlock::SetSaveUnlocked's math.
-void *RandoHooks::current_player() const
-{
-    return g_player;
-}
-
 void RandoHooks::seed_removed_locks()
 {
     if (g_save_manager == 0 || !tables::collection_resolved())
@@ -469,52 +384,6 @@ void RandoHooks::seed_removed_locks()
     {
         g_seed_logged = true;
         pal::logf(pal::LogLevel::Info, "locks: seeded %zu removed lock(s) into SaveSlot unlock bitfield", slots.size());
-    }
-}
-
-bool GameItemGranter::grant(int item_type)
-{
-    // Require hook + Player* + trackable before accepting; return false to retry next tick.
-    if (g_orig_on_pickup_done == nullptr || g_player == nullptr || g_trackable == nullptr)
-        return false;
-
-    // itemType 0 = engine "None" sentinel; treat as handled so the cursor advances.
-    if (item_type <= 0)
-        return true;
-
-    std::lock_guard<std::mutex> lk(g_pending_mtx);
-    g_pending.push_back(item_type);
-    return true;
-}
-
-void GameItemGranter::drain()
-{
-    std::vector<int> batch;
-    {
-        std::lock_guard<std::mutex> lk(g_pending_mtx);
-        if (g_pending.empty())
-            return;
-        batch.swap(g_pending);
-    }
-
-    // Position comes from the cache captured in PlayerTrackable::Update (in-update
-    // context); calling GetPos here (pre-World::Update spawn window) walks a camera
-    // graph that is not yet valid and faults. Requeue until a position is cached.
-    const bool ready = g_orig_on_pickup_done && g_player && g_have_pos;
-    const YcVec3 pos = ready ? g_last_pos : YcVec3{};
-    if (!ready || !std::isfinite(pos.x) || !std::isfinite(pos.y) || !std::isfinite(pos.z))
-    {
-        std::lock_guard<std::mutex> lk(g_pending_mtx);
-        g_pending.insert(g_pending.begin(), batch.begin(), batch.end());
-        return;
-    }
-
-    // locIdx=-1: grant by type only, no location state touched.
-    for (int item_type : batch)
-    {
-        YcVec3 grant_pos = pos; // fresh copy per item (ycVec3 const&)
-        g_orig_on_pickup_done(-1, item_type, g_player, &grant_pos, 0, 0, 0, false);
-        pal::logf(pal::LogLevel::Info, "inbound: granted item_type=%d (kind=%d)", item_type, tables::storage_kind(item_type));
     }
 }
 

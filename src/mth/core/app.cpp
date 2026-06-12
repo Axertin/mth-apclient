@@ -12,6 +12,8 @@
 #include "mth/core/rando_bridge.hpp"
 #include "mth/hooks/death_hooks.hpp"
 #include "mth/hooks/game_hooks.hpp"
+#include "mth/hooks/item_granter.hpp"
+#include "mth/hooks/player_tracker.hpp"
 #include "mth/hooks/rando_hooks.hpp"
 #include "mth_version.h"
 #include "pal/pal_hook.hpp"
@@ -79,10 +81,11 @@ App::App()
     coordinator_ = std::make_unique<ApCoordinator>(*link_, state_, [this] { pending_inbound_death_.store(true); });
     events_ = std::make_unique<AppTickSink>(*this);
     hooks_ = std::make_unique<GameHooks>(*events_);
+    tracker_ = std::make_unique<PlayerTracker>();
+    granter_ = std::make_unique<ItemGranter>(*tracker_);
     rando_ = std::make_unique<RandoBridge>(*link_, state_);
     rando_hooks_ = std::make_unique<RandoHooks>(*rando_);
-    death_hooks_ =
-        std::make_unique<DeathHooks>([this] { link_->send_death("Mina the Hollower"); }, [this]() -> void * { return rando_hooks_->current_player(); });
+    death_hooks_ = std::make_unique<DeathHooks>([this] { link_->send_death("Mina the Hollower"); }, [this]() -> void * { return tracker_->player(); });
 
     if (const char *locks = std::getenv("MTHAP_REMOVE_LOCKS"); locks && *locks)
     {
@@ -171,6 +174,8 @@ App::~App()
     level_cap_hooks_.reset();
     rando_hooks_.reset();
     rando_.reset();
+    granter_.reset();
+    tracker_.reset();
     hooks_.reset();
     events_.reset();
     coordinator_.reset();
@@ -229,7 +234,7 @@ void App::drain_grants()
 {
     if (rando_hooks_)
         rando_hooks_->seed_removed_locks();
-    granter_.drain();
+    granter_->drain();
 }
 
 void App::ensure_inbound_ready()
@@ -238,7 +243,7 @@ void App::ensure_inbound_ready()
         return;
     const std::string key = "ap_" + state_.seed() + "_" + std::to_string(state_.player_slot()) + ".state";
     save_state_.emplace(pal::log_dir() / key);
-    inbound_ = std::make_unique<InboundGranter>(granter_, state_, *save_state_);
+    inbound_ = std::make_unique<InboundGranter>(*granter_, state_, *save_state_);
     pal::logf(pal::LogLevel::Info, "inbound: state loaded (%s); granter live", key.c_str());
     if (modifier_hooks_)
         modifier_hooks_->set_ap_slot(save_state_->game_slot()); // restore the AP-game slot (skip capture if known)
@@ -287,7 +292,7 @@ std::vector<std::string> App::item_lines() const
 void App::give_item(std::int64_t ap_item_id)
 {
     const int item_type = mth::game_item_type(ap_item_id);
-    if (granter_.grant(item_type))
+    if (granter_->grant(item_type))
         pal::logf(pal::LogLevel::Info, "console: giveapitem %lld (type=%d) granted", static_cast<long long>(ap_item_id), item_type);
     else
         pal::logf(pal::LogLevel::Warn, "console: giveapitem %lld not ready (collect any pickup first to capture player + position)",

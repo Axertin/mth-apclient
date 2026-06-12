@@ -1,0 +1,102 @@
+#include "mth/hooks/item_granter.hpp"
+
+#include <cmath>
+#include <mutex>
+#include <vector>
+
+#include "mth/core/game_symbols.hpp"
+#include "mth/hooks/game_tables.hpp"
+#include "mth/hooks/player_tracker.hpp"
+#include "pal/pal_log.hpp"
+
+namespace
+{
+
+struct YcVec3
+{
+    float x, y, z;
+};
+
+mth::PlayerTracker *g_tracker = nullptr;
+
+// Items::OnPickupDone(int slot, int itemType, Player*, ycVec3 const&, int, int, unsigned int, bool)
+void (*g_orig_on_pickup_done)(int, int, void *, void *, int, int, unsigned int, bool) = nullptr;
+
+// Inbound-grant queue: grant() enqueues, drain() replays inside the engine's update window.
+std::mutex g_pending_mtx;
+std::vector<int> g_pending;
+
+void repl_on_pickup_done(int slot, int item_type, void *player, void *vec, int a5, int a6, unsigned int a7, bool a8)
+{
+    if (g_tracker != nullptr)
+        g_tracker->note_player(player); // refresh the grant-target player for inbound replays
+    if (g_orig_on_pickup_done)
+        g_orig_on_pickup_done(slot, item_type, player, vec, a5, a6, a7, a8);
+}
+
+} // namespace
+
+namespace mth
+{
+
+ItemGranter::ItemGranter(PlayerTracker &tracker)
+{
+    g_tracker = &tracker;
+    pickup_done_ = ScopedHook(sym::on_pickup_done, reinterpret_cast<void *>(&repl_on_pickup_done), reinterpret_cast<void **>(&g_orig_on_pickup_done),
+                              "Items::OnPickupDone");
+}
+
+ItemGranter::~ItemGranter()
+{
+    std::lock_guard<std::mutex> lk(g_pending_mtx);
+    g_pending.clear();
+    g_tracker = nullptr;
+}
+
+bool ItemGranter::grant(int item_type)
+{
+    // Require hook + Player* before accepting; return false to retry next tick.
+    if (g_orig_on_pickup_done == nullptr || g_tracker == nullptr || g_tracker->player() == nullptr)
+        return false;
+
+    // itemType 0 = engine "None" sentinel; treat as handled so the cursor advances.
+    if (item_type <= 0)
+        return true;
+
+    std::lock_guard<std::mutex> lk(g_pending_mtx);
+    g_pending.push_back(item_type);
+    return true;
+}
+
+void ItemGranter::drain()
+{
+    std::vector<int> batch;
+    {
+        std::lock_guard<std::mutex> lk(g_pending_mtx);
+        if (g_pending.empty())
+            return;
+        batch.swap(g_pending);
+    }
+
+    // Position comes from the tracker's in-context cache; reading it here (pre-World::Update
+    // spawn window) would walk an invalid camera graph and fault. Requeue until cached.
+    float p[3];
+    void *player = g_tracker != nullptr ? g_tracker->player() : nullptr;
+    const bool ready = g_orig_on_pickup_done && player != nullptr && g_tracker->position(p);
+    if (!ready || !std::isfinite(p[0]) || !std::isfinite(p[1]) || !std::isfinite(p[2]))
+    {
+        std::lock_guard<std::mutex> lk(g_pending_mtx);
+        g_pending.insert(g_pending.begin(), batch.begin(), batch.end());
+        return;
+    }
+
+    // locIdx=-1: grant by type only, no location state touched.
+    for (int item_type : batch)
+    {
+        YcVec3 grant_pos{p[0], p[1], p[2]}; // fresh copy per item (ycVec3 const&)
+        g_orig_on_pickup_done(-1, item_type, player, &grant_pos, 0, 0, 0, false);
+        pal::logf(pal::LogLevel::Info, "inbound: granted item_type=%d (kind=%d)", item_type, tables::storage_kind(item_type));
+    }
+}
+
+} // namespace mth
