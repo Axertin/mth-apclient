@@ -32,6 +32,7 @@ add_executable(mthap_unit_tests
     unit/modifier_config_test.cpp
     unit/modifier_table_test.cpp
     unit/stat_cap_state_test.cpp
+    unit/config_test.cpp
 )
 
 target_include_directories(mthap_unit_tests PRIVATE

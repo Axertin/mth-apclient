@@ -19,6 +19,7 @@ add_library(mthap_core STATIC
     core/modifier_config.cpp
     core/modifier_table.cpp
     core/stat_cap_state.cpp
+    core/config.cpp
 )
 
 target_include_directories(mthap_core PUBLIC "${CMAKE_SOURCE_DIR}/src")

@@ -1,14 +1,11 @@
 #include "mth/core/app.hpp"
 
-#include <cstdio>
-#include <cstdlib>
-
 #include "mth/core/ap_coordinator.hpp"
 #include "mth/core/ap_ids.hpp"
 #include "mth/core/ap_link.hpp"
+#include "mth/core/config.hpp"
 #include "mth/core/game_events.hpp"
 #include "mth/core/inbound_granter.hpp"
-#include "mth/core/modifier_config.hpp"
 #include "mth/core/rando_bridge.hpp"
 #include "mth/hooks/boss_hooks.hpp"
 #include "mth/hooks/death_hooks.hpp"
@@ -91,66 +88,52 @@ App::App()
     lock_hooks_ = std::make_unique<LockHooks>();
     death_hooks_ = std::make_unique<DeathHooks>([this] { link_->send_death("Mina the Hollower"); }, [this]() -> void * { return tracker_->player(); });
 
-    if (const char *locks = std::getenv("MTHAP_REMOVE_LOCKS"); locks && *locks)
+    const Config cfg = load_config_from_env();
+
+    if (!cfg.remove_locks_csv.empty())
     {
-        lock_hooks_->locks().add_from_list(locks);
-        pal::logf(pal::LogLevel::Info, "locks: removed-set seeded from MTHAP_REMOVE_LOCKS=%s", locks);
+        lock_hooks_->locks().add_from_list(cfg.remove_locks_csv);
+        pal::logf(pal::LogLevel::Info, "locks: removed-set seeded from MTHAP_REMOVE_LOCKS=%s", cfg.remove_locks_csv.c_str());
     }
 
+    if (cfg.modifiers_from_env)
     {
-        mth::ModifierRequest mreq;
-        if (const char *m = std::getenv("MTHAP_MODIFIERS"); m && *m)
-        {
-            mreq = mth::parse_modifier_indices(m);
-            modifiers_from_env_ = true; // offline test mode: enforce without an AP connection
-            pal::logf(pal::LogLevel::Info, "modifiers: %zu index(es) from MTHAP_MODIFIERS (offline test mode)", mreq.indices.size());
-        }
-        modifier_hooks_ = std::make_unique<ModifierHooks>(std::move(mreq));
+        modifiers_from_env_ = true; // offline test mode: enforce without an AP connection
+        pal::logf(pal::LogLevel::Info, "modifiers: %zu index(es) from MTHAP_MODIFIERS (offline test mode)", cfg.modifiers.indices.size());
     }
+    modifier_hooks_ = std::make_unique<ModifierHooks>(cfg.modifiers);
 
     level_cap_hooks_ = std::make_unique<LevelCapHooks>();
-    if (const char *sc = std::getenv("MTHAP_STAT_CAPS"); sc && *sc)
+    if (cfg.stat_caps)
     {
-        int a = 0, b = 0, c = 0;
-        if (std::sscanf(sc, "%d,%d,%d", &a, &b, &c) == 3)
-        {
-            level_cap_hooks_->set_counts(a, b, c);
-            caps_forced_ = true;
-            pal::logf(pal::LogLevel::Info, "levelcap: forced caps attack=%d defense=%d sidearm=%d (offline test)", a, b, c);
-        }
-        else
-        {
-            pal::logf(pal::LogLevel::Warn, "levelcap: MTHAP_STAT_CAPS=%s malformed (want a,b,c); ignored", sc);
-        }
+        level_cap_hooks_->set_counts((*cfg.stat_caps)[0], (*cfg.stat_caps)[1], (*cfg.stat_caps)[2]);
+        caps_forced_ = true;
+        pal::logf(pal::LogLevel::Info, "levelcap: forced caps attack=%d defense=%d sidearm=%d (offline test)", (*cfg.stat_caps)[0], (*cfg.stat_caps)[1],
+                  (*cfg.stat_caps)[2]);
     }
 
-    // MTHAP_MOCK_AP: offline test mode; fakes AP-connected state for locations 0..N (default N=1024).
-    if (const char *mock = std::getenv("MTHAP_MOCK_AP"); mock && *mock)
+    // MTHAP_MOCK_AP: offline test mode; fakes AP-connected state for locations 0..N.
+    if (cfg.mock_ap_max_idx)
     {
-        int max_idx = std::atoi(mock);
-        if (max_idx < 2)
-            max_idx = 1024;
         ApConnected ev;
         ev.seed = "mock";
         ev.player_slot = 0;
-        for (int i = 0; i <= max_idx; ++i)
+        for (int i = 0; i <= *cfg.mock_ap_max_idx; ++i)
             ev.missing_locations.push_back(ap_loc_id(i));
         state_.apply(ev);
-        pal::logf(pal::LogLevel::Info, "AP: MOCK state injected (every pickup is an AP location, idx 0..%d)", max_idx);
+        pal::logf(pal::LogLevel::Info, "AP: MOCK state injected (every pickup is an AP location, idx 0..%d)", *cfg.mock_ap_max_idx);
     }
 
-    if (const char *dl = std::getenv("MTHAP_DEATHLINK"); dl && *dl && std::atoi(dl) != 0)
+    if (cfg.deathlink)
     {
         link_->enable_deathlink(true);
         pal::logf(pal::LogLevel::Info, "deathlink: enabled (MTHAP_DEATHLINK)");
     }
 
-    if (const char *server = std::getenv("MTHAP_AP_SERVER"); server && *server)
+    if (!cfg.ap_server.empty())
     {
-        const char *slot = std::getenv("MTHAP_AP_SLOT");
-        const char *password = std::getenv("MTHAP_AP_PASSWORD");
-        pal::logf(pal::LogLevel::Info, "AP: MTHAP_AP_SERVER set; connecting to %s", server);
-        link_->connect(server, slot ? slot : "Player1", password ? password : "");
+        pal::logf(pal::LogLevel::Info, "AP: MTHAP_AP_SERVER set; connecting to %s", cfg.ap_server.c_str());
+        link_->connect(cfg.ap_server, cfg.ap_slot, cfg.ap_password);
     }
     else
     {
