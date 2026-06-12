@@ -12,7 +12,7 @@ The build produces three layers with a strict dependency direction (`core` ← `
 
 | Target       | Kind       | Contents                                                                                                                                                                                                                       |
 | ------------ | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `mthap_core` | static lib | Pure, cross-platform logic: AP state/coordinator, the location/item bridge, inbound granter, save state, ID mapping, and the signature matcher. No OS/backend headers that require linking. **The unit tests link only this.** |
+| `mthap_core` | static lib | Pure, cross-platform logic: AP state/coordinator, the location/item bridge, inbound granter, save state, ID mapping, startup config, enforcement policy, and the signature matcher. No OS/backend headers that require linking. **The unit tests link only this.** |
 | `mthap_pal`  | object lib | The Platform Abstraction Layer: process entry points and the hook backend, under `src/pal/{linux,windows}/`. Built as an OBJECT library so loader-injected entry points are never dropped by the linker.                       |
 | `mthap`      | module     | The final shared object (`libmthap.so` / `version.dll`) — the composition root (`mth::App`) that wires `core` to `pal`.                                                                                                        |
 
@@ -57,8 +57,8 @@ flowchart TB
         coord[ApCoordinator]
         state[ApState]
         inbound[InboundGranter]
-        granter["GameItemGranter<br/>replays grants in a<br/>spawn-safe update window"]
-        hooks["pickup hooks<br/>Pickup::Init / Pickup::OnPickup"]
+        granter["ItemGranter<br/>replays grants in a<br/>spawn-safe update window"]
+        hooks["location/boss hooks<br/>pickups, shop buys, boss defeats"]
         bridge["RandoBridge<br/>dedup + persist via ApSaveState"]
     end
 
@@ -107,6 +107,7 @@ symbols that would otherwise raise it.
 
 ```
 src/mth/core/     pure logic (test-linked)
+src/mth/hooks/    per-feature game hooks (pickups/shop, bosses, locks, player tracking, item grants)
 src/mth/net/      Archipelago link implementation
 src/mth/ui/       dev console
 src/pal/linux/    Linux PAL (Frida, Vulkan/SDL overlay, entry point)
