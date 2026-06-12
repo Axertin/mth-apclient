@@ -32,11 +32,6 @@ void resolve()
         pal::logf(pal::LogLevel::Warn, "tables: s_rItemCollection not found; location-kind lookups disabled");
 }
 
-bool items_resolved()
-{
-    return g_s_r_items != 0;
-}
-
 bool collection_resolved()
 {
     return g_s_r_item_collection != 0;
@@ -63,6 +58,7 @@ bool is_durable_bit_kind(int kind)
     return kind == 8 || kind == 12 || kind == 19;
 }
 
+// Name-scan accessors bound at kCollectionScanCap (0x168), intentionally NOT kLocationCount (361): mirrors SetSaveUnlocked's scan.
 std::uint64_t collection_name_key(int idx)
 {
     if (idx < 0 || idx >= layout::kCollectionScanCap || g_s_r_item_collection == 0)

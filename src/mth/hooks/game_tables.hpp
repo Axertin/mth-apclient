@@ -10,7 +10,6 @@ namespace mth::tables
 // while unresolved (returns -1 / 0 / no-ops).
 void resolve();
 
-[[nodiscard]] bool items_resolved();
 [[nodiscard]] bool collection_resolved();
 
 // storage-kind int of an itemType row; -1 if out of range or unresolved.

@@ -31,7 +31,9 @@ class InboundGranter;
 class PlayerTracker;
 class ItemGranter;
 class RandoBridge;
-class RandoHooks;
+class LocationHooks;
+class BossHooks;
+class LockHooks;
 class DevConsole;
 
 // Composition root. Logger and hook engine are PAL globals; App owns everything else.
@@ -76,7 +78,9 @@ class App
     std::unique_ptr<PlayerTracker> tracker_;
     std::unique_ptr<ItemGranter> granter_;
     std::unique_ptr<RandoBridge> rando_;
-    std::unique_ptr<RandoHooks> rando_hooks_;
+    std::unique_ptr<LocationHooks> location_hooks_;
+    std::unique_ptr<BossHooks> boss_hooks_;
+    std::unique_ptr<LockHooks> lock_hooks_;
     std::unique_ptr<DeathHooks> death_hooks_;
     std::unique_ptr<ModifierHooks> modifier_hooks_;
     std::unique_ptr<LevelCapHooks> level_cap_hooks_;
