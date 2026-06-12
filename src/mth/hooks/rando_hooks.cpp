@@ -8,10 +8,12 @@
 #include <vector>
 
 #include "mth/core/ap_ids.hpp"
+#include "mth/core/game_layout.hpp"
 #include "mth/core/game_symbols.hpp"
 #include "mth/core/lock_registry.hpp"
 #include "mth/core/rando_bridge.hpp"
 #include "mth/hooks/game_item_granter.hpp"
+#include "mth/hooks/game_tables.hpp"
 #include "pal/pal_game.hpp"
 #include "pal/pal_hook.hpp"
 #include "pal/pal_log.hpp"
@@ -41,21 +43,11 @@ void *g_trackable = nullptr;
 YcVec3 g_last_pos{};
 bool g_have_pos = false;
 
-// s_rItems: 195 entries x 0x68 bytes; storage-kind int at +0x28. Used to log grant kind.
-std::uintptr_t g_s_r_items = 0;
-constexpr int kItemEntryStride = 0x68;
-constexpr int kStorageKindOffset = 0x28;
-constexpr int kItemTypeCount = 195;
-
 // ycWorld::QueueDestroy: tears down a pickup entity; used for already-checked locations not covered by the native gate.
 void (*g_queue_destroy)(void *, void *, bool) = nullptr;
 
 // SetItemCollected: writes a durable bitfield bit so the native Pickup::Init reload gate suppresses respawn (bitfield kinds only).
 void (*g_set_item_collected)(int, bool, void *, void *) = nullptr;
-std::uintptr_t g_s_r_item_collection = 0;
-constexpr int kCollectionEntryStride = 0x50;
-constexpr int kCollectionItemTypeOffset = 0x18;
-constexpr int kLocationCount = 361;
 
 // Pickup entity field offsets (build-specific; verified by startup self-check in repl_pickup_init).
 constexpr std::ptrdiff_t kPickupLocIdxOff = 0x380;
@@ -72,69 +64,9 @@ bool g_shop_offsets_ok = true;   // cleared on first out-of-range read in on_sho
     return *reinterpret_cast<int *>(static_cast<char *>(self) + kPickupItemTypeOff);
 }
 
-// AP dummy: itemType 1 (Shop_Exit, dead data). Patched at startup to kind 0 (no-op grant) with
-// borrowed sprite assets; AP pickups' effective itemType is redirected here.
-constexpr int kApDummyItemType = 1;              // repurposed dead row
-constexpr int kDummyAssetDonor = 40;             // kItemType_Treasure_Smallest (sprite asset donor)
-constexpr std::ptrdiff_t kItemKindOff = 0x28;    // storage-kind (int)
-constexpr std::ptrdiff_t kItemAtlasOff = 0x30;   // icon atlas (char*)
-constexpr std::ptrdiff_t kItemAnimOff = 0x38;    // anim name (char*)
-constexpr std::ptrdiff_t kItemPaletteOff = 0x58; // palette (char*)
-
 // Inbound-grant queue: grant() enqueues, drain() replays inside the engine's update window.
 std::mutex g_pending_mtx;
 std::vector<int> g_pending;
-
-[[nodiscard]] int storage_kind(int item_type)
-{
-    if (item_type < 0 || item_type >= kItemTypeCount || g_s_r_items == 0)
-        return -1; // out of range or unclassifiable
-    return *reinterpret_cast<const int *>(g_s_r_items + static_cast<std::uintptr_t>(item_type) * kItemEntryStride + kStorageKindOffset);
-}
-
-// Storage-kind of a location's vanilla contents (native gate keys on vanilla, not the dummy).
-[[nodiscard]] int native_location_kind(int loc_idx)
-{
-    if (loc_idx < 0 || loc_idx >= kLocationCount || g_s_r_item_collection == 0)
-        return -1;
-    const int item_type =
-        *reinterpret_cast<const int *>(g_s_r_item_collection + static_cast<std::uintptr_t>(loc_idx) * kCollectionEntryStride + kCollectionItemTypeOffset);
-    return storage_kind(item_type);
-}
-
-// Bitfield-only kinds: SetItemCollected is side-effect-free for these (8=key, 12=bonestone, 19=fish).
-// Kinds 1/9/11 write a global "have item" bit and are excluded; QueueDestroy handles them instead.
-[[nodiscard]] bool is_durable_bit_kind(int kind)
-{
-    return kind == 8 || kind == 12 || kind == 19;
-}
-
-// Patch s_rItems[kApDummyItemType]: kind 0 (no-op grant) + sprite assets from the donor row.
-// mprotect RW is defensive; s_rItems is plain .data. Best-effort: skipped if s_rItems unresolved.
-void repurpose_dummy_item()
-{
-    if (g_s_r_items == 0)
-    {
-        pal::logf(pal::LogLevel::Warn, "dummy: s_rItems unresolved, AP pickups keep vanilla visual");
-        return;
-    }
-    const std::uintptr_t dst = g_s_r_items + static_cast<std::uintptr_t>(kApDummyItemType) * kItemEntryStride;
-    const std::uintptr_t src = g_s_r_items + static_cast<std::uintptr_t>(kDummyAssetDonor) * kItemEntryStride;
-
-    if (!pal::make_writable(reinterpret_cast<void *>(dst), static_cast<std::size_t>(kItemEntryStride)))
-    {
-        pal::logf(pal::LogLevel::Error, "dummy: make_writable failed; s_rItems[%d] NOT patched", kApDummyItemType);
-        return;
-    }
-
-    *reinterpret_cast<int *>(dst + kItemKindOff) = 0; // storage-kind None -> no grant
-    *reinterpret_cast<const char **>(dst + kItemAtlasOff) = *reinterpret_cast<const char **>(src + kItemAtlasOff);
-    *reinterpret_cast<const char **>(dst + kItemAnimOff) = *reinterpret_cast<const char **>(src + kItemAnimOff);
-    *reinterpret_cast<const char **>(dst + kItemPaletteOff) = *reinterpret_cast<const char **>(src + kItemPaletteOff);
-
-    pal::logf(pal::LogLevel::Info, "dummy: s_rItems[%d] -> kind 0, assets from [%d] (atlas=%s anim=%s)", kApDummyItemType, kDummyAssetDonor,
-              *reinterpret_cast<const char **>(dst + kItemAtlasOff), *reinterpret_cast<const char **>(dst + kItemAnimOff));
-}
 
 pal::HookId g_id_player_ctor = pal::kInvalidHookId;
 pal::HookId g_id_trackable_update = pal::kInvalidHookId;
@@ -205,7 +137,7 @@ void repl_pickup_init(void *self, int item_type, int loc_idx)
 
     if (g_bridge->is_ap_location(loc_idx))
     {
-        pickup_item_type(self) = kApDummyItemType; // AP dummy: no-op grant + AP visual
+        pickup_item_type(self) = mth::layout::kApDummyItemType; // AP dummy: no-op grant + AP visual
         pal::logf(pal::LogLevel::Debug, "Pickup::Init locIdx=%d itemType=%d -> redirected to AP dummy", loc_idx, item_type);
     }
     else
@@ -233,8 +165,8 @@ void repl_pickup_on_pickup(void *self, void *listener)
             g_bridge->on_location_collected(loc_idx); // mark_checked, persist, send if connected
 
             // Bitfield kinds: write durable native collected-bit for native reload suppression.
-            const int kind = native_location_kind(loc_idx);
-            if (g_set_item_collected != nullptr && is_durable_bit_kind(kind))
+            const int kind = mth::tables::native_location_kind(loc_idx);
+            if (g_set_item_collected != nullptr && mth::tables::is_durable_bit_kind(kind))
             {
                 g_set_item_collected(loc_idx, true, nullptr, nullptr);
                 pal::logf(pal::LogLevel::Info, "outbound: SetItemCollected(locIdx=%d kind=%d) -> native reload suppression", loc_idx, kind);
@@ -253,7 +185,7 @@ int on_shop_buy(int loc_idx, int item_type)
         return item_type;
 
     // Offset self-check: garbage reads mean the ShopMenu layout shifted; disable the check.
-    if (loc_idx < -1 || loc_idx >= kLocationCount || item_type < 0 || item_type >= kItemTypeCount)
+    if (loc_idx < -1 || loc_idx >= mth::layout::kLocationCount || item_type < 0 || item_type >= mth::layout::kItemTypeCount)
     {
         g_shop_offsets_ok = false;
         pal::logf(pal::LogLevel::Error, "shop offset check FAILED (locIdx=%d itemType=%d); shop check disabled", loc_idx, item_type);
@@ -264,13 +196,13 @@ int on_shop_buy(int loc_idx, int item_type)
         pal::logf(pal::LogLevel::Info, "outbound: bought AP shop item locIdx=%d", loc_idx);
         g_bridge->on_location_collected(loc_idx);
 
-        const int kind = native_location_kind(loc_idx);
-        if (g_set_item_collected != nullptr && is_durable_bit_kind(kind))
+        const int kind = mth::tables::native_location_kind(loc_idx);
+        if (g_set_item_collected != nullptr && mth::tables::is_durable_bit_kind(kind))
         {
             g_set_item_collected(loc_idx, true, nullptr, nullptr);
             pal::logf(pal::LogLevel::Info, "outbound: SetItemCollected(locIdx=%d kind=%d) -> native reload suppression", loc_idx, kind);
         }
-        return kApDummyItemType; // suppress vanilla grant; real item arrives via AP inbound granter
+        return mth::layout::kApDummyItemType; // suppress vanilla grant; real item arrives via AP inbound granter
     }
     return item_type;
 }
@@ -321,7 +253,6 @@ void repl_boss_on_defeated(void *self, void *reward_info)
 // exact bit math so the game's own ctor gate opens the lock (no fragile open-state writes).
 constexpr std::ptrdiff_t kKeyBlockSlotOff = 0x2d0;    // int: s_rItemCollection slot, -1 = cosmetic (PairLock only)
 constexpr std::ptrdiff_t kSaveBlockUnlockOff = 0x200; // u64 lock-unlocked bitfield in the SaveSlot
-constexpr std::ptrdiff_t kCollectionBitIdxOff = 0x1c; // uint8 bit index within that u64, per slot
 
 mth::LockRegistry *g_locks = nullptr;
 std::uintptr_t g_save_manager = 0;
@@ -336,9 +267,8 @@ bool g_seed_logged = false;
 {
     if (out_key != nullptr)
         *out_key = 0;
-    if (g_s_r_item_collection == 0 || self == nullptr)
+    if (!mth::tables::collection_resolved() || self == nullptr)
         return -1;
-    const auto *ic = reinterpret_cast<const unsigned char *>(g_s_r_item_collection);
 
     // Fast path: PairLock locks have the ctor-cached, already-warp-resolved slot.
     const int cached = *reinterpret_cast<int *>(static_cast<char *>(self) + kKeyBlockSlotOff);
@@ -359,9 +289,9 @@ bool g_seed_logged = false;
 
     // Linear scan s_rItemCollection (compare +0x00, stride 0x50, cap 0x168) for the match.
     int matched = -1;
-    for (int i = 0; i < 0x168; ++i)
+    for (int i = 0; i < mth::layout::kCollectionScanCap; ++i)
     {
-        if (*reinterpret_cast<const std::uint64_t *>(ic + static_cast<std::size_t>(i) * kCollectionEntryStride) == key)
+        if (mth::tables::collection_name_key(i) == key)
         {
             matched = i;
             break;
@@ -371,7 +301,7 @@ bool g_seed_logged = false;
         return -1;
 
     // Apply the +0x4c warp remap; if no remap (<0), the matched index itself is the slot.
-    const int warp = *reinterpret_cast<const int *>(ic + static_cast<std::size_t>(matched) * kCollectionEntryStride + 0x4c);
+    const int warp = mth::tables::collection_warp_remap(matched);
     return warp < 0 ? matched : warp;
 }
 
@@ -448,18 +378,15 @@ RandoHooks::RandoHooks(RandoBridge &bridge)
     g_id_trackable_update = hook_by_symbol(sym::player_trackable_update, reinterpret_cast<void *>(&repl_trackable_update),
                                            reinterpret_cast<void **>(&g_orig_trackable_update), "PlayerTrackable::Update");
 
-    g_s_r_items = pal::resolve_game_symbol(sym::s_r_items);
-    if (g_s_r_items == 0)
-        pal::logf(pal::LogLevel::Warn, "RandoHooks: s_rItems not found; item kind will log as -1 (grants still work)");
-    repurpose_dummy_item();
+    tables::resolve();
+    tables::repurpose_dummy_item();
 
     g_queue_destroy = reinterpret_cast<void (*)(void *, void *, bool)>(pal::resolve_game_symbol(sym::queue_destroy));
     if (g_queue_destroy == nullptr)
         pal::logf(pal::LogLevel::Warn, "RandoHooks: ycWorld::QueueDestroy not resolved; checked AP pickups will respawn");
 
     g_set_item_collected = reinterpret_cast<void (*)(int, bool, void *, void *)>(pal::resolve_game_symbol(sym::set_item_collected));
-    g_s_r_item_collection = pal::resolve_game_symbol(sym::s_r_item_collection);
-    if (g_set_item_collected == nullptr || g_s_r_item_collection == 0)
+    if (g_set_item_collected == nullptr || !tables::collection_resolved())
         pal::logf(pal::LogLevel::Warn, "RandoHooks: SetItemCollected/s_rItemCollection not resolved; bitfield-kind reload suppression disabled");
 
     g_id_pickup_init =
@@ -519,7 +446,7 @@ void *RandoHooks::current_player() const
 
 void RandoHooks::seed_removed_locks()
 {
-    if (g_save_manager == 0 || g_s_r_item_collection == 0)
+    if (g_save_manager == 0 || !tables::collection_resolved())
         return;
     void *saveslot = pal::active_save_slot(g_save_manager);
     if (saveslot == nullptr)
@@ -532,10 +459,9 @@ void RandoHooks::seed_removed_locks()
     auto &field = *reinterpret_cast<std::uint64_t *>(static_cast<char *>(saveslot) + kSaveBlockUnlockOff);
     for (int slot : slots)
     {
-        if (slot < 0 || slot >= kLocationCount)
+        if (slot < 0 || slot >= layout::kLocationCount)
             continue;
-        const std::uint8_t bit =
-            *reinterpret_cast<std::uint8_t *>(g_s_r_item_collection + static_cast<std::uintptr_t>(slot) * kCollectionEntryStride + kCollectionBitIdxOff);
+        const std::uint8_t bit = tables::collection_bit_index(slot);
         field |= (std::uint64_t{1} << bit);
     }
 
@@ -588,7 +514,7 @@ void GameItemGranter::drain()
     {
         YcVec3 grant_pos = pos; // fresh copy per item (ycVec3 const&)
         g_orig_on_pickup_done(-1, item_type, g_player, &grant_pos, 0, 0, 0, false);
-        pal::logf(pal::LogLevel::Info, "inbound: granted item_type=%d (kind=%d)", item_type, storage_kind(item_type));
+        pal::logf(pal::LogLevel::Info, "inbound: granted item_type=%d (kind=%d)", item_type, tables::storage_kind(item_type));
     }
 }
 
