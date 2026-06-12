@@ -8,6 +8,7 @@
 
 #include "mth/core/ap_save_state.hpp"
 #include "mth/core/ap_state.hpp"
+#include "mth/core/session_policy.hpp"
 #include "mth/hooks/death_hooks.hpp"
 #include "mth/hooks/levelcap_hooks.hpp"
 #include "mth/hooks/modifier_hooks.hpp"
@@ -88,9 +89,7 @@ class App
     std::unique_ptr<InboundGranter> inbound_;
     std::atomic<bool> pending_inbound_death_{false};
     bool first_tick_logged_{false};
-    bool modifiers_from_env_{false};       // MTHAP_MODIFIERS set: enforce modifiers without an AP connection (test)
-    bool modifiers_console_active_{false}; // dev console used to drive modifiers: enforcement live this session
-    bool caps_forced_{false};              // MTHAP_STAT_CAPS set: enforce fixed caps without AP (offline test)
+    SessionPolicy policy_;
 #ifdef MTHAP_HAS_OVERLAY
     std::unique_ptr<pal::IOverlay> overlay_;
     std::unique_ptr<DevConsole> console_;

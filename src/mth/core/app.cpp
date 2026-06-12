@@ -98,7 +98,7 @@ App::App()
 
     if (cfg.modifiers_from_env)
     {
-        modifiers_from_env_ = true; // offline test mode: enforce without an AP connection
+        policy_.arm_env_modifiers();
         pal::logf(pal::LogLevel::Info, "modifiers: %zu index(es) from MTHAP_MODIFIERS (offline test mode)", cfg.modifiers.indices.size());
     }
     modifier_hooks_ = std::make_unique<ModifierHooks>(cfg.modifiers);
@@ -107,7 +107,7 @@ App::App()
     if (cfg.stat_caps)
     {
         level_cap_hooks_->set_counts((*cfg.stat_caps)[0], (*cfg.stat_caps)[1], (*cfg.stat_caps)[2]);
-        caps_forced_ = true;
+        policy_.arm_forced_caps();
         pal::logf(pal::LogLevel::Info, "levelcap: forced caps attack=%d defense=%d sidearm=%d (offline test)", (*cfg.stat_caps)[0], (*cfg.stat_caps)[1],
                   (*cfg.stat_caps)[2]);
     }
@@ -186,19 +186,19 @@ void App::drive_tick()
         pal::logf(pal::LogLevel::Info, "tick: Game::FixedUpdate live; AP coordinator pumping");
     }
     coordinator_->tick();
+    const bool authed = state_.authenticated();
     if (modifier_hooks_)
     {
         // Enforce (seed + lockdown) only in an AP session, offline test mode, or once the console
         // drove modifiers; ap_scoped (authed only) restricts the seed to the captured AP-game slot.
-        const bool authed = state_.authenticated();
-        modifier_hooks_->set_enforce_live(authed || modifiers_from_env_ || modifiers_console_active_);
+        modifier_hooks_->set_enforce_live(policy_.enforce_modifiers(authed));
         modifier_hooks_->set_ap_scoped(authed);
         modifier_hooks_->drain_live();
     }
     if (level_cap_hooks_)
     {
-        level_cap_hooks_->set_enforce_live(state_.authenticated() || caps_forced_);
-        if (!caps_forced_)
+        level_cap_hooks_->set_enforce_live(policy_.enforce_caps(authed));
+        if (!policy_.caps_fixed())
             level_cap_hooks_->recompute(state_);
     }
     if (pending_inbound_death_.exchange(false) && death_hooks_)
@@ -297,7 +297,7 @@ void App::remove_lock(int slot)
 
 void App::set_modifier(int idx, bool on)
 {
-    modifiers_console_active_ = true; // dev is driving modifiers -> enforcement (incl. lockdown) is live
+    policy_.arm_console_modifiers();
     if (modifier_hooks_)
         modifier_hooks_->set_live(idx, on);
     pal::logf(pal::LogLevel::Info, "console: modifier %d %s", idx, on ? "on" : "off");
@@ -305,7 +305,7 @@ void App::set_modifier(int idx, bool on)
 
 void App::lock_modifiers(bool armed)
 {
-    modifiers_console_active_ = true; // explicit console lock/unlock -> enforcement is live this session
+    policy_.arm_console_modifiers();
     if (modifier_hooks_)
         modifier_hooks_->set_armed(armed);
     pal::logf(pal::LogLevel::Info, "console: modifiers %s", armed ? "locked" : "unlocked");
@@ -313,7 +313,7 @@ void App::lock_modifiers(bool armed)
 
 void App::set_stat_caps(int attack, int defense, int sidearm)
 {
-    caps_forced_ = true; // console drove caps -> enforce this session (like MTHAP_STAT_CAPS); skips AP recompute
+    policy_.arm_forced_caps();
     if (level_cap_hooks_)
         level_cap_hooks_->set_counts(attack, defense, sidearm);
     pal::logf(pal::LogLevel::Info, "console: stat caps attack=%d defense=%d sidearm=%d", attack, defense, sidearm);
