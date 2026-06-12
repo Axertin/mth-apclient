@@ -4,6 +4,7 @@
 #include <cstdlib>
 
 #include "mth/core/ap_coordinator.hpp"
+#include "mth/core/ap_ids.hpp"
 #include "mth/core/ap_link.hpp"
 #include "mth/core/game_events.hpp"
 #include "mth/core/inbound_granter.hpp"
