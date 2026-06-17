@@ -49,6 +49,10 @@ inline constexpr const char *boss_on_defeated_no_skeleton =
 
 // KeyBlock: the kear-lock entity. Slot resolved at Update time via name-scan (KeyBlock+0x2d0 is -1 for non-PairLock).
 inline constexpr const char *key_block_update = "_ZN8KeyBlock6UpdateEP20ycUpdateQueueContext"; // KeyBlock::Update(ycUpdateQueueContext*)
+// KeyBlockChain: a multi-block lock (own physics wall + N extension blocks), distinct from KeyBlock.
+// A single KeyBlock::Update hook never touches it, so its blocks stay solid. Opened by driving its
+// state machine to 2 (native poof + GameComponent::Kill tears down the wall and every block).
+inline constexpr const char *key_block_chain_update = "_ZN13KeyBlockChain6UpdateEP20ycUpdateQueueContext"; // KeyBlockChain::Update(ycUpdateQueueContext*)
 // Active SaveSlot* = *(g_saveManager+0x18); lock-unlocked bits live in a u64 at SaveSlot+0x200.
 inline constexpr const char *save_manager = "g_saveManager";
 

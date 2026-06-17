@@ -19,7 +19,8 @@ std::uintptr_t g_save_manager = 0;
 void (*g_queue_destroy)(void *, void *, bool) = nullptr;
 bool g_seed_logged = false;
 
-std::set<int> g_logged_lock_slots; // identity log dedup (game-thread only)
+std::set<int> g_logged_lock_slots;  // identity log dedup (game-thread only)
+std::set<int> g_logged_chain_slots; // identity log dedup for KeyBlockChain (game-thread only)
 
 // Resolve a live KeyBlock's effective s_rItemCollection slot (the warp-resolved id the unlock bit
 // uses). KeyBlock+0x2d0 is only cached for "PairLock" locks; otherwise it is -1 and the game
@@ -96,6 +97,73 @@ void repl_key_block_update(void *self, void *ctx)
         g_queue_destroy(world, ent, false);
 }
 
+// Resolve a live KeyBlockChain's effective slot. A chain has no cached +0x2d0; its identity is the
+// SpawnPoint it gates (KeyBlockChain+0x1c0), whose name-key drives the same s_rItemCollection scan +
+// warp remap the chain ctor uses to self-gate. Returns -1 if no SpawnPoint / unmatched.
+[[nodiscard]] int resolve_chain_slot(void *self)
+{
+    if (!mth::tables::collection_resolved() || self == nullptr)
+        return -1;
+
+    void *sp = *reinterpret_cast<void **>(static_cast<char *>(self) + mth::layout::kChainSpawnPointOff);
+    if (sp == nullptr)
+        return -1;
+
+    std::uint64_t key = *reinterpret_cast<std::uint64_t *>(static_cast<char *>(sp) + mth::layout::kSpawnPointNameKeyOff);
+    if (key == 0)
+    {
+        void *r = *reinterpret_cast<void **>(sp);
+        key = r != nullptr ? *reinterpret_cast<std::uint64_t *>(static_cast<char *>(r) + 0x28) : 0;
+    }
+    if (key == 0)
+        return -1;
+
+    int matched = -1;
+    for (int i = 0; i < mth::layout::kCollectionScanCap; ++i)
+    {
+        if (mth::tables::collection_name_key(i) == key)
+        {
+            matched = i;
+            break;
+        }
+    }
+    if (matched < 0)
+        return -1;
+
+    const int warp = mth::tables::collection_warp_remap(matched);
+    return warp < 0 ? matched : warp;
+}
+
+void (*g_orig_key_block_chain_update)(void *, void *) = nullptr;
+
+// A multi-block lock already spawned solid won't self-open (the chain reads its unlock bit only in
+// the ctor, same as KeyBlock). Drive the state machine to the open/kill state, exactly as
+// Chest::Unlock does for an in-area chain; UpdateState state 2 poofs + GameComponent::Kill, tearing
+// down the physics wall and every extension block. seed_removed_locks persists it for re-entry.
+void repl_key_block_chain_update(void *self, void *ctx)
+{
+    if (g_orig_key_block_chain_update)
+        g_orig_key_block_chain_update(self, ctx);
+
+    if (g_locks == nullptr)
+        return;
+
+    const int slot = resolve_chain_slot(self);
+    if (g_logged_chain_slots.insert(slot).second)
+        pal::logf(pal::LogLevel::Debug, "KeyBlockChain slot=%d (cur state=%d)", slot,
+                  *reinterpret_cast<int *>(static_cast<char *>(self) + mth::layout::kChainStateCurOff));
+
+    if (slot < 0 || !g_locks->is_removed(slot))
+        return;
+
+    // Already opening/killed? leave the native transition alone (idempotent).
+    if (*reinterpret_cast<int *>(static_cast<char *>(self) + mth::layout::kChainStateCurOff) == mth::layout::kChainOpenState)
+        return;
+
+    *reinterpret_cast<int *>(static_cast<char *>(self) + mth::layout::kChainStateReqOff) = mth::layout::kChainOpenState;
+    *reinterpret_cast<unsigned char *>(static_cast<char *>(self) + mth::layout::kChainStatePendingOff) = 1;
+}
+
 } // namespace
 
 namespace mth
@@ -115,12 +183,15 @@ LockHooks::LockHooks()
 
     key_block_update_ = ScopedHook(sym::key_block_update, reinterpret_cast<void *>(&repl_key_block_update), reinterpret_cast<void **>(&g_orig_key_block_update),
                                    "KeyBlock::Update");
+    key_block_chain_update_ = ScopedHook(sym::key_block_chain_update, reinterpret_cast<void *>(&repl_key_block_chain_update),
+                                         reinterpret_cast<void **>(&g_orig_key_block_chain_update), "KeyBlockChain::Update");
 }
 
 LockHooks::~LockHooks()
 {
     g_logged_lock_slots.clear();
-    // g_locks nulled before the ScopedHook member removes the detour; the repl null-checks it.
+    g_logged_chain_slots.clear();
+    // g_locks nulled before the ScopedHook members remove the detours; the repls null-check it.
     g_locks = nullptr;
     g_seed_logged = false;
 }

@@ -47,6 +47,16 @@ inline constexpr std::ptrdiff_t kKeyBlockSlotOff = 0x2d0;     // int: cached slo
 inline constexpr std::ptrdiff_t kKeyBlockEntityRefOff = 0xa8; // start of the +0xa8 -> +0x40 -> +0xd0 name-key chain
 inline constexpr std::ptrdiff_t kSaveBlockUnlockOff = 0x200;  // u64 lock-unlocked bitfield in SaveSlot
 
+// KeyBlockChain (the multi-block lock). All build-drift; guarded by a runtime slot-resolution
+// self-check + per-spawn logging in the KeyBlockChain::Update hook. Open = req-state 2 + commit,
+// mirroring Chest::Unlock's chain-open. Slot resolves from the chain's associated SpawnPoint.
+inline constexpr std::ptrdiff_t kChainSpawnPointOff = 0x1c0;   // SpawnPoint* the chain gates (0 if none found)
+inline constexpr std::ptrdiff_t kSpawnPointNameKeyOff = 0xd0;  // u64 name-hash on the SpawnPoint (fallback: *(sp)+0x28)
+inline constexpr std::ptrdiff_t kChainStateCurOff = 0x18c;     // int current state (2 = opening/kill)
+inline constexpr std::ptrdiff_t kChainStateReqOff = 0x194;     // int requested next state
+inline constexpr std::ptrdiff_t kChainStatePendingOff = 0x198; // u8 transition-pending flag (set 1 to commit)
+inline constexpr int kChainOpenState = 2;                      // state whose UpdateState Kills the chain
+
 // Player (deathlink).
 inline constexpr std::ptrdiff_t kPlayerDeathGuardOff = 0x1380; // once-per-death guard byte (0 = fresh)
 
