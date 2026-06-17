@@ -57,6 +57,11 @@ inline constexpr std::ptrdiff_t kChainStateReqOff = 0x194;     // int requested 
 inline constexpr std::ptrdiff_t kChainStatePendingOff = 0x198; // u8 transition-pending flag (set 1 to commit)
 inline constexpr int kChainOpenState = 2;                      // state whose UpdateState Kills the chain
 
+// Kear-locked Chest. Slot resolves through the same +0xa8 -> +0x40 -> +0xd0 SpawnPoint name-key chain
+// (kKeyBlockEntityRefOff) the chest ctor uses; no cached slot. The locked flag is build-drift,
+// guarded by a slot-resolution self-check + per-spawn logging in the Chest::Update hook.
+inline constexpr std::ptrdiff_t kChestLockedFlagOff = 0x265; // u8 (0x101 word): nonzero = needs a kear to open
+
 // Player (deathlink).
 inline constexpr std::ptrdiff_t kPlayerDeathGuardOff = 0x1380; // once-per-death guard byte (0 = fresh)
 

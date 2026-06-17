@@ -35,6 +35,7 @@ class RandoBridge;
 class LocationHooks;
 class BossHooks;
 class LockHooks;
+class ChestHooks;
 class DevConsole;
 
 // Composition root. Logger and hook engine are PAL globals; App owns everything else.
@@ -79,6 +80,7 @@ class App : public ICommandSink
     std::unique_ptr<LocationHooks> location_hooks_;
     std::unique_ptr<BossHooks> boss_hooks_;
     std::unique_ptr<LockHooks> lock_hooks_;
+    std::unique_ptr<ChestHooks> chest_hooks_;
     std::unique_ptr<DeathHooks> death_hooks_;
     std::unique_ptr<ModifierHooks> modifier_hooks_;
     std::unique_ptr<LevelCapHooks> level_cap_hooks_;

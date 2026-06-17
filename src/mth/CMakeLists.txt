@@ -77,6 +77,7 @@ if(NOT MTHAP_BUILD_TESTS_ONLY)
         hooks/location_hooks.cpp
         hooks/boss_hooks.cpp
         hooks/lock_hooks.cpp
+        hooks/chest_hooks.cpp
         hooks/death_hooks.cpp
         hooks/modifier_hooks.cpp
         hooks/levelcap_hooks.cpp

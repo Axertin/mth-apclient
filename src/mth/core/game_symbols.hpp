@@ -53,6 +53,10 @@ inline constexpr const char *key_block_update = "_ZN8KeyBlock6UpdateEP20ycUpdate
 // A single KeyBlock::Update hook never touches it, so its blocks stay solid. Opened by driving its
 // state machine to 2 (native poof + GameComponent::Kill tears down the wall and every block).
 inline constexpr const char *key_block_chain_update = "_ZN13KeyBlockChain6UpdateEP20ycUpdateQueueContext"; // KeyBlockChain::Update(ycUpdateQueueContext*)
+// Chest: a kear-LOCKED chest carries a "Locked" property (flag at Chest+0x265) and demands a kear to
+// open. Its ctor clears that flag when the same SaveSlot+0x200 bit a removed lock sets is present, so
+// the per-frame Update hook clears it live for a registered slot (reload rides the existing lock seed).
+inline constexpr const char *chest_update = "_ZN5Chest6UpdateEP20ycUpdateQueueContext"; // Chest::Update(ycUpdateQueueContext*)
 // Active SaveSlot* = *(g_saveManager+0x18); lock-unlocked bits live in a u64 at SaveSlot+0x200.
 inline constexpr const char *save_manager = "g_saveManager";
 
