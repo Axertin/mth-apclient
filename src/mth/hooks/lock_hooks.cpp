@@ -134,34 +134,30 @@ void repl_key_block_update(void *self, void *ctx)
     return warp < 0 ? matched : warp;
 }
 
-void (*g_orig_key_block_chain_update)(void *, void *) = nullptr;
-
-// A multi-block lock already spawned solid won't self-open (the chain reads its unlock bit only in
-// the ctor, same as KeyBlock). Drive the state machine to the open/kill state, exactly as
-// Chest::Unlock does for an in-area chain; UpdateState state 2 poofs + GameComponent::Kill, tearing
-// down the physics wall and every extension block. seed_removed_locks persists it for re-entry.
-void repl_key_block_chain_update(void *self, void *ctx)
+// Per-frame callback (the PAL ran the original ::Update/::UpdateState and normalized `base` to the
+// KeyBlockChain entity base). A multi-block lock already spawned solid won't self-open (the chain
+// reads its unlock bit only in the ctor, same as KeyBlock). Drive the state machine to the open/kill
+// state, exactly as Chest::Unlock does for an in-area chain; UpdateState state 2 poofs +
+// GameComponent::Kill, tearing down the physics wall and every block. seed_removed_locks persists it.
+void chain_open_cb(void *base)
 {
-    if (g_orig_key_block_chain_update)
-        g_orig_key_block_chain_update(self, ctx);
-
     if (g_locks == nullptr)
         return;
 
-    const int slot = resolve_chain_slot(self);
+    const int slot = resolve_chain_slot(base);
     if (g_logged_chain_slots.insert(slot).second)
         pal::logf(pal::LogLevel::Debug, "KeyBlockChain slot=%d (cur state=%d)", slot,
-                  *reinterpret_cast<int *>(static_cast<char *>(self) + mth::layout::kChainStateCurOff));
+                  *reinterpret_cast<int *>(static_cast<char *>(base) + mth::layout::kChainStateCurOff));
 
     if (slot < 0 || !g_locks->is_removed(slot))
         return;
 
     // Already opening/killed? leave the native transition alone (idempotent).
-    if (*reinterpret_cast<int *>(static_cast<char *>(self) + mth::layout::kChainStateCurOff) == mth::layout::kChainOpenState)
+    if (*reinterpret_cast<int *>(static_cast<char *>(base) + mth::layout::kChainStateCurOff) == mth::layout::kChainOpenState)
         return;
 
-    *reinterpret_cast<int *>(static_cast<char *>(self) + mth::layout::kChainStateReqOff) = mth::layout::kChainOpenState;
-    *reinterpret_cast<unsigned char *>(static_cast<char *>(self) + mth::layout::kChainStatePendingOff) = 1;
+    *reinterpret_cast<int *>(static_cast<char *>(base) + mth::layout::kChainStateReqOff) = mth::layout::kChainOpenState;
+    *reinterpret_cast<unsigned char *>(static_cast<char *>(base) + mth::layout::kChainStatePendingOff) = 1;
 }
 
 } // namespace
@@ -183,15 +179,15 @@ LockHooks::LockHooks()
 
     key_block_update_ = ScopedHook(sym::key_block_update, reinterpret_cast<void *>(&repl_key_block_update), reinterpret_cast<void **>(&g_orig_key_block_update),
                                    "KeyBlock::Update");
-    key_block_chain_update_ = ScopedHook(sym::key_block_chain_update, reinterpret_cast<void *>(&repl_key_block_chain_update),
-                                         reinterpret_cast<void **>(&g_orig_key_block_chain_update), "KeyBlockChain::Update");
+    pal::install_chain_open_hook(&chain_open_cb); // PAL owns the per-platform hook (::Update / ::UpdateState + base fixup)
 }
 
 LockHooks::~LockHooks()
 {
+    pal::remove_chain_open_hook(); // stop the PAL-owned chain hook before the registry goes away
     g_logged_lock_slots.clear();
     g_logged_chain_slots.clear();
-    // g_locks nulled before the ScopedHook members remove the detours; the repls null-check it.
+    // g_locks nulled before the key_block_update_ ScopedHook removes its detour; the repl null-checks it.
     g_locks = nullptr;
     g_seed_logged = false;
 }

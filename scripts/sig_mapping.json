@@ -104,87 +104,92 @@
     {
       "name": "_ZN11LevelUpMenu6UpdateEP20ycUpdateQueueContext",
       "kind": "Code"
+    },
+    {
+      "name": "_ZN13KeyBlockChain11UpdateStateEv",
+      "kind": "Code"
+    },
+    {
+      "name": "_ZN5Chest11UpdateStateEv",
+      "kind": "Code"
     }
   ],
   "windows": {
     "_ZN4Game11FixedUpdateEv": {
-      "rva": 9813184
+      "rva": 9832736
     },
     "_ZN4Game6UpdateEf": {
-      "rva": 9815952
+      "rva": 9835504
     },
     "_ZN5World6UpdateEP20ycUpdateQueueContext": {
-      "rva": 11711872
+      "rva": 11740176
     },
     "_ZN5Items12OnPickupDoneEiiP6PlayerRK6ycVec3iijb": {
-      "rva": 8527360
+      "rva": 8542656
     },
     "_Z15ProcessSDLEventR9SDL_Event": {
-      "rva": 722912
+      "rva": 723344
     },
     "_ZN6PlayerC2EP8ycEntityP17GameComponentDescP11PlayerSetup": {
-      "rva": 9954816
+      "rva": 9974368
     },
     "_ZN15PlayerTrackable6UpdateEP20ycUpdateQueueContext": {
-      "rva": 10513472
+      "rva": 10535344
     },
     "_ZNK15PlayerTrackable6GetPosEv": {
-      "rva": 10512960
-    },
-    "_ZN6Pickup4InitEii": {
-      "rva": 9878096
+      "rva": 10534832
     },
     "_ZN6Pickup8OnPickupEP14PickupListener": {
-      "rva": 9887200
+      "rva": 9906720
     },
     "_ZN7ycWorld12QueueDestroyEP8ycEntityb": {
-      "rva": 1386048
-    },
-    "_ZN5Items16SetItemCollectedEibP14ItemCollectionP8SaveSlot": {
-      "rva": 8532848
+      "rva": 1387760
     },
     "_ZN12_GLOBAL__N_18s_rItemsE": {
-      "ref_site_rva": 9888068,
+      "ref_site_rva": 9907588,
       "disp_off": 3,
       "next_insn": 7
     },
     "_ZN12_GLOBAL__N_117s_rItemCollectionE": {
-      "ref_site_rva": 8534102,
+      "ref_site_rva": 8549462,
       "disp_off": 3,
       "next_insn": 7
     },
     "_ZN13BossComponent20TriggerDeathSequenceEP15BossDeathParamsj": {
-      "rva": 5324688
+      "rva": 5332640
     },
     "_ZN13BossComponent20OnDefeatedNoSkeletonER19BossDeathRewardInfo": {
-      "rva": 5330880
+      "rva": 5338864
     },
     "_ZN8KeyBlock6UpdateEP20ycUpdateQueueContext": {
-      "rva": 8565152
-    },
-    "_ZN6Player9InitDeathEb": {
-      "rva": 10226880
+      "rva": 8579632
     },
     "_ZN6Player12TriggerDeathEv": {
-      "rva": 10359136
+      "rva": 10379008
     },
     "_ZN8ShopMenu9InitStateEv": {
-      "rva": 10916368
+      "rva": 10939904
     },
     "_ZN14SessionManager16ActivateSaveSlotEb": {
-      "rva": 10746240
+      "rva": 10769568
     },
     "_ZN12CheatManager18ActivateSaveCheatsEv": {
-      "rva": 1524736
+      "rva": 1526256
     },
     "_ZN12CheatManager15SetCheatAppliedEibP8SaveSlot": {
-      "rva": 1530160
+      "rva": 1531680
     },
     "_ZN12CheatManager11ToggleCheatEibP8SaveSlotbi": {
-      "rva": 1511296
+      "rva": 1512336
     },
     "_ZN11LevelUpMenu6UpdateEP20ycUpdateQueueContext": {
-      "rva": 8593024
+      "rva": 8605664
+    },
+    "_ZN13KeyBlockChain11UpdateStateEv": {
+      "rva": 8014000
+    },
+    "_ZN5Chest11UpdateStateEv": {
+      "rva": 7750096
     }
   },
   "linux": {
@@ -226,6 +231,12 @@
     },
     "_ZN5Items16SetItemCollectedEibP14ItemCollectionP8SaveSlot": {
       "rva": 11775264
+    },
+    "_ZN13KeyBlockChain11UpdateStateEv": {
+      "rva": 12245872
+    },
+    "_ZN5Chest11UpdateStateEv": {
+      "rva": 11926128
     }
   }
 }

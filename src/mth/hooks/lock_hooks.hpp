@@ -24,8 +24,7 @@ class LockHooks
 
   private:
     LockRegistry locks_;
-    ScopedHook key_block_update_;
-    ScopedHook key_block_chain_update_;
+    ScopedHook key_block_update_; // KeyBlock::Update is unique on both platforms; the chain hook is PAL-owned
 };
 
 } // namespace mth

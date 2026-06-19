@@ -52,11 +52,16 @@ inline constexpr const char *key_block_update = "_ZN8KeyBlock6UpdateEP20ycUpdate
 // KeyBlockChain: a multi-block lock (own physics wall + N extension blocks), distinct from KeyBlock.
 // A single KeyBlock::Update hook never touches it, so its blocks stay solid. Opened by driving its
 // state machine to 2 (native poof + GameComponent::Kill tears down the wall and every block).
-inline constexpr const char *key_block_chain_update = "_ZN13KeyBlockChain6UpdateEP20ycUpdateQueueContext"; // KeyBlockChain::Update(ycUpdateQueueContext*)
+inline constexpr const char *key_block_chain_update = "_ZN13KeyBlockChain6UpdateEP20ycUpdateQueueContext"; // KeyBlockChain::Update [Linux hook target]
 // Chest: a kear-LOCKED chest carries a "Locked" property (flag at Chest+0x265) and demands a kear to
 // open. Its ctor clears that flag when the same SaveSlot+0x200 bit a removed lock sets is present, so
 // the per-frame Update hook clears it live for a registered slot (reload rides the existing lock seed).
-inline constexpr const char *chest_update = "_ZN5Chest6UpdateEP20ycUpdateQueueContext"; // Chest::Update(ycUpdateQueueContext*)
+inline constexpr const char *chest_update = "_ZN5Chest6UpdateEP20ycUpdateQueueContext"; // Chest::Update [Linux hook target]
+// Windows hook targets: clang-cl folds the thin X::Update wrappers (ICF) into one shared function, so
+// they cannot be hooked per-class on Windows. The unique per-frame UpdateState is hooked instead; it
+// runs with this == the StateMachine-implementor sub-object (base + 0x170), so the PAL fixes up base.
+inline constexpr const char *key_block_chain_update_state = "_ZN13KeyBlockChain11UpdateStateEv"; // KeyBlockChain::UpdateState [Windows]
+inline constexpr const char *chest_update_state = "_ZN5Chest11UpdateStateEv";                    // Chest::UpdateState [Windows]
 // Active SaveSlot* = *(g_saveManager+0x18); lock-unlocked bits live in a u64 at SaveSlot+0x200.
 inline constexpr const char *save_manager = "g_saveManager";
 

@@ -4,10 +4,9 @@
 #include <set>
 
 #include "mth/core/game_layout.hpp"
-#include "mth/core/game_symbols.hpp"
 #include "mth/hooks/game_tables.hpp"
+#include "pal/pal_game.hpp"
 #include "pal/pal_log.hpp"
-#include "pal/pal_module.hpp"
 
 namespace
 {
@@ -51,24 +50,20 @@ std::set<int> g_logged_chest_slots; // identity log dedup (game-thread only)
     return warp < 0 ? matched : warp;
 }
 
-void (*g_orig_chest_update)(void *, void *) = nullptr;
-
-// A registered locked chest: clear its locked flag live so it opens with no kear. The chest ctor only
-// reads the unlock bit at spawn, so an already-spawned locked chest needs this; the lock seed persists
-// it for re-entry. Clearing a u8 flag is idempotent and harmless on an already-open chest.
-void repl_chest_update(void *self, void *ctx)
+// Per-frame callback (the PAL ran the original ::Update/::UpdateState and normalized `base` to the
+// Chest entity base). A registered locked chest: clear its locked flag live so it opens with no kear.
+// The chest ctor only reads the unlock bit at spawn, so an already-spawned locked chest needs this;
+// the lock seed persists it for re-entry. Clearing a u8 flag is idempotent (harmless once open).
+void chest_unlock_cb(void *base)
 {
-    if (g_orig_chest_update)
-        g_orig_chest_update(self, ctx);
-
     if (g_locks == nullptr)
         return;
 
-    auto &locked = *reinterpret_cast<std::uint8_t *>(static_cast<char *>(self) + mth::layout::kChestLockedFlagOff);
+    auto &locked = *reinterpret_cast<std::uint8_t *>(static_cast<char *>(base) + mth::layout::kChestLockedFlagOff);
     if (locked == 0)
         return; // not a locked chest (or already cleared) -> nothing to do
 
-    const int slot = resolve_chest_slot(self);
+    const int slot = resolve_chest_slot(base);
     if (g_logged_chest_slots.insert(slot).second)
         pal::logf(pal::LogLevel::Debug, "locked Chest slot=%d", slot);
 
@@ -88,15 +83,14 @@ ChestHooks::ChestHooks(LockRegistry &registry)
 {
     g_locks = &registry;
     tables::resolve();
-    chest_update_ =
-        ScopedHook(sym::chest_update, reinterpret_cast<void *>(&repl_chest_update), reinterpret_cast<void **>(&g_orig_chest_update), "Chest::Update");
+    pal::install_chest_unlock_hook(&chest_unlock_cb); // PAL owns the per-platform hook (::Update / ::UpdateState + base fixup)
 }
 
 ChestHooks::~ChestHooks()
 {
+    pal::remove_chest_unlock_hook(); // stop the PAL-owned chest hook before the registry goes away
     g_logged_chest_slots.clear();
-    // g_locks nulled before the ScopedHook member removes the detour; the repl null-checks it.
-    g_locks = nullptr;
+    g_locks = nullptr; // the callback null-checks it
 }
 
 } // namespace mth

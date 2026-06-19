@@ -39,6 +39,29 @@ void repl_item_present(void *self)
     if (g_orig_item_present)
         g_orig_item_present(self);
 }
+
+// ---- chain-open / chest-unlock per-frame hooks (Linux: hook ::Update, self == entity base) ----
+pal::EntityFrameFn g_chain_cb = nullptr;
+pal::HookId g_chain_hook = pal::kInvalidHookId;
+void (*g_orig_chain_update)(void *, void *) = nullptr;
+void repl_chain_update(void *self, void *ctx)
+{
+    if (g_orig_chain_update)
+        g_orig_chain_update(self, ctx);
+    if (g_chain_cb != nullptr)
+        g_chain_cb(self); // KeyBlockChain::Update gets this == base; no fixup
+}
+
+pal::EntityFrameFn g_chest_cb = nullptr;
+pal::HookId g_chest_hook = pal::kInvalidHookId;
+void (*g_orig_chest_update)(void *, void *) = nullptr;
+void repl_chest_update(void *self, void *ctx)
+{
+    if (g_orig_chest_update)
+        g_orig_chest_update(self, ctx);
+    if (g_chest_cb != nullptr)
+        g_chest_cb(self); // Chest::Update gets this == base; no fixup
+}
 // ---- modifier control ----
 constexpr std::ptrdiff_t kCheatMaskOff = 0xcb0; // 8 u32 words: per-save enable bitmask
 constexpr std::ptrdiff_t kApplySlotOff = 0x08;  // g_saveManager+0x08 = apply-path slot (garbage on build 9cd1468c)
@@ -245,6 +268,62 @@ void remove_shop_purchase_hook()
         hook_engine().remove_hook(g_shop_hook);
     g_shop_hook = kInvalidHookId;
     g_on_shop_buy = nullptr;
+}
+
+bool install_chain_open_hook(EntityFrameFn on_frame)
+{
+    g_chain_cb = on_frame;
+    const std::uintptr_t addr = resolve_game_symbol(mth::sym::key_block_chain_update);
+    if (addr == 0)
+    {
+        logf(LogLevel::Warn, "locks: KeyBlockChain::Update not resolved; chain open disabled");
+        return false;
+    }
+    g_chain_hook = hook_engine().install_hook(reinterpret_cast<void *>(addr), reinterpret_cast<void *>(&repl_chain_update),
+                                              reinterpret_cast<void **>(&g_orig_chain_update));
+    if (g_chain_hook == kInvalidHookId)
+    {
+        logf(LogLevel::Error, "locks: failed to hook KeyBlockChain::Update");
+        return false;
+    }
+    logf(LogLevel::Info, "locks: hooked KeyBlockChain::Update (id=%llu)", static_cast<unsigned long long>(g_chain_hook));
+    return true;
+}
+
+void remove_chain_open_hook()
+{
+    if (g_chain_hook != kInvalidHookId)
+        hook_engine().remove_hook(g_chain_hook);
+    g_chain_hook = kInvalidHookId;
+    g_chain_cb = nullptr;
+}
+
+bool install_chest_unlock_hook(EntityFrameFn on_frame)
+{
+    g_chest_cb = on_frame;
+    const std::uintptr_t addr = resolve_game_symbol(mth::sym::chest_update);
+    if (addr == 0)
+    {
+        logf(LogLevel::Warn, "chest: Chest::Update not resolved; chest unlock disabled");
+        return false;
+    }
+    g_chest_hook = hook_engine().install_hook(reinterpret_cast<void *>(addr), reinterpret_cast<void *>(&repl_chest_update),
+                                              reinterpret_cast<void **>(&g_orig_chest_update));
+    if (g_chest_hook == kInvalidHookId)
+    {
+        logf(LogLevel::Error, "chest: failed to hook Chest::Update");
+        return false;
+    }
+    logf(LogLevel::Info, "chest: hooked Chest::Update (id=%llu)", static_cast<unsigned long long>(g_chest_hook));
+    return true;
+}
+
+void remove_chest_unlock_hook()
+{
+    if (g_chest_hook != kInvalidHookId)
+        hook_engine().remove_hook(g_chest_hook);
+    g_chest_hook = kInvalidHookId;
+    g_chest_cb = nullptr;
 }
 
 bool modifiers_available()
