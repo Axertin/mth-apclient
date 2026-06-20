@@ -50,10 +50,9 @@ std::set<int> g_logged_chest_slots; // identity log dedup (game-thread only)
     return warp < 0 ? matched : warp;
 }
 
-// Per-frame callback (the PAL ran the original ::Update/::UpdateState and normalized `base` to the
-// Chest entity base). A registered locked chest: clear its locked flag live so it opens with no kear.
-// The chest ctor only reads the unlock bit at spawn, so an already-spawned locked chest needs this;
-// the lock seed persists it for re-entry. Clearing a u8 flag is idempotent (harmless once open).
+// PAL per-frame callback (base = the Chest entity). Clear the locked flag for a registered slot so it
+// opens with no kear; the ctor only reads the unlock bit at spawn, so an already-spawned chest needs
+// this. seed_removed_locks handles re-entry; the clear is idempotent.
 void chest_unlock_cb(void *base)
 {
     if (g_locks == nullptr)

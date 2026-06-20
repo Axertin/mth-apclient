@@ -61,10 +61,10 @@ void repl_init_state(void *self)
     }
 }
 
-// ---- chain-open / chest-unlock per-frame hooks (Windows: hook ::UpdateState, self == the
-// StateMachine-implementor sub-object; recover base = self - 0x170). clang-cl folds the thin
-// ::Update wrappers (ICF) so they are unhookable; UpdateState is the unique per-class entry. ----
-constexpr std::ptrdiff_t kStateImplSubObjOff = 0x170; // implementor sub-object offset (the Thn368 thunk delta)
+// ---- chain-open / chest-unlock per-frame hooks. Hook ::UpdateState (self == the StateMachine
+// sub-object; recover base = self - 0x170): the game's MSVC linker ICF-folds the per-class ::Update
+// wrappers, leaving UpdateState as the only unique per-class entry. ----
+constexpr std::ptrdiff_t kStateImplSubObjOff = 0x170; // StateMachine sub-object offset (Linux _ZThn368_ thunk delta)
 
 pal::EntityFrameFn g_chain_cb = nullptr;
 pal::HookId g_chain_hook = pal::kInvalidHookId;

@@ -29,12 +29,10 @@ using ShopBuyFn = int (*)(int loc_idx, int item_type);
 bool install_shop_purchase_hook(ShopBuyFn on_buy);
 void remove_shop_purchase_hook();
 
-// Remote "open a removed lock" per-frame hooks for the two entity types whose thin Update wrapper
-// clang-cl folds away on Windows (ICF) so it cannot be hooked there. The platform owns which
-// per-frame function it hooks and the this->base normalization: Linux hooks KeyBlockChain/Chest
-// ::Update with self == the entity base; Windows hooks ::UpdateState with self == the
-// StateMachine-implementor sub-object, so base = self - 0x170. on_frame runs each frame with the
-// entity base pointer; the mth callback resolves the slot and drives the open. False if not installed.
+// Per-frame "open a removed lock" hooks for KeyBlockChain / locked Chest. The platform owns the hook
+// target and the this->base normalization: Linux hooks ::Update (self == entity base); Windows hooks
+// ::UpdateState (self == the StateMachine sub-object, so base = self - 0x170) because the game's MSVC
+// linker ICF-folds the per-class ::Update wrappers. on_frame runs each frame with the entity base.
 using EntityFrameFn = void (*)(void *base);
 bool install_chain_open_hook(EntityFrameFn on_frame);
 void remove_chain_open_hook();

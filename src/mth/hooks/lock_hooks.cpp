@@ -134,11 +134,9 @@ void repl_key_block_update(void *self, void *ctx)
     return warp < 0 ? matched : warp;
 }
 
-// Per-frame callback (the PAL ran the original ::Update/::UpdateState and normalized `base` to the
-// KeyBlockChain entity base). A multi-block lock already spawned solid won't self-open (the chain
-// reads its unlock bit only in the ctor, same as KeyBlock). Drive the state machine to the open/kill
-// state, exactly as Chest::Unlock does for an in-area chain; UpdateState state 2 poofs +
-// GameComponent::Kill, tearing down the physics wall and every block. seed_removed_locks persists it.
+// PAL per-frame callback (base = the KeyBlockChain entity, already normalized by the platform). An
+// already-spawned chain reads its unlock bit only at ctor time, so drive the state machine to the
+// open/kill state for a removed slot; seed_removed_locks handles re-entry.
 void chain_open_cb(void *base)
 {
     if (g_locks == nullptr)

@@ -5,11 +5,9 @@
 namespace mth
 {
 
-// Kear-locked chest unlock. A locked chest is a Chest entity (not a KeyBlock) gated on the same
-// SaveSlot+0x200 bit a removed lock sets, so it shares LockHooks' registry: a slot in the registry
-// has its locked flag cleared live by a per-frame hook (reload spawns it unlocked via the existing
-// lock seed + the chest ctor's own gate). The PAL owns the hook target (Chest::Update on Linux,
-// Chest::UpdateState on Windows, where clang-cl folds the Update wrapper). Registry owned by LockHooks.
+// Kear-locked chest unlock. A locked Chest gates on the same SaveSlot+0x200 bit a removed lock sets,
+// so it shares LockHooks' registry (owned by LockHooks): a registered slot has its locked flag cleared
+// live by the PAL-owned per-frame hook. Reload rides the lock seed + the chest ctor's own gate.
 class ChestHooks
 {
   public:
