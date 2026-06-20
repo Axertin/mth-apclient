@@ -27,8 +27,19 @@ class ILog
 void log_init(std::string_view stem = "mthap");
 void log_shutdown();
 
-// gnu_printf: accepted by gcc and clang/clang-cl; covers C99 specifiers (%zu etc.).
-void logf(LogLevel, const char *fmt, ...) __attribute__((format(gnu_printf, 2, 3)));
+// printf-style format checking. Clang only supports the printf archetype (it
+// ignores gnu_printf on every target with -Wignored-attributes); GCC needs
+// gnu_printf for C99 specifiers (%zu etc.). Clang's printf archetype already
+// accepts those, so the split is purely clang vs gcc.
+#if defined(__clang__)
+#define MTHAP_PRINTF_FORMAT(fmt, va) __attribute__((format(printf, fmt, va)))
+#elif defined(__GNUC__)
+#define MTHAP_PRINTF_FORMAT(fmt, va) __attribute__((format(gnu_printf, fmt, va)))
+#else
+#define MTHAP_PRINTF_FORMAT(fmt, va)
+#endif
+
+void logf(LogLevel, const char *fmt, ...) MTHAP_PRINTF_FORMAT(2, 3);
 void vlogf(LogLevel, const char *fmt, std::va_list ap);
 
 std::filesystem::path log_dir();
