@@ -112,6 +112,10 @@
     {
       "name": "_ZN5Chest11UpdateStateEv",
       "kind": "Code"
+    },
+    {
+      "name": "_ZN11RoomManager6UpdateEP20ycUpdateQueueContext",
+      "kind": "Code"
     }
   ],
   "windows": {
@@ -199,6 +203,9 @@
     },
     "_ZN6Pickup4InitEii": {
       "rva": 9897584
+    },
+    "_ZN11RoomManager6UpdateEP20ycUpdateQueueContext": {
+      "rva": 10699424
     }
   },
   "linux": {
@@ -246,6 +253,9 @@
     },
     "_ZN5Chest11UpdateStateEv": {
       "rva": 11926128
+    },
+    "_ZN11RoomManager6UpdateEP20ycUpdateQueueContext": {
+      "rva": 14245920
     }
   }
 }
