@@ -127,6 +127,12 @@
     "_ZN5Items12OnPickupDoneEiiP6PlayerRK6ycVec3iijb": {
       "rva": 8542656
     },
+    "_ZN5Items16SetItemCollectedEibP14ItemCollectionP8SaveSlot": {
+      "rva": 8548144
+    },
+    "_ZN6Player9InitDeathEb": {
+      "rva": 10245872
+    },
     "_Z15ProcessSDLEventR9SDL_Event": {
       "rva": 723344
     },
