@@ -90,6 +90,10 @@
       "kind": "Code"
     },
     {
+      "name": "_ZN8SaveSlot5ClearEb",
+      "kind": "Code"
+    },
+    {
       "name": "_ZN12CheatManager18ActivateSaveCheatsEv",
       "kind": "Code"
     },
@@ -183,6 +187,9 @@
     "_ZN14SessionManager16ActivateSaveSlotEb": {
       "rva": 10769568
     },
+    "_ZN8SaveSlot5ClearEb": {
+      "rva": 10737824
+    },
     "_ZN12CheatManager18ActivateSaveCheatsEv": {
       "rva": 1526256
     },
@@ -247,6 +254,9 @@
     },
     "_ZN5Items16SetItemCollectedEibP14ItemCollectionP8SaveSlot": {
       "rva": 11775264
+    },
+    "_ZN8SaveSlot5ClearEb": {
+      "rva": 14271120
     },
     "_ZN13KeyBlockChain11UpdateStateEv": {
       "rva": 12245872

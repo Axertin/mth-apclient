@@ -88,6 +88,33 @@ void repl_chest_update_state(void *self)
         g_chest_cb(static_cast<char *>(self) - kStateImplSubObjOff);
 }
 
+// ---- new-file starting-kit suppression. MSVC's SaveSlot layout matches Linux on depot_1875582, so the
+// upgrade-field offsets are identical (verified against Windows SetItemCollected's case map). ----
+constexpr std::ptrdiff_t kSparkUpgOff = 0x54;    // Spark_Upgrade   (itemType 0x46)
+constexpr std::ptrdiff_t kHealthUpgOff = 0x130;  // Health_Upgrade  (itemType 0x45) bitfield (0xff = 8)
+constexpr std::ptrdiff_t kMagicUpgOff = 0x170;   // Magic_Upgrade   (itemType 0x44)
+constexpr std::ptrdiff_t kVialUpgOff = 0x18c;    // Vial_Upgrade    (itemType 0x47)
+constexpr std::ptrdiff_t kTrinketUpgOff = 0x950; // Trinket_Upgrade (itemType 0x48)
+
+pal::NewfileKitSuppressFn g_kit_suppress = nullptr;
+pal::HookId g_kit_hook = pal::kInvalidHookId;
+void (*g_orig_save_slot_clear)(void *, bool) = nullptr;
+void repl_save_slot_clear(void *self, bool arg)
+{
+    if (g_orig_save_slot_clear)
+        g_orig_save_slot_clear(self, arg);
+    if (self == nullptr || !g_kit_suppress || !g_kit_suppress())
+        return;
+    auto field = [self](std::ptrdiff_t off) -> std::uint32_t & { return *reinterpret_cast<std::uint32_t *>(static_cast<char *>(self) + off); };
+    pal::logf(pal::LogLevel::Info, "newfile-kit: zeroing default upgrades (health=%#x magic=%#x spark=%#x vial=%#x trinket=%#x)", field(kHealthUpgOff),
+              field(kMagicUpgOff), field(kSparkUpgOff), field(kVialUpgOff), field(kTrinketUpgOff));
+    field(kHealthUpgOff) = 0;
+    field(kMagicUpgOff) = 0;
+    field(kSparkUpgOff) = 0;
+    field(kVialUpgOff) = 0;
+    field(kTrinketUpgOff) = 0;
+}
+
 // ---- modifier control (Windows). Cheat mask = SaveSlot+0xcb0; live slot = *(g_saveManager); slot
 // index = *(g_saveManager+0x8); CheatManager captured via the ActivateSaveCheats hook. Lockdown hooks
 // ToggleCheat (menu: sets the runtime mirror + persists) AND SetCheatApplied (typed cheat-code).
@@ -321,6 +348,35 @@ void remove_chest_unlock_hook()
         hook_engine().remove_hook(g_chest_hook);
     g_chest_hook = kInvalidHookId;
     g_chest_cb = nullptr;
+}
+
+bool install_newfile_kit_suppressor(NewfileKitSuppressFn should_suppress)
+{
+    const std::uintptr_t addr = resolve_game_symbol(mth::sym::save_slot_clear);
+    if (addr == 0)
+    {
+        logf(LogLevel::Warn, "newfile-kit: SaveSlot::Clear not resolved; starting-kit suppression disabled");
+        return false;
+    }
+    g_kit_suppress = std::move(should_suppress);
+    g_kit_hook = hook_engine().install_hook(reinterpret_cast<void *>(addr), reinterpret_cast<void *>(&repl_save_slot_clear),
+                                            reinterpret_cast<void **>(&g_orig_save_slot_clear));
+    if (g_kit_hook == kInvalidHookId)
+    {
+        logf(LogLevel::Error, "newfile-kit: failed to hook SaveSlot::Clear");
+        g_kit_suppress = nullptr;
+        return false;
+    }
+    logf(LogLevel::Info, "newfile-kit: hooked SaveSlot::Clear (id=%llu)", static_cast<unsigned long long>(g_kit_hook));
+    return true;
+}
+
+void remove_newfile_kit_suppressor()
+{
+    if (g_kit_hook != kInvalidHookId)
+        hook_engine().remove_hook(g_kit_hook);
+    g_kit_hook = kInvalidHookId;
+    g_kit_suppress = nullptr;
 }
 
 bool modifiers_available()
