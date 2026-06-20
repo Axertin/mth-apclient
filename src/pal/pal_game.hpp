@@ -10,6 +10,10 @@ namespace pal
 // Windows reads base fields directly; calling the real GetPos faults off its own call sites.
 bool read_player_position(const void *trackable, float out[3]);
 
+// Live current-room index off the RoomManager instance. false if null or negative (no room yet).
+// Field offset is per-platform/per-build (Linux 0x1b4, Windows 0x1bc).
+bool current_room_index(void *room_manager, std::uint32_t *out);
+
 // Pickup* base from the `this` passed to a Pickup::OnPickup hook.
 // MSVC: that `this` is the PickupListener MI subobject, not the Pickup base.
 void *pickup_base_from_onpickup(void *onpickup_this);

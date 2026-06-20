@@ -5,6 +5,7 @@
 #include <ctime>
 #include <exception>
 #include <list>
+#include <string>
 #include <utility>
 
 #include <apclient.hpp>
@@ -136,6 +137,28 @@ void ApLink::send_death(const std::string &cause)
             catch (const std::exception &e)
             {
                 pal::logf(pal::LogLevel::Warn, "deathlink: Bounce failed: %s", e.what());
+            }
+        });
+}
+
+void ApLink::report_area(int game_state)
+{
+    enqueue(
+        [this, game_state]
+        {
+            if (!client_)
+                return;
+            try
+            {
+                APClient::DataStorageOperation op;
+                op.operation = "replace";
+                op.value = game_state;
+                const std::string key = "MTH_level_" + std::to_string(client_->get_team_number()) + "_" + slot_name_;
+                client_->Set(key, 0, false, {op});
+            }
+            catch (const std::exception &e)
+            {
+                pal::logf(pal::LogLevel::Warn, "ApLink: area Set failed: %s", e.what());
             }
         });
 }

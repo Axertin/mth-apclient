@@ -20,6 +20,10 @@ inline constexpr const char *player_trackable_get_pos = "_ZNK15PlayerTrackable6G
 // s_rItems: 195-entry item table (stride 0x68, kind at +0x28).
 inline constexpr const char *s_r_items = "_ZN12_GLOBAL__N_18s_rItemsE";
 
+// RoomManager::Update: per-frame tick on the room-transition state machine. self == RoomManager instance;
+// the live current-room index is read off it (Linux +0x1b4 / Windows +0x1bc) by pal::current_room_index.
+inline constexpr const char *room_manager_update = "_ZN11RoomManager6UpdateEP20ycUpdateQueueContext";
+
 inline constexpr const char *pickup_init = "_ZN6Pickup4InitEii";                         // Pickup::Init(int itemType, int locIdx)
 inline constexpr const char *pickup_on_pickup = "_ZN6Pickup8OnPickupEP14PickupListener"; // Pickup::OnPickup(PickupListener*)
 

@@ -25,6 +25,9 @@ class IApLink
     virtual void enable_deathlink(bool on) = 0; // tag the connection; call before connect()
     virtual void send_death(const std::string &cause) = 0;
 
+    // Publish the current room/area id to AP data storage (key MTH_level_<team>_<slot>).
+    virtual void report_area(int game_state) = 0;
+
     [[nodiscard]] virtual std::vector<ApEvent> drain_events() = 0;
 };
 

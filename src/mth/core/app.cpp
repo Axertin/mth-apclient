@@ -1,8 +1,12 @@
 #include "mth/core/app.hpp"
 
+#include <cstdint>
+#include <optional>
+
 #include "mth/core/ap_coordinator.hpp"
 #include "mth/core/ap_ids.hpp"
 #include "mth/core/ap_link.hpp"
+#include "mth/core/area_reporter.hpp"
 #include "mth/core/config.hpp"
 #include "mth/core/game_events.hpp"
 #include "mth/core/inbound_granter.hpp"
@@ -15,7 +19,9 @@
 #include "mth/hooks/location_hooks.hpp"
 #include "mth/hooks/lock_hooks.hpp"
 #include "mth/hooks/player_tracker.hpp"
+#include "mth/hooks/room_tracker.hpp"
 #include "mth_version.h"
+#include "pal/pal_game.hpp"
 #include "pal/pal_hook.hpp"
 #include "pal/pal_log.hpp"
 #include "pal/pal_module.hpp"
@@ -79,9 +85,11 @@ App::App()
     pal::logf(pal::LogLevel::Warn, "net: lane NOT compiled in (NullApLink); connect is a no-op");
 #endif
     coordinator_ = std::make_unique<ApCoordinator>(*link_, state_, [this] { pending_inbound_death_.store(true); });
+    area_reporter_ = std::make_unique<AreaReporter>(*link_);
     events_ = std::make_unique<AppTickSink>(*this);
     hooks_ = std::make_unique<GameHooks>(*events_);
     tracker_ = std::make_unique<PlayerTracker>();
+    room_tracker_ = std::make_unique<RoomTracker>();
     granter_ = std::make_unique<ItemGranter>(*tracker_);
     rando_ = std::make_unique<RandoBridge>(*link_, state_);
     location_hooks_ = std::make_unique<LocationHooks>(*rando_);
@@ -167,9 +175,11 @@ App::~App()
     lock_hooks_.reset();
     rando_.reset();
     granter_.reset();
+    room_tracker_.reset();
     tracker_.reset();
     hooks_.reset();
     events_.reset();
+    area_reporter_.reset();
     coordinator_.reset();
     link_.reset();
     pal::shutdown_hook_engine();
@@ -189,6 +199,12 @@ void App::drive_tick()
         pal::logf(pal::LogLevel::Info, "tick: Game::FixedUpdate live; AP coordinator pumping");
     }
     coordinator_->tick();
+    if (area_reporter_ && room_tracker_)
+    {
+        std::uint32_t room = 0;
+        const bool have = room_tracker_->current_room(&room);
+        area_reporter_->tick(state_.authenticated(), have ? std::optional<std::uint32_t>{room} : std::nullopt);
+    }
     const bool authed = state_.authenticated();
     if (modifier_hooks_)
     {

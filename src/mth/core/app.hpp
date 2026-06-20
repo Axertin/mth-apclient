@@ -30,8 +30,10 @@ class IApLink;
 class ApCoordinator;
 class InboundGranter;
 class PlayerTracker;
+class RoomTracker;
 class ItemGranter;
 class RandoBridge;
+class AreaReporter;
 class LocationHooks;
 class BossHooks;
 class LockHooks;
@@ -68,13 +70,15 @@ class App : public ICommandSink
   private:
     void ensure_inbound_ready(); // lazily builds save_state_/inbound_ once connected
     // Destruction order: feature hooks first (remove game hooks), then granter_/tracker_,
-    // then events_/hooks_, coordinator_, link_ (stops net thread), then state_.
+    // then events_/hooks_, area_reporter_, coordinator_, link_ (stops net thread), then state_.
     ApState state_;
     std::unique_ptr<IApLink> link_;
     std::unique_ptr<ApCoordinator> coordinator_;
+    std::unique_ptr<AreaReporter> area_reporter_;
     std::unique_ptr<IGameEvents> events_;
     std::unique_ptr<GameHooks> hooks_;
     std::unique_ptr<PlayerTracker> tracker_;
+    std::unique_ptr<RoomTracker> room_tracker_;
     std::unique_ptr<ItemGranter> granter_;
     std::unique_ptr<RandoBridge> rando_;
     std::unique_ptr<LocationHooks> location_hooks_;

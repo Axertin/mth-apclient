@@ -22,6 +22,7 @@ class FakeApLink final : public mth::IApLink
     int disconnect_calls = 0;
     bool deathlink_enabled = false;
     std::vector<std::string> sent_deaths;
+    std::vector<int> reported_areas;
 
     void connect(const std::string &server, const std::string &slot, const std::string &password) override
     {
@@ -55,6 +56,10 @@ class FakeApLink final : public mth::IApLink
     void send_death(const std::string &cause) override
     {
         sent_deaths.push_back(cause);
+    }
+    void report_area(int game_state) override
+    {
+        reported_areas.push_back(game_state);
     }
     [[nodiscard]] std::vector<mth::ApEvent> drain_events() override
     {

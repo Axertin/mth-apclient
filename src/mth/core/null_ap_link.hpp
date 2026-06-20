@@ -31,6 +31,9 @@ class NullApLink final : public IApLink
     void send_death(const std::string &) override
     {
     }
+    void report_area(int) override
+    {
+    }
     [[nodiscard]] std::vector<ApEvent> drain_events() override
     {
         return {};
