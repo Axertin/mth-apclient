@@ -14,6 +14,12 @@ bool read_player_position(const void *trackable, float out[3]);
 // Field offset is per-platform/per-build (Linux 0x1b4, Windows 0x1bc).
 bool current_room_index(void *room_manager, std::uint32_t *out);
 
+// Hook SaveSlot::Clear (called only at new-file creation); when should_suppress() returns true, zero the
+// default region-18 upgrade fields so AP supplies the starting inventory instead. false if unresolved.
+using NewfileKitSuppressFn = std::function<bool()>;
+bool install_newfile_kit_suppressor(NewfileKitSuppressFn should_suppress);
+void remove_newfile_kit_suppressor();
+
 // Pickup* base from the `this` passed to a Pickup::OnPickup hook.
 // MSVC: that `this` is the PickupListener MI subobject, not the Pickup base.
 void *pickup_base_from_onpickup(void *onpickup_this);

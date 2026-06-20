@@ -97,6 +97,8 @@ App::App()
     lock_hooks_ = std::make_unique<LockHooks>();
     chest_hooks_ = std::make_unique<ChestHooks>(lock_hooks_->locks()); // shares the lock registry + seed
     death_hooks_ = std::make_unique<DeathHooks>([this] { link_->send_death("Mina the Hollower"); }, [this]() -> void * { return tracker_->player(); });
+    // Suppress the game's default new-file starting kit while AP-authenticated (AP supplies it instead).
+    pal::install_newfile_kit_suppressor([this] { return state_.authenticated(); });
 
     const Config cfg = load_config_from_env();
 
@@ -166,6 +168,7 @@ App::~App()
     overlay_.reset(); // removes render/input hooks + stops drawing first
     console_.reset(); // then unregister the log observer
 #endif
+    pal::remove_newfile_kit_suppressor();
     death_hooks_.reset();
     modifier_hooks_.reset();
     level_cap_hooks_.reset();

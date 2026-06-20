@@ -64,6 +64,10 @@ inline constexpr const char *chest_update_state = "_ZN5Chest11UpdateStateEv";   
 // Active SaveSlot* = *(g_saveManager+0x18); lock-unlocked bits live in a u64 at SaveSlot+0x200.
 inline constexpr const char *save_manager = "g_saveManager";
 
+// SaveSlot::Clear(bool): new-file reset; writes the default starting-upgrade fields (region-18 kit).
+// Called only at new-file creation, so a post-hook field zero never touches a progressed save.
+inline constexpr const char *save_slot_clear = "_ZN8SaveSlot5ClearEb"; // SaveSlot::Clear(bool)
+
 // Deathlink. InitDeath = deepest once-per-death convergence (DETECT, edge via Player+0x1380);
 // TriggerDeath = APPLY (call on the live Player to kill). Player+0x1380 = once-per-death guard byte.
 inline constexpr const char *player_init_death = "_ZN6Player9InitDeathEb";        // Player::InitDeath(bool)
