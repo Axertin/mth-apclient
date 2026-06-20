@@ -190,6 +190,9 @@
     },
     "_ZN5Chest11UpdateStateEv": {
       "rva": 7750096
+    },
+    "_ZN6Pickup4InitEii": {
+      "rva": 9897584
     }
   },
   "linux": {
