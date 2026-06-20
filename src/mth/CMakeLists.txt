@@ -128,6 +128,11 @@ if(NOT MTHAP_BUILD_TESTS_ONLY)
             OUTPUT_NAME "mod"
             PREFIX ""
             SUFFIX ".so"
+            # Record DT_NEEDED libssl.so.1.1 / libcrypto.so.1.1 by SONAME but carry
+            # no RUNPATH/RPATH into vcpkg_installed/ (absent at runtime). We ship no
+            # crypto; the loader resolves these to sniper's OpenSSL 1.1.
+            BUILD_WITH_INSTALL_RPATH ON
+            INSTALL_RPATH ""
         )
         # Static-link our C++ runtime so the dynamic linker can't resolve our
         # modern libstdc++ symbols against whatever the Steam runtime provides.
