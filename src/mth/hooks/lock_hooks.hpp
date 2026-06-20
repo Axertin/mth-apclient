@@ -6,9 +6,9 @@
 namespace mth
 {
 
-// KeyBlock (kear-lock) removal: KeyBlock::Update hook removes already-spawned locks
-// whose slot is in the registry; seed_removed_locks() sets the persistent SaveSlot
-// unlock bit each tick so re-entries spawn open and chain doors still fire.
+// Kear-lock removal. The KeyBlock::Update hook removes already-spawned single-block locks whose slot
+// is in the registry; the PAL-owned chain hook opens multi-block KeyBlockChain locks (a distinct
+// class). seed_removed_locks() sets the persistent SaveSlot unlock bit each tick for re-entry.
 class LockHooks
 {
   public:
@@ -22,7 +22,7 @@ class LockHooks
 
   private:
     LockRegistry locks_;
-    ScopedHook key_block_update_;
+    ScopedHook key_block_update_; // KeyBlock::Update is unique on both platforms; the chain hook is PAL-owned
 };
 
 } // namespace mth

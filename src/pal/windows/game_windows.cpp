@@ -61,6 +61,33 @@ void repl_init_state(void *self)
     }
 }
 
+// ---- chain-open / chest-unlock per-frame hooks. Hook ::UpdateState (self == the StateMachine
+// sub-object; recover base = self - 0x170): the game's MSVC linker ICF-folds the per-class ::Update
+// wrappers, leaving UpdateState as the only unique per-class entry. ----
+constexpr std::ptrdiff_t kStateImplSubObjOff = 0x170; // StateMachine sub-object offset (Linux _ZThn368_ thunk delta)
+
+pal::EntityFrameFn g_chain_cb = nullptr;
+pal::HookId g_chain_hook = pal::kInvalidHookId;
+std::uint64_t (*g_orig_chain_update_state)(void *) = nullptr;
+std::uint64_t repl_chain_update_state(void *self)
+{
+    const std::uint64_t ret = g_orig_chain_update_state ? g_orig_chain_update_state(self) : 0;
+    if (g_chain_cb != nullptr && self != nullptr)
+        g_chain_cb(static_cast<char *>(self) - kStateImplSubObjOff);
+    return ret;
+}
+
+pal::EntityFrameFn g_chest_cb = nullptr;
+pal::HookId g_chest_hook = pal::kInvalidHookId;
+void (*g_orig_chest_update_state)(void *) = nullptr;
+void repl_chest_update_state(void *self)
+{
+    if (g_orig_chest_update_state)
+        g_orig_chest_update_state(self);
+    if (g_chest_cb != nullptr && self != nullptr)
+        g_chest_cb(static_cast<char *>(self) - kStateImplSubObjOff);
+}
+
 // ---- modifier control (Windows). Cheat mask = SaveSlot+0xcb0; live slot = *(g_saveManager); slot
 // index = *(g_saveManager+0x8); CheatManager captured via the ActivateSaveCheats hook. Lockdown hooks
 // ToggleCheat (menu: sets the runtime mirror + persists) AND SetCheatApplied (typed cheat-code).
@@ -225,6 +252,62 @@ void remove_shop_purchase_hook()
         hook_engine().remove_hook(g_shop_hook);
     g_shop_hook = kInvalidHookId;
     g_on_shop_buy = nullptr;
+}
+
+bool install_chain_open_hook(EntityFrameFn on_frame)
+{
+    g_chain_cb = on_frame;
+    const std::uintptr_t addr = resolve_game_symbol(mth::sym::key_block_chain_update_state);
+    if (addr == 0)
+    {
+        logf(LogLevel::Warn, "locks: KeyBlockChain::UpdateState not resolved; chain open disabled");
+        return false;
+    }
+    g_chain_hook = hook_engine().install_hook(reinterpret_cast<void *>(addr), reinterpret_cast<void *>(&repl_chain_update_state),
+                                              reinterpret_cast<void **>(&g_orig_chain_update_state));
+    if (g_chain_hook == kInvalidHookId)
+    {
+        logf(LogLevel::Error, "locks: failed to hook KeyBlockChain::UpdateState");
+        return false;
+    }
+    logf(LogLevel::Info, "locks: hooked KeyBlockChain::UpdateState (id=%llu)", static_cast<unsigned long long>(g_chain_hook));
+    return true;
+}
+
+void remove_chain_open_hook()
+{
+    if (g_chain_hook != kInvalidHookId)
+        hook_engine().remove_hook(g_chain_hook);
+    g_chain_hook = kInvalidHookId;
+    g_chain_cb = nullptr;
+}
+
+bool install_chest_unlock_hook(EntityFrameFn on_frame)
+{
+    g_chest_cb = on_frame;
+    const std::uintptr_t addr = resolve_game_symbol(mth::sym::chest_update_state);
+    if (addr == 0)
+    {
+        logf(LogLevel::Warn, "chest: Chest::UpdateState not resolved; chest unlock disabled");
+        return false;
+    }
+    g_chest_hook = hook_engine().install_hook(reinterpret_cast<void *>(addr), reinterpret_cast<void *>(&repl_chest_update_state),
+                                              reinterpret_cast<void **>(&g_orig_chest_update_state));
+    if (g_chest_hook == kInvalidHookId)
+    {
+        logf(LogLevel::Error, "chest: failed to hook Chest::UpdateState");
+        return false;
+    }
+    logf(LogLevel::Info, "chest: hooked Chest::UpdateState (id=%llu)", static_cast<unsigned long long>(g_chest_hook));
+    return true;
+}
+
+void remove_chest_unlock_hook()
+{
+    if (g_chest_hook != kInvalidHookId)
+        hook_engine().remove_hook(g_chest_hook);
+    g_chest_hook = kInvalidHookId;
+    g_chest_cb = nullptr;
 }
 
 bool modifiers_available()

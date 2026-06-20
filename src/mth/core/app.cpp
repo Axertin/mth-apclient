@@ -8,6 +8,7 @@
 #include "mth/core/inbound_granter.hpp"
 #include "mth/core/rando_bridge.hpp"
 #include "mth/hooks/boss_hooks.hpp"
+#include "mth/hooks/chest_hooks.hpp"
 #include "mth/hooks/death_hooks.hpp"
 #include "mth/hooks/game_hooks.hpp"
 #include "mth/hooks/item_granter.hpp"
@@ -86,6 +87,7 @@ App::App()
     location_hooks_ = std::make_unique<LocationHooks>(*rando_);
     boss_hooks_ = std::make_unique<BossHooks>(*rando_);
     lock_hooks_ = std::make_unique<LockHooks>();
+    chest_hooks_ = std::make_unique<ChestHooks>(lock_hooks_->locks()); // shares the lock registry + seed
     death_hooks_ = std::make_unique<DeathHooks>([this] { link_->send_death("Mina the Hollower"); }, [this]() -> void * { return tracker_->player(); });
 
     const Config cfg = load_config_from_env();
@@ -161,6 +163,7 @@ App::~App()
     level_cap_hooks_.reset();
     location_hooks_.reset();
     boss_hooks_.reset();
+    chest_hooks_.reset(); // references lock_hooks_'s registry; tear down first
     lock_hooks_.reset();
     rando_.reset();
     granter_.reset();
