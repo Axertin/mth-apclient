@@ -27,6 +27,9 @@ class RandoBridge
     // Resend the full checked-set (server dedups). Call on (re)connect.
     void flush();
 
+    // Send the AP goal (final boss defeated). One-shot per session; no-op unless authenticated.
+    void send_goal();
+
     [[nodiscard]] bool is_ap_location(int collection_slot) const;
     [[nodiscard]] bool is_checked(int collection_slot) const; // false for negative/non-location slots
 
@@ -35,6 +38,7 @@ class RandoBridge
     ApState &state_;
     ApSaveState *save_{nullptr};
     std::set<std::int64_t> sent_{}; // session fallback used only before save_ attaches
+    bool goal_sent_{false};         // one-shot guard for the AP goal
 };
 
 } // namespace mth

@@ -68,4 +68,8 @@ inline constexpr int kMaxBossIndex = 0x1C;
     return kBossLocBase + boss_index;
 }
 
+// GigaLionel = the final boss; defeating it = beating the game -> send the AP goal. The index value 8
+// is build-stable (positional kBossInfo slot, keyed by name hash); only the +0x68 read offset drifts.
+inline constexpr int kGoalBossIndex = 8;
+
 } // namespace mth
