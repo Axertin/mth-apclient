@@ -33,6 +33,7 @@ class ApLink final : public mth::IApLink
     void set_goal() override;
     void enable_deathlink(bool on) override;
     void send_death(const std::string &cause) override;
+    void report_area(int game_state) override;
     [[nodiscard]] std::vector<mth::ApEvent> drain_events() override;
 
   private:

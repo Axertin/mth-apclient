@@ -20,6 +20,7 @@ add_library(mthap_core STATIC
     core/modifier_table.cpp
     core/stat_cap_state.cpp
     core/config.cpp
+    core/area_reporter.cpp
 )
 
 target_include_directories(mthap_core PUBLIC "${CMAKE_SOURCE_DIR}/src")
@@ -73,6 +74,7 @@ if(NOT MTHAP_BUILD_TESTS_ONLY)
         hooks/game_hooks.cpp
         hooks/game_tables.cpp
         hooks/player_tracker.cpp
+        hooks/room_tracker.cpp
         hooks/item_granter.cpp
         hooks/location_hooks.cpp
         hooks/boss_hooks.cpp

@@ -34,6 +34,7 @@ add_executable(mthap_unit_tests
     unit/stat_cap_state_test.cpp
     unit/config_test.cpp
     unit/session_policy_test.cpp
+    unit/area_reporter_test.cpp
 )
 
 target_include_directories(mthap_unit_tests PRIVATE

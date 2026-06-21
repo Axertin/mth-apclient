@@ -230,6 +230,18 @@ bool read_player_position(const void *trackable, float out[3])
     return true;
 }
 
+bool current_room_index(void *room_manager, std::uint32_t *out)
+{
+    if (room_manager == nullptr)
+        return false;
+    // Room index field; live build 828346d4 = +0x1b4 (stale Ghidra build read +0x1bc). Re-verify on update.
+    const std::int32_t idx = *reinterpret_cast<const std::int32_t *>(static_cast<const char *>(room_manager) + 0x1b4);
+    if (idx < 0)
+        return false;
+    *out = static_cast<std::uint32_t>(idx);
+    return true;
+}
+
 void *pickup_base_from_onpickup(void *onpickup_this)
 {
     return onpickup_this; // Itanium routes the secondary-base adjust through a separate _ZThn thunk
