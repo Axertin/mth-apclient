@@ -153,3 +153,25 @@ TEST_CASE("rando_bridge: is_checked uses the session set before a save attaches"
     bridge.on_location_collected(5);
     REQUIRE(bridge.is_checked(5));
 }
+
+TEST_CASE("rando_bridge: send_goal sends the AP goal once when connected", "[mth][rando]")
+{
+    mth::test::FakeApLink link;
+    link.connected = true;
+    auto state = connected_with({}); // authenticated, no locations needed for the goal
+    mth::RandoBridge bridge(link, state);
+
+    bridge.send_goal();
+    bridge.send_goal(); // one-shot: GigaLionel hits the death funnels 3x per kill
+    REQUIRE(link.goal_calls == 1);
+}
+
+TEST_CASE("rando_bridge: send_goal is a no-op when not authenticated", "[mth][rando]")
+{
+    mth::test::FakeApLink link;
+    mth::ApState state; // never connected
+    mth::RandoBridge bridge(link, state);
+
+    bridge.send_goal();
+    REQUIRE(link.goal_calls == 0);
+}
