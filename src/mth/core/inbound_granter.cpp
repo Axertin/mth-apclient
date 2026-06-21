@@ -24,8 +24,6 @@ void InboundGranter::tick()
         const int game_type = game_item_type(it.item_id);
         if (!granter_.grant(game_type))
         {
-            pal::logf(pal::LogLevel::Debug, "inbound_granter: item index=%d id=%lld (type=%d) not grantable yet; retry next tick", it.index,
-                      static_cast<long long>(it.item_id), game_type);
             break; // not available now; retry next tick (do not mark)
         }
         save_.mark_granted(it.index);
