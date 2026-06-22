@@ -15,10 +15,36 @@ InboundGranter::InboundGranter(IItemGranter &granter, ApState &state, ApSaveStat
 
 void InboundGranter::tick()
 {
+    int weapon_tier[kWeaponFamilyCount] = {0}; // running per-family receipt count -> progressive tier
+
     for (const auto &it : state_.received_items())
     {
-        // Non-vanilla ids are handled elsewhere (stat-caps, kear) or unhandled; never hand them to
-        // the engine as an itemType.
+        // Progressive weapon: the Nth receipt of a family grants its tier-N itemType. Count every
+        // receipt (already-granted ones too) so the tier survives reloads; grant only the new ones.
+        if (is_weapon_item(it.item_id))
+        {
+            const int fam = weapon_family(it.item_id);
+            const int tier = ++weapon_tier[fam];
+            if (save_.is_granted(it.index))
+                continue;
+            const int game_type = weapon_itemtype(fam, tier);
+            if (game_type < 0) // beyond the family's top tier: consume so it does not retry forever
+            {
+                pal::logf(pal::LogLevel::Warn, "inbound_granter: weapon family=%d tier=%d exceeds max; ignored (index=%d)", fam, tier, it.index);
+                save_.mark_granted(it.index);
+                save_.save();
+                continue;
+            }
+            if (!granter_.grant(game_type))
+                break; // not ready; retry next tick (tier is recomputed from scratch)
+            save_.mark_granted(it.index);
+            save_.save();
+            pal::logf(pal::LogLevel::Info, "inbound_granter: weapon family=%d tier=%d -> itemType=%d (index=%d) granted", fam, tier, game_type, it.index);
+            continue;
+        }
+
+        // Non-vanilla, non-weapon ids are handled elsewhere (stat-caps, kear) or unhandled; never
+        // hand them to the engine as an itemType.
         if (!is_vanilla_game_item(it.item_id))
             continue;
         if (save_.is_granted(it.index)) // already granted: silent (runs every tick)

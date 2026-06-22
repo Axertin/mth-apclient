@@ -117,3 +117,54 @@ TEST_CASE("InboundGranter skips categories it cannot grant", "[inbound]")
 
     std::filesystem::remove(path);
 }
+
+TEST_CASE("InboundGranter translates progressive weapons to tiered itemTypes", "[inbound]")
+{
+    const auto path = std::filesystem::temp_directory_path() / "mthap_inbound_weapons.txt";
+    std::filesystem::remove(path);
+
+    mth::ApState state;
+    mth::ApSaveState save(path);
+    FakeGranter granter;
+    mth::InboundGranter inbound(granter, state, save);
+
+    // Whip family (kProgWeaponBase) received 3x -> grants Whip/WhipLevel2/WhipLevel3 = itemTypes 2,3,4.
+    state.apply(recv(mth::kProgWeaponBase, 0));
+    state.apply(recv(mth::kProgWeaponBase, 1));
+    state.apply(recv(mth::kProgWeaponBase, 2));
+    // Casket family (kProgWeaponBase + 4) once -> itemType 14, interleaved by index order.
+    state.apply(recv(mth::kProgWeaponBase + 4, 3));
+    inbound.tick();
+    REQUIRE(granter.granted == std::vector<int>{2, 3, 4, 14});
+
+    // Idempotent: a re-tick (e.g. after reload) grants nothing new.
+    granter.granted.clear();
+    inbound.tick();
+    REQUIRE(granter.granted.empty());
+
+    std::filesystem::remove(path);
+}
+
+TEST_CASE("InboundGranter retries a weapon at its correct tier after a failure", "[inbound]")
+{
+    const auto path = std::filesystem::temp_directory_path() / "mthap_inbound_weapon_retry.txt";
+    std::filesystem::remove(path);
+
+    mth::ApState state;
+    mth::ApSaveState save(path);
+    FakeGranter granter;
+    granter.ok = false; // player not ready yet
+    mth::InboundGranter inbound(granter, state, save);
+
+    state.apply(recv(mth::kProgWeaponBase, 0)); // Whip tier 1
+    state.apply(recv(mth::kProgWeaponBase, 1)); // Whip tier 2
+    inbound.tick();
+    REQUIRE(granter.granted.empty());
+    REQUIRE_FALSE(save.is_granted(0));
+
+    granter.ok = true;
+    inbound.tick();
+    REQUIRE(granter.granted == std::vector<int>{2, 3}); // tiers recomputed correctly, both granted
+
+    std::filesystem::remove(path);
+}
