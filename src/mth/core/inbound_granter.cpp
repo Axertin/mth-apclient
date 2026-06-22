@@ -17,7 +17,9 @@ void InboundGranter::tick()
 {
     for (const auto &it : state_.received_items())
     {
-        if (is_stat_cap_item(it.item_id)) // derived state (StatCapState), not a one-shot game grant
+        // Non-vanilla ids are handled elsewhere (stat-caps, kear) or unhandled; never hand them to
+        // the engine as an itemType.
+        if (!is_vanilla_game_item(it.item_id))
             continue;
         if (save_.is_granted(it.index)) // already granted: silent (runs every tick)
             continue;

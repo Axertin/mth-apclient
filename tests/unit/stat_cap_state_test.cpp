@@ -35,12 +35,21 @@ TEST_CASE("default caps are zero (stat frozen at start)", "[stat_cap]")
 TEST_CASE("cap-up items raise only their own stat", "[stat_cap]")
 {
     mth::StatCapState caps;
-    caps.recompute(make_state({mth::kStatCapItemBase + 0, mth::kStatCapItemBase + 0, mth::kStatCapItemBase + 2}));
+    caps.recompute(make_state({mth::kProgStatCapBase + 0, mth::kProgStatCapBase + 0, mth::kProgStatCapBase + 2}));
     REQUIRE(caps.enforced_cap(0, 9) == 2);
     REQUIRE(caps.enforced_cap(1, 9) == 0);
     REQUIRE(caps.enforced_cap(2, 9) == 1);
     REQUIRE(caps.granted(0) == 2);
     REQUIRE(caps.granted(2) == 1);
+}
+
+TEST_CASE("all-stat cap-up raises every stat per receipt", "[stat_cap]")
+{
+    mth::StatCapState caps;
+    caps.recompute(make_state({mth::kProgStatCapAllId, mth::kProgStatCapAllId}));
+    REQUIRE(caps.granted(0) == 2);
+    REQUIRE(caps.granted(1) == 2);
+    REQUIRE(caps.granted(2) == 2);
 }
 
 TEST_CASE("enforced cap never exceeds vanilla", "[stat_cap]")
@@ -56,6 +65,24 @@ TEST_CASE("enforced cap passes through at and below vanilla", "[stat_cap]")
     caps.set_counts(9, 5, 0);
     REQUIRE(caps.enforced_cap(0, 9) == 9); // count == vanilla: full unlock (displayed level 10)
     REQUIRE(caps.enforced_cap(1, 9) == 5); // count < vanilla: passes through unchanged
+}
+
+TEST_CASE("console-injected cap-up counts like a socket item and leaves the cursor", "[stat_cap]")
+{
+    mth::ApState s;
+    s.apply(mth::ApItemReceived{{mth::kProgStatCapBase + 0, 0, 1, 0}}); // server attack cap-up, index 0
+    s.inject_received_item(mth::kProgStatCapBase + 0);                  // console attack cap-up (no socket index)
+
+    mth::StatCapState caps;
+    caps.recompute(s);
+    REQUIRE(caps.granted(0) == 2);
+
+    // The injection must not advance last_item_index_, so a later server item (index 1) still applies.
+    REQUIRE(s.last_item_index() == 0);
+    s.apply(mth::ApItemReceived{{mth::kProgStatCapBase + 1, 1, 1, 0}});
+    caps.recompute(s);
+    REQUIRE(caps.granted(0) == 2);
+    REQUIRE(caps.granted(1) == 1);
 }
 
 TEST_CASE("non-cap item ids are ignored", "[stat_cap]")

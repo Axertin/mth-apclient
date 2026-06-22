@@ -223,6 +223,7 @@ void App::drive_tick()
         if (!policy_.caps_fixed())
             level_cap_hooks_->recompute(state_);
     }
+    seed_kear_blocks_from_ap(); // received kear-block items -> lock removals (no-op when none received)
     if (pending_inbound_death_.exchange(false) && death_hooks_)
         death_hooks_->kill();
     ensure_inbound_ready();
@@ -239,6 +240,17 @@ void App::drive_tick()
             pal::logf(pal::LogLevel::Info, "modifiers: persisted AP-game slot %d", s);
         }
     }
+}
+
+void App::seed_kear_blocks_from_ap()
+{
+    if (!lock_hooks_)
+        return;
+    // A kear-block item's engine id IS the KeyBlock slot; set_removed is idempotent, and the existing
+    // seed pass + KeyBlock::Update hook open the lock and persist the bit.
+    for (const auto &it : state_.received_items())
+        if (is_kear_block_item(it.item_id))
+            lock_hooks_->locks().set_removed(kear_block_engine_id(it.item_id));
 }
 
 void App::drain_grants()
@@ -302,6 +314,16 @@ std::vector<std::string> App::item_lines() const
 
 void App::give_item(std::int64_t ap_item_id)
 {
+    // Non-vanilla ids are applied by their own received-item handler, not the granter. Inject into
+    // the list the socket feeds so the dev path matches a real receipt.
+    if (!is_vanilla_game_item(ap_item_id))
+    {
+        state_.inject_received_item(ap_item_id);
+        pal::logf(pal::LogLevel::Info, "console: giveapitem %lld -> injected as received item (applied by its segment handler)",
+                  static_cast<long long>(ap_item_id));
+        return;
+    }
+
     const int item_type = mth::game_item_type(ap_item_id);
     if (granter_->grant(item_type))
         pal::logf(pal::LogLevel::Info, "console: giveapitem %lld (type=%d) granted", static_cast<long long>(ap_item_id), item_type);

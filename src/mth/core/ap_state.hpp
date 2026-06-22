@@ -16,6 +16,10 @@ class ApState
   public:
     void apply(const ApEvent &ev);
 
+    // Dev/console seam: append a received item not from the socket. Uses a private negative index so
+    // it never collides with or advances the server's monotonic cursor.
+    void inject_received_item(std::int64_t item_id);
+
     [[nodiscard]] bool authenticated() const
     {
         return authenticated_;
@@ -58,6 +62,7 @@ class ApState
     std::set<std::int64_t> valid_locations_{};
     std::vector<ReceivedItem> received_items_{};
     int last_item_index_{-1};
+    int console_index_{-1000000}; // synthetic index for console-injected items; decremented, never collides with server's >=0 cursor
 };
 
 } // namespace mth

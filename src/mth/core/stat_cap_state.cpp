@@ -13,8 +13,15 @@ void StatCapState::recompute(const ApState &state)
     for (int s = 0; s < kStatCount; ++s)
         counts_[s] = 0;
     for (const auto &it : state.received_items())
-        if (is_stat_cap_item(it.item_id))
+    {
+        if (!is_stat_cap_item(it.item_id))
+            continue;
+        if (is_stat_cap_all_item(it.item_id)) // one receipt raises every stat's cap
+            for (int s = 0; s < kStatCount; ++s)
+                ++counts_[s];
+        else
             ++counts_[stat_cap_item_stat(it.item_id)];
+    }
 }
 
 void StatCapState::set_counts(int attack, int defense, int sidearm)

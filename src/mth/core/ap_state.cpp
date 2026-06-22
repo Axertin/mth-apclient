@@ -8,6 +8,12 @@
 namespace mth
 {
 
+void ApState::inject_received_item(std::int64_t item_id)
+{
+    received_items_.push_back(ReceivedItem{item_id, console_index_--, player_slot_, 0});
+    pal::logf(pal::LogLevel::Info, "ap_state: console-injected item id=%lld (total=%zu)", static_cast<long long>(item_id), received_items_.size());
+}
+
 void ApState::apply(const ApEvent &ev)
 {
     std::visit(

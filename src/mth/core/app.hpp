@@ -68,7 +68,8 @@ class App : public ICommandSink
     void set_stat_caps(int attack, int defense, int sidearm) override;
 
   private:
-    void ensure_inbound_ready(); // lazily builds save_state_/inbound_ once connected
+    void ensure_inbound_ready();     // lazily builds save_state_/inbound_ once connected
+    void seed_kear_blocks_from_ap(); // received kear-block items -> LockRegistry removals (idempotent)
     // Destruction order: feature hooks first (remove game hooks), then granter_/tracker_,
     // then events_/hooks_, area_reporter_, coordinator_, link_ (stops net thread), then state_.
     ApState state_;

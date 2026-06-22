@@ -90,8 +90,28 @@ TEST_CASE("InboundGranter skips stat-cap items", "[inbound]")
     FakeGranter granter;
     mth::InboundGranter inbound(granter, state, save);
 
-    state.apply(recv(mth::kStatCapItemBase + 0, 0)); // attack cap-up: must be skipped
+    state.apply(recv(mth::kProgStatCapBase + 0, 0)); // attack cap-up: must be skipped
     state.apply(recv(mth::ap_item_id(9), 1));        // a real item: must be granted
+    inbound.tick();
+    REQUIRE(granter.granted == std::vector<int>{9});
+
+    std::filesystem::remove(path);
+}
+
+TEST_CASE("InboundGranter skips categories it cannot grant", "[inbound]")
+{
+    const auto path = std::filesystem::temp_directory_path() / "mthap_inbound_reserved.txt";
+    std::filesystem::remove(path);
+
+    mth::ApState state;
+    mth::ApSaveState save(path);
+    FakeGranter granter;
+    mth::InboundGranter inbound(granter, state, save);
+
+    state.apply(recv(mth::kProgStatCapBase + 0, 0));   // stat-cap: StatCapState's job -> skipped
+    state.apply(recv(mth::kKearBlockItemBase + 1, 1)); // lock removal -> skipped
+    state.apply(recv(mth::kTrapItemBase + 7, 2));      // reserved, no handler -> skipped
+    state.apply(recv(mth::ap_item_id(9), 3));          // vanilla item -> granted
     inbound.tick();
     REQUIRE(granter.granted == std::vector<int>{9});
 
