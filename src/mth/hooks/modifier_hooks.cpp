@@ -55,9 +55,8 @@ void ModifierHooks::seed(int slot_index, std::uint32_t words[8])
     if (!enforce_live_.load())
         return; // not an AP session (or test mode): never touch a save the mod doesn't own
     std::lock_guard<std::mutex> lk(mtx_);
-    if (!armed_)
-        return; // disarmed: leave the player's mask untouched
-    if (ap_scoped_.load())
+    const bool scoped = ap_scoped_.load();
+    if (scoped)
     {
         // AP session: enforce only the AP game's slot (captured on the first load), never a vanilla one.
         if (ap_slot_ >= 0 && slot_index != ap_slot_)
@@ -71,18 +70,24 @@ void ModifierHooks::seed(int slot_index, std::uint32_t words[8])
             pal::logf(pal::LogLevel::Info, "modifiers: captured AP-game slot index=%d", ap_slot_);
         }
     }
-    // Authoritative for gameplay bits: set exactly the enforced set, clear other gameplay bits,
-    // never touch cosmetic bits.
-    for (int idx = 0; idx < kCheatCount; ++idx)
+    if (armed_)
     {
-        if (!is_gameplay(idx))
-            continue;
-        const std::uint32_t bit = 1u << (static_cast<unsigned>(idx) & 31u);
-        if (enforced_.count(idx) != 0)
-            words[idx >> 5] |= bit;
-        else
-            words[idx >> 5] &= ~bit;
+        // Authoritative for gameplay bits: set exactly the enforced set, clear other gameplay bits,
+        // never touch cosmetic bits.
+        for (int idx = 0; idx < kCheatCount; ++idx)
+        {
+            if (!is_gameplay(idx))
+                continue;
+            const std::uint32_t bit = 1u << (static_cast<unsigned>(idx) & 31u);
+            if (enforced_.count(idx) != 0)
+                words[idx >> 5] |= bit;
+            else
+                words[idx >> 5] &= ~bit;
+        }
     }
+    if (scoped) // additive: force the AP baseline on without disturbing the player's other modifiers
+        for (int idx : force_on_)
+            words[idx >> 5] |= 1u << (static_cast<unsigned>(idx) & 31u);
 }
 
 bool ModifierHooks::block(int idx) const
@@ -90,6 +95,8 @@ bool ModifierHooks::block(int idx) const
     if (!enforce_live_.load())
         return false; // vanilla play (not connected): leave the player's cheat menu alone
     std::lock_guard<std::mutex> lk(mtx_);
+    if (ap_scoped_.load() && force_on_.count(idx) != 0)
+        return true; // a force-on baseline modifier can't be toggled off
     return armed_ && is_gameplay(idx);
 }
 
@@ -101,6 +108,15 @@ void ModifierHooks::set_enforce_live(bool on)
 void ModifierHooks::set_ap_scoped(bool on)
 {
     ap_scoped_.store(on);
+}
+
+void ModifierHooks::set_ossex_start(bool on)
+{
+    std::lock_guard<std::mutex> lk(mtx_);
+    if (on)
+        force_on_.insert(kCheatLandingDone);
+    else
+        force_on_.erase(kCheatLandingDone);
 }
 
 void ModifierHooks::set_ap_slot(int slot)
