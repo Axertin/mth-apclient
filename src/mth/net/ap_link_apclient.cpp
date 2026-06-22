@@ -153,7 +153,7 @@ void ApLink::report_area(int game_state)
                 APClient::DataStorageOperation op;
                 op.operation = "replace";
                 op.value = game_state;
-                const std::string key = "MTH_level_" + std::to_string(client_->get_team_number()) + "_" + slot_name_;
+                const std::string key = "MTH_level_" + std::to_string(client_->get_team_number()) + "_" + std::to_string(client_->get_player_number());
                 client_->Set(key, 0, false, {op});
             }
             catch (const std::exception &e)
