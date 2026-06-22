@@ -29,6 +29,8 @@ class ModifierHooks
     void set_enforce_live(bool on);
     // True (authed AP session): scope the seed to the AP game's slot, captured on first load.
     void set_ap_scoped(bool on);
+    // slot_data seam: add/remove Landing Done from the AP force-on set (Warp Home is always forced).
+    void set_ossex_start(bool on);
     // Persistence of the AP-game slot (App bridges this to ApSaveState across sessions): seed a
     // previously-recorded slot so capture is skipped, and read back the slot captured this session.
     void set_ap_slot(int slot);
@@ -45,6 +47,7 @@ class ModifierHooks
     mutable std::mutex mtx_;
     std::set<int> enforced_;
     std::set<int> forced_;
+    std::set<int> force_on_{kCheatWarpHome}; // additive AP force-on (Warp Home always; Landing Done per ossex_start)
     bool armed_{false};
     bool installed_{false};
     int ap_slot_{-1};                                // captured AP-game slot index (-1 = none yet); guarded by mtx_

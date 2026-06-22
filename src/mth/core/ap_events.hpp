@@ -24,6 +24,7 @@ struct ApConnected
     int player_slot{-1};
     std::vector<std::int64_t> checked_locations;
     std::vector<std::int64_t> missing_locations;
+    bool ossex_start{false}; // slot_data "ossex_start": force the Landing Done modifier (start at Ossex hub)
 };
 struct ApItemReceived
 {

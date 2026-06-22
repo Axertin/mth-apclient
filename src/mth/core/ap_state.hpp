@@ -40,6 +40,10 @@ class ApState
     {
         return player_slot_;
     }
+    [[nodiscard]] bool ossex_start() const // slot_data flag: force the Landing Done modifier
+    {
+        return ossex_start_;
+    }
     [[nodiscard]] bool is_valid_location(std::int64_t id) const
     {
         return valid_locations_.contains(id);
@@ -59,6 +63,7 @@ class ApState
     std::string seed_{};
     std::string slot_data_{};
     int player_slot_{-1};
+    bool ossex_start_{false};
     std::set<std::int64_t> valid_locations_{};
     std::vector<ReceivedItem> received_items_{};
     int last_item_index_{-1};

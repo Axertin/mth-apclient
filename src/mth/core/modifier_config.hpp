@@ -9,6 +9,12 @@ namespace mth
 
 inline constexpr int kCheatCount = 254; // valid modifier indices are 0..253
 
+// Modifiers force-enabled on AP save slots (indices from the verified g_cheats master table).
+// Warp Home is always forced; Landing Done (kCheat_StartProgIntro: skip the intro, start at the
+// Ossex hub) is forced only when slot_data sets "ossex_start".
+inline constexpr int kCheatWarpHome = 121;
+inline constexpr int kCheatLandingDone = 128;
+
 // Result of parsing a modifier-index list. `indices` is the requested set (stable order, deduped).
 // `forced` are indices the user opted into despite being on the deny-list (token prefixed `force:`).
 struct ModifierRequest

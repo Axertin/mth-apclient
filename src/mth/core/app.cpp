@@ -215,6 +215,7 @@ void App::drive_tick()
         // drove modifiers; ap_scoped (authed only) restricts the seed to the captured AP-game slot.
         modifier_hooks_->set_enforce_live(policy_.enforce_modifiers(authed));
         modifier_hooks_->set_ap_scoped(authed);
+        modifier_hooks_->set_ossex_start(state_.ossex_start()); // force Landing Done when slot_data requests it
         modifier_hooks_->drain_live();
     }
     if (level_cap_hooks_)

@@ -20,6 +20,14 @@ TEST_CASE("ap_state: ApConnected populates slot/locations and authenticates", "[
     REQUIRE(s.is_valid_location(10));
     REQUIRE(s.is_valid_location(12));
     REQUIRE_FALSE(s.is_valid_location(99));
+    REQUIRE_FALSE(s.ossex_start()); // defaults off
+}
+
+TEST_CASE("ap_state: ossex_start flows from ApConnected", "[mth][ap_state]")
+{
+    mth::ApState s;
+    s.apply(mth::ApConnected{{}, "{}", 1, {}, {}, true});
+    REQUIRE(s.ossex_start());
 }
 
 TEST_CASE("ap_state: items dedup by index", "[mth][ap_state]")

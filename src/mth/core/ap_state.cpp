@@ -25,6 +25,7 @@ void ApState::apply(const ApEvent &ev)
                 seed_ = e.seed;
                 slot_data_ = e.slot_data;
                 player_slot_ = e.player_slot;
+                ossex_start_ = e.ossex_start;
                 valid_locations_.clear();
                 valid_locations_.insert(e.checked_locations.begin(), e.checked_locations.end());
                 valid_locations_.insert(e.missing_locations.begin(), e.missing_locations.end());
