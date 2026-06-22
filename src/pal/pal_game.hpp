@@ -91,4 +91,16 @@ void set_level_cap_provider(LevelCapFn cap);
 // Remove the level-cap hooks and clear the callback. Called by the mth/ owner's destructor.
 void remove_level_cap_hook();
 
+// ---- Capacity upgrades (itemTypes 68..72). Symbol/offset divergence lives in the PAL impl. ----
+
+// True once the active SaveSlot global and Player::UpdateStats resolve. Resolves + caches on first
+// call; the feature no-ops if false.
+bool upgrades_available();
+
+// Apply per-type upgrade counts (index order Magic,Health,Spark,Vial,Trinket; already clamped to
+// caps) to the active save: set that many low bits in each per-type field, then call
+// Player::UpdateStats(player) to recompute live maxima. `counts` has mth::kUpgradeCount entries.
+// Game-thread only. false if unavailable or player is null (caller retries).
+bool apply_upgrades(const int *counts, void *player);
+
 } // namespace pal

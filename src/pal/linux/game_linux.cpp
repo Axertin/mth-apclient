@@ -531,4 +531,49 @@ void remove_level_cap_hook()
     g_active_lvlup_menu = nullptr;
 }
 
+// ---- capacity upgrades ----
+// Per-upgrade SaveSlot field (index Magic,Health,Spark,Vial,Trinket); popcount = capacity. These
+// SaveSlot offsets match on both platforms; UpdateStats recomputes the live maxima from them.
+// Build-specific: re-verify against the shipping build.
+namespace
+{
+constexpr std::ptrdiff_t kUpgradeFieldOff[5] = {0x170, 0x130, 0x54, 0x18c, 0x950};
+bool g_up_resolved = false;
+bool g_up_ok = false;
+std::uintptr_t g_up_save_manager = 0;
+void (*g_up_update_stats)(void *) = nullptr; // Player::UpdateStats(this)
+} // namespace
+
+bool upgrades_available()
+{
+    if (g_up_resolved)
+        return g_up_ok;
+    g_up_resolved = true;
+    g_up_save_manager = resolve_game_symbol(mth::sym::save_manager);
+    g_up_update_stats = reinterpret_cast<void (*)(void *)>(resolve_game_symbol(mth::sym::player_update_stats));
+    g_up_ok = g_up_save_manager != 0 && g_up_update_stats != nullptr;
+    if (!g_up_ok)
+        logf(LogLevel::Warn, "upgrades: symbols unresolved (save=0x%llx updatestats=0x%llx); feature disabled",
+             static_cast<unsigned long long>(g_up_save_manager), reinterpret_cast<unsigned long long>(g_up_update_stats));
+    return g_up_ok;
+}
+
+bool apply_upgrades(const int *counts, void *player)
+{
+    if (!upgrades_available() || player == nullptr)
+        return false;
+    void *slot = active_save_slot(g_up_save_manager);
+    if (slot == nullptr)
+        return false;
+    for (int i = 0; i < 5; ++i)
+    {
+        if (counts[i] <= 0)
+            continue;
+        const std::uint32_t mask = counts[i] >= 32 ? 0xFFFFFFFFu : (1u << counts[i]) - 1u; // low N bits; popcount = count
+        *reinterpret_cast<std::uint32_t *>(static_cast<char *>(slot) + kUpgradeFieldOff[i]) |= mask;
+    }
+    g_up_update_stats(player); // recompute live maxima from the owned-bit fields
+    return true;
+}
+
 } // namespace pal

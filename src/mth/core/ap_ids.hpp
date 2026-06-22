@@ -10,7 +10,7 @@ namespace mth
 //     1  [1000..1999] progressive         1  [1000..1999] boss defeats (kBossLocBase + index)
 //     2  [2000..2999] kear blocks         2+ reserved
 //     3  [3000..3999] abilities
-//     4  [4000..4999] astral platforms
+//     4  [4000..4999] blockers
 //     5  [5000..5999] traps
 //     6+ reserved
 
@@ -26,6 +26,23 @@ inline constexpr std::int64_t ap_item_id(int item_type)
 inline constexpr int game_item_type(std::int64_t ap_item_id_)
 {
     return static_cast<int>(ap_item_id_ - kItemBase);
+}
+
+// Capacity upgrades: vanilla itemTypes 68..72 (Magic, Health, Spark, Vial, Trinket), stored as a
+// popcount of owned bits per type, so OnPickupDone can't stack them. UpgradeState counts receipts and
+// pal::apply_upgrades sets that many bits; the granter skips them. Cap = vanilla location count.
+inline constexpr int kUpgradeItemBase = 68;
+inline constexpr int kUpgradeCount = 5;
+inline constexpr int kUpgradeCaps[kUpgradeCount] = {10, 18, 4, 10, 6}; // Magic, Health, Spark, Vial, Trinket (full-game counts)
+
+inline constexpr bool is_capacity_upgrade_item(std::int64_t ap_item_id_)
+{
+    return ap_item_id_ >= kUpgradeItemBase && ap_item_id_ < kUpgradeItemBase + kUpgradeCount;
+}
+
+inline constexpr int upgrade_index(std::int64_t ap_item_id_)
+{
+    return static_cast<int>(ap_item_id_ - kUpgradeItemBase); // valid only when is_capacity_upgrade_item()
 }
 // Progressive Items
 // Count-based: the Nth receipt of a chain's id is "tier N". Sub-layout:
@@ -93,10 +110,10 @@ inline constexpr int stat_cap_item_stat(std::int64_t ap_item_id_)
 }
 
 // item-category bases
-inline constexpr std::int64_t kKearBlockItemBase = 2000;      // kear-lock removals (wired)
-inline constexpr std::int64_t kAbilityItemBase = 3000;        // burrow / swim / bounce / climb (reserved)
-inline constexpr std::int64_t kAstralPlatformItemBase = 4000; // reserved
-inline constexpr std::int64_t kTrapItemBase = 5000;           // reserved
+inline constexpr std::int64_t kKearBlockItemBase = 2000; // kear-lock removals (wired)
+inline constexpr std::int64_t kAbilityItemBase = 3000;   // burrow / swim / bounce / climb (reserved)
+inline constexpr std::int64_t kBlockerItemBase = 4000;   // reserved
+inline constexpr std::int64_t kTrapItemBase = 5000;      // reserved
 
 inline constexpr bool is_vanilla_game_item(std::int64_t ap_item_id_)
 {

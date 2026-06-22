@@ -43,9 +43,9 @@ void InboundGranter::tick()
             continue;
         }
 
-        // Non-vanilla, non-weapon ids are handled elsewhere (stat-caps, kear) or unhandled; never
-        // hand them to the engine as an itemType.
-        if (!is_vanilla_game_item(it.item_id))
+        // Non-vanilla/non-weapon ids are handled elsewhere (stat-caps, kear) or unhandled; capacity
+        // upgrades are vanilla ids but applied by UpgradeState (popcount bits), not itemType grants.
+        if (!is_vanilla_game_item(it.item_id) || is_capacity_upgrade_item(it.item_id))
             continue;
         if (save_.is_granted(it.index)) // already granted: silent (runs every tick)
             continue;

@@ -224,6 +224,9 @@ void App::drive_tick()
             level_cap_hooks_->recompute(state_);
     }
     seed_kear_blocks_from_ap(); // received kear-block items -> lock removals (no-op when none received)
+    upgrades_.recompute(state_);
+    if (upgrades_.dirty() && tracker_ && pal::apply_upgrades(upgrades_.counts(), tracker_->player()))
+        upgrades_.mark_applied(); // applied to the save; retry next tick if player not ready yet
     if (pending_inbound_death_.exchange(false) && death_hooks_)
         death_hooks_->kill();
     ensure_inbound_ready();
@@ -314,9 +317,9 @@ std::vector<std::string> App::item_lines() const
 
 void App::give_item(std::int64_t ap_item_id)
 {
-    // Non-vanilla ids are applied by their own received-item handler, not the granter. Inject into
-    // the list the socket feeds so the dev path matches a real receipt.
-    if (!is_vanilla_game_item(ap_item_id))
+    // Non-vanilla ids and capacity upgrades are applied by a received-item handler, not the granter;
+    // inject into the list the socket feeds so the dev path matches a real receipt.
+    if (!is_vanilla_game_item(ap_item_id) || is_capacity_upgrade_item(ap_item_id))
     {
         state_.inject_received_item(ap_item_id);
         pal::logf(pal::LogLevel::Info, "console: giveapitem %lld -> injected as received item (applied by its segment handler)",

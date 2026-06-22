@@ -44,7 +44,7 @@ TEST_CASE("item-space segments are 1000-wide and ordered", "[ap_ids]")
     REQUIRE(mth::kProgressiveItemBase == 1000);
     REQUIRE(mth::kKearBlockItemBase == 2000);
     REQUIRE(mth::kAbilityItemBase == 3000);
-    REQUIRE(mth::kAstralPlatformItemBase == 4000);
+    REQUIRE(mth::kBlockerItemBase == 4000);
     REQUIRE(mth::kTrapItemBase == 5000);
     // Progressive sub-layout stays within segment 1.
     REQUIRE(mth::is_progressive_item(mth::kProgWeaponBase));
@@ -56,12 +56,12 @@ TEST_CASE("is_vanilla_game_item recognises only item segment 0", "[ap_ids]")
 {
     REQUIRE(mth::is_vanilla_game_item(mth::ap_item_id(0)));
     REQUIRE(mth::is_vanilla_game_item(mth::ap_item_id(194)));
-    REQUIRE_FALSE(mth::is_vanilla_game_item(mth::kProgWeaponBase));         // weapon (seg 1)
-    REQUIRE_FALSE(mth::is_vanilla_game_item(mth::kProgStatCapBase));        // stat-cap (seg 1)
-    REQUIRE_FALSE(mth::is_vanilla_game_item(mth::kKearBlockItemBase));      // kear (seg 2)
-    REQUIRE_FALSE(mth::is_vanilla_game_item(mth::kAbilityItemBase));        // reserved (seg 3)
-    REQUIRE_FALSE(mth::is_vanilla_game_item(mth::kAstralPlatformItemBase)); // reserved (seg 4)
-    REQUIRE_FALSE(mth::is_vanilla_game_item(mth::kTrapItemBase));           // reserved (seg 5)
+    REQUIRE_FALSE(mth::is_vanilla_game_item(mth::kProgWeaponBase));    // weapon (seg 1)
+    REQUIRE_FALSE(mth::is_vanilla_game_item(mth::kProgStatCapBase));   // stat-cap (seg 1)
+    REQUIRE_FALSE(mth::is_vanilla_game_item(mth::kKearBlockItemBase)); // kear (seg 2)
+    REQUIRE_FALSE(mth::is_vanilla_game_item(mth::kAbilityItemBase));   // reserved (seg 3)
+    REQUIRE_FALSE(mth::is_vanilla_game_item(mth::kBlockerItemBase));   // reserved (seg 4)
+    REQUIRE_FALSE(mth::is_vanilla_game_item(mth::kTrapItemBase));      // reserved (seg 5)
     REQUIRE_FALSE(mth::is_vanilla_game_item(-1));
 }
 

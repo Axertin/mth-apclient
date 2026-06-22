@@ -120,6 +120,10 @@
     {
       "name": "_ZN11RoomManager6UpdateEP20ycUpdateQueueContext",
       "kind": "Code"
+    },
+    {
+      "name": "_ZN6Player11UpdateStatsEv",
+      "kind": "Code"
     }
   ],
   "windows": {
@@ -213,6 +217,9 @@
     },
     "_ZN11RoomManager6UpdateEP20ycUpdateQueueContext": {
       "rva": 10699424
+    },
+    "_ZN6Player11UpdateStatsEv": {
+      "rva": 10306096
     }
   },
   "linux": {

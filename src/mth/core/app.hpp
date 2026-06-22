@@ -10,6 +10,7 @@
 #include "mth/core/ap_state.hpp"
 #include "mth/core/command_sink.hpp"
 #include "mth/core/session_policy.hpp"
+#include "mth/core/upgrade_state.hpp"
 #include "mth/hooks/death_hooks.hpp"
 #include "mth/hooks/levelcap_hooks.hpp"
 #include "mth/hooks/modifier_hooks.hpp"
@@ -94,6 +95,7 @@ class App : public ICommandSink
     std::atomic<bool> pending_inbound_death_{false};
     bool first_tick_logged_{false};
     SessionPolicy policy_;
+    UpgradeState upgrades_;
 #ifdef MTHAP_HAS_OVERLAY
     std::unique_ptr<pal::IOverlay> overlay_;
     std::unique_ptr<DevConsole> console_;
