@@ -1,5 +1,7 @@
 #pragma once
 
+#include <functional>
+
 #include "mth/core/item_granter.hpp"
 #include "mth/hooks/scoped_hook.hpp"
 
@@ -15,7 +17,8 @@ class PlayerTracker;
 class ItemGranter final : public IItemGranter
 {
   public:
-    explicit ItemGranter(PlayerTracker &tracker);
+    // is_ap_location: RandoBridge predicate used to suppress vanilla grants for randomized locations.
+    ItemGranter(PlayerTracker &tracker, std::function<bool(int)> is_ap_location);
     ~ItemGranter() override;
     ItemGranter(const ItemGranter &) = delete;
     ItemGranter &operator=(const ItemGranter &) = delete;

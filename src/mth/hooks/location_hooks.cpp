@@ -180,7 +180,9 @@ int on_shop_buy(int loc_idx, int item_type)
     {
         pal::logf(pal::LogLevel::Info, "outbound: bought AP shop item locIdx=%d", loc_idx);
         collect_ap_location(loc_idx);
-        return mth::layout::kApDummyItemType; // suppress vanilla grant; real item arrives via AP inbound granter
+        // Linux suppresses the vanilla grant via this returned dummy itemType; Windows can't redirect, so
+        // the OnPickupDone detour skips the grant for AP locations instead. Real item arrives via AP inbound.
+        return mth::layout::kApDummyItemType;
     }
     return item_type;
 }

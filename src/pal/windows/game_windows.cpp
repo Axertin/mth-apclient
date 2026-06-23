@@ -14,9 +14,8 @@ namespace
 // ShopMenu::InitState offsets: ItemPresent is inlined into InitState's buy-confirm state (7).
 constexpr std::ptrdiff_t kShopStateOff = 0x2c; // int: state machine; 7 = buy-confirm
 constexpr int kShopBuyConfirmState = 7;
-constexpr std::ptrdiff_t kShopFlagsObjOff = 0x178; // -> obj; flags at obj+0x228
+constexpr std::ptrdiff_t kShopFlagsObjOff = 0x178; // -> obj; flags at obj+0x228 (bit 0x4 = pawn-sell)
 constexpr std::ptrdiff_t kShopFlagsOff = 0x228;
-constexpr std::ptrdiff_t kShopGateByteOff = 0x22b; // char: purchase-commit gate
 constexpr std::ptrdiff_t kShopLocIdxOff = 0x1e0;   // int
 constexpr std::ptrdiff_t kShopItemTypeOff = 0x1e4; // int
 
@@ -25,9 +24,9 @@ pal::HookId g_shop_hook = pal::kInvalidHookId;
 void (*g_orig_init_state)(void *) = nullptr;
 int g_shop_last_locidx = -1; // dedup: InitState is re-entered while in the buy-confirm state
 
-// Run the original FIRST: in state 7 the game writes locIdx/itemType partway through InitState, so
-// they are only valid post-init. The game's own sentinel (saveslot+0xc70/+0xc74) suppresses the
-// vanilla grant, so we do NOT redirect itemType here.
+// Run the original FIRST: state 7 writes locIdx/itemType partway through InitState, so they are only
+// valid post-init. The grant has already run by then, so the vanilla item can't be redirected here; it
+// is instead suppressed in the Items::OnPickupDone detour (which skips real grants at AP locations).
 void repl_init_state(void *self)
 {
     if (g_orig_init_state)
@@ -40,15 +39,15 @@ void repl_init_state(void *self)
         {
             void *flags_obj = *reinterpret_cast<void **>(static_cast<char *>(self) + kShopFlagsObjOff);
             const unsigned flags = flags_obj != nullptr ? *reinterpret_cast<unsigned *>(static_cast<char *>(flags_obj) + kShopFlagsOff) : 0xFFFFFFFFu;
-            const char gate = *reinterpret_cast<char *>(static_cast<char *>(self) + kShopGateByteOff);
             const int loc_idx = *reinterpret_cast<int *>(static_cast<char *>(self) + kShopLocIdxOff);
             const int item_type = *reinterpret_cast<int *>(static_cast<char *>(self) + kShopItemTypeOff);
 
             // Informational: surfaces the bought slot for serverless testing.
-            pal::logf(pal::LogLevel::Debug, "shop: buy-confirm locIdx=%d itemType=%d flags=0x%x gate=%d", loc_idx, item_type, flags, static_cast<int>(gate));
+            pal::logf(pal::LogLevel::Debug, "shop: buy-confirm locIdx=%d itemType=%d flags=0x%x", loc_idx, item_type, flags);
 
-            // Replicate ItemPresent's guards: only on a real, committed buy.
-            if (flags_obj != nullptr && (flags & 0x4u) == 0 && (flags & 0x400u) == 0 && (flags & 0x1000u) == 0 && gate != 0 && loc_idx != g_shop_last_locidx)
+            // Entering state 7 is the confirmed-buy grant (deducts money + grants).
+            // Skip pawn-sells (flags bit 0x4) and dedup the per-frame InitState re-entries.
+            if ((flags & 0x4u) == 0 && loc_idx != g_shop_last_locidx)
             {
                 g_shop_last_locidx = loc_idx;      // dedup this confirmed buy
                 g_on_shop_buy(loc_idx, item_type); // return ignored: no itemType redirect on Windows

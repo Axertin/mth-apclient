@@ -98,7 +98,7 @@ App::App()
     hooks_ = std::make_unique<GameHooks>(*events_);
     tracker_ = std::make_unique<PlayerTracker>();
     room_tracker_ = std::make_unique<RoomTracker>();
-    granter_ = std::make_unique<ItemGranter>(*tracker_);
+    granter_ = std::make_unique<ItemGranter>(*tracker_, [this](int loc) { return rando_ != nullptr && rando_->is_ap_location(loc); });
     rando_ = std::make_unique<RandoBridge>(*link_, state_);
     location_hooks_ = std::make_unique<LocationHooks>(*rando_, [this]() -> void * { return tracker_->player(); });
     boss_hooks_ = std::make_unique<BossHooks>(*rando_);

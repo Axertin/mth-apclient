@@ -1,9 +1,11 @@
 #include "mth/hooks/item_granter.hpp"
 
 #include <cmath>
+#include <functional>
 #include <mutex>
 #include <vector>
 
+#include "mth/core/game_layout.hpp"
 #include "mth/core/game_symbols.hpp"
 #include "mth/hooks/game_tables.hpp"
 #include "mth/hooks/player_tracker.hpp"
@@ -18,6 +20,7 @@ struct YcVec3
 };
 
 mth::PlayerTracker *g_tracker = nullptr;
+std::function<bool(int)> g_is_ap_location; // RandoBridge::is_ap_location, wired by App
 
 // Items::OnPickupDone(int slot, int itemType, Player*, ycVec3 const&, int, int, unsigned int, bool)
 void (*g_orig_on_pickup_done)(int, int, void *, void *, int, int, unsigned int, bool) = nullptr;
@@ -30,6 +33,15 @@ void repl_on_pickup_done(int slot, int item_type, void *player, void *vec, int a
 {
     if (g_tracker != nullptr)
         g_tracker->note_player(player); // refresh the grant-target player for inbound replays
+
+    // Skip vanilla grants for randomized locations. AP replays use slot==-1; world AP pickups carry the
+    // dummy itemType; only a real item at an AP slot is the vanilla grant the server overrides.
+    if (slot >= 0 && item_type != mth::layout::kApDummyItemType && g_is_ap_location && g_is_ap_location(slot))
+    {
+        pal::logf(pal::LogLevel::Info, "outbound: suppressed vanilla grant for AP location %d (itemType=%d)", slot, item_type);
+        return;
+    }
+
     if (g_orig_on_pickup_done)
         g_orig_on_pickup_done(slot, item_type, player, vec, a5, a6, a7, a8);
 }
@@ -39,9 +51,10 @@ void repl_on_pickup_done(int slot, int item_type, void *player, void *vec, int a
 namespace mth
 {
 
-ItemGranter::ItemGranter(PlayerTracker &tracker)
+ItemGranter::ItemGranter(PlayerTracker &tracker, std::function<bool(int)> is_ap_location)
 {
     g_tracker = &tracker;
+    g_is_ap_location = std::move(is_ap_location);
     pickup_done_ = ScopedHook(sym::on_pickup_done, reinterpret_cast<void *>(&repl_on_pickup_done), reinterpret_cast<void **>(&g_orig_on_pickup_done),
                               "Items::OnPickupDone");
 }
@@ -51,6 +64,7 @@ ItemGranter::~ItemGranter()
     std::lock_guard<std::mutex> lk(g_pending_mtx);
     g_pending.clear();
     g_tracker = nullptr;
+    g_is_ap_location = nullptr;
 }
 
 bool ItemGranter::grant(int item_type)
