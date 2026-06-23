@@ -92,7 +92,7 @@ App::App()
     room_tracker_ = std::make_unique<RoomTracker>();
     granter_ = std::make_unique<ItemGranter>(*tracker_);
     rando_ = std::make_unique<RandoBridge>(*link_, state_);
-    location_hooks_ = std::make_unique<LocationHooks>(*rando_);
+    location_hooks_ = std::make_unique<LocationHooks>(*rando_, [this]() -> void * { return tracker_->player(); });
     boss_hooks_ = std::make_unique<BossHooks>(*rando_);
     lock_hooks_ = std::make_unique<LockHooks>();
     chest_hooks_ = std::make_unique<ChestHooks>(lock_hooks_->locks()); // shares the lock registry + seed
@@ -224,7 +224,9 @@ void App::drive_tick()
         if (!policy_.caps_fixed())
             level_cap_hooks_->recompute(state_);
     }
-    seed_kear_blocks_from_ap(); // received kear-block items -> lock removals (no-op when none received)
+    if (location_hooks_)
+        location_hooks_->set_kear_rando(state_.kear_rando()); // slot_data flag: neutralize the world-kear key grant
+    seed_kear_blocks_from_ap();                               // received kear-block items -> lock removals (no-op when none received)
     upgrades_.recompute(state_);
     if (upgrades_.dirty() && tracker_ && pal::apply_upgrades(upgrades_.counts(), tracker_->player()))
         upgrades_.mark_applied(); // applied to the save; retry next tick if player not ready yet

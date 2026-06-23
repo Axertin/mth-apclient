@@ -44,6 +44,10 @@ class ApState
     {
         return ossex_start_;
     }
+    [[nodiscard]] bool kear_rando() const // slot_data flag: suppress the vanilla world-kear grant
+    {
+        return kear_rando_;
+    }
     [[nodiscard]] bool is_valid_location(std::int64_t id) const
     {
         return valid_locations_.contains(id);
@@ -64,6 +68,7 @@ class ApState
     std::string slot_data_{};
     int player_slot_{-1};
     bool ossex_start_{false};
+    bool kear_rando_{false};
     std::set<std::int64_t> valid_locations_{};
     std::vector<ReceivedItem> received_items_{};
     int last_item_index_{-1};

@@ -26,6 +26,7 @@ void ApState::apply(const ApEvent &ev)
                 slot_data_ = e.slot_data;
                 player_slot_ = e.player_slot;
                 ossex_start_ = e.ossex_start;
+                kear_rando_ = e.kear_rando;
                 valid_locations_.clear();
                 valid_locations_.insert(e.checked_locations.begin(), e.checked_locations.end());
                 valid_locations_.insert(e.missing_locations.begin(), e.missing_locations.end());
@@ -37,9 +38,10 @@ void ApState::apply(const ApEvent &ev)
                 const std::int64_t lo = valid_locations_.empty() ? 0 : *valid_locations_.begin();
                 const std::int64_t hi = valid_locations_.empty() ? 0 : *valid_locations_.rbegin();
                 pal::logf(pal::LogLevel::Info,
-                          "ap_state: CONNECTED slot=%d seed=%s slot_data=%zuB; valid_locations=%zu (checked=%zu missing=%zu) id_range=[%lld..%lld]",
-                          player_slot_, seed_.c_str(), slot_data_.size(), valid_locations_.size(), e.checked_locations.size(), e.missing_locations.size(),
-                          static_cast<long long>(lo), static_cast<long long>(hi));
+                          "ap_state: CONNECTED slot=%d seed=%s slot_data=%zuB ossex_start=%d kear_rando=%d; valid_locations=%zu (checked=%zu missing=%zu) "
+                          "id_range=[%lld..%lld]",
+                          player_slot_, seed_.c_str(), slot_data_.size(), ossex_start_, kear_rando_, valid_locations_.size(), e.checked_locations.size(),
+                          e.missing_locations.size(), static_cast<long long>(lo), static_cast<long long>(hi));
             }
             else if constexpr (std::is_same_v<T, ApItemReceived>)
             {

@@ -1,6 +1,8 @@
 #include "mth/hooks/location_hooks.hpp"
 
+#include <bit>
 #include <cstdint>
+#include <functional>
 
 #include "mth/core/game_layout.hpp"
 #include "mth/core/game_symbols.hpp"
@@ -21,6 +23,19 @@ void (*g_queue_destroy)(void *, void *, bool) = nullptr;
 // SetItemCollected: writes a durable bitfield bit so the native Pickup::Init reload gate suppresses respawn (bitfield kinds only).
 void (*g_set_item_collected)(int, bool, void *, void *) = nullptr;
 
+// g_saveManager global (resolves the active SaveSlot); needed to neutralize the kear grant under kear_rando.
+std::uintptr_t g_save_manager = 0;
+
+// Returns the live Player* (or nullptr) so the kear neutralization can keep the live +0x1190/+0x1198
+// mirrors in sync with the SaveSlot fields; supplied by App from the PlayerTracker.
+std::function<void *()> g_player_get;
+
+// slot_data "kear_rando": kears are AP-randomized, so the SaveSlot+0x1f0 bit a kear collect sets must not
+// count as a usable key. Game-thread only (set from drive_tick, read from the pickup/shop collect path).
+bool g_kear_rando = false;
+
+constexpr int kKearStorageKind = 8; // s_rItems kind 8: kear/key items; their collected-bit IS the usable-key bit (+0x1f0).
+
 // Offset self-checks (build drift): cleared on first mismatch, disabling the feature loudly.
 bool g_pickup_offsets_ok = true;
 bool g_shop_offsets_ok = true;
@@ -34,6 +49,31 @@ bool g_shop_offsets_ok = true;
     return *reinterpret_cast<int *>(static_cast<char *>(self) + mth::layout::kPickupItemTypeOff);
 }
 
+// A kear collect records its bit in the SaveSlot+0x1f0 bitfield, which doubles as the usable-key count
+// (usable = popcount(+0x1f0) - spent(+0x1f8)). Under kear_rando the key is AP-controlled, so for each bit
+// the just-run SetItemCollected actually NEWLY set (`new_bits`, vs `before`), bump the spent-counter in
+// lockstep to cancel the free key. The live lock gate reads the Player+0x1190/+0x1198 mirrors instead of the
+// SaveSlot, so mirror the same delta there too; otherwise usable would read one low until a reload re-syncs.
+// Delta-based so a re-collected (already-set) bit is a no-op and can't drive usable keys negative.
+void neutralize_kear_grant(int loc_idx, void *slot, std::uint64_t before)
+{
+    auto &bits = *reinterpret_cast<std::uint64_t *>(static_cast<char *>(slot) + mth::layout::kSaveKearBitsOff);
+    const std::uint64_t new_bits = bits & ~before;
+    if (new_bits == 0)
+        return; // bit already collected; no key was granted, nothing to neutralize
+
+    const int n = std::popcount(new_bits);
+    *reinterpret_cast<int *>(static_cast<char *>(slot) + mth::layout::kSaveKearSpentOff) += n;
+
+    void *player = g_player_get ? g_player_get() : nullptr;
+    if (player != nullptr)
+    {
+        *reinterpret_cast<std::uint64_t *>(static_cast<char *>(player) + mth::layout::kPlayerKearBitsOff) |= new_bits;
+        *reinterpret_cast<int *>(static_cast<char *>(player) + mth::layout::kPlayerKearSpentOff) += n;
+    }
+    pal::logf(pal::LogLevel::Info, "kear_rando: neutralized kear grant locIdx=%d new_bits=%d spent+=%d player=%p", loc_idx, n, n, player);
+}
+
 // Shared collect path for pickups and shop buys: record/send the check, then write the
 // durable native collected-bit where SetItemCollected is side-effect-free.
 void collect_ap_location(int loc_idx)
@@ -43,8 +83,18 @@ void collect_ap_location(int loc_idx)
     const int kind = mth::tables::native_location_kind(loc_idx);
     if (g_set_item_collected != nullptr && mth::tables::is_durable_bit_kind(kind))
     {
+        // Kear (kind 8): capture the bitfield before the write so neutralization targets exactly the new bit.
+        const bool neutralize = g_kear_rando && kind == kKearStorageKind && g_save_manager != 0;
+        void *slot = neutralize ? pal::active_save_slot(g_save_manager) : nullptr;
+        const std::uint64_t before = slot != nullptr ? *reinterpret_cast<std::uint64_t *>(static_cast<char *>(slot) + mth::layout::kSaveKearBitsOff) : 0;
+
         g_set_item_collected(loc_idx, true, nullptr, nullptr);
         pal::logf(pal::LogLevel::Info, "outbound: SetItemCollected(locIdx=%d kind=%d) -> native reload suppression", loc_idx, kind);
+
+        if (neutralize && slot != nullptr)
+            neutralize_kear_grant(loc_idx, slot, before); // kear collected-bit == usable key; cancel it (AP controls keys)
+        else if (neutralize)
+            pal::logf(pal::LogLevel::Warn, "kear_rando: no active save slot; kear grant NOT neutralized (locIdx=%d)", loc_idx);
     }
 }
 
@@ -140,9 +190,10 @@ int on_shop_buy(int loc_idx, int item_type)
 namespace mth
 {
 
-LocationHooks::LocationHooks(RandoBridge &bridge)
+LocationHooks::LocationHooks(RandoBridge &bridge, std::function<void *()> player_get)
 {
     g_bridge = &bridge;
+    g_player_get = std::move(player_get);
     tables::resolve();
     tables::repurpose_dummy_item();
 
@@ -154,10 +205,19 @@ LocationHooks::LocationHooks(RandoBridge &bridge)
     if (g_set_item_collected == nullptr || !tables::collection_resolved())
         pal::logf(pal::LogLevel::Warn, "LocationHooks: SetItemCollected/s_rItemCollection not resolved; bitfield-kind reload suppression disabled");
 
+    g_save_manager = pal::resolve_game_symbol(sym::save_manager);
+    if (g_save_manager == 0)
+        pal::logf(pal::LogLevel::Warn, "LocationHooks: g_saveManager not resolved; kear_rando key-grant neutralization disabled");
+
     pickup_init_ = ScopedHook(sym::pickup_init, reinterpret_cast<void *>(&repl_pickup_init), reinterpret_cast<void **>(&g_orig_pickup_init), "Pickup::Init");
     pickup_on_pickup_ = ScopedHook(sym::pickup_on_pickup, reinterpret_cast<void *>(&repl_pickup_on_pickup), reinterpret_cast<void **>(&g_orig_pickup_on_pickup),
                                    "Pickup::OnPickup");
     pal::install_shop_purchase_hook(&on_shop_buy);
+}
+
+void LocationHooks::set_kear_rando(bool on)
+{
+    g_kear_rando = on;
 }
 
 LocationHooks::~LocationHooks()
@@ -165,6 +225,7 @@ LocationHooks::~LocationHooks()
     pal::remove_shop_purchase_hook();
     // g_bridge nulled before the ScopedHook members remove the detours; the repls null-check it.
     g_bridge = nullptr;
+    g_player_get = nullptr;
 }
 
 } // namespace mth

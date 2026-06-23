@@ -25,6 +25,7 @@ struct ApConnected
     std::vector<std::int64_t> checked_locations;
     std::vector<std::int64_t> missing_locations;
     bool ossex_start{false}; // slot_data "ossex_start": force the Landing Done modifier (start at Ossex hub)
+    bool kear_rando{false};  // slot_data "kear_rando": kears are AP-randomized; suppress the vanilla world-kear grant
 };
 struct ApItemReceived
 {

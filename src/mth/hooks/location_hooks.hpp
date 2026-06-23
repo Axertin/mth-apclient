@@ -1,5 +1,7 @@
 #pragma once
 
+#include <functional>
+
 #include "mth/hooks/scoped_hook.hpp"
 
 namespace mth
@@ -13,10 +15,14 @@ class RandoBridge;
 class LocationHooks
 {
   public:
-    explicit LocationHooks(RandoBridge &bridge);
+    // player_get returns the live Player* (or nullptr) for the kear-grant live-mirror sync.
+    LocationHooks(RandoBridge &bridge, std::function<void *()> player_get);
     ~LocationHooks();
     LocationHooks(const LocationHooks &) = delete;
     LocationHooks &operator=(const LocationHooks &) = delete;
+
+    // slot_data "kear_rando": when on, neutralize the usable key a kear-location collect would otherwise grant.
+    void set_kear_rando(bool on);
 
   private:
     ScopedHook pickup_init_;

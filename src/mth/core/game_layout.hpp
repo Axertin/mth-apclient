@@ -46,6 +46,10 @@ inline constexpr std::ptrdiff_t kBossIndexOff = 0x68;
 inline constexpr std::ptrdiff_t kKeyBlockSlotOff = 0x2d0;     // int: cached slot, -1 = name-scan (non-PairLock)
 inline constexpr std::ptrdiff_t kKeyBlockEntityRefOff = 0xa8; // start of the +0xa8 -> +0x40 -> +0xd0 name-key chain
 inline constexpr std::ptrdiff_t kSaveBlockUnlockOff = 0x200;  // u64 lock-unlocked bitfield in SaveSlot
+inline constexpr std::ptrdiff_t kSaveKearBitsOff = 0x1f0;     // u64 kear-collected bitfield in SaveSlot
+inline constexpr std::ptrdiff_t kSaveKearSpentOff = 0x1f8;    // int spent-counter; usable keys = popcount(SaveSlot+0x1f0) - this
+inline constexpr std::ptrdiff_t kPlayerKearBitsOff = 0x1190;  // u64 live mirror of SaveSlot+0x1f0 (read by the live lock gate)
+inline constexpr std::ptrdiff_t kPlayerKearSpentOff = 0x1198; // int live mirror of SaveSlot+0x1f8
 
 // KeyBlockChain (multi-block lock). Build-drift; opened by req-state 2 + commit. Slot resolves from
 // the chain's SpawnPoint name-key (no cached slot).
