@@ -47,3 +47,19 @@ TEST_CASE("ap_coordinator: on_death called when ApDeathReceived event drained", 
     REQUIRE(death_called);
     REQUIRE(link.pending.empty());
 }
+
+TEST_CASE("ap_coordinator: on_broadcast forwards segments from ApPrintBroadcast", "[mth][ap_coordinator]")
+{
+    mth::test::FakeApLink link;
+    mth::ApState state;
+    std::vector<mth::BannerSegment> got;
+    mth::ApCoordinator coord(link, state, {}, [&got](const std::vector<mth::BannerSegment> &s) { got = s; });
+
+    link.pending.push_back(mth::ApPrintBroadcast{{{"you got the thing", 0xFFFFFFFFu}}});
+
+    coord.tick();
+
+    REQUIRE(got.size() == 1);
+    REQUIRE(got[0].text == "you got the thing");
+    REQUIRE(link.pending.empty());
+}

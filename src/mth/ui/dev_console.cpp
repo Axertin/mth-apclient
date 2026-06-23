@@ -33,7 +33,7 @@ void textOutlined(const char *text, ImU32 textCol = IM_COL32_WHITE, ImU32 outlin
 namespace mth
 {
 
-DevConsole::DevConsole(ICommandSink &sink) : sink_(sink)
+DevConsole::DevConsole(ICommandSink &sink, BannerQueue &banner_queue) : sink_(sink), banner_(banner_queue)
 {
     // Observer runs on arbitrary threads; must never call pal::logf.
     pal::set_log_observer([this](pal::LogLevel, std::string_view msg) { log_.push(msg); });
@@ -54,6 +54,7 @@ void DevConsole::println(const std::string &line)
 void DevConsole::draw(bool console_open)
 {
     draw_version_hud(); // always visible
+    banner_.draw();     // always visible; ignores console_open
     if (console_open)
         draw_console();
 }

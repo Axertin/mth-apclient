@@ -5,6 +5,8 @@
 #include <variant>
 #include <vector>
 
+#include "mth/core/broadcast.hpp"
+
 namespace mth
 {
 
@@ -46,7 +48,13 @@ struct ApDeathReceived
 {
     std::string cause;
 };
+// Filtered + pre-rendered on the net thread (apclientpp resolution is net-thread-only); the
+// coordinator forwards it to the banner.
+struct ApPrintBroadcast
+{
+    std::vector<BannerSegment> segments;
+};
 
-using ApEvent = std::variant<ApConnected, ApItemReceived, ApDisconnected, ApConnectionRefused, ApStatusChanged, ApDeathReceived>;
+using ApEvent = std::variant<ApConnected, ApItemReceived, ApDisconnected, ApConnectionRefused, ApStatusChanged, ApDeathReceived, ApPrintBroadcast>;
 
 } // namespace mth

@@ -85,6 +85,10 @@ void ApState::apply(const ApEvent &ev)
                 // Intentionally state-free: deathlink is handled by the ApCoordinator on_death
                 // callback (-> App applies the kill on the game thread), not by ApState.
             }
+            else if constexpr (std::is_same_v<T, ApPrintBroadcast>)
+            {
+                // State-free: the ApCoordinator on_broadcast callback forwards it to the banner.
+            }
         },
         ev);
 }

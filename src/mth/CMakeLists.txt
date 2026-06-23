@@ -9,6 +9,7 @@
 add_library(mthap_core STATIC
     core/ap_state.cpp
     core/ap_coordinator.cpp
+    core/broadcast.cpp
     core/rando_bridge.cpp
     core/dev_commands.cpp
     core/log_ring.cpp
@@ -103,7 +104,7 @@ if(NOT MTHAP_BUILD_TESTS_ONLY)
     # symbols stay undefined. (Both platforms, overlay-enabled only; matches src/pal.)
     if(MTHAP_ENABLE_OVERLAY)
         target_link_libraries(mthap PRIVATE mthap::imgui)
-        target_sources(mthap PRIVATE ui/dev_console.cpp)
+        target_sources(mthap PRIVATE ui/dev_console.cpp ui/broadcast_banner.cpp)
     endif()
 
     target_compile_features(mthap PRIVATE cxx_std_23)

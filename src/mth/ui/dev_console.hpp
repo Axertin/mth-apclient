@@ -5,18 +5,20 @@
 #include <string>
 
 #include "mth/core/log_ring.hpp"
+#include "mth/ui/broadcast_banner.hpp"
 #include "pal/pal_overlay.hpp"
 
 namespace mth
 {
 
 class ICommandSink;
+class BannerQueue;
 
 // Dev console UI. Registers as pal log observer; output pane mirrors the log stream.
 class DevConsole final : public pal::IOverlayUi
 {
   public:
-    explicit DevConsole(ICommandSink &sink);
+    DevConsole(ICommandSink &sink, BannerQueue &banner_queue);
     ~DevConsole() override;
 
     DevConsole(const DevConsole &) = delete;
@@ -31,6 +33,7 @@ class DevConsole final : public pal::IOverlayUi
     void println(const std::string &line);
 
     ICommandSink &sink_;
+    BroadcastBanner banner_; // always-on PrintJSON banner, drawn regardless of console_open
     LogRing log_;
     std::array<char, 512> input_{};
     bool scroll_to_bottom_{true};

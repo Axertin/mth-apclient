@@ -11,6 +11,7 @@
 #include <apclient.hpp>
 #include <apuuid.hpp>
 
+#include "mth/core/broadcast.hpp"
 #include "mth/net/deathlink.hpp"
 #include "pal/pal_cert.hpp"
 #include "pal/pal_log.hpp"
@@ -320,6 +321,37 @@ void ApLink::setup_handlers(const std::string &slot, const std::string &password
             std::string cause = dl ? dl->cause : std::string{};
             push_event(mth::ApDeathReceived{cause});
             pal::logf(pal::LogLevel::Info, "deathlink: received bounce (cause=%s)", cause.c_str());
+        });
+
+    // Relevant PrintJSON -> banner. Resolve names/colors here (apclientpp resolution is net-thread-only),
+    // then ship the segments over the event queue.
+    client_->set_print_json_handler(
+        [this](const APClient::PrintJSONArgs &args)
+        {
+            const auto opt = [](const int *p) { return p ? std::optional<int>(*p) : std::nullopt; };
+            if (!mth::broadcast_relevant(client_->get_team_number(), client_->get_player_number(), opt(args.team), opt(args.slot), opt(args.receiving)))
+                return;
+
+            std::vector<mth::BannerSegment> segments;
+            for (const auto &node : args.data)
+            {
+                std::string text = client_->render_json(std::list<APClient::TextNode>{node}, APClient::RenderFormat::TEXT);
+                if (text.empty())
+                    continue;
+                bool is_self = false;
+                if (node.type == "player_id")
+                    try
+                    {
+                        is_self = std::stoi(node.text) == client_->get_player_number();
+                    }
+                    catch (const std::exception &)
+                    {
+                    }
+                segments.push_back(mth::BannerSegment{std::move(text), mth::banner_color(node.type, node.color, node.flags, node.hintStatus, is_self)});
+            }
+            if (segments.empty())
+                return;
+            push_event(mth::ApPrintBroadcast{std::move(segments)});
         });
 }
 

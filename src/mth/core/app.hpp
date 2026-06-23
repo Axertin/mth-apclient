@@ -28,6 +28,7 @@ namespace mth
 struct IGameEvents;
 class GameHooks;
 class IApLink;
+class BannerQueue;
 class ApCoordinator;
 class InboundGranter;
 class PlayerTracker;
@@ -74,6 +75,7 @@ class App : public ICommandSink
     // Destruction order: feature hooks first (remove game hooks), then granter_/tracker_,
     // then events_/hooks_, area_reporter_, coordinator_, link_ (stops net thread), then state_.
     ApState state_;
+    std::unique_ptr<BannerQueue> banner_queue_; // net->render banner mailbox; outlives coordinator_/console_ that reference it
     std::unique_ptr<IApLink> link_;
     std::unique_ptr<ApCoordinator> coordinator_;
     std::unique_ptr<AreaReporter> area_reporter_;

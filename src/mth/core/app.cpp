@@ -1,12 +1,15 @@
 #include "mth/core/app.hpp"
 
 #include <cstdint>
+#include <functional>
 #include <optional>
+#include <vector>
 
 #include "mth/core/ap_coordinator.hpp"
 #include "mth/core/ap_ids.hpp"
 #include "mth/core/ap_link.hpp"
 #include "mth/core/area_reporter.hpp"
+#include "mth/core/broadcast.hpp"
 #include "mth/core/config.hpp"
 #include "mth/core/game_events.hpp"
 #include "mth/core/inbound_granter.hpp"
@@ -84,7 +87,12 @@ App::App()
     link_ = std::make_unique<mth::NullApLink>();
     pal::logf(pal::LogLevel::Warn, "net: lane NOT compiled in (NullApLink); connect is a no-op");
 #endif
-    coordinator_ = std::make_unique<ApCoordinator>(*link_, state_, [this] { pending_inbound_death_.store(true); });
+    std::function<void(const std::vector<mth::BannerSegment> &)> on_broadcast;
+#ifdef MTHAP_HAS_OVERLAY
+    banner_queue_ = std::make_unique<BannerQueue>();
+    on_broadcast = [this](const std::vector<mth::BannerSegment> &segs) { banner_queue_->push(segs); };
+#endif
+    coordinator_ = std::make_unique<ApCoordinator>(*link_, state_, [this] { pending_inbound_death_.store(true); }, std::move(on_broadcast));
     area_reporter_ = std::make_unique<AreaReporter>(*link_);
     events_ = std::make_unique<AppTickSink>(*this);
     hooks_ = std::make_unique<GameHooks>(*events_);
@@ -154,7 +162,7 @@ App::App()
 #ifdef MTHAP_HAS_OVERLAY
     {
         const pal::OverlayConfig ocfg{pal::resolve_game_symbol(sym::process_sdl_event)};
-        console_ = std::make_unique<DevConsole>(*this);
+        console_ = std::make_unique<DevConsole>(*this, *banner_queue_);
         overlay_ = pal::make_overlay(ocfg);
         overlay_->set_ui(console_.get());
         pal::logf(pal::LogLevel::Info, "overlay: dev console attached"); // overlay logs the resolved toggle key
