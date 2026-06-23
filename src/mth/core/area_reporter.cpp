@@ -9,7 +9,7 @@ AreaReporter::AreaReporter(IApLink &link) : link_(link)
 {
 }
 
-void AreaReporter::tick(bool connected, std::optional<std::uint32_t> game_state)
+void AreaReporter::tick(bool connected, std::optional<std::uint32_t> screen_id)
 {
     if (!connected)
     {
@@ -22,12 +22,12 @@ void AreaReporter::tick(bool connected, std::optional<std::uint32_t> game_state)
         was_connected_ = true;
         last_sent_.reset(); // fresh (re)connect: force the next readable state to publish
     }
-    if (!game_state)
+    if (!screen_id)
         return;
-    if (last_sent_ == game_state)
+    if (last_sent_ == screen_id)
         return;
-    last_sent_ = game_state;
-    link_.report_area(static_cast<int>(*game_state));
+    last_sent_ = screen_id;
+    link_.report_area(static_cast<int>(*screen_id));
 }
 
 } // namespace mth

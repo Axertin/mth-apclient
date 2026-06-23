@@ -26,6 +26,10 @@ inline constexpr const char *s_r_items = "_ZN12_GLOBAL__N_18s_rItemsE";
 // the live current-room index is read off it (Linux +0x1b4 / Windows +0x1bc) by pal::current_room_index.
 inline constexpr const char *room_manager_update = "_ZN11RoomManager6UpdateEP20ycUpdateQueueContext";
 
+// AreaManager::NewArea(int prevIdx, int newIdx): fires on area change. newIdx is the dense area index
+// (0..197); captured to qualify the per-area room index into a globally-unique screen id.
+inline constexpr const char *area_new_area = "_ZN11AreaManager7NewAreaEii";
+
 inline constexpr const char *pickup_init = "_ZN6Pickup4InitEii";                         // Pickup::Init(int itemType, int locIdx)
 inline constexpr const char *pickup_on_pickup = "_ZN6Pickup8OnPickupEP14PickupListener"; // Pickup::OnPickup(PickupListener*)
 

@@ -124,6 +124,10 @@
     {
       "name": "_ZN6Player11UpdateStatsEv",
       "kind": "Code"
+    },
+    {
+      "name": "_ZN11AreaManager7NewAreaEii",
+      "kind": "Code"
     }
   ],
   "windows": {
@@ -220,6 +224,9 @@
     },
     "_ZN6Player11UpdateStatsEv": {
       "rva": 10306096
+    },
+    "_ZN11AreaManager7NewAreaEii": {
+      "rva": 5122112
     }
   },
   "linux": {

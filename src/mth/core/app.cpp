@@ -212,9 +212,9 @@ void App::drive_tick()
     coordinator_->tick();
     if (area_reporter_ && room_tracker_)
     {
-        std::uint32_t room = 0;
-        const bool have = room_tracker_->current_room(&room);
-        area_reporter_->tick(state_.authenticated(), have ? std::optional<std::uint32_t>{room} : std::nullopt);
+        std::uint32_t screen = 0;
+        const bool have = room_tracker_->current_screen(&screen);
+        area_reporter_->tick(state_.authenticated(), have ? std::optional<std::uint32_t>{screen} : std::nullopt);
     }
     const bool authed = state_.authenticated();
     if (modifier_hooks_)
