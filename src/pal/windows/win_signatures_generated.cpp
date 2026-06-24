@@ -180,6 +180,8 @@ static constexpr std::uint8_t kPat37[] = {0x40, 0x57, 0x48, 0x83, 0xec, 0x40, 0x
                                           0xf9, 0x83, 0xfa, 0x14, 0x0f, 0x87, 0x28, 0x02, 0x00, 0x00};
 static constexpr std::uint8_t kMask37[] = {0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
                                            0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00};
+static constexpr std::uint8_t kPat38[] = {0x4c, 0x8b, 0x0d, 0x51, 0x32, 0x89, 0x04, 0x4c, 0x8b, 0xd1};
+static constexpr std::uint8_t kMask38[] = {0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x01, 0x01, 0x01};
 
 static constexpr mth::sig::Entry kEntries[] = {
     {"_ZN4Game11FixedUpdateEv", mth::sig::Kind::Code, kPat0, kMask0, sizeof(kPat0), 0, 0},
@@ -220,6 +222,7 @@ static constexpr mth::sig::Entry kEntries[] = {
     {"_ZN13SpringBellows11CollideWithER18PhysicsContactPair", mth::sig::Kind::Code, kPat35, kMask35, sizeof(kPat35), 0, 0},
     {"_ZN6Player30PickUpAnyNearbyCarryableObjectEbbb", mth::sig::Kind::Code, kPat36, kMask36, sizeof(kPat36), 0, 0},
     {"_ZN14TrainAuthority10OnNPCEventEjP17InteractEventInfo", mth::sig::Kind::Code, kPat37, kMask37, sizeof(kPat37), 0, 0},
+    {"_ZN6Player16SetVialItemCountEi", mth::sig::Kind::Code, kPat38, kMask38, sizeof(kPat38), 0, 0},
 };
 
 std::span<const mth::sig::Entry> sig_table()

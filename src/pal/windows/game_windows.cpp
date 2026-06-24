@@ -1,3 +1,5 @@
+#include <algorithm>
+#include <bit>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -569,10 +571,43 @@ void remove_level_cap_hook()
 namespace
 {
 constexpr std::ptrdiff_t kUpgradeFieldOff[5] = {0x170, 0x130, 0x54, 0x18c, 0x950};
+
+// Live resource-pool fields (offsets confirmed identical to Linux by 3 independent RE passes;
+// CombatCore = *(Player+0x130)). Used to keep the missing amount constant on a capacity grant.
+constexpr std::ptrdiff_t kCombatCoreOff = 0x130;     // Player -> CombatCore*
+constexpr std::ptrdiff_t kHpCurOff = 0x1e0;          // CombatCore, float
+constexpr std::ptrdiff_t kHpMaxOff = 0x1e8;          // CombatCore, float
+constexpr std::ptrdiff_t kMagicCurOff = 0x1174;      // Player, int (sidearm ammo)
+constexpr std::ptrdiff_t kMagicMaxOff = 0x1178;      // Player, int
+constexpr std::ptrdiff_t kSparkCurOff = 0x50;        // SaveSlot, int
+constexpr std::ptrdiff_t kSparkMaxOff = 0x230;       // CombatCore, int
+constexpr std::ptrdiff_t kVialOverflowOff = 0x1184;  // Player, int
+constexpr std::ptrdiff_t kVialOwnedBitsOff = 0x1188; // Player, int (popcount = vial capacity)
+constexpr std::ptrdiff_t kVialHeldOff = 0x118c;      // Player, int
+constexpr std::ptrdiff_t kVialTrinketOff = 0x1190;   // Player, int
+
 bool g_up_resolved = false;
 bool g_up_ok = false;
 std::uintptr_t g_up_save_manager = 0;
-void (*g_up_update_stats)(void *) = nullptr; // Player::UpdateStats(this)
+void (*g_up_update_stats)(void *) = nullptr;        // Player::UpdateStats(this)
+void (*g_up_set_vial_count)(void *, int) = nullptr; // Player::SetVialItemCount(total)
+
+float fld_f(void *base, std::ptrdiff_t off)
+{
+    return *reinterpret_cast<float *>(static_cast<char *>(base) + off);
+}
+int fld_i(void *base, std::ptrdiff_t off)
+{
+    return *reinterpret_cast<int *>(static_cast<char *>(base) + off);
+}
+int vial_total(void *player)
+{
+    return fld_i(player, kVialOverflowOff) + std::min(fld_i(player, kVialHeldOff), fld_i(player, kVialTrinketOff));
+}
+int vial_capacity(void *player)
+{
+    return std::popcount(static_cast<unsigned>(fld_i(player, kVialOwnedBitsOff)));
+}
 } // namespace
 
 namespace pal
@@ -585,6 +620,7 @@ bool upgrades_available()
     g_up_resolved = true;
     g_up_save_manager = resolve_game_symbol(mth::sym::save_manager);
     g_up_update_stats = reinterpret_cast<void (*)(void *)>(resolve_game_symbol(mth::sym::player_update_stats));
+    g_up_set_vial_count = reinterpret_cast<void (*)(void *, int)>(resolve_game_symbol(mth::sym::player_set_vial_item_count));
     g_up_ok = g_up_save_manager != 0 && g_up_update_stats != nullptr;
     if (!g_up_ok)
         logf(LogLevel::Warn, "upgrades: symbols unresolved (save=0x%llx updatestats=0x%llx); feature disabled",
@@ -599,6 +635,16 @@ bool apply_upgrades(const int *counts, void *player)
     void *slot = *reinterpret_cast<void **>(g_up_save_manager); // global holds the active SaveSlot*
     if (!slot_looks_valid(slot))
         return false;
+    void *cc = *reinterpret_cast<void **>(static_cast<char *>(player) + kCombatCoreOff);
+
+    // Keep each pool's missing amount constant across the grant (current = new_max - old_missing);
+    // a no-op on a resend (max unchanged) and full on a fresh file. Mirrors the Linux impl.
+    const float hp_missing = cc != nullptr ? fld_f(cc, kHpMaxOff) - fld_f(cc, kHpCurOff) : 0.0f;
+    const int magic_missing = fld_i(player, kMagicMaxOff) - fld_i(player, kMagicCurOff);
+    const int spark_missing = cc != nullptr ? fld_i(cc, kSparkMaxOff) - fld_i(slot, kSparkCurOff) : 0;
+    const int vial_total_old = vial_total(player);
+    const int vial_cap_old = vial_capacity(player);
+
     for (int i = 0; i < 5; ++i)
     {
         if (counts[i] <= 0)
@@ -607,6 +653,21 @@ bool apply_upgrades(const int *counts, void *player)
         *reinterpret_cast<std::uint32_t *>(static_cast<char *>(slot) + kUpgradeFieldOff[i]) |= mask;
     }
     g_up_update_stats(player); // recompute live maxima from the owned-bit fields
+
+    if (cc != nullptr)
+    {
+        const float hp_max = fld_f(cc, kHpMaxOff);
+        *reinterpret_cast<float *>(static_cast<char *>(cc) + kHpCurOff) = std::clamp(hp_max - hp_missing, 0.0f, hp_max);
+        const int spark_max = fld_i(cc, kSparkMaxOff);
+        *reinterpret_cast<int *>(static_cast<char *>(slot) + kSparkCurOff) = std::clamp(spark_max - spark_missing, 0, spark_max);
+    }
+    const int magic_max = fld_i(player, kMagicMaxOff);
+    *reinterpret_cast<int *>(static_cast<char *>(player) + kMagicCurOff) = std::clamp(magic_max - magic_missing, 0, magic_max);
+
+    const int vial_cap_new = vial_capacity(player);
+    if (g_up_set_vial_count != nullptr && vial_cap_new != vial_cap_old)
+        g_up_set_vial_count(player, std::max(0, vial_total_old + (vial_cap_new - vial_cap_old)));
+
     return true;
 }
 
