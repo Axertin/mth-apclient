@@ -73,3 +73,11 @@ TEST_CASE("parse_command recognizes caps with three args", "[dev_commands]")
     REQUIRE(cmd.kind == mth::CommandKind::StatCaps);
     REQUIRE(cmd.args == std::vector<std::string>{"1", "4", "0"});
 }
+
+TEST_CASE("parse_command recognizes ability with name and on/off", "[dev_commands]")
+{
+    const auto cmd = mth::parse_command("ability burrow on");
+    REQUIRE(cmd.kind == mth::CommandKind::Ability);
+    REQUIRE(cmd.args == std::vector<std::string>{"burrow", "on"});
+    REQUIRE(mth::parse_command("ABILITY swim off").kind == mth::CommandKind::Ability);
+}

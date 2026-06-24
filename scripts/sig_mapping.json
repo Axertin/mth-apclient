@@ -128,6 +128,34 @@
     {
       "name": "_ZN11AreaManager7NewAreaEii",
       "kind": "Code"
+    },
+    {
+      "name": "_ZN6Player15SetBurrowGroundEv",
+      "kind": "Code"
+    },
+    {
+      "name": "_ZN13WaterListener21IsInDeepWaterInternalEb",
+      "kind": "Code"
+    },
+    {
+      "name": "_ZN6Player14RopeClimbStartEP13GameComponentbb",
+      "kind": "Code"
+    },
+    {
+      "name": "_ZN11BouncePlant11CollideWithER18PhysicsContactPair",
+      "kind": "Code"
+    },
+    {
+      "name": "_ZN13SpringBellows11CollideWithER18PhysicsContactPair",
+      "kind": "Code"
+    },
+    {
+      "name": "_ZN6Player30PickUpAnyNearbyCarryableObjectEbbb",
+      "kind": "Code"
+    },
+    {
+      "name": "_ZN14TrainAuthority10OnNPCEventEjP17InteractEventInfo",
+      "kind": "Code"
     }
   ],
   "windows": {
@@ -227,6 +255,27 @@
     },
     "_ZN11AreaManager7NewAreaEii": {
       "rva": 5122112
+    },
+    "_ZN6Player15SetBurrowGroundEv": {
+      "rva": 10199136
+    },
+    "_ZN13WaterListener21IsInDeepWaterInternalEb": {
+      "rva": 11599168
+    },
+    "_ZN6Player14RopeClimbStartEP13GameComponentbb": {
+      "rva": 10409568
+    },
+    "_ZN11BouncePlant11CollideWithER18PhysicsContactPair": {
+      "rva": 1458176
+    },
+    "_ZN13SpringBellows11CollideWithER18PhysicsContactPair": {
+      "rva": 11152096
+    },
+    "_ZN6Player30PickUpAnyNearbyCarryableObjectEbbb": {
+      "rva": 10310720
+    },
+    "_ZN14TrainAuthority10OnNPCEventEjP17InteractEventInfo": {
+      "rva": 7064096
     }
   },
   "linux": {
@@ -280,6 +329,27 @@
     },
     "_ZN11RoomManager6UpdateEP20ycUpdateQueueContext": {
       "rva": 14245920
+    },
+    "_ZN6Player15SetBurrowGroundEv": {
+      "rva": 14918192
+    },
+    "_ZN13WaterListener21IsInDeepWaterInternalEb": {
+      "rva": 16363664
+    },
+    "_ZN6Player14RopeClimbStartEP13GameComponentbb": {
+      "rva": 14797696
+    },
+    "_ZN11BouncePlant11CollideWithER18PhysicsContactPair": {
+      "rva": 4440320
+    },
+    "_ZN13SpringBellows11CollideWithER18PhysicsContactPair": {
+      "rva": 15845280
+    },
+    "_ZN6Player30PickUpAnyNearbyCarryableObjectEbbb": {
+      "rva": 14827968
+    },
+    "_ZN14TrainAuthority10OnNPCEventEjP17InteractEventInfo": {
+      "rva": 11118944
     }
   }
 }

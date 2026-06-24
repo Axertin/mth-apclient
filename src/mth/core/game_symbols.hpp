@@ -96,4 +96,14 @@ inline constexpr const char *get_new_game_max_level_player =
     "_ZN10CombatData24GetNewGameMaxLevelPlayerEiiP8SaveSlot";                                          // CombatData::GetNewGameMaxLevelPlayer [Linux]
 inline constexpr const char *level_up_menu_update = "_ZN11LevelUpMenu6UpdateEP20ycUpdateQueueContext"; // LevelUpMenu::Update(...) [Windows]
 
+// Ability gating (issues #22/#33-#37). Each is the single chokepoint where the ability commits; the
+// detours suppress it under AP gating. SetBurrowGround classifies swim-vs-land via IsInDeepWaterInternal.
+inline constexpr const char *player_set_burrow_ground = "_ZN6Player15SetBurrowGroundEv";
+inline constexpr const char *water_is_in_deep_water = "_ZN13WaterListener21IsInDeepWaterInternalEb";
+inline constexpr const char *player_rope_climb_start = "_ZN6Player14RopeClimbStartEP13GameComponentbb";
+inline constexpr const char *bounce_plant_collide = "_ZN11BouncePlant11CollideWithER18PhysicsContactPair";
+inline constexpr const char *spring_bellows_collide = "_ZN13SpringBellows11CollideWithER18PhysicsContactPair";
+inline constexpr const char *player_pickup_carryable = "_ZN6Player30PickUpAnyNearbyCarryableObjectEbbb";
+inline constexpr const char *train_authority_on_npc_event = "_ZN14TrainAuthority10OnNPCEventEjP17InteractEventInfo";
+
 } // namespace mth::sym

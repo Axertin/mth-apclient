@@ -28,6 +28,14 @@ struct ApConnected
     std::vector<std::int64_t> missing_locations;
     bool ossex_start{false}; // slot_data "ossex_start": force the Landing Done modifier (start at Ossex hub)
     bool kear_rando{false};  // slot_data "kear_rando": kears are AP-randomized; suppress the vanilla world-kear grant
+    // slot_data "*_rando": the named ability is AP-randomized; gate it until its AP item is granted.
+    bool burrow_rando{false};
+    bool swim_rando{false};
+    bool rope_rando{false};
+    bool puff_rando{false};
+    bool spring_rando{false};
+    bool carry_rando{false};
+    bool train_rando{false};
 };
 struct ApItemReceived
 {

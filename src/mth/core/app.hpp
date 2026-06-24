@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 
+#include "mth/core/ability_ids.hpp"
 #include "mth/core/ap_save_state.hpp"
 #include "mth/core/ap_state.hpp"
 #include "mth/core/command_sink.hpp"
@@ -40,6 +41,7 @@ class LocationHooks;
 class BossHooks;
 class LockHooks;
 class ChestHooks;
+class AbilityHooks;
 class DevConsole;
 
 // Composition root. Logger and hook engine are PAL globals; App owns everything else.
@@ -68,6 +70,7 @@ class App : public ICommandSink
     void set_modifier(int idx, bool on) override;
     void lock_modifiers(bool armed) override;
     void set_stat_caps(int attack, int defense, int sidearm) override;
+    void set_ability_randomized(Ability ability, bool randomized) override;
 
   private:
     void ensure_inbound_ready();     // lazily builds save_state_/inbound_ once connected
@@ -90,6 +93,7 @@ class App : public ICommandSink
     std::unique_ptr<LockHooks> lock_hooks_;
     std::unique_ptr<ChestHooks> chest_hooks_;
     std::unique_ptr<DeathHooks> death_hooks_;
+    std::unique_ptr<AbilityHooks> ability_hooks_;
     std::unique_ptr<ModifierHooks> modifier_hooks_;
     std::unique_ptr<LevelCapHooks> level_cap_hooks_;
     std::optional<ApSaveState> save_state_;
