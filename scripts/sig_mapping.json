@@ -156,6 +156,10 @@
     {
       "name": "_ZN14TrainAuthority10OnNPCEventEjP17InteractEventInfo",
       "kind": "Code"
+    },
+    {
+      "name": "_ZN6Player16SetVialItemCountEi",
+      "kind": "Code"
     }
   ],
   "windows": {
@@ -276,6 +280,9 @@
     },
     "_ZN14TrainAuthority10OnNPCEventEjP17InteractEventInfo": {
       "rva": 7064096
+    },
+    "_ZN6Player16SetVialItemCountEi": {
+      "rva": 10296528
     }
   },
   "linux": {
@@ -350,6 +357,9 @@
     },
     "_ZN14TrainAuthority10OnNPCEventEjP17InteractEventInfo": {
       "rva": 11118944
+    },
+    "_ZN6Player16SetVialItemCountEi": {
+      "rva": 14909472
     }
   }
 }

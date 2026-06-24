@@ -18,6 +18,9 @@ inline constexpr const char *player_trackable_update = "_ZN15PlayerTrackable6Upd
 inline constexpr const char *player_trackable_get_pos = "_ZNK15PlayerTrackable6GetPosEv";                     // PlayerTrackable::GetPos() const -> ycVec3
 inline constexpr const char *player_update_stats =
     "_ZN6Player11UpdateStatsEv"; // Player::UpdateStats() -> recompute max HP/magic/spark/vial/trinket from save bits
+// Player::SetVialItemCount(int): the single setter that repartitions a vial total back into the
+// owned/held/overflow sub-fields; used to keep the "missing" vial count constant across an upgrade.
+inline constexpr const char *player_set_vial_item_count = "_ZN6Player16SetVialItemCountEi";
 
 // s_rItems: 195-entry item table (stride 0x68, kind at +0x28).
 inline constexpr const char *s_r_items = "_ZN12_GLOBAL__N_18s_rItemsE";
