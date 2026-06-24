@@ -111,7 +111,7 @@ inline constexpr int stat_cap_item_stat(std::int64_t ap_item_id_)
 
 // item-category bases
 inline constexpr std::int64_t kKearBlockItemBase = 2000; // kear-lock removals (wired)
-inline constexpr std::int64_t kAbilityItemBase = 3000;   // burrow / swim / bounce / climb (reserved)
+inline constexpr std::int64_t kAbilityItemBase = 3000;   // ability gates (Ability enum; see ability_ids.hpp)
 inline constexpr std::int64_t kBlockerItemBase = 4000;   // reserved
 inline constexpr std::int64_t kTrapItemBase = 5000;      // reserved
 

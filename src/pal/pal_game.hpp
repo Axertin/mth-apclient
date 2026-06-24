@@ -103,4 +103,22 @@ bool upgrades_available();
 // Game-thread only. false if unavailable or player is null (caller retries).
 bool apply_upgrades(const int *counts, void *player);
 
+// ---- Ability gating. Symbol/offset/game-call divergence lives in the PAL impl. ----
+
+// True once at least one ability chokepoint symbol resolves on this platform.
+bool abilities_available();
+
+// Gate predicate consulted by the detours on the game thread. `a` is the mth::Ability ordinal
+// (int, to keep pal/ free of mth/ headers).
+using AbilityBlockFn = std::function<bool(int ability_ordinal)>;
+
+// Install the ability detours; each suppresses its action when block(ordinal) is true. No-op for
+// unresolved symbols. Returns false if none installed.
+bool install_ability_hooks(AbilityBlockFn block);
+void remove_ability_hooks();
+
+// Forces the train-present save byte to 0 while blocked; the arrival event re-sets it when
+// unblocked. No-op if unavailable. Game-thread only.
+void enforce_train_presence(std::uintptr_t save_manager_global, bool blocked);
+
 } // namespace pal

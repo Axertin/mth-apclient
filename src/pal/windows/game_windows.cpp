@@ -611,3 +611,270 @@ bool apply_upgrades(const int *counts, void *player)
 }
 
 } // namespace pal
+
+// ---- ability gating (Windows) ----
+// mth::Ability ordinals (kept local so pal/ stays free of mth/ layout headers).
+namespace
+{
+constexpr int kAbBurrow = 0;
+constexpr int kAbSwim = 1;
+constexpr int kAbRopeClimb = 2;
+constexpr int kAbBouncePuff = 3;
+constexpr int kAbBounceSpring = 4;
+constexpr int kAbCarry = 5;
+constexpr int kAbTrain = 6;
+
+// Player-object offsets used by the detours; mirror the Linux struct layout (same Player struct).
+constexpr std::ptrdiff_t kPlayerWaterListenerOff = 0x2c0; // WaterListener* (swim-vs-land discriminator)
+constexpr std::ptrdiff_t kPlayerLowRoofFlagOff = 0x12f0;  // carry-disabled "low roof" pose flag
+// PhysicsContactPair -> colliding-entity component-kind chain (shared by both CollideWith detours).
+constexpr std::ptrdiff_t kContactEntityOff = 0x110;     // *(contactPair) + 0x110 -> entity
+constexpr std::ptrdiff_t kEntityInteractCompOff = 0xa8; // entity + 0xa8 -> InteractComponent
+constexpr std::ptrdiff_t kInteractKindOff = 0x6c;       // component + 0x6c -> int kind (8 == Player)
+constexpr int kInteractKindPlayer = 8;
+// TrainAuthority::OnNPCEvent case 0x15 selected-ticket-code chain; 100 = Exit (vanilla cancel).
+constexpr unsigned kTrainDestPickEvent = 0x15;
+constexpr std::ptrdiff_t kTrainAuthOwnerOff = 0x1b0; // this + 0x1b0 -> menu owner
+constexpr std::ptrdiff_t kTrainMenuObjOff = 0xc8;    // owner + 0xc8 -> selection obj
+constexpr std::ptrdiff_t kTrainSelCodeOff = 0x21c;   // obj + 0x21c -> int selected ticket itemType
+constexpr int kTrainExitCode = 100;
+// SaveSlot train-present byte (platform data; not an mth/ layout offset).
+constexpr std::ptrdiff_t kSaveTrainPresentOff = 0x1c1;
+
+pal::AbilityBlockFn g_ability_block;
+bool g_ab_resolved = false;
+bool g_ab_ok = false;
+
+std::uintptr_t g_addr_burrow_ground = 0;
+std::uintptr_t g_addr_rope_climb = 0;
+std::uintptr_t g_addr_bounce_plant = 0;
+std::uintptr_t g_addr_spring = 0;
+std::uintptr_t g_addr_pickup = 0;
+std::uintptr_t g_addr_train_npc = 0;
+
+pal::HookId g_id_burrow = pal::kInvalidHookId;
+pal::HookId g_id_rope = pal::kInvalidHookId;
+pal::HookId g_id_puff = pal::kInvalidHookId;
+pal::HookId g_id_spring = pal::kInvalidHookId;
+pal::HookId g_id_carry = pal::kInvalidHookId;
+pal::HookId g_id_train = pal::kInvalidHookId;
+
+unsigned long (*g_orig_burrow_ground)(void *) = nullptr;
+char (*g_water_is_deep)(void *, bool) = nullptr; // WaterListener::IsInDeepWaterInternal(wl, false)
+void (*g_orig_rope_climb)(void *, void *, bool, bool) = nullptr;
+void (*g_orig_bounce_plant)(void *, void *) = nullptr;
+void (*g_orig_spring)(void *, void *) = nullptr;
+unsigned long (*g_orig_pickup)(void *, bool, bool, bool) = nullptr;
+void (*g_orig_train_npc)(void *, unsigned, void *) = nullptr;
+
+bool ability_blocked(int ordinal)
+{
+    return g_ability_block && g_ability_block(ordinal);
+}
+
+// Free-roam burrow classify-and-commit: deep water => Swim, else Burrow. Scripted/underlab
+// entrances route through SetBurrowInObject (unhooked).
+unsigned long repl_burrow_ground(void *self)
+{
+    if (self != nullptr)
+    {
+        void *wl = *reinterpret_cast<void **>(static_cast<char *>(self) + kPlayerWaterListenerOff);
+        const bool deep = wl != nullptr && g_water_is_deep != nullptr && g_water_is_deep(wl, false) != 0;
+        const int ordinal = deep ? kAbSwim : kAbBurrow;
+        if (ability_blocked(ordinal))
+            return 0;
+    }
+    return g_orig_burrow_ground ? g_orig_burrow_ground(self) : 0;
+}
+
+// RopeClimbStart is the attach funnel; per-frame climb movement is a separate path (unhooked).
+void repl_rope_climb(void *self, void *rope, bool a, bool b)
+{
+    if (ability_blocked(kAbRopeClimb))
+        return;
+    if (g_orig_rope_climb)
+        g_orig_rope_climb(self, rope, a, b);
+}
+
+// Both CollideWith funnels reach the colliding entity's InteractComponent the same way.
+bool collider_is_player(void *contact_pair)
+{
+    if (contact_pair == nullptr)
+        return false;
+    void *cp0 = *reinterpret_cast<void **>(contact_pair);
+    if (cp0 == nullptr)
+        return false;
+    void *entity = *reinterpret_cast<void **>(static_cast<char *>(cp0) + kContactEntityOff);
+    if (entity == nullptr)
+        return false;
+    void *comp = *reinterpret_cast<void **>(static_cast<char *>(entity) + kEntityInteractCompOff);
+    if (comp == nullptr)
+        return false;
+    return *reinterpret_cast<int *>(static_cast<char *>(comp) + kInteractKindOff) == kInteractKindPlayer;
+}
+
+void repl_bounce_plant(void *self, void *contact_pair)
+{
+    if (collider_is_player(contact_pair) && ability_blocked(kAbBouncePuff))
+        return;
+    if (g_orig_bounce_plant)
+        g_orig_bounce_plant(self, contact_pair);
+}
+
+void repl_spring(void *self, void *contact_pair)
+{
+    if (collider_is_player(contact_pair) && ability_blocked(kAbBounceSpring))
+        return;
+    if (g_orig_spring)
+        g_orig_spring(self, contact_pair);
+}
+
+// Blocked: set the low-roof pose flag so the engine's ducked-under-roof rendering presents instead
+// of popping up.
+unsigned long repl_pickup(void *self, bool a, bool b, bool c)
+{
+    if (self != nullptr && ability_blocked(kAbCarry))
+    {
+        *reinterpret_cast<char *>(static_cast<char *>(self) + kPlayerLowRoofFlagOff) = 1;
+        return 0;
+    }
+    return g_orig_pickup ? g_orig_pickup(self, a, b, c) : 0;
+}
+
+// TrainAuthority::OnNPCEvent case 0x15 picks a destination by ticket itemType. Forcing the selected
+// code to Exit (100) makes vanilla treat it as a cancel.
+void repl_train_npc(void *self, unsigned event, void *info)
+{
+    if (self != nullptr && event == kTrainDestPickEvent && ability_blocked(kAbTrain))
+    {
+        void *owner = *reinterpret_cast<void **>(static_cast<char *>(self) + kTrainAuthOwnerOff);
+        void *obj = owner != nullptr ? *reinterpret_cast<void **>(static_cast<char *>(owner) + kTrainMenuObjOff) : nullptr;
+        if (obj != nullptr)
+            *reinterpret_cast<int *>(static_cast<char *>(obj) + kTrainSelCodeOff) = kTrainExitCode;
+    }
+    if (g_orig_train_npc)
+        g_orig_train_npc(self, event, info);
+}
+} // namespace
+
+namespace pal
+{
+
+bool abilities_available()
+{
+    if (g_ab_resolved)
+        return g_ab_ok;
+    g_ab_resolved = true;
+    g_addr_burrow_ground = resolve_game_symbol(mth::sym::player_set_burrow_ground);
+    g_water_is_deep = reinterpret_cast<char (*)(void *, bool)>(resolve_game_symbol(mth::sym::water_is_in_deep_water));
+    g_addr_rope_climb = resolve_game_symbol(mth::sym::player_rope_climb_start);
+    g_addr_bounce_plant = resolve_game_symbol(mth::sym::bounce_plant_collide);
+    g_addr_spring = resolve_game_symbol(mth::sym::spring_bellows_collide);
+    g_addr_pickup = resolve_game_symbol(mth::sym::player_pickup_carryable);
+    g_addr_train_npc = resolve_game_symbol(mth::sym::train_authority_on_npc_event);
+    g_ab_ok =
+        g_addr_burrow_ground != 0 || g_addr_rope_climb != 0 || g_addr_bounce_plant != 0 || g_addr_spring != 0 || g_addr_pickup != 0 || g_addr_train_npc != 0;
+    if (!g_ab_ok)
+        logf(LogLevel::Warn, "abilities: no chokepoint symbols resolved; ability gating disabled");
+    return g_ab_ok;
+}
+
+bool install_ability_hooks(AbilityBlockFn block)
+{
+    if (!abilities_available())
+        return false;
+    g_ability_block = std::move(block);
+
+    if (g_addr_burrow_ground != 0)
+    {
+        g_id_burrow = hook_engine().install_hook(reinterpret_cast<void *>(g_addr_burrow_ground), reinterpret_cast<void *>(&repl_burrow_ground),
+                                                 reinterpret_cast<void **>(&g_orig_burrow_ground));
+        if (g_id_burrow == kInvalidHookId)
+            logf(LogLevel::Error, "abilities: failed to hook Player::SetBurrowGround");
+    }
+    else
+        logf(LogLevel::Warn, "abilities: Player::SetBurrowGround not resolved; burrow/swim gating disabled");
+    if (g_water_is_deep == nullptr)
+        logf(LogLevel::Warn, "abilities: IsInDeepWaterInternal not resolved; swim-vs-land treated as land");
+
+    if (g_addr_rope_climb != 0)
+    {
+        g_id_rope = hook_engine().install_hook(reinterpret_cast<void *>(g_addr_rope_climb), reinterpret_cast<void *>(&repl_rope_climb),
+                                               reinterpret_cast<void **>(&g_orig_rope_climb));
+        if (g_id_rope == kInvalidHookId)
+            logf(LogLevel::Error, "abilities: failed to hook Player::RopeClimbStart");
+    }
+    else
+        logf(LogLevel::Warn, "abilities: Player::RopeClimbStart not resolved; rope gating disabled");
+
+    if (g_addr_bounce_plant != 0)
+    {
+        g_id_puff = hook_engine().install_hook(reinterpret_cast<void *>(g_addr_bounce_plant), reinterpret_cast<void *>(&repl_bounce_plant),
+                                               reinterpret_cast<void **>(&g_orig_bounce_plant));
+        if (g_id_puff == kInvalidHookId)
+            logf(LogLevel::Error, "abilities: failed to hook BouncePlant::CollideWith");
+    }
+    else
+        logf(LogLevel::Warn, "abilities: BouncePlant::CollideWith not resolved; puff gating disabled");
+
+    if (g_addr_spring != 0)
+    {
+        g_id_spring = hook_engine().install_hook(reinterpret_cast<void *>(g_addr_spring), reinterpret_cast<void *>(&repl_spring),
+                                                 reinterpret_cast<void **>(&g_orig_spring));
+        if (g_id_spring == kInvalidHookId)
+            logf(LogLevel::Error, "abilities: failed to hook SpringBellows::CollideWith");
+    }
+    else
+        logf(LogLevel::Warn, "abilities: SpringBellows::CollideWith not resolved; spring gating disabled");
+
+    if (g_addr_pickup != 0)
+    {
+        g_id_carry = hook_engine().install_hook(reinterpret_cast<void *>(g_addr_pickup), reinterpret_cast<void *>(&repl_pickup),
+                                                reinterpret_cast<void **>(&g_orig_pickup));
+        if (g_id_carry == kInvalidHookId)
+            logf(LogLevel::Error, "abilities: failed to hook Player::PickUpAnyNearbyCarryableObject");
+    }
+    else
+        logf(LogLevel::Warn, "abilities: Player::PickUpAnyNearbyCarryableObject not resolved; carry gating disabled");
+
+    if (g_addr_train_npc != 0)
+    {
+        g_id_train = hook_engine().install_hook(reinterpret_cast<void *>(g_addr_train_npc), reinterpret_cast<void *>(&repl_train_npc),
+                                                reinterpret_cast<void **>(&g_orig_train_npc));
+        if (g_id_train == kInvalidHookId)
+            logf(LogLevel::Error, "abilities: failed to hook TrainAuthority::OnNPCEvent");
+    }
+    else
+        logf(LogLevel::Warn, "abilities: TrainAuthority::OnNPCEvent not resolved; train gating disabled");
+
+    const bool any = g_id_burrow != kInvalidHookId || g_id_rope != kInvalidHookId || g_id_puff != kInvalidHookId || g_id_spring != kInvalidHookId ||
+                     g_id_carry != kInvalidHookId || g_id_train != kInvalidHookId;
+    if (any)
+        logf(LogLevel::Info, "abilities: ability gating hooks installed");
+    else
+        g_ability_block = nullptr;
+    return any;
+}
+
+void remove_ability_hooks()
+{
+    for (HookId *id : {&g_id_burrow, &g_id_rope, &g_id_puff, &g_id_spring, &g_id_carry, &g_id_train})
+    {
+        if (*id != kInvalidHookId)
+            hook_engine().remove_hook(*id);
+        *id = kInvalidHookId;
+    }
+    g_ability_block = nullptr;
+}
+
+void enforce_train_presence(std::uintptr_t save_manager_global, bool blocked)
+{
+    if (!blocked)
+        return; // arrival event re-shows the train
+    void *slot = active_save_slot(save_manager_global);
+    if (slot == nullptr)
+        return;
+    *reinterpret_cast<char *>(static_cast<char *>(slot) + kSaveTrainPresentOff) = 0;
+}
+
+} // namespace pal

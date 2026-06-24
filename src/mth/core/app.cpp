@@ -14,6 +14,7 @@
 #include "mth/core/game_events.hpp"
 #include "mth/core/inbound_granter.hpp"
 #include "mth/core/rando_bridge.hpp"
+#include "mth/hooks/ability_hooks.hpp"
 #include "mth/hooks/boss_hooks.hpp"
 #include "mth/hooks/chest_hooks.hpp"
 #include "mth/hooks/death_hooks.hpp"
@@ -105,6 +106,7 @@ App::App()
     lock_hooks_ = std::make_unique<LockHooks>();
     chest_hooks_ = std::make_unique<ChestHooks>(lock_hooks_->locks()); // shares the lock registry + seed
     death_hooks_ = std::make_unique<DeathHooks>([this] { link_->send_death("Mina the Hollower"); }, [this]() -> void * { return tracker_->player(); });
+    ability_hooks_ = std::make_unique<AbilityHooks>([this](std::int64_t id) { return state_.has_received(id); });
     // Suppress the game's default new-file starting kit while AP-authenticated (AP supplies it instead).
     pal::install_newfile_kit_suppressor([this] { return state_.authenticated(); });
 
@@ -177,6 +179,7 @@ App::~App()
     console_.reset(); // then unregister the log observer
 #endif
     pal::remove_newfile_kit_suppressor();
+    ability_hooks_.reset();
     death_hooks_.reset();
     modifier_hooks_.reset();
     level_cap_hooks_.reset();
@@ -234,7 +237,26 @@ void App::drive_tick()
     }
     if (location_hooks_)
         location_hooks_->set_kear_rando(state_.kear_rando()); // slot_data flag: neutralize the world-kear key grant
-    seed_kear_blocks_from_ap();                               // received kear-block items -> lock removals (no-op when none received)
+    if (ability_hooks_)
+    {
+        if (authed)
+        {
+            ability_hooks_->set_randomized(Ability::Burrow, state_.burrow_rando());
+            ability_hooks_->set_randomized(Ability::Swim, state_.swim_rando());
+            ability_hooks_->set_randomized(Ability::RopeClimb, state_.rope_rando());
+            ability_hooks_->set_randomized(Ability::BouncePuff, state_.puff_rando());
+            ability_hooks_->set_randomized(Ability::BounceSpring, state_.spring_rando());
+            ability_hooks_->set_randomized(Ability::Carry, state_.carry_rando());
+            ability_hooks_->set_randomized(Ability::Train, state_.train_rando());
+        }
+        // offline: leave randomized as the `ability` console command set it.
+        const bool armed = policy_.enforce_abilities(authed);
+        const bool slot_ok = !authed ? true // offline console test: enforce on the loaded save
+                                     : (save_state_.has_value() && save_state_->game_slot() >= 0 && modifier_hooks_ &&
+                                        modifier_hooks_->captured_ap_slot() == save_state_->game_slot());
+        ability_hooks_->set_enforce(armed && slot_ok);
+    }
+    seed_kear_blocks_from_ap(); // received kear-block items -> lock removals (no-op when none received)
     upgrades_.recompute(state_);
     if (upgrades_.dirty() && tracker_ && pal::apply_upgrades(upgrades_.counts(), tracker_->player()))
         upgrades_.mark_applied(); // applied to the save; retry next tick if player not ready yet
@@ -271,6 +293,8 @@ void App::drain_grants()
 {
     if (lock_hooks_)
         lock_hooks_->seed_removed_locks();
+    if (ability_hooks_)
+        ability_hooks_->enforce_train_tick();
     if (granter_)
         granter_->drain();
 }
@@ -374,6 +398,14 @@ void App::set_stat_caps(int attack, int defense, int sidearm)
     if (level_cap_hooks_)
         level_cap_hooks_->set_counts(attack, defense, sidearm);
     pal::logf(pal::LogLevel::Info, "console: stat caps attack=%d defense=%d sidearm=%d", attack, defense, sidearm);
+}
+
+void App::set_ability_randomized(Ability a, bool on)
+{
+    policy_.arm_console_abilities();
+    if (ability_hooks_)
+        ability_hooks_->set_randomized(a, on);
+    pal::logf(pal::LogLevel::Info, "console: ability %d randomized %s", static_cast<int>(a), on ? "on" : "off");
 }
 
 } // namespace mth

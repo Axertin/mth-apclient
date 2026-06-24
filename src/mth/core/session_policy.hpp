@@ -21,6 +21,10 @@ class SessionPolicy
     {
         forced_caps_ = true;
     }
+    void arm_console_abilities() // dev console drove ability gates this session
+    {
+        console_abilities_ = true;
+    }
 
     [[nodiscard]] bool enforce_modifiers(bool ap_authenticated) const
     {
@@ -34,11 +38,16 @@ class SessionPolicy
     {
         return forced_caps_;
     }
+    [[nodiscard]] bool enforce_abilities(bool ap_authenticated) const
+    {
+        return ap_authenticated || console_abilities_;
+    }
 
   private:
     bool env_modifiers_{false};
     bool console_modifiers_{false};
     bool forced_caps_{false};
+    bool console_abilities_{false};
 };
 
 } // namespace mth

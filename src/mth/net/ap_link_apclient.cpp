@@ -282,10 +282,17 @@ void ApLink::setup_handlers(const std::string &slot, const std::string &password
             auto missing = client_->get_missing_locations();
             auto checked = client_->get_checked_locations();
             const bool ossex_start = data.is_object() && data.value("ossex_start", 0) != 0;
-            const bool kear_rando = data.is_object(); // && data.value("kear_rando", 0) != 0;
+            const bool kear_rando = data.is_object(); // && data.value("kear_rando", 0) != 0; // always suppress kears until there's a setting that needs them
+            const bool burrow_rando = data.is_object() && data.value("burrow_rando", 0) != 0;
+            const bool swim_rando = data.is_object() && data.value("swim_rando", 0) != 0;
+            const bool rope_rando = data.is_object() && data.value("rope_rando", 0) != 0;
+            const bool puff_rando = data.is_object() && data.value("puff_rando", 0) != 0;
+            const bool spring_rando = data.is_object() && data.value("spring_rando", 0) != 0;
+            const bool carry_rando = data.is_object() && data.value("carry_rando", 0) != 0;
+            const bool train_rando = data.is_object() && data.value("train_rando", 0) != 0;
             push_event(mth::ApConnected{client_->get_seed(), data.is_null() ? std::string{} : data.dump(), client_->get_player_number(),
                                         std::vector<std::int64_t>(checked.begin(), checked.end()), std::vector<std::int64_t>(missing.begin(), missing.end()),
-                                        ossex_start, kear_rando});
+                                        ossex_start, kear_rando, burrow_rando, swim_rando, rope_rando, puff_rando, spring_rando, carry_rando, train_rando});
         });
 
     client_->set_slot_refused_handler(

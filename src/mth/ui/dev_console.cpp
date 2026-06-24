@@ -6,6 +6,7 @@
 
 #include <imgui.h>
 
+#include "mth/core/ability_ids.hpp"
 #include "mth/core/command_sink.hpp"
 #include "mth/core/dev_commands.hpp"
 #include "mth_version.h"
@@ -132,6 +133,7 @@ void DevConsole::run_input()
         println("          giveapitem <ap_item_id>, removelock <slot>");
         println("          modifier <idx> on|off, modifiers [lock|unlock]");
         println("          caps <attack> <defense> <sidearm>  (per-stat level cap-ups; 0 = frozen)");
+        println("          ability <name> on|off  (names: burrow swim rope puff spring carry train)");
         break;
     case CommandKind::Clear:
         log_.clear();
@@ -203,6 +205,25 @@ void DevConsole::run_input()
         {
             sink_.set_stat_caps(std::stoi(cmd.args[0]), std::stoi(cmd.args[1]), std::stoi(cmd.args[2]));
             println("stat caps set: attack=" + cmd.args[0] + " defense=" + cmd.args[1] + " sidearm=" + cmd.args[2]);
+        }
+        break;
+    case CommandKind::Ability:
+        if (cmd.args.size() < 2)
+            println("usage: ability <name> on|off  (names: burrow swim rope puff spring carry train)");
+        else
+        {
+            const auto ab = mth::ability_from_name(cmd.args[0]);
+            if (!ab)
+            {
+                println("unknown ability: " + cmd.args[0]);
+                println("usage: ability <name> on|off  (names: burrow swim rope puff spring carry train)");
+            }
+            else
+            {
+                const bool on = cmd.args[1] == "on" || cmd.args[1] == "1" || cmd.args[1] == "true";
+                sink_.set_ability_randomized(*ab, on);
+                println("ability " + cmd.args[0] + " randomized " + (on ? "on" : "off"));
+            }
         }
         break;
     case CommandKind::Disconnect:

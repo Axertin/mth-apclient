@@ -48,6 +48,35 @@ class ApState
     {
         return kear_rando_;
     }
+    // slot_data flags: the named ability is AP-randomized; gate it until its AP item is granted.
+    [[nodiscard]] bool burrow_rando() const
+    {
+        return burrow_rando_;
+    }
+    [[nodiscard]] bool swim_rando() const
+    {
+        return swim_rando_;
+    }
+    [[nodiscard]] bool rope_rando() const
+    {
+        return rope_rando_;
+    }
+    [[nodiscard]] bool puff_rando() const
+    {
+        return puff_rando_;
+    }
+    [[nodiscard]] bool spring_rando() const
+    {
+        return spring_rando_;
+    }
+    [[nodiscard]] bool carry_rando() const
+    {
+        return carry_rando_;
+    }
+    [[nodiscard]] bool train_rando() const
+    {
+        return train_rando_;
+    }
     [[nodiscard]] bool is_valid_location(std::int64_t id) const
     {
         return valid_locations_.contains(id);
@@ -60,8 +89,19 @@ class ApState
     {
         return last_item_index_;
     }
+    // True if item_id appears in the received inventory (reconnect-durable: server resends full list).
+    [[nodiscard]] bool has_received(std::int64_t item_id) const
+    {
+        for (const auto &it : received_items_)
+            if (it.item_id == item_id)
+                return true;
+        return false;
+    }
 
   private:
+    // Append a received item, applying the puff->spring bounce alias (see ap_state.cpp).
+    void push_received(const ReceivedItem &item);
+
     bool authenticated_{false};
     std::string status_{"Idle"};
     std::string seed_{};
@@ -69,6 +109,13 @@ class ApState
     int player_slot_{-1};
     bool ossex_start_{false};
     bool kear_rando_{false};
+    bool burrow_rando_{false};
+    bool swim_rando_{false};
+    bool rope_rando_{false};
+    bool puff_rando_{false};
+    bool spring_rando_{false};
+    bool carry_rando_{false};
+    bool train_rando_{false};
     std::set<std::int64_t> valid_locations_{};
     std::vector<ReceivedItem> received_items_{};
     int last_item_index_{-1};
