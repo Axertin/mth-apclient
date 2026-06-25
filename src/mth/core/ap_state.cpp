@@ -1,6 +1,7 @@
 #include "mth/core/ap_state.hpp"
 
 #include <type_traits>
+#include <utility>
 #include <variant>
 
 #include "mth/core/ability_ids.hpp"
@@ -13,6 +14,15 @@ namespace mth
 void ApState::push_received(const ReceivedItem &item)
 {
     received_items_.push_back(item);
+}
+
+// Set the connection phase and clear the (error-only) detail under its lock. The Error
+// branch sets detail instead, so it stores the phase inline rather than calling this.
+void ApState::set_phase(ConnectionPhase p)
+{
+    phase_.store(p, std::memory_order_relaxed);
+    std::lock_guard<std::mutex> lk(detail_mutex_);
+    detail_.clear();
 }
 
 void ApState::inject_received_item(std::int64_t item_id)
@@ -46,6 +56,7 @@ void ApState::apply(const ApEvent &ev)
                 valid_locations_.insert(e.missing_locations.begin(), e.missing_locations.end());
                 authenticated_ = true;
                 status_ = "Connected";
+                set_phase(ConnectionPhase::Connected);
 
                 // The server's location-id space. ap_loc_id(slot)=kLocBase+slot must
                 // land inside [lo..hi] or is_ap_location() rejects every pickup.
@@ -56,6 +67,11 @@ void ApState::apply(const ApEvent &ev)
                           "id_range=[%lld..%lld]",
                           player_slot_, seed_.c_str(), slot_data_.size(), ossex_start_, kear_rando_, valid_locations_.size(), e.checked_locations.size(),
                           e.missing_locations.size(), static_cast<long long>(lo), static_cast<long long>(hi));
+            }
+            else if constexpr (std::is_same_v<T, ApConnecting>)
+            {
+                status_ = "Connecting...";
+                set_phase(ConnectionPhase::Connecting);
             }
             else if constexpr (std::is_same_v<T, ApItemReceived>)
             {
@@ -75,6 +91,7 @@ void ApState::apply(const ApEvent &ev)
             {
                 authenticated_ = false;
                 status_ = "Disconnected";
+                set_phase(ConnectionPhase::Disconnected);
                 pal::logf(pal::LogLevel::Warn, "ap_state: DISCONNECTED");
             }
             else if constexpr (std::is_same_v<T, ApConnectionRefused>)
@@ -87,6 +104,14 @@ void ApState::apply(const ApEvent &ev)
                     msg += err;
                 }
                 status_ = msg;
+                phase_.store(ConnectionPhase::Error, std::memory_order_relaxed);
+                {
+                    std::string detail;
+                    for (std::size_t i = 0; i < e.errors.size(); ++i)
+                        detail += (i ? ", " : "") + e.errors[i];
+                    std::lock_guard<std::mutex> lk(detail_mutex_);
+                    detail_ = std::move(detail);
+                }
                 pal::logf(pal::LogLevel::Error, "ap_state: connection %s", msg.c_str());
             }
             else if constexpr (std::is_same_v<T, ApStatusChanged>)

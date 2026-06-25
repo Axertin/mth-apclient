@@ -45,6 +45,7 @@ namespace
 
 std::atomic<IOverlayUi *> g_ui{nullptr};
 std::atomic<bool> g_console_open{false};
+std::atomic<bool> g_login_open{true};
 std::atomic<ID3D12CommandQueue *> g_command_queue{nullptr};
 
 // Render resources - touched only on the render thread inside the Present detour.
@@ -76,6 +77,7 @@ IDXGISwapChain3 *g_inited_swap = nullptr;
 bool g_swapchain_mismatch_warned = false; // rate-limit the recreate warning
 
 UINT g_toggle_vk = VK_F1;
+UINT g_login_vk = VK_F2;
 
 // Cross-thread input marshalling. The Win32 message pump and D3D12 present run on
 // DIFFERENT threads in this game, so the WndProc must not touch ImGui directly
@@ -466,6 +468,12 @@ static LRESULT CALLBACK overlay_wndproc(HWND hwnd, UINT msg, WPARAM wparam, LPAR
         return 0; // consume the toggle key itself (atomic only; no ImGui touch)
     }
 
+    if (msg == WM_KEYDOWN && wparam == g_login_vk)
+    {
+        g_login_open.store(!g_login_open.load(std::memory_order_relaxed), std::memory_order_relaxed);
+        return 0; // consume the toggle key itself
+    }
+
     // Do NOT call ImGui from this thread: the message pump and the present thread
     // are different, and ImGui's context/IO is not thread-safe. Queue the message
     // for the render thread to replay before NewFrame.
@@ -476,9 +484,9 @@ static LRESULT CALLBACK overlay_wndproc(HWND hwnd, UINT msg, WPARAM wparam, LPAR
             g_msg_queue.push_back(Win32Msg{hwnd, msg, wparam, lparam});
         }
 
-        // Swallow from the game while the console is open and ImGui wants this
+        // Swallow from the game while either window is open and ImGui wants this
         // input. WantCapture* is published by the render thread (one frame stale).
-        if (g_console_open.load(std::memory_order_relaxed))
+        if (g_console_open.load(std::memory_order_relaxed) || g_login_open.load(std::memory_order_relaxed))
         {
             if (g_want_keyboard.load(std::memory_order_relaxed) && is_keyboard_msg(msg))
                 return 0;
@@ -647,12 +655,14 @@ static void render_overlay(IDXGISwapChain3 *swap)
     ImGui::NewFrame();
 
     const bool console_open = g_console_open.load(std::memory_order_relaxed);
-    // The game hides the OS cursor, so draw ImGui's own software cursor while the
-    // console is open; otherwise the user has no visible pointer to click with.
-    ImGui::GetIO().MouseDrawCursor = console_open;
+    const bool login_open = g_login_open.load(std::memory_order_relaxed);
+    const bool any_open = console_open || login_open;
+    // The game hides the OS cursor, so draw ImGui's own software cursor while any
+    // window is open; otherwise the user has no visible pointer to click with.
+    ImGui::GetIO().MouseDrawCursor = any_open;
 
     if (IOverlayUi *ui = g_ui.load(std::memory_order_acquire); ui != nullptr)
-        ui->draw(console_open);
+        ui->draw(pal::OverlayVisibility{console_open, login_open});
 
     ImGui::Render();
 
@@ -702,6 +712,10 @@ class D3D12Overlay final : public IOverlay
     {
         g_toggle_vk = parse_console_key(std::getenv("MTHAP_CONSOLE_KEY"));
         pal::logf(pal::LogLevel::Info, "overlay: D3D12Overlay constructing (toggle vk=0x%x)", static_cast<unsigned>(g_toggle_vk));
+        g_login_vk = parse_console_key(std::getenv("MTHAP_LOGIN_KEY"));
+        if (g_login_vk == g_toggle_vk) // default MTHAP_LOGIN_KEY unset -> distinct F2, not the console default
+            g_login_vk = VK_F2;
+        pal::logf(pal::LogLevel::Info, "overlay: login toggle vk=0x%x", static_cast<unsigned>(g_login_vk));
 
         void *addrs[4];
         if (!discover_vtable_addrs(addrs))
@@ -774,6 +788,7 @@ class D3D12Overlay final : public IOverlay
         g_init_failed = false;
         g_command_queue.store(nullptr, std::memory_order_release);
         g_console_open.store(false, std::memory_order_relaxed);
+        g_login_open.store(false, std::memory_order_relaxed);
         g_ui.store(nullptr, std::memory_order_release);
         pal::logf(pal::LogLevel::Info, "overlay: D3D12Overlay destroyed");
     }

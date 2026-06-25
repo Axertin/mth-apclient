@@ -36,7 +36,7 @@
 #endif
 #ifdef MTHAP_HAS_OVERLAY
 #include "mth/core/game_symbols.hpp"
-#include "mth/ui/dev_console.hpp"
+#include "mth/ui/overlay_root.hpp"
 #include "pal/pal_overlay.hpp"
 #endif
 
@@ -164,9 +164,9 @@ App::App()
 #ifdef MTHAP_HAS_OVERLAY
     {
         const pal::OverlayConfig ocfg{pal::resolve_game_symbol(sym::process_sdl_event)};
-        console_ = std::make_unique<DevConsole>(*this, *banner_queue_);
+        overlay_root_ = std::make_unique<OverlayRoot>(*this, *banner_queue_);
         overlay_ = pal::make_overlay(ocfg);
-        overlay_->set_ui(console_.get());
+        overlay_->set_ui(overlay_root_.get());
         pal::logf(pal::LogLevel::Info, "overlay: dev console attached"); // overlay logs the resolved toggle key
     }
 #endif
@@ -175,8 +175,8 @@ App::App()
 App::~App()
 {
 #ifdef MTHAP_HAS_OVERLAY
-    overlay_.reset(); // removes render/input hooks + stops drawing first
-    console_.reset(); // then unregister the log observer
+    overlay_.reset();      // removes render/input hooks + stops drawing first
+    overlay_root_.reset(); // then unregister the log observer
 #endif
     pal::remove_newfile_kit_suppressor();
     ability_hooks_.reset();
@@ -322,6 +322,11 @@ void App::connect(const std::string &server, const std::string &slot, const std:
 void App::disconnect()
 {
     link_->disconnect();
+}
+
+ConnectionStatus App::connection_status() const
+{
+    return ConnectionStatus{state_.phase(), state_.detail()};
 }
 
 std::vector<std::string> App::status_lines() const

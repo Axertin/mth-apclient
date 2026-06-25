@@ -9,9 +9,9 @@
 
 namespace
 {
-mth::ApState make_state(const std::vector<std::int64_t> &item_ids)
+// ApState is non-copyable/non-movable; populate in-place.
+void make_state(mth::ApState &s, const std::vector<std::int64_t> &item_ids)
 {
-    mth::ApState s;
     int idx = 0;
     for (auto id : item_ids)
     {
@@ -20,7 +20,6 @@ mth::ApState make_state(const std::vector<std::int64_t> &item_ids)
         e.item.index = idx++; // ApState dedups on strictly-increasing index
         s.apply(e);
     }
-    return s;
 }
 } // namespace
 
@@ -35,7 +34,9 @@ TEST_CASE("default caps are zero (stat frozen at start)", "[stat_cap]")
 TEST_CASE("cap-up items raise only their own stat", "[stat_cap]")
 {
     mth::StatCapState caps;
-    caps.recompute(make_state({mth::kProgStatCapBase + 0, mth::kProgStatCapBase + 0, mth::kProgStatCapBase + 2}));
+    mth::ApState s1;
+    make_state(s1, {mth::kProgStatCapBase + 0, mth::kProgStatCapBase + 0, mth::kProgStatCapBase + 2});
+    caps.recompute(s1);
     REQUIRE(caps.enforced_cap(0, 9) == 2);
     REQUIRE(caps.enforced_cap(1, 9) == 0);
     REQUIRE(caps.enforced_cap(2, 9) == 1);
@@ -46,7 +47,9 @@ TEST_CASE("cap-up items raise only their own stat", "[stat_cap]")
 TEST_CASE("all-stat cap-up raises every stat per receipt", "[stat_cap]")
 {
     mth::StatCapState caps;
-    caps.recompute(make_state({mth::kProgStatCapAllId, mth::kProgStatCapAllId}));
+    mth::ApState s2;
+    make_state(s2, {mth::kProgStatCapAllId, mth::kProgStatCapAllId});
+    caps.recompute(s2);
     REQUIRE(caps.granted(0) == 2);
     REQUIRE(caps.granted(1) == 2);
     REQUIRE(caps.granted(2) == 2);
@@ -88,7 +91,9 @@ TEST_CASE("console-injected cap-up counts like a socket item and leaves the curs
 TEST_CASE("non-cap item ids are ignored", "[stat_cap]")
 {
     mth::StatCapState caps;
-    caps.recompute(make_state({mth::ap_item_id(5), mth::ap_item_id(42)}));
+    mth::ApState s3;
+    make_state(s3, {mth::ap_item_id(5), mth::ap_item_id(42)});
+    caps.recompute(s3);
     REQUIRE(caps.granted(0) == 0);
     REQUIRE(caps.granted(1) == 0);
     REQUIRE(caps.granted(2) == 0);

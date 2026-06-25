@@ -1,10 +1,12 @@
 #pragma once
 
 #include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <queue>
 #include <string>
 #include <thread>
@@ -45,9 +47,10 @@ class ApLink final : public mth::IApLink
     void do_disconnect();
     void setup_handlers(const std::string &slot, const std::string &password);
 
-    std::unique_ptr<APClient> client_; // net thread only
-    int last_item_index_{-1};          // net thread only
-    std::string slot_name_;            // net thread only; captured on connect for bounce source
+    std::unique_ptr<APClient> client_;                                      // net thread only
+    int last_item_index_{-1};                                               // net thread only
+    std::string slot_name_;                                                 // net thread only; captured on connect for bounce source
+    std::optional<std::chrono::steady_clock::time_point> connect_deadline_; // net thread only; set while a connect is in flight
 
     std::atomic<bool> running_{true};
     std::atomic<bool> connected_{false};

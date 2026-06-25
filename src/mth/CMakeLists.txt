@@ -105,7 +105,7 @@ if(NOT MTHAP_BUILD_TESTS_ONLY)
     # symbols stay undefined. (Both platforms, overlay-enabled only; matches src/pal.)
     if(MTHAP_ENABLE_OVERLAY)
         target_link_libraries(mthap PRIVATE mthap::imgui)
-        target_sources(mthap PRIVATE ui/dev_console.cpp ui/broadcast_banner.cpp)
+        target_sources(mthap PRIVATE ui/dev_console.cpp ui/broadcast_banner.cpp ui/overlay_root.cpp ui/login_window.cpp)
     endif()
 
     target_compile_features(mthap PRIVATE cxx_std_23)

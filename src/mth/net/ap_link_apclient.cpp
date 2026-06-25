@@ -20,6 +20,7 @@ namespace
 {
 constexpr const char *kGameName = "Mina The Hollower"; // placeholder until apworld is named
 constexpr int kItemHandling = 0b111;                   // remote + own-world + starting inventory
+constexpr std::chrono::seconds kConnectTimeout{30};
 
 std::string build_uri(const std::string &server)
 {
@@ -194,7 +195,15 @@ void ApLink::run()
                 if (connected_.exchange(false))
                     push_event(mth::ApDisconnected{});
                 client_.reset();
+                connect_deadline_.reset();
             }
+        }
+        if (connect_deadline_ && std::chrono::steady_clock::now() > *connect_deadline_)
+        {
+            connect_deadline_.reset();
+            pal::logf(pal::LogLevel::Warn, "ApLink: connect timed out after %llds", static_cast<long long>(kConnectTimeout.count()));
+            do_disconnect(); // tears down the half-open client; was_connected is false so no ApDisconnected
+            push_event(mth::ApConnectionRefused{{"connection timed out"}});
         }
         std::this_thread::sleep_for(10ms);
     }
@@ -208,7 +217,7 @@ void ApLink::do_connect(const std::string &server, const std::string &slot, cons
 
     if (server.empty() || slot.empty())
     {
-        push_event(mth::ApStatusChanged{"AP: server and slot are required"});
+        push_event(mth::ApConnectionRefused{{"server and slot are required"}});
         return;
     }
 
@@ -219,7 +228,7 @@ void ApLink::do_connect(const std::string &server, const std::string &slot, cons
         const auto ca = pal::ca_bundle_path();
         if (!ca)
         {
-            push_event(mth::ApStatusChanged{"AP: no CA bundle found for wss (set MTHAP_AP_CERT)"});
+            push_event(mth::ApConnectionRefused{{"no CA bundle found for wss (set MTHAP_AP_CERT)"}});
             return;
         }
         cert = ca->string();
@@ -230,18 +239,20 @@ void ApLink::do_connect(const std::string &server, const std::string &slot, cons
         const std::string uuid = ap_get_uuid((pal::log_dir() / "ap_uuid").string(), server);
         client_ = std::make_unique<APClient>(uuid, kGameName, uri, cert);
         setup_handlers(slot, password);
-        push_event(mth::ApStatusChanged{"AP: connecting..."});
+        push_event(mth::ApConnecting{});
+        connect_deadline_ = std::chrono::steady_clock::now() + kConnectTimeout;
         pal::logf(pal::LogLevel::Info, "ApLink: connecting to %s", uri.c_str());
     }
     catch (const std::exception &e)
     {
-        push_event(mth::ApStatusChanged{std::string("AP: connect failed: ") + e.what()});
+        push_event(mth::ApConnectionRefused{{std::string("connect failed: ") + e.what()}});
         client_.reset();
     }
 }
 
 void ApLink::do_disconnect()
 {
+    connect_deadline_.reset();
     if (!client_)
         return;
     // socket_disconnected handler already emits on server drops; guard avoids duplicate.
@@ -257,6 +268,7 @@ void ApLink::setup_handlers(const std::string &slot, const std::string &password
         [this]
         {
             connected_.store(false);
+            connect_deadline_.reset();
             push_event(mth::ApDisconnected{});
         });
 
@@ -273,6 +285,7 @@ void ApLink::setup_handlers(const std::string &slot, const std::string &password
         [this](const nlohmann::json &data)
         {
             connected_.store(true);
+            connect_deadline_.reset();
             std::list<std::string> tags;
             if (deathlink_.load())
                 tags.push_back("DeathLink");
@@ -299,6 +312,7 @@ void ApLink::setup_handlers(const std::string &slot, const std::string &password
         [this](const std::list<std::string> &errors)
         {
             connected_.store(false);
+            connect_deadline_.reset();
             push_event(mth::ApConnectionRefused{std::vector<std::string>(errors.begin(), errors.end())});
         });
 

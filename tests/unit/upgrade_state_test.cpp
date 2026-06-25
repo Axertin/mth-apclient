@@ -9,13 +9,12 @@
 
 namespace
 {
-mth::ApState make_state(const std::vector<std::int64_t> &item_ids)
+// ApState is non-copyable/non-movable; populate in-place.
+void make_state(mth::ApState &s, const std::vector<std::int64_t> &item_ids)
 {
-    mth::ApState s;
     int idx = 0;
     for (auto id : item_ids)
         s.apply(mth::ApItemReceived{{id, idx++, 0, 0}});
-    return s;
 }
 constexpr std::int64_t kMagic = mth::kUpgradeItemBase + 0;
 constexpr std::int64_t kHealth = mth::kUpgradeItemBase + 1;
@@ -33,7 +32,9 @@ TEST_CASE("upgrade: default counts are zero and clean", "[upgrade]")
 TEST_CASE("upgrade: counts receipts per type and flags dirty", "[upgrade]")
 {
     mth::UpgradeState up;
-    up.recompute(make_state({kHealth, kHealth, kMagic}));
+    mth::ApState s1;
+    make_state(s1, {kHealth, kHealth, kMagic});
+    up.recompute(s1);
     REQUIRE(up.dirty());
     REQUIRE(up.counts()[0] == 1); // Magic
     REQUIRE(up.counts()[1] == 2); // Health
@@ -44,7 +45,9 @@ TEST_CASE("upgrade: clamps to the per-type cap", "[upgrade]")
 {
     mth::UpgradeState up;
     std::vector<std::int64_t> many(50, kTrinket); // Trinket cap is 6
-    up.recompute(make_state(many));
+    mth::ApState s2;
+    make_state(s2, many);
+    up.recompute(s2);
     REQUIRE(up.counts()[4] == mth::kUpgradeCaps[4]);
     REQUIRE(up.counts()[4] == 6);
 }
@@ -52,7 +55,8 @@ TEST_CASE("upgrade: clamps to the per-type cap", "[upgrade]")
 TEST_CASE("upgrade: mark_applied clears dirty until counts change", "[upgrade]")
 {
     mth::UpgradeState up;
-    mth::ApState s = make_state({kHealth});
+    mth::ApState s;
+    make_state(s, {kHealth});
     up.recompute(s);
     REQUIRE(up.dirty());
     up.mark_applied();
@@ -68,7 +72,9 @@ TEST_CASE("upgrade: mark_applied clears dirty until counts change", "[upgrade]")
 TEST_CASE("upgrade: non-upgrade items are ignored", "[upgrade]")
 {
     mth::UpgradeState up;
-    up.recompute(make_state({mth::ap_item_id(5), mth::kProgWeaponBase, mth::kProgStatCapBase}));
+    mth::ApState s3;
+    make_state(s3, {mth::ap_item_id(5), mth::kProgWeaponBase, mth::kProgStatCapBase});
+    up.recompute(s3);
     REQUIRE_FALSE(up.dirty());
     for (int i = 0; i < mth::kUpgradeCount; ++i)
         REQUIRE(up.counts()[i] == 0);

@@ -11,11 +11,10 @@ using mth::ap_loc_id;
 
 namespace
 {
-mth::ApState connected_with(std::vector<std::int64_t> missing)
+// ApState is non-copyable/non-movable (mutex + atomic); populate in-place.
+void connect_with(mth::ApState &s, std::vector<std::int64_t> missing)
 {
-    mth::ApState s;
     s.apply(mth::ApConnected{{}, "{}", 1, {}, std::move(missing)});
-    return s;
 }
 } // namespace
 
@@ -23,7 +22,8 @@ TEST_CASE("rando_bridge: valid location is sent once", "[mth][rando]")
 {
     mth::test::FakeApLink link;
     link.connected = true;
-    auto state = connected_with({ap_loc_id(5), ap_loc_id(6)});
+    mth::ApState state;
+    connect_with(state, {ap_loc_id(5), ap_loc_id(6)});
     mth::RandoBridge bridge(link, state);
 
     bridge.on_location_collected(5);
@@ -36,7 +36,8 @@ TEST_CASE("rando_bridge: valid location is sent once", "[mth][rando]")
 TEST_CASE("rando_bridge: unknown location is dropped", "[mth][rando]")
 {
     mth::test::FakeApLink link;
-    auto state = connected_with({ap_loc_id(5)});
+    mth::ApState state;
+    connect_with(state, {ap_loc_id(5)});
     mth::RandoBridge bridge(link, state);
 
     bridge.on_location_collected(7);
@@ -46,7 +47,8 @@ TEST_CASE("rando_bridge: unknown location is dropped", "[mth][rando]")
 TEST_CASE("rando_bridge: negative slot is ignored", "[mth][rando]")
 {
     mth::test::FakeApLink link;
-    auto state = connected_with({ap_loc_id(0)});
+    mth::ApState state;
+    connect_with(state, {ap_loc_id(0)});
     mth::RandoBridge bridge(link, state);
 
     bridge.on_location_collected(-1);
@@ -61,7 +63,8 @@ TEST_CASE("rando_bridge: persists checks and flushes the full set", "[mth][rando
 
     mth::test::FakeApLink link;
     link.connected = true;
-    auto state = connected_with({ap_loc_id(5), ap_loc_id(9)});
+    mth::ApState state;
+    connect_with(state, {ap_loc_id(5), ap_loc_id(9)});
     mth::RandoBridge bridge(link, state);
     bridge.attach_save_state(save);
 
@@ -83,7 +86,8 @@ TEST_CASE("rando_bridge: disconnected checks persist, flush on connect", "[mth][
 
     mth::test::FakeApLink link;
     link.connected = false;
-    auto state = connected_with({ap_loc_id(5)});
+    mth::ApState state;
+    connect_with(state, {ap_loc_id(5)});
     mth::RandoBridge bridge(link, state);
     bridge.attach_save_state(save);
 
@@ -99,7 +103,8 @@ TEST_CASE("rando_bridge: disconnected checks persist, flush on connect", "[mth][
 TEST_CASE("rando_bridge: is_ap_location reflects the server set", "[mth][rando]")
 {
     mth::test::FakeApLink link;
-    auto state = connected_with({ap_loc_id(5)});
+    mth::ApState state;
+    connect_with(state, {ap_loc_id(5)});
     mth::RandoBridge bridge(link, state);
     REQUIRE(bridge.is_ap_location(5));
     REQUIRE_FALSE(bridge.is_ap_location(6));
@@ -114,7 +119,8 @@ TEST_CASE("rando_bridge: double-collect of the same location sends once", "[mth]
 
     mth::test::FakeApLink link;
     link.connected = true;
-    auto state = connected_with({ap_loc_id(5)});
+    mth::ApState state;
+    connect_with(state, {ap_loc_id(5)});
     mth::RandoBridge bridge(link, state);
     bridge.attach_save_state(save);
 
@@ -131,7 +137,8 @@ TEST_CASE("rando_bridge: is_checked reflects collected locations (durable)", "[m
 
     mth::test::FakeApLink link;
     link.connected = true;
-    auto state = connected_with({ap_loc_id(5), ap_loc_id(9)});
+    mth::ApState state;
+    connect_with(state, {ap_loc_id(5), ap_loc_id(9)});
     mth::RandoBridge bridge(link, state);
     bridge.attach_save_state(save);
 
@@ -146,7 +153,8 @@ TEST_CASE("rando_bridge: is_checked uses the session set before a save attaches"
 {
     mth::test::FakeApLink link;
     link.connected = true;
-    auto state = connected_with({ap_loc_id(5)});
+    mth::ApState state;
+    connect_with(state, {ap_loc_id(5)});
     mth::RandoBridge bridge(link, state); // no attach_save_state
 
     REQUIRE_FALSE(bridge.is_checked(5));
@@ -158,7 +166,8 @@ TEST_CASE("rando_bridge: send_goal sends the AP goal once when connected", "[mth
 {
     mth::test::FakeApLink link;
     link.connected = true;
-    auto state = connected_with({}); // authenticated, no locations needed for the goal
+    mth::ApState state;
+    connect_with(state, {}); // authenticated, no locations needed for the goal
     mth::RandoBridge bridge(link, state);
 
     bridge.send_goal();

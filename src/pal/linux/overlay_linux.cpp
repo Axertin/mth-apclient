@@ -129,6 +129,7 @@ using PFN_ProcessSDLEvent = void (*)(SDL_Event *);
 PFN_ProcessSDLEvent g_orig_process = nullptr;
 
 std::atomic<bool> g_console_open{false};
+std::atomic<bool> g_login_open{true};
 
 // Published by the render thread after each frame; read (one frame in arrears) by
 // the input hook to decide what to swallow from the game.
@@ -140,6 +141,7 @@ std::mutex g_input_mu;
 std::vector<SDL_Event> g_input_queue; // guarded by g_input_mu
 
 SDL_Keycode g_toggle_key = SDLK_F1;
+SDL_Keycode g_login_key = SDLK_F2;
 
 // MTHAP_CONSOLE_KEY env string to SDL_Keycode.
 static SDL_Keycode parse_console_key(const char *name)
@@ -491,7 +493,14 @@ extern "C" void repl_process_sdl_event(SDL_Event *e)
             return; // swallow: do not forward to the game
         }
 
-        if (g_console_open.load(std::memory_order_relaxed) && is_imgui_input_event(*e))
+        if ((e->type == SDL_KEYDOWN || e->type == SDL_KEYUP) && e->key.keysym.sym == g_login_key)
+        {
+            if (e->type == SDL_KEYDOWN && e->key.repeat == 0)
+                g_login_open.store(!g_login_open.load(std::memory_order_relaxed), std::memory_order_relaxed);
+            return; // swallow: do not forward to the game
+        }
+
+        if ((g_console_open.load(std::memory_order_relaxed) || g_login_open.load(std::memory_order_relaxed)) && is_imgui_input_event(*e))
         {
             {
                 std::lock_guard<std::mutex> lk(g_input_mu);
@@ -979,7 +988,9 @@ VKAPI_ATTR VkResult VKAPI_CALL repl_vkQueuePresentKHR(VkQueue queue, const VkPre
     }
 
     const bool console_open = g_console_open.load(std::memory_order_acquire);
-    if (!console_open)
+    const bool login_open = g_login_open.load(std::memory_order_acquire);
+    const bool any_open = console_open || login_open;
+    if (!any_open)
     {
         g_imgui_want_keyboard.store(false, std::memory_order_release);
         g_imgui_want_mouse.store(false, std::memory_order_release);
@@ -1005,7 +1016,7 @@ VKAPI_ATTR VkResult VKAPI_CALL repl_vkQueuePresentKHR(VkQueue queue, const VkPre
         return g_orig_present(queue, pPresentInfo);
 
     // Drain SDL input (captured on the event thread) into ImGui IO on the render thread.
-    if (console_open)
+    if (any_open)
     {
         std::lock_guard<std::mutex> lk(g_input_mu);
         for (const SDL_Event &e : g_input_queue)
@@ -1017,18 +1028,18 @@ VKAPI_ATTR VkResult VKAPI_CALL repl_vkQueuePresentKHR(VkQueue queue, const VkPre
     ImGuiIO &io = ImGui::GetIO();
     io.DisplaySize = ImVec2(static_cast<float>(g_state.extent.width), static_cast<float>(g_state.extent.height));
     io.DeltaTime = 1.0f / 60.0f;
-    io.MouseDrawCursor = console_open;
+    io.MouseDrawCursor = any_open;
     ImGui::NewFrame();
 
     if (IOverlayUi *ui = g_ui.load(std::memory_order_acquire))
-        ui->draw(console_open);
-    else if (console_open)
+        ui->draw(pal::OverlayVisibility{console_open, login_open});
+    else if (any_open)
         ImGui::ShowDemoWindow();
 
     ImGui::Render();
 
-    g_imgui_want_keyboard.store(console_open && io.WantCaptureKeyboard, std::memory_order_release);
-    g_imgui_want_mouse.store(console_open && io.WantCaptureMouse, std::memory_order_release);
+    g_imgui_want_keyboard.store(any_open && io.WantCaptureKeyboard, std::memory_order_release);
+    g_imgui_want_mouse.store(any_open && io.WantCaptureMouse, std::memory_order_release);
 
     VkFence in_flight = g_state.in_flight[image_index];
     g_vkWaitForFences(g_state.device, 1, &in_flight, VK_TRUE, UINT64_MAX);
@@ -1250,6 +1261,10 @@ class VulkanOverlay final : public IOverlay
             pal::logf(pal::LogLevel::Warn, "overlay: process_sdl_event_addr == 0; input unavailable for this build (render-only mode)");
         g_toggle_key = parse_console_key(std::getenv("MTHAP_CONSOLE_KEY"));
         pal::logf(pal::LogLevel::Info, "overlay: console toggle key = 0x%x (SDLK)", static_cast<int>(g_toggle_key));
+        g_login_key = parse_console_key(std::getenv("MTHAP_LOGIN_KEY"));
+        if (g_login_key == g_toggle_key) // default MTHAP_LOGIN_KEY unset -> distinct F2, not the console default
+            g_login_key = SDLK_F2;
+        pal::logf(pal::LogLevel::Info, "overlay: login toggle key = 0x%x (SDLK)", static_cast<int>(g_login_key));
 
         // Fast path: libvulkan already loaded (native run, or loaded before us).
         if (try_install_vulkan_hooks())

@@ -41,6 +41,9 @@ struct ApItemReceived
 {
     ReceivedItem item;
 };
+struct ApConnecting
+{
+};
 struct ApDisconnected
 {
 };
@@ -63,6 +66,7 @@ struct ApPrintBroadcast
     std::vector<BannerSegment> segments;
 };
 
-using ApEvent = std::variant<ApConnected, ApItemReceived, ApDisconnected, ApConnectionRefused, ApStatusChanged, ApDeathReceived, ApPrintBroadcast>;
+using ApEvent =
+    std::variant<ApConnected, ApConnecting, ApItemReceived, ApDisconnected, ApConnectionRefused, ApStatusChanged, ApDeathReceived, ApPrintBroadcast>;
 
 } // namespace mth

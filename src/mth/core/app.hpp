@@ -42,7 +42,7 @@ class BossHooks;
 class LockHooks;
 class ChestHooks;
 class AbilityHooks;
-class DevConsole;
+class OverlayRoot;
 
 // Composition root. Logger and hook engine are PAL globals; App owns everything else.
 // Implements ICommandSink unconditionally (the dev console is the only caller today,
@@ -63,6 +63,7 @@ class App : public ICommandSink
 
     void connect(const std::string &server, const std::string &slot, const std::string &password) override;
     void disconnect() override;
+    [[nodiscard]] ConnectionStatus connection_status() const override;
     [[nodiscard]] std::vector<std::string> status_lines() const override;
     [[nodiscard]] std::vector<std::string> item_lines() const override;
     void give_item(std::int64_t ap_item_id) override;
@@ -78,7 +79,7 @@ class App : public ICommandSink
     // Destruction order: feature hooks first (remove game hooks), then granter_/tracker_,
     // then events_/hooks_, area_reporter_, coordinator_, link_ (stops net thread), then state_.
     ApState state_;
-    std::unique_ptr<BannerQueue> banner_queue_; // net->render banner mailbox; outlives coordinator_/console_ that reference it
+    std::unique_ptr<BannerQueue> banner_queue_; // net->render banner mailbox; outlives coordinator_/overlay_root_ that reference it
     std::unique_ptr<IApLink> link_;
     std::unique_ptr<ApCoordinator> coordinator_;
     std::unique_ptr<AreaReporter> area_reporter_;
@@ -104,7 +105,7 @@ class App : public ICommandSink
     UpgradeState upgrades_;
 #ifdef MTHAP_HAS_OVERLAY
     std::unique_ptr<pal::IOverlay> overlay_;
-    std::unique_ptr<DevConsole> console_;
+    std::unique_ptr<OverlayRoot> overlay_root_;
 #endif
 };
 

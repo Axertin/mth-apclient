@@ -15,16 +15,16 @@ class ICommandSink;
 class BannerQueue;
 
 // Dev console UI. Registers as pal log observer; output pane mirrors the log stream.
-class DevConsole final : public pal::IOverlayUi
+class DevConsole final
 {
   public:
     DevConsole(ICommandSink &sink, BannerQueue &banner_queue);
-    ~DevConsole() override;
+    ~DevConsole();
 
     DevConsole(const DevConsole &) = delete;
     DevConsole &operator=(const DevConsole &) = delete;
 
-    void draw(bool console_open) override;
+    void draw(bool console_open);
 
   private:
     void draw_version_hud();

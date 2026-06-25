@@ -70,3 +70,41 @@ TEST_CASE("ap_state: disconnect clears auth; status reflects events", "[mth][ap_
     s.apply(mth::ApConnectionRefused{{"InvalidSlot", "InvalidGame"}});
     REQUIRE(s.status().find("InvalidSlot") != std::string::npos);
 }
+
+TEST_CASE("ap_state: phase starts Disconnected", "[mth][ap_state]")
+{
+    mth::ApState s;
+    REQUIRE(s.phase() == mth::ConnectionPhase::Disconnected);
+    REQUIRE(s.detail().empty());
+}
+
+TEST_CASE("ap_state: ApConnecting -> Connecting phase", "[mth][ap_state]")
+{
+    mth::ApState s;
+    s.apply(mth::ApConnecting{});
+    REQUIRE(s.phase() == mth::ConnectionPhase::Connecting);
+    REQUIRE(s.detail().empty());
+}
+
+TEST_CASE("ap_state: ApConnected -> Connected phase", "[mth][ap_state]")
+{
+    mth::ApState s;
+    s.apply(mth::ApConnected{{}, "{}", 1, {}, {}});
+    REQUIRE(s.phase() == mth::ConnectionPhase::Connected);
+}
+
+TEST_CASE("ap_state: ApConnectionRefused -> Error phase with joined detail", "[mth][ap_state]")
+{
+    mth::ApState s;
+    s.apply(mth::ApConnectionRefused{{"bad slot", "bad pw"}});
+    REQUIRE(s.phase() == mth::ConnectionPhase::Error);
+    REQUIRE(s.detail() == "bad slot, bad pw");
+}
+
+TEST_CASE("ap_state: ApDisconnected -> Disconnected phase", "[mth][ap_state]")
+{
+    mth::ApState s;
+    s.apply(mth::ApConnected{{}, "{}", 1, {}, {}});
+    s.apply(mth::ApDisconnected{});
+    REQUIRE(s.phase() == mth::ConnectionPhase::Disconnected);
+}
