@@ -39,6 +39,16 @@ using ShopBuyFn = int (*)(int loc_idx, int item_type);
 bool install_shop_purchase_hook(ShopBuyFn on_buy);
 void remove_shop_purchase_hook();
 
+// Per-level shop sold-out / level-advance override. The vanilla grant that advances a slot and drops
+// its stock is suppressed for AP shop slots, so without this the shop refills every reopen (issue #48)
+// and tiered slots (same slot, rising price per level) never advance. The platform owns the hook
+// (ShopItem::Refresh) and walks the slot's level chain; level_state(loc_idx) classifies each level's
+// AP location: 0 = not an AP location, 1 = AP location not yet checked, 2 = AP location already
+// checked. Returns false if not installed.
+using ShopLevelFn = int (*)(int loc_idx);
+bool install_shop_stock_hook(ShopLevelFn level_state);
+void remove_shop_stock_hook();
+
 // Per-frame "open a removed lock" hooks for KeyBlockChain / locked Chest. The platform owns the hook
 // target and the this->base normalization: Linux hooks ::Update (self == entity base); Windows hooks
 // ::UpdateState (self == the StateMachine sub-object, so base = self - 0x170) because the game's MSVC

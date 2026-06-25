@@ -62,6 +62,58 @@ void repl_init_state(void *self)
     }
 }
 
+// ShopItem / ShopItemDef instance offsets. Verified on the Windows depot build: ShopItem+0xf8 (active
+// def*), +0xec (stock count), ShopItemDef+0x48 (cached GetCollectionIndex == loc_idx), +0x28 (next
+// level variant) all match Linux.
+constexpr std::ptrdiff_t kShopItemDefOff = 0xf8;   // ShopItem -> active ShopItemDef*
+constexpr std::ptrdiff_t kShopItemStockOff = 0xec; // ShopItem stock count; 0 renders the "sold out" box
+constexpr std::ptrdiff_t kShopDefLocOff = 0x48;    // ShopItemDef cached GetCollectionIndex == loc_idx
+constexpr std::ptrdiff_t kShopDefNextOff = 0x28;   // ShopItemDef -> next variant (level chain), null-terminated
+
+pal::ShopLevelFn g_shop_stock_cb = nullptr;
+pal::HookId g_shop_stock_hook = pal::kInvalidHookId;
+void (*g_orig_shop_refresh)(void *) = nullptr;
+
+// A shop slot is a chain of ShopItemDef variants (one per level; rising price), linked via +0x28, each
+// with its own loc_idx at +0x48. Vanilla advances past bought levels and sells out via the suppressed
+// grant, so for AP slots we replicate it from AP state: walk from the active variant, advance to the
+// first level not yet checked, set the stock count (ShopItem+0xec) to the number of unchecked AP levels
+// (so the displayed quantity is right), and let it reach 0 only when every level is checked (sold out).
+// A slot with no AP-location levels (normal items, consumables) is left entirely untouched.
+void repl_shop_refresh(void *self)
+{
+    void *def = self != nullptr ? *reinterpret_cast<void **>(static_cast<char *>(self) + kShopItemDefOff) : nullptr;
+    if (g_shop_stock_cb != nullptr && def != nullptr)
+    {
+        void *first_unbought = nullptr;
+        int remaining = 0; // AP levels not yet checked
+        bool any_ap = false;
+        for (void *v = def; v != nullptr; v = *reinterpret_cast<void **>(static_cast<char *>(v) + kShopDefNextOff))
+        {
+            const int loc_idx = *reinterpret_cast<int *>(static_cast<char *>(v) + kShopDefLocOff);
+            const int state = loc_idx >= 0 ? g_shop_stock_cb(loc_idx) : 0; // 0 not-AP, 1 unchecked, 2 checked
+            if (state != 0)
+                any_ap = true;
+            if (state != 2) // not a bought level
+            {
+                if (first_unbought == nullptr)
+                    first_unbought = v;
+                if (state == 1)
+                    ++remaining;
+            }
+        }
+        if (first_unbought == nullptr)
+            *reinterpret_cast<int *>(static_cast<char *>(self) + kShopItemStockOff) = 0; // all levels bought -> sold out
+        else if (any_ap)
+        {
+            *reinterpret_cast<void **>(static_cast<char *>(self) + kShopItemDefOff) = first_unbought; // show first unbought level
+            *reinterpret_cast<int *>(static_cast<char *>(self) + kShopItemStockOff) = remaining;      // remaining-level count
+        }
+    }
+    if (g_orig_shop_refresh)
+        g_orig_shop_refresh(self);
+}
+
 // ---- chain-open / chest-unlock per-frame hooks. Hook ::UpdateState (self == the StateMachine
 // sub-object; recover base = self - 0x170): the game's MSVC linker ICF-folds the per-class ::Update
 // wrappers, leaving UpdateState as the only unique per-class entry. ----
@@ -293,6 +345,37 @@ void remove_shop_purchase_hook()
         hook_engine().remove_hook(g_shop_hook);
     g_shop_hook = kInvalidHookId;
     g_on_shop_buy = nullptr;
+}
+
+bool install_shop_stock_hook(ShopLevelFn level_state)
+{
+    g_shop_stock_cb = level_state;
+    const std::uintptr_t addr = resolve_game_symbol(mth::sym::shop_item_refresh);
+    if (addr == 0)
+    {
+        logf(LogLevel::Warn, "shop: ShopItem::Refresh not resolved; sold-out persistence disabled");
+        g_shop_stock_cb = nullptr;
+        return false;
+    }
+    g_shop_stock_hook = hook_engine().install_hook(reinterpret_cast<void *>(addr), reinterpret_cast<void *>(&repl_shop_refresh),
+                                                   reinterpret_cast<void **>(&g_orig_shop_refresh));
+    if (g_shop_stock_hook == kInvalidHookId)
+    {
+        logf(LogLevel::Error, "shop: failed to hook ShopItem::Refresh");
+        g_shop_stock_cb = nullptr;
+        return false;
+    }
+    logf(LogLevel::Info, "shop: hooked ShopItem::Refresh (id=%llu)", static_cast<unsigned long long>(g_shop_stock_hook));
+    return true;
+}
+
+void remove_shop_stock_hook()
+{
+    if (g_shop_stock_hook != kInvalidHookId)
+        hook_engine().remove_hook(g_shop_stock_hook);
+    g_shop_stock_hook = kInvalidHookId;
+    g_shop_stock_cb = nullptr;
+    g_orig_shop_refresh = nullptr;
 }
 
 bool install_chain_open_hook(EntityFrameFn on_frame)

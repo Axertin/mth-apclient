@@ -160,6 +160,10 @@
     {
       "name": "_ZN6Player16SetVialItemCountEi",
       "kind": "Code"
+    },
+    {
+      "name": "_ZN8ShopItem7RefreshEv",
+      "kind": "Code"
     }
   ],
   "windows": {
@@ -283,6 +287,9 @@
     },
     "_ZN6Player16SetVialItemCountEi": {
       "rva": 10296528
+    },
+    "_ZN8ShopItem7RefreshEv": {
+      "rva": 10926544
     }
   },
   "linux": {
@@ -360,6 +367,9 @@
     },
     "_ZN6Player16SetVialItemCountEi": {
       "rva": 14909472
+    },
+    "_ZN8ShopItem7RefreshEv": {
+      "rva": 14511376
     }
   }
 }
