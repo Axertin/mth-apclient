@@ -59,22 +59,6 @@ TEST_CASE("ap_state: has_received matches by item_id not index", "[mth][ap_state
     REQUIRE_FALSE(s.has_received(0)); // index 0 must not match
 }
 
-TEST_CASE("ap_state: bounce puff item also unlocks the spring gate", "[mth][ap_state]")
-{
-    const auto puff = mth::ability_item_id(mth::Ability::BouncePuff);
-    const auto spring = mth::ability_item_id(mth::Ability::BounceSpring);
-
-    mth::ApState s;
-    s.apply(mth::ApItemReceived{{puff, 0, 1, 0}});
-    REQUIRE(s.has_received(puff));
-    REQUIRE(s.has_received(spring)); // world-logic alias: puff grants spring too
-    REQUIRE_FALSE(s.has_received(mth::ability_item_id(mth::Ability::Carry)));
-
-    mth::ApState c; // the console path applies the same alias
-    c.inject_received_item(puff);
-    REQUIRE(c.has_received(spring));
-}
-
 TEST_CASE("ap_state: disconnect clears auth; status reflects events", "[mth][ap_state]")
 {
     mth::ApState s;

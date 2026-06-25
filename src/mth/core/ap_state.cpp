@@ -9,17 +9,10 @@
 namespace mth
 {
 
-// World logic can't yet split the bounce ability, so the puff item (3003) also unlocks the spring
-// gate (3004): record a spring twin alongside it. Remove once the apworld grants them separately.
+// seam to allow for special-case items and multiple grants and whatnot
 void ApState::push_received(const ReceivedItem &item)
 {
     received_items_.push_back(item);
-    if (item.item_id == ability_item_id(Ability::BouncePuff))
-    {
-        ReceivedItem twin = item;
-        twin.item_id = ability_item_id(Ability::BounceSpring);
-        received_items_.push_back(twin);
-    }
 }
 
 void ApState::inject_received_item(std::int64_t item_id)
