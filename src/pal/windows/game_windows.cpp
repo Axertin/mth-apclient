@@ -62,27 +62,26 @@ void repl_init_state(void *self)
     }
 }
 
-// ShopItem instance offsets. UNVERIFIED on Windows (taken from the Linux class layout); the hook below
-// stays inert until ShopItem::Refresh/GetCollectionIndex are added to the signature table, at which
-// point these must be confirmed against the Windows build.
+// ShopItem / ShopItemDef instance offsets. Verified on the Windows depot build: ShopItem+0xf8 (def*),
+// +0xec (stock count), and ShopItemDef+0x48 (cached GetCollectionIndex == loc_idx) all match Linux.
 constexpr std::ptrdiff_t kShopItemDefOff = 0xf8;   // ShopItem -> ShopItemDef*
 constexpr std::ptrdiff_t kShopItemStockOff = 0xec; // ShopItem stock count; 0 renders the "sold out" box
+constexpr std::ptrdiff_t kShopDefLocOff = 0x48;    // ShopItemDef cached GetCollectionIndex == loc_idx
 
 pal::ShopStockFn g_shop_stock_cb = nullptr;
 pal::HookId g_shop_stock_hook = pal::kInvalidHookId;
 void (*g_orig_shop_refresh)(void *) = nullptr;
-int (*g_shop_collection_index)(const void *) = nullptr; // ShopItemDef::GetCollectionIndex() const
 
 // Force already-checked AP shop slots to render sold-out: the suppressed AP grant never zeroes the
 // slot's stock count (ShopItem+0xec), so set it before the original ShopItem::Refresh renders.
 void repl_shop_refresh(void *self)
 {
-    if (g_shop_stock_cb != nullptr && g_shop_collection_index != nullptr && self != nullptr)
+    if (g_shop_stock_cb != nullptr && self != nullptr)
     {
         void *def = *reinterpret_cast<void **>(static_cast<char *>(self) + kShopItemDefOff);
         if (def != nullptr)
         {
-            const int loc_idx = g_shop_collection_index(def);
+            const int loc_idx = *reinterpret_cast<int *>(static_cast<char *>(def) + kShopDefLocOff);
             if (loc_idx >= 0 && g_shop_stock_cb(loc_idx))
                 *reinterpret_cast<int *>(static_cast<char *>(self) + kShopItemStockOff) = 0; // force sold-out
         }
@@ -327,13 +326,11 @@ void remove_shop_purchase_hook()
 bool install_shop_stock_hook(ShopStockFn sold_out)
 {
     g_shop_stock_cb = sold_out;
-    g_shop_collection_index = reinterpret_cast<int (*)(const void *)>(resolve_game_symbol(mth::sym::shop_item_def_collection_index));
     const std::uintptr_t addr = resolve_game_symbol(mth::sym::shop_item_refresh);
-    if (g_shop_collection_index == nullptr || addr == 0)
+    if (addr == 0)
     {
-        logf(LogLevel::Warn, "shop: ShopItem::Refresh/GetCollectionIndex not resolved; sold-out persistence disabled");
+        logf(LogLevel::Warn, "shop: ShopItem::Refresh not resolved; sold-out persistence disabled");
         g_shop_stock_cb = nullptr;
-        g_shop_collection_index = nullptr;
         return false;
     }
     g_shop_stock_hook = hook_engine().install_hook(reinterpret_cast<void *>(addr), reinterpret_cast<void *>(&repl_shop_refresh),
@@ -342,7 +339,6 @@ bool install_shop_stock_hook(ShopStockFn sold_out)
     {
         logf(LogLevel::Error, "shop: failed to hook ShopItem::Refresh");
         g_shop_stock_cb = nullptr;
-        g_shop_collection_index = nullptr;
         return false;
     }
     logf(LogLevel::Info, "shop: hooked ShopItem::Refresh (id=%llu)", static_cast<unsigned long long>(g_shop_stock_hook));
@@ -356,7 +352,6 @@ void remove_shop_stock_hook()
     g_shop_stock_hook = kInvalidHookId;
     g_shop_stock_cb = nullptr;
     g_orig_shop_refresh = nullptr;
-    g_shop_collection_index = nullptr;
 }
 
 bool install_chain_open_hook(EntityFrameFn on_frame)
