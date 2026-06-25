@@ -11,7 +11,7 @@ interfere with saves more than necessary, but use at your own risk.
 - **Outbound location checks** detects when you collect a randomized pickup and reports it to the
   Archipelago server.
 - **Inbound item grants** applies items the server sends you, in-game.
-- **In-game dev console** a Dear ImGui overlay (toggle **F1**) for connecting, checking status,
+- **In-game dev console** a Dear ImGui overlay (toggle `F1`) for connecting, checking status,
   and inspecting state.
 
 ## How it works
@@ -50,15 +50,8 @@ Logs are written to `%LOCALAPPDATA%\mth-apclient\mthap_*.log`.
 
 ## Connecting to a server
 
-**In-game console** (press **F1**):
-
-```
-connect <server> <slot> [password]
-status
-items
-disconnect
-help
-```
+An ImGui overlay window should appear allowing connection and disconnection to an AP server. If it
+doesn't appear or you want to hide it once connected, it can be toggled by pressing `F2`.
 
 ### Other settings
 
