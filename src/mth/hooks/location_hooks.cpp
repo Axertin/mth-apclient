@@ -187,12 +187,16 @@ int on_shop_buy(int loc_idx, int item_type)
     return item_type;
 }
 
-// ShopItem::Refresh override predicate: an AP shop slot whose location is already checked must render
-// sold-out. We suppress the vanilla grant for AP buys, and that grant is what normally zeroes the slot's
-// stock; without this the shop refills its stock on every reopen and bought items reappear (issue #48).
-bool on_shop_stock(int loc_idx)
+// ShopItem::Refresh level classifier: the PAL walks a slot's level chain and asks, per level loc_idx,
+// whether it's an AP location and whether it's been checked. We suppress the vanilla grant for AP buys
+// (the grant is what normally advances the slot / zeroes its stock), so the platform replays it from AP
+// state instead -- advancing tiered slots past bought levels and selling out only when all are checked
+// (issue #48). 0 = not an AP location, 1 = AP location not yet checked, 2 = AP location checked.
+int on_shop_stock(int loc_idx)
 {
-    return g_bridge != nullptr && g_bridge->is_ap_location(loc_idx) && g_bridge->is_checked(loc_idx);
+    if (g_bridge == nullptr || !g_bridge->is_ap_location(loc_idx))
+        return 0;
+    return g_bridge->is_checked(loc_idx) ? 2 : 1;
 }
 
 } // namespace

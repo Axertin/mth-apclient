@@ -39,13 +39,14 @@ using ShopBuyFn = int (*)(int loc_idx, int item_type);
 bool install_shop_purchase_hook(ShopBuyFn on_buy);
 void remove_shop_purchase_hook();
 
-// Per-slot shop "sold out" override. The vanilla grant that drops a slot's stock to 0 on purchase is
-// suppressed for AP shop slots, so without this the shop refills every time it reopens (issue #48).
-// The platform owns the hook (ShopItem::Refresh), reads the slot's loc_idx (via
-// ShopItemDef::GetCollectionIndex), and zeroes the stock count when sold_out(loc_idx) is true (an
-// already-checked AP slot). Returns false if not installed.
-using ShopStockFn = bool (*)(int loc_idx);
-bool install_shop_stock_hook(ShopStockFn sold_out);
+// Per-level shop sold-out / level-advance override. The vanilla grant that advances a slot and drops
+// its stock is suppressed for AP shop slots, so without this the shop refills every reopen (issue #48)
+// and tiered slots (same slot, rising price per level) never advance. The platform owns the hook
+// (ShopItem::Refresh) and walks the slot's level chain; level_state(loc_idx) classifies each level's
+// AP location: 0 = not an AP location, 1 = AP location not yet checked, 2 = AP location already
+// checked. Returns false if not installed.
+using ShopLevelFn = int (*)(int loc_idx);
+bool install_shop_stock_hook(ShopLevelFn level_state);
 void remove_shop_stock_hook();
 
 // Per-frame "open a removed lock" hooks for KeyBlockChain / locked Chest. The platform owns the hook
