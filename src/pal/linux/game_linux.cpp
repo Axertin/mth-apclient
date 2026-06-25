@@ -44,27 +44,39 @@ void repl_item_present(void *self)
 
 // ShopItem / ShopItemDef instance offsets (platform-independent class layout; not the InitState frame
 // offsets above). Verified identical on the Windows build.
-constexpr std::ptrdiff_t kShopItemDefOff = 0xf8;   // ShopItem -> ShopItemDef*
+constexpr std::ptrdiff_t kShopItemDefOff = 0xf8;   // ShopItem -> active ShopItemDef*
 constexpr std::ptrdiff_t kShopItemStockOff = 0xec; // ShopItem stock count; 0 renders the "sold out" box
 constexpr std::ptrdiff_t kShopDefLocOff = 0x48;    // ShopItemDef cached GetCollectionIndex == loc_idx
+constexpr std::ptrdiff_t kShopDefNextOff = 0x28;   // ShopItemDef -> next variant (level chain), null-terminated
 
 pal::ShopStockFn g_shop_stock_cb = nullptr;
 pal::HookId g_shop_stock_hook = pal::kInvalidHookId;
 void (*g_orig_shop_refresh)(void *) = nullptr;
 
-// ShopItem::Refresh rebuilds a slot's visuals from its stock count (ShopItem+0xec). The suppressed AP
-// grant never zeroes that count, so force it for already-checked AP slots before the original renders.
+// A shop slot is a chain of ShopItemDef variants (one per level; rising price), linked via +0x28, each
+// with its own loc_idx at +0x48. Vanilla advances past bought levels and sells out via the suppressed
+// grant, so for AP slots we replicate it: walk from the active variant to the first level whose AP
+// location is NOT checked, show that level, and zero the stock only when EVERY level is checked. A slot
+// with no AP-location levels (normal items, consumables) stops at its active variant -> left untouched.
 void repl_shop_refresh(void *self)
 {
-    if (g_shop_stock_cb != nullptr && self != nullptr)
+    void *def = self != nullptr ? *reinterpret_cast<void **>(static_cast<char *>(self) + kShopItemDefOff) : nullptr;
+    if (g_shop_stock_cb != nullptr && def != nullptr)
     {
-        void *def = *reinterpret_cast<void **>(static_cast<char *>(self) + kShopItemDefOff);
-        if (def != nullptr)
+        void *first_unbought = nullptr;
+        for (void *v = def; v != nullptr; v = *reinterpret_cast<void **>(static_cast<char *>(v) + kShopDefNextOff))
         {
-            const int loc_idx = *reinterpret_cast<int *>(static_cast<char *>(def) + kShopDefLocOff);
-            if (loc_idx >= 0 && g_shop_stock_cb(loc_idx))
-                *reinterpret_cast<int *>(static_cast<char *>(self) + kShopItemStockOff) = 0; // force sold-out
+            const int loc_idx = *reinterpret_cast<int *>(static_cast<char *>(v) + kShopDefLocOff);
+            if (!(loc_idx >= 0 && g_shop_stock_cb(loc_idx))) // first level not collected via AP
+            {
+                first_unbought = v;
+                break;
+            }
         }
+        if (first_unbought == nullptr)
+            *reinterpret_cast<int *>(static_cast<char *>(self) + kShopItemStockOff) = 0; // all levels bought -> sold out
+        else if (first_unbought != def)
+            *reinterpret_cast<void **>(static_cast<char *>(self) + kShopItemDefOff) = first_unbought; // show first unbought level
     }
     if (g_orig_shop_refresh)
         g_orig_shop_refresh(self);
