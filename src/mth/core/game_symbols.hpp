@@ -41,6 +41,13 @@ inline constexpr const char *pickup_on_pickup = "_ZN6Pickup8OnPickupEP14PickupLi
 inline constexpr const char *shop_item_present = "_ZN8ShopMenu11ItemPresentEv"; // ShopMenu::ItemPresent()
 // Windows: ShopMenu::ItemPresent is inlined into ShopMenu::InitState; hook InitState there.
 inline constexpr const char *shop_init_state = "_ZN8ShopMenu9InitStateEv"; // ShopMenu::InitState()
+// ShopItem::Refresh(): rebuilds one shop slot's visuals; a slot renders "sold out" when its stock
+// count (ShopItem+0xec) is 0. Hooked to force AP-checked slots sold-out, since the suppressed vanilla
+// grant no longer zeroes that count when an AP shop item is bought (issue #48).
+inline constexpr const char *shop_item_refresh = "_ZN8ShopItem7RefreshEv"; // ShopItem::Refresh()
+// ShopItemDef::GetCollectionIndex() const: maps a slot's def (ShopItem+0xf8) to its s_rItemCollection
+// index (== the AP loc_idx), or -1.
+inline constexpr const char *shop_item_def_collection_index = "_ZNK11ShopItemDef18GetCollectionIndexEv";
 
 // ycWorld::QueueDestroy: unconditional teardown (no SpawnPoint gate); writes no save/grant state.
 inline constexpr const char *queue_destroy = "_ZN7ycWorld12QueueDestroyEP8ycEntityb"; // ycWorld::QueueDestroy(ycEntity*, bool)

@@ -42,6 +42,33 @@ void repl_item_present(void *self)
         g_orig_item_present(self);
 }
 
+// ShopItem instance offsets (platform-independent class layout; not the InitState frame offsets above).
+constexpr std::ptrdiff_t kShopItemDefOff = 0xf8;   // ShopItem -> ShopItemDef*
+constexpr std::ptrdiff_t kShopItemStockOff = 0xec; // ShopItem stock count; 0 renders the "sold out" box
+
+pal::ShopStockFn g_shop_stock_cb = nullptr;
+pal::HookId g_shop_stock_hook = pal::kInvalidHookId;
+void (*g_orig_shop_refresh)(void *) = nullptr;
+int (*g_shop_collection_index)(const void *) = nullptr; // ShopItemDef::GetCollectionIndex() const
+
+// ShopItem::Refresh rebuilds a slot's visuals from its stock count (ShopItem+0xec). The suppressed AP
+// grant never zeroes that count, so force it for already-checked AP slots before the original renders.
+void repl_shop_refresh(void *self)
+{
+    if (g_shop_stock_cb != nullptr && g_shop_collection_index != nullptr && self != nullptr)
+    {
+        void *def = *reinterpret_cast<void **>(static_cast<char *>(self) + kShopItemDefOff);
+        if (def != nullptr)
+        {
+            const int loc_idx = g_shop_collection_index(def);
+            if (loc_idx >= 0 && g_shop_stock_cb(loc_idx))
+                *reinterpret_cast<int *>(static_cast<char *>(self) + kShopItemStockOff) = 0; // force sold-out
+        }
+    }
+    if (g_orig_shop_refresh)
+        g_orig_shop_refresh(self);
+}
+
 // ---- chain-open / chest-unlock per-frame hooks (Linux: hook ::Update, self == entity base) ----
 pal::EntityFrameFn g_chain_cb = nullptr;
 pal::HookId g_chain_hook = pal::kInvalidHookId;
@@ -453,6 +480,41 @@ void remove_shop_purchase_hook()
         hook_engine().remove_hook(g_shop_hook);
     g_shop_hook = kInvalidHookId;
     g_on_shop_buy = nullptr;
+}
+
+bool install_shop_stock_hook(ShopStockFn sold_out)
+{
+    g_shop_stock_cb = sold_out;
+    g_shop_collection_index = reinterpret_cast<int (*)(const void *)>(resolve_game_symbol(mth::sym::shop_item_def_collection_index));
+    const std::uintptr_t addr = resolve_game_symbol(mth::sym::shop_item_refresh);
+    if (g_shop_collection_index == nullptr || addr == 0)
+    {
+        logf(LogLevel::Warn, "shop: ShopItem::Refresh/GetCollectionIndex not resolved; sold-out persistence disabled");
+        g_shop_stock_cb = nullptr;
+        g_shop_collection_index = nullptr;
+        return false;
+    }
+    g_shop_stock_hook = hook_engine().install_hook(reinterpret_cast<void *>(addr), reinterpret_cast<void *>(&repl_shop_refresh),
+                                                   reinterpret_cast<void **>(&g_orig_shop_refresh));
+    if (g_shop_stock_hook == kInvalidHookId)
+    {
+        logf(LogLevel::Error, "shop: failed to hook ShopItem::Refresh");
+        g_shop_stock_cb = nullptr;
+        g_shop_collection_index = nullptr;
+        return false;
+    }
+    logf(LogLevel::Info, "shop: hooked ShopItem::Refresh (id=%llu)", static_cast<unsigned long long>(g_shop_stock_hook));
+    return true;
+}
+
+void remove_shop_stock_hook()
+{
+    if (g_shop_stock_hook != kInvalidHookId)
+        hook_engine().remove_hook(g_shop_stock_hook);
+    g_shop_stock_hook = kInvalidHookId;
+    g_shop_stock_cb = nullptr;
+    g_orig_shop_refresh = nullptr;
+    g_shop_collection_index = nullptr;
 }
 
 bool install_chain_open_hook(EntityFrameFn on_frame)

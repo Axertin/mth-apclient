@@ -187,6 +187,14 @@ int on_shop_buy(int loc_idx, int item_type)
     return item_type;
 }
 
+// ShopItem::Refresh override predicate: an AP shop slot whose location is already checked must render
+// sold-out. We suppress the vanilla grant for AP buys, and that grant is what normally zeroes the slot's
+// stock; without this the shop refills its stock on every reopen and bought items reappear (issue #48).
+bool on_shop_stock(int loc_idx)
+{
+    return g_bridge != nullptr && g_bridge->is_ap_location(loc_idx) && g_bridge->is_checked(loc_idx);
+}
+
 } // namespace
 
 namespace mth
@@ -215,6 +223,7 @@ LocationHooks::LocationHooks(RandoBridge &bridge, std::function<void *()> player
     pickup_on_pickup_ = ScopedHook(sym::pickup_on_pickup, reinterpret_cast<void *>(&repl_pickup_on_pickup), reinterpret_cast<void **>(&g_orig_pickup_on_pickup),
                                    "Pickup::OnPickup");
     pal::install_shop_purchase_hook(&on_shop_buy);
+    pal::install_shop_stock_hook(&on_shop_stock);
 }
 
 void LocationHooks::set_kear_rando(bool on)
@@ -224,6 +233,7 @@ void LocationHooks::set_kear_rando(bool on)
 
 LocationHooks::~LocationHooks()
 {
+    pal::remove_shop_stock_hook();
     pal::remove_shop_purchase_hook();
     // g_bridge nulled before the ScopedHook members remove the detours; the repls null-check it.
     g_bridge = nullptr;

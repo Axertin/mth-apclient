@@ -39,6 +39,15 @@ using ShopBuyFn = int (*)(int loc_idx, int item_type);
 bool install_shop_purchase_hook(ShopBuyFn on_buy);
 void remove_shop_purchase_hook();
 
+// Per-slot shop "sold out" override. The vanilla grant that drops a slot's stock to 0 on purchase is
+// suppressed for AP shop slots, so without this the shop refills every time it reopens (issue #48).
+// The platform owns the hook (ShopItem::Refresh), reads the slot's loc_idx (via
+// ShopItemDef::GetCollectionIndex), and zeroes the stock count when sold_out(loc_idx) is true (an
+// already-checked AP slot). Returns false if not installed.
+using ShopStockFn = bool (*)(int loc_idx);
+bool install_shop_stock_hook(ShopStockFn sold_out);
+void remove_shop_stock_hook();
+
 // Per-frame "open a removed lock" hooks for KeyBlockChain / locked Chest. The platform owns the hook
 // target and the this->base normalization: Linux hooks ::Update (self == entity base); Windows hooks
 // ::UpdateState (self == the StateMachine sub-object, so base = self - 0x170) because the game's MSVC
