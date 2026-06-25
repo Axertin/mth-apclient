@@ -6,13 +6,19 @@
 namespace pal
 {
 
+// Per-frame visibility flags, published by the platform overlay from its toggle-key atomics.
+struct OverlayVisibility
+{
+    bool console_open{false};
+    bool login_open{false};
+};
+
 // Content sink: draw() is called every frame between NewFrame() and Render().
-// console_open controls whether the interactive console window should show.
 class IOverlayUi
 {
   public:
     virtual ~IOverlayUi() = default;
-    virtual void draw(bool console_open) = 0;
+    virtual void draw(const OverlayVisibility &vis) = 0;
 };
 
 // Owns platform render/input hooks and the ImGui context. RAII.

@@ -5,9 +5,16 @@
 #include <vector>
 
 #include "mth/core/ability_ids.hpp"
+#include "mth/core/ap_state.hpp" // ConnectionPhase
 
 namespace mth
 {
+
+struct ConnectionStatus
+{
+    ConnectionPhase phase{ConnectionPhase::Disconnected};
+    std::string detail; // error/status text for display
+};
 
 // Console effect interface. Implemented by App; called on the render thread; must not block.
 class ICommandSink
@@ -17,6 +24,7 @@ class ICommandSink
 
     virtual void connect(const std::string &server, const std::string &slot, const std::string &password) = 0;
     virtual void disconnect() = 0;
+    [[nodiscard]] virtual ConnectionStatus connection_status() const = 0;
 
     [[nodiscard]] virtual std::vector<std::string> status_lines() const = 0;
     [[nodiscard]] virtual std::vector<std::string> item_lines() const = 0;

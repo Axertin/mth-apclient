@@ -1,6 +1,8 @@
 #pragma once
 
+#include <atomic>
 #include <cstdint>
+#include <mutex>
 #include <set>
 #include <string>
 #include <vector>
@@ -9,6 +11,14 @@
 
 namespace mth
 {
+
+enum class ConnectionPhase
+{
+    Disconnected,
+    Connecting,
+    Connected,
+    Error
+};
 
 // Game-thread-only view of the AP room. Written by ApCoordinator, read by game logic.
 class ApState
@@ -27,6 +37,15 @@ class ApState
     [[nodiscard]] const std::string &status() const
     {
         return status_;
+    }
+    [[nodiscard]] ConnectionPhase phase() const
+    {
+        return phase_.load(std::memory_order_relaxed);
+    }
+    [[nodiscard]] std::string detail() const
+    {
+        std::lock_guard<std::mutex> lk(detail_mutex_);
+        return detail_;
     }
     [[nodiscard]] const std::string &seed() const
     {
@@ -101,9 +120,14 @@ class ApState
   private:
     // Append a received item, applying the puff->spring bounce alias (see ap_state.cpp).
     void push_received(const ReceivedItem &item);
+    // Store the phase and clear detail_ under its lock (non-error transitions).
+    void set_phase(ConnectionPhase p);
 
     bool authenticated_{false};
     std::string status_{"Idle"};
+    std::atomic<ConnectionPhase> phase_{ConnectionPhase::Disconnected};
+    std::string detail_{};            // human-readable error/status detail for the login window
+    mutable std::mutex detail_mutex_; // guards detail_ across the game/render thread boundary
     std::string seed_{};
     std::string slot_data_{};
     int player_slot_{-1};
