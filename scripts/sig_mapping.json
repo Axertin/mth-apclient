@@ -164,6 +164,10 @@
     {
       "name": "_ZN8ShopItem7RefreshEv",
       "kind": "Code"
+    },
+    {
+      "name": "_ZN5Items15IsItemCollectedEiP14ItemCollectionP8SaveSlotbb",
+      "kind": "Code"
     }
   ],
   "windows": {
@@ -290,6 +294,9 @@
     },
     "_ZN8ShopItem7RefreshEv": {
       "rva": 10926544
+    },
+    "_ZN5Items15IsItemCollectedEiP14ItemCollectionP8SaveSlotbb": {
+      "rva": 8549408
     }
   },
   "linux": {
@@ -370,6 +377,9 @@
     },
     "_ZN8ShopItem7RefreshEv": {
       "rva": 14511376
+    },
+    "_ZN5Items15IsItemCollectedEiP14ItemCollectionP8SaveSlotbb": {
+      "rva": 11799632
     }
   }
 }
