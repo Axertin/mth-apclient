@@ -22,3 +22,40 @@ TEST_CASE("is_item_keyed_collected_kind: location-bit-keyed kinds do not alias",
     CHECK_FALSE(mth::tables::is_item_keyed_collected_kind(19)); // fish
     CHECK_FALSE(mth::tables::is_item_keyed_collected_kind(0));  // none / no-grant
 }
+
+// should_redirect_collected_query decides whether the IsItemCollected override redirects to the AP
+// checked-state. It redirects for capacity-upgrade (#8) and item-keyed have-bit (#61) AP locations, but
+// NOT for an ownership query (IsItemCollected param5/b5 = true) on a weapon-kind (1) location: the
+// weapon-swap chest reads ownership via IsItemCollected with b5=true and needs the real have-item bit, or
+// a weapon received (not collected at its own location) from another player is hidden from the chest.
+
+TEST_CASE("should_redirect_collected_query: non-aliasing locations never redirect", "[game_tables]")
+{
+    // kind 0 / location-bit-keyed kinds, not capacity -> pass through regardless of query context
+    CHECK_FALSE(mth::tables::should_redirect_collected_query(/*is_capacity=*/false, /*kind=*/0, /*ownership=*/false));
+    CHECK_FALSE(mth::tables::should_redirect_collected_query(false, 8, false));  // kear
+    CHECK_FALSE(mth::tables::should_redirect_collected_query(false, 12, true));  // bonestone
+    CHECK_FALSE(mth::tables::should_redirect_collected_query(false, 19, false)); // fish
+}
+
+TEST_CASE("should_redirect_collected_query: location-collected queries redirect (issues #8/#61)", "[game_tables]")
+{
+    CHECK(mth::tables::should_redirect_collected_query(/*is_capacity=*/true, /*kind=*/9, /*ownership=*/false)); // #8 boss-rose
+    CHECK(mth::tables::should_redirect_collected_query(false, 1, false));                                       // weapon/vessel chest-open (#61)
+    CHECK(mth::tables::should_redirect_collected_query(false, 9, false));                                       // subweapon chest-open (#61)
+    CHECK(mth::tables::should_redirect_collected_query(false, 11, false));                                      // trinket chest-open (#61)
+}
+
+TEST_CASE("should_redirect_collected_query: ownership query on a weapon (kind 1) passes through", "[game_tables]")
+{
+    // THE FIX: weapon-swap chest ownership read must see the real have-item bit, not AP checked-state.
+    CHECK_FALSE(mth::tables::should_redirect_collected_query(/*is_capacity=*/false, /*kind=*/1, /*ownership=*/true));
+}
+
+TEST_CASE("should_redirect_collected_query: ownership query on non-weapon kinds still redirects", "[game_tables]")
+{
+    // Only kind 1 has the weapon-swap chest; subweapons/trinkets/capacity keep the confirmed #61/#8/#48 behavior.
+    CHECK(mth::tables::should_redirect_collected_query(false, 9, true));  // subweapon (shop #48 unaffected)
+    CHECK(mth::tables::should_redirect_collected_query(false, 11, true)); // trinket
+    CHECK(mth::tables::should_redirect_collected_query(true, 9, true));   // capacity piece (#8)
+}

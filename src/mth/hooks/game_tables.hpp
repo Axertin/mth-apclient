@@ -32,6 +32,24 @@ void resolve();
     return kind == 1 || kind == 9 || kind == 11;
 }
 
+// Decide whether the Items::IsItemCollected override should redirect a query to the AP checked-state.
+// It redirects for capacity-upgrade (#8) and item-keyed have-bit (#61) AP locations, with ONE carve-out:
+// an ownership query (IsItemCollected param5/b5 = true, i.e. "do I persistently own this item") on a
+// weapon-kind (1) location passes through to the real have-item bit. The weapon-swap chest
+// (WeaponsChestMenu) enumerates owned weapons via IsItemCollected with b5=true; forcing it to the
+// location's AP checked-state hides any weapon received from another player (its location never checked),
+// so the swap chest shows no entry. Location-collected queries (b5=false: chest-open, pickup self-kill,
+// boss reward-rose) keep the redirect, so #61/#8 are unchanged; kinds 9/11 are untouched (shop #48,
+// trinkets). Pure so it is unit-testable.
+[[nodiscard]] constexpr bool should_redirect_collected_query(bool is_capacity, int kind, bool ownership_query) noexcept
+{
+    if (!is_capacity && !is_item_keyed_collected_kind(kind))
+        return false; // not an aliasing location
+    if (ownership_query && kind == 1)
+        return false; // weapon-swap chest ownership read -> real have-item bit
+    return true;
+}
+
 // Capacity-upgrade location: vanilla contents itemType in 0x44..0x48 (Magic/Health/Spark/Vial/Trinket
 // piece). IsItemCollected for these reads the same SaveSlot bitfield apply_upgrades repurposes as a
 // capacity counter, so a per-location collected query is aliased; the mod overrides it (issue #8).

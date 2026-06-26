@@ -53,9 +53,12 @@ void remove_shop_stock_hook();
 // SaveSlot bitfield apply_upgrades repurposes as a capacity counter, so a vanilla collected-bit query
 // for one reports "an upgrade was received" -- which makes boss rose-reward spawns (gated on
 // !IsItemCollected(rewardLoc)) wrongly skip (issue #8). The platform hooks Items::IsItemCollected and
-// consults query(loc_idx): -1 = pass through to the original; 0/1 = force the result (used to report
-// the AP checked-state for such locations). Returns false if not installed.
-using ItemCollectedFn = int (*)(int loc_idx);
+// consults query(loc_idx, ownership_query): -1 = pass through to the original; 0/1 = force the result
+// (used to report the AP checked-state for such locations). `ownership_query` is IsItemCollected's
+// param5 (b5): true when the caller asks "do I persistently own this item" (the weapon-swap chest),
+// false for location-collected queries (chest-open, pickup self-kill, boss reward-rose). The mth-side
+// query needs it to avoid hiding a received weapon from the swap chest. Returns false if not installed.
+using ItemCollectedFn = int (*)(int loc_idx, bool ownership_query);
 bool install_item_collected_hook(ItemCollectedFn query);
 void remove_item_collected_hook();
 

@@ -102,7 +102,7 @@ unsigned repl_is_item_collected(int loc_idx, void *coll, void *slot, bool b4, bo
 {
     if (g_item_collected_cb != nullptr && loc_idx >= 0)
     {
-        const int ov = g_item_collected_cb(loc_idx);
+        const int ov = g_item_collected_cb(loc_idx, b5); // b5: ownership query (weapon-swap chest) vs location-collected
         if (ov >= 0)
             return static_cast<unsigned>(ov); // forced AP checked-state
     }
