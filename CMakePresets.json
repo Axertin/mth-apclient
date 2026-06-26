@@ -11,7 +11,9 @@
                 "CMAKE_C_COMPILER": "clang",
                 "CMAKE_CXX_COMPILER": "clang++",
                 "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/external/vcpkg/scripts/buildsystems/vcpkg.cmake",
-                "VCPKG_TARGET_TRIPLET": "x64-linux",
+                "VCPKG_TARGET_TRIPLET": "x64-linux-mthap",
+                "VCPKG_OVERLAY_TRIPLETS": "${sourceDir}/cmake/triplets",
+                "VCPKG_OVERLAY_PORTS": "${sourceDir}/cmake/vcpkg-ports",
                 "VCPKG_MANIFEST_FEATURES": "net;overlay",
                 "MTHAP_BUILD_TESTS": "OFF"
             },
