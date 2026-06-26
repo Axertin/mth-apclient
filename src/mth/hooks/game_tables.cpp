@@ -58,6 +58,15 @@ bool is_durable_bit_kind(int kind)
     return kind == 8 || kind == 12 || kind == 19;
 }
 
+bool is_capacity_upgrade_location(int loc_idx)
+{
+    if (loc_idx < 0 || loc_idx >= layout::kLocationCount || g_s_r_item_collection == 0)
+        return false;
+    const int item_type = *reinterpret_cast<const int *>(g_s_r_item_collection + static_cast<std::uintptr_t>(loc_idx) * layout::kCollectionEntryStride +
+                                                         layout::kCollectionItemTypeOff);
+    return item_type >= 0x44 && item_type <= 0x48; // Magic/Health/Spark/Vial/Trinket upgrade pieces
+}
+
 // Name-scan accessors bound at kCollectionScanCap (0x168), intentionally NOT kLocationCount (361): mirrors SetSaveUnlocked's scan.
 std::uint64_t collection_name_key(int idx)
 {

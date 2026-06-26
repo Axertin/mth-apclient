@@ -49,6 +49,16 @@ using ShopLevelFn = int (*)(int loc_idx);
 bool install_shop_stock_hook(ShopLevelFn level_state);
 void remove_shop_stock_hook();
 
+// Items::IsItemCollected override. Capacity-upgrade locations (itemTypes 0x44..0x48) read the same
+// SaveSlot bitfield apply_upgrades repurposes as a capacity counter, so a vanilla collected-bit query
+// for one reports "an upgrade was received" -- which makes boss rose-reward spawns (gated on
+// !IsItemCollected(rewardLoc)) wrongly skip (issue #8). The platform hooks Items::IsItemCollected and
+// consults query(loc_idx): -1 = pass through to the original; 0/1 = force the result (used to report
+// the AP checked-state for such locations). Returns false if not installed.
+using ItemCollectedFn = int (*)(int loc_idx);
+bool install_item_collected_hook(ItemCollectedFn query);
+void remove_item_collected_hook();
+
 // Per-frame "open a removed lock" hooks for KeyBlockChain / locked Chest. The platform owns the hook
 // target and the this->base normalization: Linux hooks ::Update (self == entity base); Windows hooks
 // ::UpdateState (self == the StateMachine sub-object, so base = self - 0x170) because the game's MSVC

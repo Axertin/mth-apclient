@@ -199,6 +199,19 @@ int on_shop_stock(int loc_idx)
     return g_bridge->is_checked(loc_idx) ? 2 : 1;
 }
 
+// Items::IsItemCollected override for capacity-upgrade locations (issue #8). Their game-side collected
+// bit aliases the mod's AP capacity counter (apply_upgrades sets low bits of SaveSlot+0x130 etc. for
+// received Magic/Health/Spark/Vial/Trinket upgrades), so a vanilla query wrongly reports the location
+// collected and bosses skip spawning the rose reward. For an AP upgrade-piece location, report the AP
+// checked-state instead; pass everything else through (-1). The itemType check fast-rejects the vast
+// majority of (hot-path) queries before the AP-location lookups.
+int on_item_collected_query(int loc_idx)
+{
+    if (g_bridge == nullptr || !mth::tables::is_capacity_upgrade_location(loc_idx) || !g_bridge->is_ap_location(loc_idx))
+        return -1; // pass through to the original IsItemCollected
+    return g_bridge->is_checked(loc_idx) ? 1 : 0;
+}
+
 } // namespace
 
 namespace mth
@@ -228,6 +241,7 @@ LocationHooks::LocationHooks(RandoBridge &bridge, std::function<void *()> player
                                    "Pickup::OnPickup");
     pal::install_shop_purchase_hook(&on_shop_buy);
     pal::install_shop_stock_hook(&on_shop_stock);
+    pal::install_item_collected_hook(&on_item_collected_query);
 }
 
 void LocationHooks::set_kear_rando(bool on)
@@ -237,6 +251,7 @@ void LocationHooks::set_kear_rando(bool on)
 
 LocationHooks::~LocationHooks()
 {
+    pal::remove_item_collected_hook();
     pal::remove_shop_stock_hook();
     pal::remove_shop_purchase_hook();
     // g_bridge nulled before the ScopedHook members remove the detours; the repls null-check it.
