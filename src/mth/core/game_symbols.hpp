@@ -115,6 +115,9 @@ inline constexpr const char *player_set_burrow_ground = "_ZN6Player15SetBurrowGr
 inline constexpr const char *water_is_in_deep_water = "_ZN13WaterListener21IsInDeepWaterInternalEb";
 inline constexpr const char *player_rope_climb_start = "_ZN6Player14RopeClimbStartEP13GameComponentbb";
 inline constexpr const char *bounce_plant_collide = "_ZN11BouncePlant11CollideWithER18PhysicsContactPair";
+// Floating puffs bounce inline in CollideWith; ground/burrow-underable puffs launch out-of-line here
+// (called from Player land/wall/update paths), so both chokepoints must be gated (issue #47).
+inline constexpr const char *bounce_plant_launch = "_ZN11BouncePlant12BounceLaunchEP6Player";
 inline constexpr const char *spring_bellows_collide = "_ZN13SpringBellows11CollideWithER18PhysicsContactPair";
 inline constexpr const char *player_pickup_carryable = "_ZN6Player30PickUpAnyNearbyCarryableObjectEbbb";
 inline constexpr const char *train_authority_on_npc_event = "_ZN14TrainAuthority10OnNPCEventEjP17InteractEventInfo";
