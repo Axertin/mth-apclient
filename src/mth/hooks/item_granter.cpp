@@ -20,7 +20,8 @@ struct YcVec3
 };
 
 mth::PlayerTracker *g_tracker = nullptr;
-std::function<bool(int)> g_is_ap_location; // RandoBridge::is_ap_location, wired by App
+std::function<bool(int)> g_is_ap_location;   // RandoBridge::is_ap_location, wired by App
+std::function<void(int)> g_report_collected; // RandoBridge::on_location_collected, wired by App
 
 // Items::OnPickupDone(int slot, int itemType, Player*, ycVec3 const&, int, int, unsigned int, bool)
 void (*g_orig_on_pickup_done)(int, int, void *, void *, int, int, unsigned int, bool) = nullptr;
@@ -39,6 +40,11 @@ void repl_on_pickup_done(int slot, int item_type, void *player, void *vec, int a
     if (slot >= 0 && item_type != mth::layout::kApDummyItemType && g_is_ap_location && g_is_ap_location(slot))
     {
         pal::logf(pal::LogLevel::Info, "outbound: suppressed vanilla grant for AP location %d (itemType=%d)", slot, item_type);
+        // Grants delivered straight through OnPickupDone (no Pickup entity, no ShopMenu) -- the train-ticket
+        // machine -- never reach the pickup/shop detect hooks, so send the check here. Idempotent: the bridge
+        // dedups, so the world-pickup (dummy itemType, excluded above) and Windows-shop paths can't double-send.
+        if (g_report_collected)
+            g_report_collected(slot);
         return;
     }
 
@@ -51,10 +57,11 @@ void repl_on_pickup_done(int slot, int item_type, void *player, void *vec, int a
 namespace mth
 {
 
-ItemGranter::ItemGranter(PlayerTracker &tracker, std::function<bool(int)> is_ap_location)
+ItemGranter::ItemGranter(PlayerTracker &tracker, std::function<bool(int)> is_ap_location, std::function<void(int)> report_collected)
 {
     g_tracker = &tracker;
     g_is_ap_location = std::move(is_ap_location);
+    g_report_collected = std::move(report_collected);
     pickup_done_ = ScopedHook(sym::on_pickup_done, reinterpret_cast<void *>(&repl_on_pickup_done), reinterpret_cast<void **>(&g_orig_on_pickup_done),
                               "Items::OnPickupDone");
 }
@@ -65,6 +72,7 @@ ItemGranter::~ItemGranter()
     g_pending.clear();
     g_tracker = nullptr;
     g_is_ap_location = nullptr;
+    g_report_collected = nullptr;
 }
 
 bool ItemGranter::grant(int item_type)
