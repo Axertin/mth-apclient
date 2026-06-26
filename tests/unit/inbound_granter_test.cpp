@@ -145,6 +145,76 @@ TEST_CASE("InboundGranter translates progressive weapons to tiered itemTypes", "
     std::filesystem::remove(path);
 }
 
+TEST_CASE("InboundGranter translates the progressive fishing rod to tiered upgrade itemTypes", "[inbound]")
+{
+    const auto path = std::filesystem::temp_directory_path() / "mthap_inbound_fishing.txt";
+    std::filesystem::remove(path);
+
+    mth::ApState state;
+    mth::ApSaveState save(path);
+    FakeGranter granter;
+    mth::InboundGranter inbound(granter, state, save);
+
+    // Progressive Fishing Rod received 3x -> grants Upgrade_FishingRod/FishingUpgrade/FishingGold = 87,88,89.
+    state.apply(recv(mth::kProgFishingRodId, 0));
+    state.apply(recv(mth::kProgFishingRodId, 1));
+    state.apply(recv(mth::kProgFishingRodId, 2));
+    inbound.tick();
+    REQUIRE(granter.granted == std::vector<int>{87, 88, 89});
+
+    // Idempotent: a re-tick (e.g. after reload) grants nothing new.
+    granter.granted.clear();
+    inbound.tick();
+    REQUIRE(granter.granted.empty());
+
+    std::filesystem::remove(path);
+}
+
+TEST_CASE("InboundGranter consumes a progressive fishing rod beyond its top tier without granting", "[inbound]")
+{
+    const auto path = std::filesystem::temp_directory_path() / "mthap_inbound_fishing_overflow.txt";
+    std::filesystem::remove(path);
+
+    mth::ApState state;
+    mth::ApSaveState save(path);
+    FakeGranter granter;
+    mth::InboundGranter inbound(granter, state, save);
+
+    state.apply(recv(mth::kProgFishingRodId, 0));
+    state.apply(recv(mth::kProgFishingRodId, 1));
+    state.apply(recv(mth::kProgFishingRodId, 2));
+    state.apply(recv(mth::kProgFishingRodId, 3)); // 4th: beyond tier 3 -> consumed, not granted, no retry
+    inbound.tick();
+    REQUIRE(granter.granted == std::vector<int>{87, 88, 89});
+    REQUIRE(save.is_granted(3));
+
+    std::filesystem::remove(path);
+}
+
+TEST_CASE("InboundGranter retries the fishing rod at its correct tier after a failure", "[inbound]")
+{
+    const auto path = std::filesystem::temp_directory_path() / "mthap_inbound_fishing_retry.txt";
+    std::filesystem::remove(path);
+
+    mth::ApState state;
+    mth::ApSaveState save(path);
+    FakeGranter granter;
+    granter.ok = false; // player not ready yet
+    mth::InboundGranter inbound(granter, state, save);
+
+    state.apply(recv(mth::kProgFishingRodId, 0)); // tier 1
+    state.apply(recv(mth::kProgFishingRodId, 1)); // tier 2
+    inbound.tick();
+    REQUIRE(granter.granted.empty());
+    REQUIRE_FALSE(save.is_granted(0));
+
+    granter.ok = true;
+    inbound.tick();
+    REQUIRE(granter.granted == std::vector<int>{87, 88}); // tiers recomputed correctly, both granted
+
+    std::filesystem::remove(path);
+}
+
 TEST_CASE("InboundGranter retries a weapon at its correct tier after a failure", "[inbound]")
 {
     const auto path = std::filesystem::temp_directory_path() / "mthap_inbound_weapon_retry.txt";

@@ -16,9 +16,33 @@ InboundGranter::InboundGranter(IItemGranter &granter, ApState &state, ApSaveStat
 void InboundGranter::tick()
 {
     int weapon_tier[kWeaponFamilyCount] = {0}; // running per-family receipt count -> progressive tier
+    int fishing_tier = 0;                      // running fishing-rod receipt count -> progressive tier
 
     for (const auto &it : state_.received_items())
     {
+        // Progressive fishing rod: the Nth receipt grants the Nth upgrade itemType (87/88/89). Count every
+        // receipt (already-granted too) so the tier survives reloads; grant only the new ones. Mirrors weapons.
+        if (is_fishing_rod_item(it.item_id))
+        {
+            const int tier = ++fishing_tier;
+            if (save_.is_granted(it.index))
+                continue;
+            const int game_type = fishing_rod_itemtype(tier);
+            if (game_type < 0) // beyond the top tier: consume so it does not retry forever
+            {
+                pal::logf(pal::LogLevel::Warn, "inbound_granter: fishing rod tier=%d exceeds max; ignored (index=%d)", tier, it.index);
+                save_.mark_granted(it.index);
+                save_.save();
+                continue;
+            }
+            if (!granter_.grant(game_type))
+                break; // not ready; retry next tick (tier is recomputed from scratch)
+            save_.mark_granted(it.index);
+            save_.save();
+            pal::logf(pal::LogLevel::Info, "inbound_granter: fishing rod tier=%d -> itemType=%d (index=%d) granted", tier, game_type, it.index);
+            continue;
+        }
+
         // Progressive weapon: the Nth receipt of a family grants its tier-N itemType. Count every
         // receipt (already-granted ones too) so the tier survives reloads; grant only the new ones.
         if (is_weapon_item(it.item_id))

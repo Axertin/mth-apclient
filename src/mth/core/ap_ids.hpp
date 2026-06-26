@@ -49,6 +49,7 @@ inline constexpr int upgrade_index(std::int64_t ap_item_id_)
 //   1000..1004  weapon families  (kProgWeaponBase + family)
 //   1005..1007  per-stat cap-ups (kProgStatCapBase + stat)
 //   1008        all-stat cap-up  (kProgStatCapAllId)
+//   1009        fishing rod      (kProgFishingRodId)
 
 inline constexpr std::int64_t kProgressiveItemBase = 1000;
 inline constexpr int kStatCount = 3; // 0=attack, 1=defense, 2=sidearm/magic
@@ -107,6 +108,25 @@ inline constexpr bool is_stat_cap_item(std::int64_t ap_item_id_)
 inline constexpr int stat_cap_item_stat(std::int64_t ap_item_id_)
 {
     return static_cast<int>(ap_item_id_ - kProgStatCapBase); // valid only for a per-stat id
+}
+
+// Fishing rod: single progressive chain; the Nth receipt grants the Nth fishing-rod upgrade itemType.
+inline constexpr std::int64_t kProgFishingRodId = kProgStatCapAllId + 1; // 1009
+inline constexpr int kFishingRodTiers = 3;
+// Upgrade_FishingRod (87), Upgrade_FishingUpgrade (88), Upgrade_FishingGold (89), granted in tier order.
+inline constexpr int kFishingRodItemTypes[kFishingRodTiers] = {87, 88, 89};
+
+inline constexpr bool is_fishing_rod_item(std::int64_t ap_item_id_)
+{
+    return ap_item_id_ == kProgFishingRodId;
+}
+
+// Engine itemType for a 1-based tier, -1 if out of range.
+inline constexpr int fishing_rod_itemtype(int tier)
+{
+    if (tier < 1 || tier > kFishingRodTiers)
+        return -1;
+    return kFishingRodItemTypes[tier - 1];
 }
 
 // item-category bases
