@@ -16,7 +16,8 @@ void UpgradeState::recompute(const ApState &state)
     for (int i = 0; i < kUpgradeCount; ++i)
         next[i] = std::min(next[i], kUpgradeCaps[i]);
 
-    dirty_ = !std::equal(next, next + kUpgradeCount, applied_);
+    // OR (not assign) so a force_dirty re-arm survives an unchanged-count recompute; mark_applied clears it.
+    dirty_ = dirty_ || !std::equal(next, next + kUpgradeCount, applied_);
     std::copy(next, next + kUpgradeCount, counts_);
 }
 

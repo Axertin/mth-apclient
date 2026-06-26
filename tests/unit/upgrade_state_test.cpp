@@ -69,6 +69,29 @@ TEST_CASE("upgrade: mark_applied clears dirty until counts change", "[upgrade]")
     REQUIRE(up.counts()[1] == 2);
 }
 
+TEST_CASE("upgrade: force_dirty re-arms a re-apply that survives recompute", "[upgrade]")
+{
+    // A SaveSlot::Clear (new-file, but also profile-menu / save-load while AP-connected) zeros the upgrade
+    // bitfields the kit suppressor targets. Counts are unchanged, so recompute alone would stay clean and the
+    // fields would never be refilled (the "starting items missing on load" bug). force_dirty re-arms the apply
+    // and recompute must not clear it before it lands.
+    mth::UpgradeState up;
+    mth::ApState s;
+    make_state(s, {kHealth});
+    up.recompute(s);
+    up.mark_applied();
+    up.recompute(s);
+    REQUIRE_FALSE(up.dirty()); // steady state: clean
+
+    up.force_dirty();
+    REQUIRE(up.dirty());
+    up.recompute(s); // unchanged counts must NOT clear the forced re-apply
+    REQUIRE(up.dirty());
+    up.mark_applied();
+    up.recompute(s);
+    REQUIRE_FALSE(up.dirty()); // landed: clean again
+}
+
 TEST_CASE("upgrade: non-upgrade items are ignored", "[upgrade]")
 {
     mth::UpgradeState up;

@@ -23,6 +23,14 @@ class UpgradeState
     }
     void mark_applied(); // counts have been pushed to the game; clears dirty until they change again
 
+    // Re-arm a re-apply without a count change: the kit suppressor zeroed the upgrade bitfields (a
+    // SaveSlot::Clear, which also fires on profile-menu / save-load), so counts() must be re-asserted to the
+    // save even though they did not change. Sticky: recompute keeps it until mark_applied lands the re-apply.
+    void force_dirty()
+    {
+        dirty_ = true;
+    }
+
   private:
     int counts_[kUpgradeCount]{};
     int applied_[kUpgradeCount]{}; // last counts pushed to the game; 0 = nothing applied (matches a fresh save)

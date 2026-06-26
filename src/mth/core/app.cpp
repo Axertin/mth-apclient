@@ -114,7 +114,16 @@ App::App()
     death_hooks_ = std::make_unique<DeathHooks>([this] { link_->send_death("Mina the Hollower"); }, [this]() -> void * { return tracker_->player(); });
     ability_hooks_ = std::make_unique<AbilityHooks>([this](std::int64_t id) { return state_.has_received(id); });
     // Suppress the game's default new-file starting kit while AP-authenticated (AP supplies it instead).
-    pal::install_newfile_kit_suppressor([this] { return state_.authenticated(); });
+    // SaveSlot::Clear also fires on profile-menu / save-load, so the zero can hit an existing save's upgrade
+    // fields; re-arm the upgrade re-apply each time we suppress so drive_tick refills them from AP state.
+    pal::install_newfile_kit_suppressor(
+        [this]
+        {
+            if (!state_.authenticated())
+                return false;
+            upgrades_.force_dirty();
+            return true;
+        });
 
     const Config cfg = load_config_from_env();
 
