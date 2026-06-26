@@ -22,6 +22,16 @@ void resolve();
 // Kinds 1/9/11 write a global "have item" bit and are excluded; QueueDestroy handles them instead.
 [[nodiscard]] bool is_durable_bit_kind(int kind);
 
+// "Have-item bit" kinds (1=vessel/weapon tiers, 9=subweapon/spell/ability unlocks + capacity pieces,
+// 11=trinkets): IsItemCollected keys these on the item's identity/type, not the location's bit-index, so
+// owning the item (e.g. an out-of-order AP grant of the vanilla item) reads the location as collected and
+// the chest spawns already-open (issue #61). Such AP locations must report the AP checked-state instead.
+// The complement of is_durable_bit_kind within the durable families; pure so it is unit-testable.
+[[nodiscard]] constexpr bool is_item_keyed_collected_kind(int kind) noexcept
+{
+    return kind == 1 || kind == 9 || kind == 11;
+}
+
 // Capacity-upgrade location: vanilla contents itemType in 0x44..0x48 (Magic/Health/Spark/Vial/Trinket
 // piece). IsItemCollected for these reads the same SaveSlot bitfield apply_upgrades repurposes as a
 // capacity counter, so a per-location collected query is aliased; the mod overrides it (issue #8).

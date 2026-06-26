@@ -38,6 +38,7 @@ add_executable(mthap_unit_tests
     unit/session_policy_test.cpp
     unit/area_reporter_test.cpp
     unit/ability_gate_test.cpp
+    unit/game_tables_test.cpp
 )
 
 target_include_directories(mthap_unit_tests PRIVATE

@@ -199,16 +199,24 @@ int on_shop_stock(int loc_idx)
     return g_bridge->is_checked(loc_idx) ? 2 : 1;
 }
 
-// Items::IsItemCollected override for capacity-upgrade locations (issue #8). Their game-side collected
-// bit aliases the mod's AP capacity counter (apply_upgrades sets low bits of SaveSlot+0x130 etc. for
-// received Magic/Health/Spark/Vial/Trinket upgrades), so a vanilla query wrongly reports the location
-// collected and bosses skip spawning the rose reward. For an AP upgrade-piece location, report the AP
-// checked-state instead; pass everything else through (-1). The itemType check fast-rejects the vast
-// majority of (hot-path) queries before the AP-location lookups.
+// Items::IsItemCollected override for locations whose vanilla collected-state aliases item-ownership, so
+// the game reports them collected before the player ever opens the chest:
+//   - capacity-upgrade pieces (#8): the collected bit aliases the mod's AP capacity counter (apply_upgrades
+//     sets low bits of SaveSlot+0x130 etc. for received Magic/Health/Spark/Vial/Trinket upgrades), so a
+//     boss skips spawning the rose reward.
+//   - have-item-bit kinds 1/9/11 (#61): IsItemCollected keys these on the item's identity/type, so an
+//     out-of-order AP grant of the vanilla item (trinket, subweapon, vessel, ...) marks the location
+//     collected and its chest spawns already-open, sending no check.
+// For such AP locations report the AP checked-state; pass everything else through (-1). The cheap
+// kind/itemType checks fast-reject the vast majority of (hot-path) queries before the AP-location lookup.
 int on_item_collected_query(int loc_idx)
 {
-    if (g_bridge == nullptr || !mth::tables::is_capacity_upgrade_location(loc_idx) || !g_bridge->is_ap_location(loc_idx))
-        return -1; // pass through to the original IsItemCollected
+    if (g_bridge == nullptr)
+        return -1;
+    if (!mth::tables::is_capacity_upgrade_location(loc_idx) && !mth::tables::is_item_keyed_collected_kind(mth::tables::native_location_kind(loc_idx)))
+        return -1; // not an aliasing location -> pass through to the original IsItemCollected
+    if (!g_bridge->is_ap_location(loc_idx))
+        return -1;
     return g_bridge->is_checked(loc_idx) ? 1 : 0;
 }
 
