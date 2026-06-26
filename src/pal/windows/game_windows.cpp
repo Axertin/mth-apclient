@@ -839,6 +839,7 @@ bool g_ab_ok = false;
 std::uintptr_t g_addr_burrow_ground = 0;
 std::uintptr_t g_addr_rope_climb = 0;
 std::uintptr_t g_addr_bounce_plant = 0;
+std::uintptr_t g_addr_bounce_launch = 0;
 std::uintptr_t g_addr_spring = 0;
 std::uintptr_t g_addr_pickup = 0;
 std::uintptr_t g_addr_train_npc = 0;
@@ -846,6 +847,7 @@ std::uintptr_t g_addr_train_npc = 0;
 pal::HookId g_id_burrow = pal::kInvalidHookId;
 pal::HookId g_id_rope = pal::kInvalidHookId;
 pal::HookId g_id_puff = pal::kInvalidHookId;
+pal::HookId g_id_launch = pal::kInvalidHookId;
 pal::HookId g_id_spring = pal::kInvalidHookId;
 pal::HookId g_id_carry = pal::kInvalidHookId;
 pal::HookId g_id_train = pal::kInvalidHookId;
@@ -854,6 +856,7 @@ unsigned long (*g_orig_burrow_ground)(void *) = nullptr;
 char (*g_water_is_deep)(void *, bool) = nullptr; // WaterListener::IsInDeepWaterInternal(wl, false)
 void (*g_orig_rope_climb)(void *, void *, bool, bool) = nullptr;
 void (*g_orig_bounce_plant)(void *, void *) = nullptr;
+void (*g_orig_bounce_launch)(void *, void *) = nullptr;
 void (*g_orig_spring)(void *, void *) = nullptr;
 unsigned long (*g_orig_pickup)(void *, bool, bool, bool) = nullptr;
 void (*g_orig_train_npc)(void *, unsigned, void *) = nullptr;
@@ -912,6 +915,16 @@ void repl_bounce_plant(void *self, void *contact_pair)
         g_orig_bounce_plant(self, contact_pair);
 }
 
+// Out-of-line launch for ground/burrow-underable puffs (player is the second arg, always the launchee);
+// the floating case bounces inline in CollideWith above (issue #47).
+void repl_bounce_launch(void *self, void *player)
+{
+    if (ability_blocked(kAbBouncePuff))
+        return;
+    if (g_orig_bounce_launch)
+        g_orig_bounce_launch(self, player);
+}
+
 void repl_spring(void *self, void *contact_pair)
 {
     if (collider_is_player(contact_pair) && ability_blocked(kAbBounceSpring))
@@ -960,11 +973,12 @@ bool abilities_available()
     g_water_is_deep = reinterpret_cast<char (*)(void *, bool)>(resolve_game_symbol(mth::sym::water_is_in_deep_water));
     g_addr_rope_climb = resolve_game_symbol(mth::sym::player_rope_climb_start);
     g_addr_bounce_plant = resolve_game_symbol(mth::sym::bounce_plant_collide);
+    g_addr_bounce_launch = resolve_game_symbol(mth::sym::bounce_plant_launch);
     g_addr_spring = resolve_game_symbol(mth::sym::spring_bellows_collide);
     g_addr_pickup = resolve_game_symbol(mth::sym::player_pickup_carryable);
     g_addr_train_npc = resolve_game_symbol(mth::sym::train_authority_on_npc_event);
-    g_ab_ok =
-        g_addr_burrow_ground != 0 || g_addr_rope_climb != 0 || g_addr_bounce_plant != 0 || g_addr_spring != 0 || g_addr_pickup != 0 || g_addr_train_npc != 0;
+    g_ab_ok = g_addr_burrow_ground != 0 || g_addr_rope_climb != 0 || g_addr_bounce_plant != 0 || g_addr_bounce_launch != 0 || g_addr_spring != 0 ||
+              g_addr_pickup != 0 || g_addr_train_npc != 0;
     if (!g_ab_ok)
         logf(LogLevel::Warn, "abilities: no chokepoint symbols resolved; ability gating disabled");
     return g_ab_ok;
@@ -1008,6 +1022,16 @@ bool install_ability_hooks(AbilityBlockFn block)
     else
         logf(LogLevel::Warn, "abilities: BouncePlant::CollideWith not resolved; puff gating disabled");
 
+    if (g_addr_bounce_launch != 0)
+    {
+        g_id_launch = hook_engine().install_hook(reinterpret_cast<void *>(g_addr_bounce_launch), reinterpret_cast<void *>(&repl_bounce_launch),
+                                                 reinterpret_cast<void **>(&g_orig_bounce_launch));
+        if (g_id_launch == kInvalidHookId)
+            logf(LogLevel::Error, "abilities: failed to hook BouncePlant::BounceLaunch");
+    }
+    else
+        logf(LogLevel::Warn, "abilities: BouncePlant::BounceLaunch not resolved; ground-puff gating disabled");
+
     if (g_addr_spring != 0)
     {
         g_id_spring = hook_engine().install_hook(reinterpret_cast<void *>(g_addr_spring), reinterpret_cast<void *>(&repl_spring),
@@ -1038,8 +1062,8 @@ bool install_ability_hooks(AbilityBlockFn block)
     else
         logf(LogLevel::Warn, "abilities: TrainAuthority::OnNPCEvent not resolved; train gating disabled");
 
-    const bool any = g_id_burrow != kInvalidHookId || g_id_rope != kInvalidHookId || g_id_puff != kInvalidHookId || g_id_spring != kInvalidHookId ||
-                     g_id_carry != kInvalidHookId || g_id_train != kInvalidHookId;
+    const bool any = g_id_burrow != kInvalidHookId || g_id_rope != kInvalidHookId || g_id_puff != kInvalidHookId || g_id_launch != kInvalidHookId ||
+                     g_id_spring != kInvalidHookId || g_id_carry != kInvalidHookId || g_id_train != kInvalidHookId;
     if (any)
         logf(LogLevel::Info, "abilities: ability gating hooks installed");
     else
@@ -1049,7 +1073,7 @@ bool install_ability_hooks(AbilityBlockFn block)
 
 void remove_ability_hooks()
 {
-    for (HookId *id : {&g_id_burrow, &g_id_rope, &g_id_puff, &g_id_spring, &g_id_carry, &g_id_train})
+    for (HookId *id : {&g_id_burrow, &g_id_rope, &g_id_puff, &g_id_launch, &g_id_spring, &g_id_carry, &g_id_train})
     {
         if (*id != kInvalidHookId)
             hook_engine().remove_hook(*id);

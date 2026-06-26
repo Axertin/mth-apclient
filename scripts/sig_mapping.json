@@ -146,6 +146,10 @@
       "kind": "Code"
     },
     {
+      "name": "_ZN11BouncePlant12BounceLaunchEP6Player",
+      "kind": "Code"
+    },
+    {
       "name": "_ZN13SpringBellows11CollideWithER18PhysicsContactPair",
       "kind": "Code"
     },
@@ -280,6 +284,9 @@
     "_ZN11BouncePlant11CollideWithER18PhysicsContactPair": {
       "rva": 1458176
     },
+    "_ZN11BouncePlant12BounceLaunchEP6Player": {
+      "rva": 1458384
+    },
     "_ZN13SpringBellows11CollideWithER18PhysicsContactPair": {
       "rva": 11152096
     },
@@ -362,6 +369,9 @@
     },
     "_ZN11BouncePlant11CollideWithER18PhysicsContactPair": {
       "rva": 4440320
+    },
+    "_ZN11BouncePlant12BounceLaunchEP6Player": {
+      "rva": 4443744
     },
     "_ZN13SpringBellows11CollideWithER18PhysicsContactPair": {
       "rva": 15845280
