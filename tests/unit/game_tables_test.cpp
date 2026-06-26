@@ -59,3 +59,22 @@ TEST_CASE("should_redirect_collected_query: ownership query on non-weapon kinds 
     CHECK(mth::tables::should_redirect_collected_query(false, 11, true)); // trinket
     CHECK(mth::tables::should_redirect_collected_query(true, 9, true));   // capacity piece (#8)
 }
+
+// kear_reconciled_spent backs the reload-durable kear key cancel. usable keys = popcount(collected bits)
+// - spent; under kear_rando all kears are AP-controlled so usable must stay 0. The collect-time spent bump
+// is not rebuilt on reload (the collected bitfield is), so on load spent lags and a free key leaks (the
+// reported "one kear on load"). Reconciliation raises spent up to popcount but never lowers it, so real
+// spends and an already-balanced count are preserved.
+TEST_CASE("kear_reconciled_spent: raises spent to popcount when behind", "[game_tables]")
+{
+    CHECK(mth::tables::kear_reconciled_spent(0b1u, 0) == 1);    // the reported one-kear-on-load case
+    CHECK(mth::tables::kear_reconciled_spent(0b1011u, 0) == 3); // 3 collected, 0 spent -> cancel all 3
+    CHECK(mth::tables::kear_reconciled_spent(0b1011u, 1) == 3); // partially behind -> catch up
+}
+
+TEST_CASE("kear_reconciled_spent: never lowers spent and no-ops when balanced", "[game_tables]")
+{
+    CHECK(mth::tables::kear_reconciled_spent(0b111u, 3) == 3); // already balanced
+    CHECK(mth::tables::kear_reconciled_spent(0b1u, 3) == 3);   // over-spent (would-be negative usable): unchanged
+    CHECK(mth::tables::kear_reconciled_spent(0u, 2) == 2);     // no collected bits: spent preserved
+}

@@ -74,6 +74,34 @@ void neutralize_kear_grant(int loc_idx, void *slot, std::uint64_t before)
     pal::logf(pal::LogLevel::Info, "kear_rando: neutralized kear grant locIdx=%d new_bits=%d spent+=%d player=%p", loc_idx, n, n, player);
 }
 
+// Reload-durable counterpart to neutralize_kear_grant: the collect-time spent bump above is not rebuilt on
+// reload (only the +0x1f0 collected bitfield is), so after loading a save the AP-collected kears read as
+// usable keys again ("one kear on load"). Run every tick under kear_rando to raise +0x1f8 back up to
+// popcount(+0x1f0), cancelling the leaked keys; never lowers it, so real lock-spends survive. Keeps the live
+// Player mirror (+0x1190/+0x1198) in lockstep so the live lock gate agrees with the SaveSlot.
+void reconcile_kear_keys()
+{
+    if (!g_kear_rando || g_save_manager == 0)
+        return;
+    void *slot = pal::active_save_slot(g_save_manager);
+    if (slot == nullptr)
+        return;
+    const std::uint64_t bits = *reinterpret_cast<std::uint64_t *>(static_cast<char *>(slot) + mth::layout::kSaveKearBitsOff);
+    int &spent = *reinterpret_cast<int *>(static_cast<char *>(slot) + mth::layout::kSaveKearSpentOff);
+    const int reconciled = mth::tables::kear_reconciled_spent(bits, spent);
+    if (reconciled == spent)
+        return; // already balanced; no leaked key
+    pal::logf(pal::LogLevel::Info, "kear_rando: reconciled spent %d -> %d (popcount=%d) on slot=%p", spent, reconciled, std::popcount(bits), slot);
+    spent = reconciled;
+
+    void *player = g_player_get ? g_player_get() : nullptr;
+    if (player != nullptr)
+    {
+        *reinterpret_cast<std::uint64_t *>(static_cast<char *>(player) + mth::layout::kPlayerKearBitsOff) = bits;
+        *reinterpret_cast<int *>(static_cast<char *>(player) + mth::layout::kPlayerKearSpentOff) = reconciled;
+    }
+}
+
 // Shared collect path for pickups and shop buys: record/send the check, then write the
 // durable native collected-bit where SetItemCollected is side-effect-free.
 void collect_ap_location(int loc_idx)
@@ -261,6 +289,11 @@ LocationHooks::LocationHooks(RandoBridge &bridge, std::function<void *()> player
 void LocationHooks::set_kear_rando(bool on)
 {
     g_kear_rando = on;
+}
+
+void LocationHooks::reconcile_kear_keys()
+{
+    ::reconcile_kear_keys();
 }
 
 LocationHooks::~LocationHooks()

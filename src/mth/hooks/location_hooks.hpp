@@ -24,6 +24,10 @@ class LocationHooks
     // slot_data "kear_rando": when on, neutralize the usable key a kear-location collect would otherwise grant.
     void set_kear_rando(bool on);
 
+    // Reload-durable re-assertion of the kear key cancel: raise the SaveSlot spent-counter back up to
+    // popcount so AP-collected kears stop reading as usable keys after a save load. Game-thread, per-tick.
+    void reconcile_kear_keys();
+
   private:
     ScopedHook pickup_init_;
     ScopedHook pickup_on_pickup_;

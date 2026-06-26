@@ -1,9 +1,21 @@
 #pragma once
 
+#include <bit>
 #include <cstdint>
 
 namespace mth::tables
 {
+
+// Reload-durable kear key cancel. usable keys = popcount(SaveSlot+0x1f0) - SaveSlot+0x1f8; under kear_rando
+// all kears are AP-controlled, so usable must stay 0. The collect-time spent bump (neutralize_kear_grant) is
+// not rebuilt on reload while the collected bitfield is, so spent lags and a free key leaks ("one kear on
+// load"). Reconciliation raises spent up to popcount but never lowers it, preserving real lock-spends and an
+// already-balanced count. Pure so it is unit-testable.
+[[nodiscard]] constexpr int kear_reconciled_spent(std::uint64_t collected_bits, int spent) noexcept
+{
+    const int popcount = std::popcount(collected_bits);
+    return popcount > spent ? popcount : spent;
+}
 
 // Resolved s_rItems / s_rItemCollection accessors, shared by the hook modules.
 // resolve() is idempotent (each consumer's ctor calls it); every accessor is safe

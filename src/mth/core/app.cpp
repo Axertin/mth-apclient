@@ -236,7 +236,10 @@ void App::drive_tick()
             level_cap_hooks_->recompute(state_);
     }
     if (location_hooks_)
+    {
         location_hooks_->set_kear_rando(state_.kear_rando()); // slot_data flag: neutralize the world-kear key grant
+        location_hooks_->reconcile_kear_keys();               // re-cancel AP kears that a reload restored as usable keys
+    }
     if (ability_hooks_)
     {
         if (authed)
