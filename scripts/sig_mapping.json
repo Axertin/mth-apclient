@@ -182,7 +182,7 @@
       "rva": 9835504
     },
     "_ZN5World6UpdateEP20ycUpdateQueueContext": {
-      "rva": 11740176
+      "rva": 11785136
     },
     "_ZN5Items12OnPickupDoneEiiP6PlayerRK6ycVec3iijb": {
       "rva": 8542656
@@ -314,7 +314,7 @@
       "rva": 13168320
     },
     "_ZN5World6UpdateEP20ycUpdateQueueContext": {
-      "rva": 15469168
+      "rva": 15593552
     },
     "_ZN13ycUpdateQueue6UpdateEf": {
       "rva": 3276656
