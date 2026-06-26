@@ -72,6 +72,7 @@ class App : public ICommandSink
     void lock_modifiers(bool armed) override;
     void set_stat_caps(int attack, int defense, int sidearm) override;
     void set_ability_randomized(Ability ability, bool randomized) override;
+    void enable_deathlink(bool on) override;
 
   private:
     void ensure_inbound_ready();     // lazily builds save_state_/inbound_ once connected

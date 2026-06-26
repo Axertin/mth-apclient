@@ -35,6 +35,7 @@ class ICommandSink
     virtual void lock_modifiers(bool armed) = 0;                               // arm/disarm gameplay-modifier lockdown
     virtual void set_stat_caps(int attack, int defense, int sidearm) = 0;      // force per-stat level caps (offline test)
     virtual void set_ability_randomized(Ability ability, bool randomized) = 0; // offline test: mark randomized + arm enforcement
+    virtual void enable_deathlink(bool on) = 0;                                // enable/disable deathlink
 };
 
 } // namespace mth

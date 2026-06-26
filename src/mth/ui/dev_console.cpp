@@ -134,6 +134,7 @@ void DevConsole::run_input()
         println("          modifier <idx> on|off, modifiers [lock|unlock]");
         println("          caps <attack> <defense> <sidearm>  (per-stat level cap-ups; 0 = frozen)");
         println("          ability <name> on|off  (names: burrow swim rope puff spring carry train)");
+        println("          deathlink on|off  (enable/disable deathlink, must also be enabled in yaml)");
         break;
     case CommandKind::Clear:
         log_.clear();
@@ -229,6 +230,16 @@ void DevConsole::run_input()
     case CommandKind::Disconnect:
         sink_.disconnect();
         println("disconnect requested");
+        break;
+    case CommandKind::Deathlink:
+        if (cmd.args.empty())
+            println("usage: deathlink on|off");
+        else
+        {
+            const bool on = cmd.args[0] == "on" || cmd.args[0] == "1" || cmd.args[0] == "true";
+            sink_.enable_deathlink(on);
+            println("deathlink " + std::string(on ? "enabled" : "disabled"));
+        }
         break;
     case CommandKind::Unknown:
         println("unknown command: " + cmd.verb + " (try 'help')");

@@ -54,7 +54,7 @@ class ApLink final : public mth::IApLink
 
     std::atomic<bool> running_{true};
     std::atomic<bool> connected_{false};
-    std::atomic<bool> deathlink_{false};
+    std::atomic<bool> deathlink_{true};
     std::mutex cmd_mutex_;
     std::queue<std::function<void()>> commands_;
     std::mutex event_mutex_;

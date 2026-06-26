@@ -119,6 +119,23 @@ void ApLink::set_goal()
 void ApLink::enable_deathlink(bool on)
 {
     deathlink_.store(on);
+    enqueue(
+        [this, on]
+        {
+            if (!client_)
+                return;
+            try
+            {
+                std::list<std::string> tags;
+                if (on)
+                    tags.push_back("DeathLink");
+                client_->ConnectUpdate(false, kItemHandling, true, tags);
+            }
+            catch (const std::exception &e)
+            {
+                pal::logf(pal::LogLevel::Warn, "ApLink: ConnectUpdate failed: %s", e.what());
+            }
+        });
 }
 
 void ApLink::send_death(const std::string &cause)

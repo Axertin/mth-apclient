@@ -22,6 +22,7 @@ enum class CommandKind
     Ability,      // args: [name, on|off]
     Connect,      // args: [server, slot, (optional) password]
     Disconnect,
+    Deathlink // args: [on|off]
 };
 
 struct ParsedCommand

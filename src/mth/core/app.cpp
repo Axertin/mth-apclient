@@ -152,12 +152,6 @@ App::App()
         pal::logf(pal::LogLevel::Info, "AP: MOCK state injected (every pickup is an AP location, idx 0..%d)", *cfg.mock_ap_max_idx);
     }
 
-    if (cfg.deathlink)
-    {
-        link_->enable_deathlink(true);
-        pal::logf(pal::LogLevel::Info, "deathlink: enabled (MTHAP_DEATHLINK)");
-    }
-
     if (!cfg.ap_server.empty())
     {
         pal::logf(pal::LogLevel::Info, "AP: MTHAP_AP_SERVER set; connecting to %s", cfg.ap_server.c_str());
@@ -419,4 +413,10 @@ void App::set_ability_randomized(Ability a, bool on)
     pal::logf(pal::LogLevel::Info, "console: ability %d randomized %s", static_cast<int>(a), on ? "on" : "off");
 }
 
+void App::enable_deathlink(bool on)
+{
+    if (link_)
+        link_->enable_deathlink(on);
+    pal::logf(pal::LogLevel::Info, "console: deathlink %s", on ? "enabled" : "disabled");
+}
 } // namespace mth
