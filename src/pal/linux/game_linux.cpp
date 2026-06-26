@@ -93,6 +93,22 @@ void repl_shop_refresh(void *self)
         g_orig_shop_refresh(self);
 }
 
+// ---- Items::IsItemCollected override (capacity-upgrade locations report AP checked-state) ----
+pal::ItemCollectedFn g_item_collected_cb = nullptr;
+pal::HookId g_item_collected_hook = pal::kInvalidHookId;
+unsigned (*g_orig_is_item_collected)(int, void *, void *, bool, bool) = nullptr;
+
+unsigned repl_is_item_collected(int loc_idx, void *coll, void *slot, bool b4, bool b5)
+{
+    if (g_item_collected_cb != nullptr && loc_idx >= 0)
+    {
+        const int ov = g_item_collected_cb(loc_idx);
+        if (ov >= 0)
+            return static_cast<unsigned>(ov); // forced AP checked-state
+    }
+    return g_orig_is_item_collected ? g_orig_is_item_collected(loc_idx, coll, slot, b4, b5) : 0;
+}
+
 // ---- chain-open / chest-unlock per-frame hooks (Linux: hook ::Update, self == entity base) ----
 pal::EntityFrameFn g_chain_cb = nullptr;
 pal::HookId g_chain_hook = pal::kInvalidHookId;
@@ -535,6 +551,37 @@ void remove_shop_stock_hook()
     g_shop_stock_hook = kInvalidHookId;
     g_shop_stock_cb = nullptr;
     g_orig_shop_refresh = nullptr;
+}
+
+bool install_item_collected_hook(ItemCollectedFn query)
+{
+    g_item_collected_cb = query;
+    const std::uintptr_t addr = resolve_game_symbol(mth::sym::items_is_item_collected);
+    if (addr == 0)
+    {
+        logf(LogLevel::Warn, "items: IsItemCollected not resolved; upgrade-location override disabled");
+        g_item_collected_cb = nullptr;
+        return false;
+    }
+    g_item_collected_hook = hook_engine().install_hook(reinterpret_cast<void *>(addr), reinterpret_cast<void *>(&repl_is_item_collected),
+                                                       reinterpret_cast<void **>(&g_orig_is_item_collected));
+    if (g_item_collected_hook == kInvalidHookId)
+    {
+        logf(LogLevel::Error, "items: failed to hook IsItemCollected");
+        g_item_collected_cb = nullptr;
+        return false;
+    }
+    logf(LogLevel::Info, "items: hooked IsItemCollected (id=%llu)", static_cast<unsigned long long>(g_item_collected_hook));
+    return true;
+}
+
+void remove_item_collected_hook()
+{
+    if (g_item_collected_hook != kInvalidHookId)
+        hook_engine().remove_hook(g_item_collected_hook);
+    g_item_collected_hook = kInvalidHookId;
+    g_item_collected_cb = nullptr;
+    g_orig_is_item_collected = nullptr;
 }
 
 bool install_chain_open_hook(EntityFrameFn on_frame)

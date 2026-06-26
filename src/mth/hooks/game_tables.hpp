@@ -22,6 +22,11 @@ void resolve();
 // Kinds 1/9/11 write a global "have item" bit and are excluded; QueueDestroy handles them instead.
 [[nodiscard]] bool is_durable_bit_kind(int kind);
 
+// Capacity-upgrade location: vanilla contents itemType in 0x44..0x48 (Magic/Health/Spark/Vial/Trinket
+// piece). IsItemCollected for these reads the same SaveSlot bitfield apply_upgrades repurposes as a
+// capacity counter, so a per-location collected query is aliased; the mod overrides it (issue #8).
+[[nodiscard]] bool is_capacity_upgrade_location(int loc_idx);
+
 // s_rItemCollection row reads (0 / -1 when unresolved or out of range).
 [[nodiscard]] std::uint64_t collection_name_key(int idx);
 [[nodiscard]] int collection_warp_remap(int idx); // <0 = no remap

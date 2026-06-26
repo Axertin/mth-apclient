@@ -56,6 +56,10 @@ inline constexpr const char *queue_destroy = "_ZN7ycWorld12QueueDestroyEP8ycEnti
 inline constexpr const char *set_item_collected =
     "_ZN5Items16SetItemCollectedEibP14ItemCollectionP8SaveSlot";                            // Items::SetItemCollected(int, bool, ItemCollection*, SaveSlot*)
 inline constexpr const char *s_r_item_collection = "_ZN12_GLOBAL__N_117s_rItemCollectionE"; // s_rItemCollection location table
+// Items::IsItemCollected(int loc, ItemCollection*, SaveSlot*, bool, bool): the global "is this location
+// collected" query. Hooked to decouple capacity-upgrade locations (itemTypes 0x44..0x48), whose collected
+// bit aliases the mod's AP capacity counter, from the rose-reward spawn gate (issue #8).
+inline constexpr const char *items_is_item_collected = "_ZN5Items15IsItemCollectedEiP14ItemCollectionP8SaveSlotbb";
 
 // Live boss-death funnels (kill-time). SetBossDefeated was reload-path only (29/34 call sites are in
 // <Boss>::InitState corpse-spawn). Most bosses route through TriggerDeathSequence (its 1-arg variant
