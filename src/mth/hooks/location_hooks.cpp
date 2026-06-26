@@ -209,12 +209,18 @@ int on_shop_stock(int loc_idx)
 //     collected and its chest spawns already-open, sending no check.
 // For such AP locations report the AP checked-state; pass everything else through (-1). The cheap
 // kind/itemType checks fast-reject the vast majority of (hot-path) queries before the AP-location lookup.
-int on_item_collected_query(int loc_idx)
+// `ownership_query` is IsItemCollected's param5 (b5): the weapon-swap chest reads weapon ownership via
+// IsItemCollected with b5=true, and must see the real have-item bit -- redirecting it to the location's
+// AP checked-state hides any weapon received from another player (its own location never checked). So
+// ownership queries on weapon-kind (1) locations pass through; see should_redirect_collected_query.
+int on_item_collected_query(int loc_idx, bool ownership_query)
 {
     if (g_bridge == nullptr)
         return -1;
-    if (!mth::tables::is_capacity_upgrade_location(loc_idx) && !mth::tables::is_item_keyed_collected_kind(mth::tables::native_location_kind(loc_idx)))
-        return -1; // not an aliasing location -> pass through to the original IsItemCollected
+    const bool is_cap = mth::tables::is_capacity_upgrade_location(loc_idx);
+    const int kind = is_cap ? -1 : mth::tables::native_location_kind(loc_idx); // kind unused when capacity
+    if (!mth::tables::should_redirect_collected_query(is_cap, kind, ownership_query))
+        return -1; // not an aliasing location, or a weapon ownership query -> pass through
     if (!g_bridge->is_ap_location(loc_idx))
         return -1;
     return g_bridge->is_checked(loc_idx) ? 1 : 0;
