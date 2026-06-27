@@ -34,11 +34,11 @@ with the `mod-allow-code` launch option set (this enables loading a mod's code l
 
 ### Linux
 
-Copy the `mods/apclient/` directory (containing `mod.so` and `mod.yc`) into the game's mods
+Extract the release `.zip` (containing `apclient/mod.so` and `apclient/mod.yc`) into the game's mods
 folder, which lives under its save directory (the SDL prefix path), not the install dir:
 
 ```
-~/.local/share/Yacht Club Games/Mina the Hollower/mods/apclient/
+~/.local/share/Yacht Club Games/Mina the Hollower/mods/
 ```
 
 Set Steam launch options for Mina the Hollower:
@@ -53,10 +53,10 @@ appear. The mod's own runtime log is `~/.local/share/mth-apclient/mthap_*.log` (
 
 ### Windows
 
-Copy the `mods\apclient\` directory (containing `mod.dll` and `mod.yc`) into:
+Extract the release `.zip` (containing `apclient/mod.so` and `apclient/mod.yc`) into:
 
 ```
-%APPDATA%\Yacht Club Games\Mina the Hollower\mods\apclient\
+%APPDATA%\Yacht Club Games\Mina the Hollower\mods\
 ```
 
 Set Steam launch options for Mina the Hollower:

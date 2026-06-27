@@ -2,7 +2,7 @@ name: release
 
 on:
   push:
-    tags: ['v*']
+    tags: ["v*"]
 
 env:
   VCPKG_BINARY_SOURCES: "clear;files,${{ github.workspace }}/.vcpkg-cache,readwrite"
@@ -54,7 +54,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: release-linux
-          path: build/clang-x64-release/mods/apclient/
+          path: build/clang-x64-release/mods/
           if-no-files-found: error
 
   build-windows:
@@ -87,7 +87,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: release-windows
-          path: build/clang-cl-x64-release/mods/apclient/
+          path: build/clang-cl-x64-release/mods/
           if-no-files-found: error
 
   release:
@@ -100,7 +100,12 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: dist
-          merge-multiple: true
+      # Each artifact extracts to dist/<name>/apclient/{mod.{so,dll},mod.yc}; re-zip per platform
+      # so the release asset unpacks to an apclient/ drop-in folder.
+      - name: Package drop-in zips
+        run: |
+          ( cd dist/release-linux && zip -r "$GITHUB_WORKSPACE/mth-apclient-${GITHUB_REF_NAME}-linux.zip" apclient )
+          ( cd dist/release-windows && zip -r "$GITHUB_WORKSPACE/mth-apclient-${GITHUB_REF_NAME}-windows.zip" apclient )
       # Pre-release for any prerelease tag suffix (-dev/-beta/-rc/...) or a 0.x major.
       - name: Classify tag
         id: tag
@@ -118,4 +123,7 @@ jobs:
         run: |
           args=(--title "$GITHUB_REF_NAME" --generate-notes)
           if [[ "${{ steps.tag.outputs.prerelease }}" == "true" ]]; then args+=(--prerelease); fi
-          gh release create "$GITHUB_REF_NAME" dist/mod.so dist/mod.dll dist/mod.yc "${args[@]}"
+          gh release create "$GITHUB_REF_NAME" \
+            "mth-apclient-${GITHUB_REF_NAME}-linux.zip" \
+            "mth-apclient-${GITHUB_REF_NAME}-windows.zip" \
+            "${args[@]}"

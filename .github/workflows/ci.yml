@@ -84,7 +84,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: mod-linux-${{ steps.version.outputs.version }}
-          path: build/clang-x64-release/mods/apclient/
+          path: build/clang-x64-release/mods/
           if-no-files-found: error
 
   build-windows:
@@ -120,5 +120,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: mod-windows-${{ steps.version.outputs.version }}
-          path: build/clang-cl-x64-release/mods/apclient/
+          path: build/clang-cl-x64-release/mods/
           if-no-files-found: error
