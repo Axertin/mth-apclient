@@ -100,6 +100,11 @@ function(add_git_version_info target)
     set(VERSION_BRANCH ${GIT_BRANCH})
   endif()
 
+  # Pack semver into one monotonic integer for the mod manifest (uint32-safe;
+  # minor/patch up to 999). Shared source of truth with mth_version.h.
+  math(EXPR MTHAP_MOD_VERSION "${VERSION_MAJOR} * 1000000 + ${VERSION_MINOR} * 1000 + ${VERSION_PATCH}")
+  set(MTHAP_MOD_VERSION ${MTHAP_MOD_VERSION} PARENT_SCOPE)
+
   set(VERSION_HEADER_DIR "${CMAKE_BINARY_DIR}/generated")
   set(VERSION_HEADER "${VERSION_HEADER_DIR}/mth_version.h")
 

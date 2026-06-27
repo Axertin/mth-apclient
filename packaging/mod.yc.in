@@ -1,0 +1,10 @@
+[YCD Version: 1]
+MinaModDef
+{
+    id: "apclient",
+    name: "Archipelago Client",
+    modVersion: @MTHAP_MOD_VERSION@,
+    minGameVersion: @MTHAP_MIN_GAME_VERSION@,
+    maxGameVersion: @MTHAP_MAX_GAME_VERSION@,
+    loadPriority: 2,
+};

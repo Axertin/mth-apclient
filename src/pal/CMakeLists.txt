@@ -1,13 +1,12 @@
 # Platform Abstraction Layer.
 #
-# `mthap_pal` is an OBJECT library (not STATIC) so loader-injected entry points
-# (the Linux constructor in entry_linux.cpp, the Windows DllMain) are pulled
-# into the final `mthap` module unconditionally - a STATIC archive would let
-# the linker drop those unreferenced .o files and silently break the mod.
+# `mthap_pal` is an OBJECT library (not STATIC) so native_mod_entry.cpp (which
+# defines the exported MinaMod_Init symbol) is pulled into the final `mthap`
+# module unconditionally - a STATIC archive would let the linker drop that
+# unreferenced .o file and silently break the mod.
 
 if(WIN32)
     set(_mthap_pal_sources
-        windows/entry_windows.cpp
         windows/log_windows.cpp
         windows/module_windows.cpp
         windows/thread_windows.cpp
@@ -15,7 +14,6 @@ if(WIN32)
         windows/symbol_windows.cpp
         windows/signature_scan.cpp
         windows/win_signatures_generated.cpp
-        windows/proxy_version.cpp
         windows/cert_windows.cpp
         windows/crash_handler_windows.cpp
         windows/mem_windows.cpp
@@ -23,7 +21,6 @@ if(WIN32)
     )
 else()
     set(_mthap_pal_sources
-        linux/entry_linux.cpp
         linux/log_linux.cpp
         linux/module_linux.cpp
         linux/thread_linux.cpp
@@ -54,22 +51,21 @@ if(MINGW AND MTHAP_ENABLE_NET)
     list(APPEND _mthap_pal_sources windows/mingw_crt_shim.cpp)
 endif()
 
+# Native MinaModAPI entry (MinaMod_Init) - shared across platforms; the export
+# macro is the only platform divergence and lives inside the TU.
+list(APPEND _mthap_pal_sources native_mod_entry.cpp)
+
 add_library(mthap_pal OBJECT ${_mthap_pal_sources})
 
 target_include_directories(mthap_pal PUBLIC "${CMAKE_SOURCE_DIR}/src")
 target_compile_features(mthap_pal PUBLIC cxx_std_23)
 set_target_properties(mthap_pal PROPERTIES POSITION_INDEPENDENT_CODE ON)
+target_link_libraries(mthap_pal PRIVATE mthap::minamodapi)
 
 enable_strict_warnings(mthap_pal)
 apply_release_optimizations(mthap_pal)
 
 if(WIN32)
-    # winver.h forward-declares VerLanguageName etc. without dllexport; our
-    # proxy redeclares them with dllexport, which clang-cl flags on every
-    # PROXY_FWD line. Expected - suppress on this TU only.
-    set_source_files_properties(windows/proxy_version.cpp
-        PROPERTIES COMPILE_OPTIONS "-Wno-dll-attribute-on-redeclaration")
-
     target_link_libraries(mthap_pal PUBLIC minhook::minhook crypt32 dbghelp)
 else()
     target_link_libraries(mthap_pal PUBLIC frida::gum dl pthread)

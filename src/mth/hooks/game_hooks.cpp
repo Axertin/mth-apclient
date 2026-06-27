@@ -2,6 +2,7 @@
 
 #include "mth/core/game_events.hpp"
 #include "mth/core/game_symbols.hpp"
+#include "pal/pal_native_mod.hpp"
 
 // File-scope globals: Frida replacements have no user context; exactly one GameHooks exists.
 namespace
@@ -9,15 +10,13 @@ namespace
 
 mth::IGameEvents *g_sink = nullptr;
 
-void (*g_orig_game_fixed_update)() = nullptr;
 void (*g_orig_game_update)(float) = nullptr;
 void (*g_orig_world_update)(void *, void *) = nullptr;
 void (*g_orig_update_queue)(void *, float) = nullptr;
 
-void repl_game_fixed_update()
+// Invoked by the native FixedUpdate hook (via pal::set_fixed_update_handler).
+void dispatch_fixed_update()
 {
-    if (g_orig_game_fixed_update)
-        g_orig_game_fixed_update();
     if (g_sink)
         g_sink->on_game_fixed_update();
 }
@@ -56,8 +55,7 @@ namespace mth
 GameHooks::GameHooks(IGameEvents &sink)
 {
     g_sink = &sink;
-    fixed_update_ = ScopedHook(sym::game_fixed_update, reinterpret_cast<void *>(&repl_game_fixed_update), reinterpret_cast<void **>(&g_orig_game_fixed_update),
-                               "Game::FixedUpdate");
+    pal::set_fixed_update_handler(&dispatch_fixed_update);
     update_ = ScopedHook(sym::game_update, reinterpret_cast<void *>(&repl_game_update), reinterpret_cast<void **>(&g_orig_game_update), "Game::Update");
     world_update_ =
         ScopedHook(sym::world_update, reinterpret_cast<void *>(&repl_world_update), reinterpret_cast<void **>(&g_orig_world_update), "World::Update");
@@ -67,8 +65,8 @@ GameHooks::GameHooks(IGameEvents &sink)
 
 GameHooks::~GameHooks()
 {
-    // g_sink cleared first; the repls null-check it, so a hook firing during member
-    // teardown is a safe no-op forward.
+    pal::set_fixed_update_handler(nullptr); // deregister before clearing g_sink
+    // repls null-check g_sink, so a hook firing mid-teardown is a safe no-op.
     g_sink = nullptr;
 }
 

@@ -3,7 +3,7 @@
 #   mthap_core : pure, cross-platform logic. The unit tests link ONLY this.
 #                No PAL-impl, backend, or OS headers - header includes from
 #                src/pal/ are fine, but nothing that needs linking.
-#   mthap      : final module (libmthap.so / mthap.dll). Composition root.
+#   mthap      : final module (mod.so / mod.dll). Composition root.
 #                Added in a later task; guarded on NOT MTHAP_BUILD_TESTS_ONLY.
 
 add_library(mthap_core STATIC
@@ -113,21 +113,18 @@ if(NOT MTHAP_BUILD_TESTS_ONLY)
     apply_release_optimizations(mthap)
 
     if(WIN32)
-        # Output is `version.dll`: the game statically imports VERSION.DLL, so
-        # the loader maps us in its place (proxy in proxy_version.cpp forwards
-        # to the real System32\version.dll). Additive drop-in next to the exe;
-        # survives Steam "verify integrity" (no shipped file is renamed).
+        # Output is `mod.dll`: loaded by the native MinaModAPI from mods/apclient/.
+        # CRT linkage is controlled by CMAKE_MSVC_RUNTIME_LIBRARY (per-preset,
+        # static via the x64-windows-static triplet).
         set_target_properties(mthap PROPERTIES
-            OUTPUT_NAME "version"
+            OUTPUT_NAME "mod"
             PREFIX ""
             SUFFIX ".dll"
         )
-        # CRT linkage is controlled by CMAKE_MSVC_RUNTIME_LIBRARY (per-preset,
-        # static via the x64-windows-static triplet).
     else()
         set_target_properties(mthap PROPERTIES
-            OUTPUT_NAME "mthap"
-            PREFIX "lib"
+            OUTPUT_NAME "mod"
+            PREFIX ""
             SUFFIX ".so"
         )
         # Static-link our C++ runtime so the dynamic linker can't resolve our
@@ -146,4 +143,19 @@ if(NOT MTHAP_BUILD_TESTS_ONLY)
             VERBATIM
             COMMENT "Checking max required glibc symbol version (Steam Runtime compat)")
     endif()
+
+    # Mod manifest: packed semver + configured game-version range. add_git_version_info
+    # (called on mthap_core above) exported MTHAP_MOD_VERSION into this scope.
+    configure_file(
+        "${CMAKE_SOURCE_DIR}/packaging/mod.yc.in"
+        "${CMAKE_BINARY_DIR}/mods/apclient/mod.yc"
+        @ONLY
+    )
+
+    # Assemble the drop-in: mods/apclient/{mod.yc, mod.<dll|so>}. The library is
+    # self-contained (static runtime + deps), so no sidecar libraries ship.
+    add_custom_command(TARGET mthap POST_BUILD
+        COMMAND "${CMAKE_COMMAND}" -E copy "$<TARGET_FILE:mthap>" "${CMAKE_BINARY_DIR}/mods/apclient/"
+        VERBATIM
+        COMMENT "Assembling mods/apclient drop-in")
 endif()

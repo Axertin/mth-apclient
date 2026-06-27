@@ -4,7 +4,6 @@ namespace mth::sym
 {
 
 // Mangled symbol names. Stable across recompiles; verified against the unstripped Linux binary.
-inline constexpr const char *game_fixed_update = "_ZN4Game11FixedUpdateEv";                      // Game::FixedUpdate()
 inline constexpr const char *game_update = "_ZN4Game6UpdateEf";                                  // Game::Update(float)
 inline constexpr const char *world_update = "_ZN5World6UpdateEP20ycUpdateQueueContext";          // World::Update(ycUpdateQueueContext*)
 inline constexpr const char *update_queue = "_ZN13ycUpdateQueue6UpdateEf";                       // ycUpdateQueue::Update(float)
@@ -44,7 +43,7 @@ inline constexpr const char *shop_init_state = "_ZN8ShopMenu9InitStateEv"; // Sh
 // ShopItem::Refresh(): rebuilds one shop slot's visuals; a slot renders "sold out" when its stock
 // count (ShopItem+0xec) is 0. Hooked to force AP-checked slots sold-out, since the suppressed vanilla
 // grant no longer zeroes that count when an AP shop item is bought (issue #48). The slot's loc_idx is
-// the cached GetCollectionIndex result at (ShopItem+0xf8 def) +0x48 -- the same value ShopMenu+0x218
+// the cached GetCollectionIndex result at (ShopItem+0xf8 def) +0x48 - the same value ShopMenu+0x218
 // (the buy-path loc_idx) is copied from, so no GetCollectionIndex call is needed.
 inline constexpr const char *shop_item_refresh = "_ZN8ShopItem7RefreshEv"; // ShopItem::Refresh()
 

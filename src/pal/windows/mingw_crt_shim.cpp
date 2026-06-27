@@ -4,7 +4,7 @@
 // __declspec(dllimport), i.e. it needs the import pointer __imp__vsnprintf.
 // llvm-mingw's libmsvcrt.a supplies _vsnprintf only as a plain static symbol,
 // not an import thunk, so a fully-static (-static) link - which we want for a
-// self-contained version.dll - cannot satisfy the dllimport reference. Supply
+// self-contained mod.dll - cannot satisfy the dllimport reference. Supply
 // the missing import pointer ourselves, aimed at the static CRT function. This
 // is link-only glue (_vsnprintf is pure formatting, so no cross-CRT state
 // crosses it), gated to MINGW in CMake so the MSVC build is untouched.

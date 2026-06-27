@@ -22,6 +22,9 @@ option(MTHAP_ENABLE_NET "Build the Archipelago network lane (apclientpp + TLS)" 
 # keeping the cross a faithful compile-check of the real clang-cl build.
 option(MTHAP_ENABLE_OVERLAY "Build the in-game Dear ImGui dev overlay" ON)
 
+set(MTHAP_MIN_GAME_VERSION 148462 CACHE STRING "Minimum supported game build for mod.yc")
+set(MTHAP_MAX_GAME_VERSION 999999 CACHE STRING "Maximum supported game build for mod.yc")
+
 include(compiler_setup)
 include(SimpleGitVersion)
 
@@ -38,6 +41,7 @@ if(NOT MTHAP_BUILD_TESTS_ONLY)
     else()
         include(FridaGum)
     endif()
+    include(MinaModApi)
     add_subdirectory(src/pal)
 
     # Archipelago net stack (apclientpp/wswrap/websocketpp), fetched + patched
