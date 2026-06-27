@@ -5,7 +5,7 @@
 // The module+RVA frames are the key diagnostic for this stripped game: subtract
 // nothing - the RVA is already relative to each module's base, so a frame in
 // MinaTheHollower.exe maps straight to a Ghidra address, and a frame in
-// version.dll maps to our own code (symbolized directly if its PDB is alongside).
+// mod.dll maps to our own code (symbolized directly if its PDB is alongside).
 
 #include "pal/pal_crash.hpp"
 #include "pal/pal_log.hpp"

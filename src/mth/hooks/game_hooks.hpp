@@ -18,7 +18,6 @@ class GameHooks
     GameHooks &operator=(const GameHooks &) = delete;
 
   private:
-    ScopedHook fixed_update_;
     ScopedHook update_;
     ScopedHook world_update_;
     ScopedHook update_queue_;
