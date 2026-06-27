@@ -31,6 +31,7 @@
 
 #include "pal/pal_hook.hpp"
 #include "pal/pal_log.hpp"
+#include "pal/pal_module.hpp"
 #include "pal/pal_overlay.hpp"
 
 namespace pal
@@ -75,8 +76,6 @@ PFN_vkWaitForFences g_vkWaitForFences = nullptr;
 PFN_vkResetFences g_vkResetFences = nullptr;
 
 // Trampolines installed by the hook engine.
-PFN_vkCreateInstance g_orig_create_instance = nullptr;
-PFN_vkCreateDevice g_orig_create_device = nullptr;
 PFN_vkCreateSwapchainKHR g_orig_create_swapchain = nullptr;
 PFN_vkQueuePresentKHR g_orig_present = nullptr;
 
@@ -908,38 +907,64 @@ bool state_complete_for_render()
 // Hook replacements.
 // ---------------------------------------------------------------------------
 
-VKAPI_ATTR VkResult VKAPI_CALL repl_vkCreateInstance(const VkInstanceCreateInfo *pCreateInfo, const VkAllocationCallbacks *pAllocator, VkInstance *pInstance)
-{
-    VkResult r = g_orig_create_instance ? g_orig_create_instance(pCreateInfo, pAllocator, pInstance) : VK_ERROR_INITIALIZATION_FAILED;
-    if (r == VK_SUCCESS && pInstance != nullptr)
-    {
-        g_state.instance = *pInstance;
-        pal::logf(pal::LogLevel::Info, "overlay: captured VkInstance");
-    }
-    return r;
-}
+// The game stores its Vulkan handles as named globals in the main module. Under native
+// modding we load after ycEngine::Run has already created the instance/device, so the
+// vkCreateInstance/vkCreateDevice hooks never fire - read the globals instead.
+// g_vkInst/g_vkPhysDev/g_vkDev are handles; g_vkGfxQueueIdx is the graphics queue family.
+constexpr const char *kSymVkInstance = "g_vkInst";
+constexpr const char *kSymVkPhysDev = "g_vkPhysDev";
+constexpr const char *kSymVkDevice = "g_vkDev";
+constexpr const char *kSymVkGfxFamily = "g_vkGfxQueueIdx";
 
-VKAPI_ATTR VkResult VKAPI_CALL repl_vkCreateDevice(VkPhysicalDevice physicalDevice, const VkDeviceCreateInfo *pCreateInfo,
-                                                   const VkAllocationCallbacks *pAllocator, VkDevice *pDevice)
+bool g_globals_warned = false;
+
+// Populate instance/physical-device/device/queue-family from the game's globals.
+// Idempotent and cheap: symbol addresses are resolved once and cached; each call only
+// fills fields still unset (the game may set the globals slightly after we first look).
+void populate_state_from_globals()
 {
-    VkResult r = g_orig_create_device ? g_orig_create_device(physicalDevice, pCreateInfo, pAllocator, pDevice) : VK_ERROR_INITIALIZATION_FAILED;
-    if (r == VK_SUCCESS && pDevice != nullptr)
+    if (g_state.instance != VK_NULL_HANDLE && g_state.physical_device != VK_NULL_HANDLE && g_state.device != VK_NULL_HANDLE && g_state.queue_family_known)
+        return;
+
+    static const std::uintptr_t inst_addr = pal::resolve_game_symbol(kSymVkInstance);
+    static const std::uintptr_t phys_addr = pal::resolve_game_symbol(kSymVkPhysDev);
+    static const std::uintptr_t dev_addr = pal::resolve_game_symbol(kSymVkDevice);
+    static const std::uintptr_t fam_addr = pal::resolve_game_symbol(kSymVkGfxFamily);
+
+    if (inst_addr == 0 || phys_addr == 0 || dev_addr == 0 || fam_addr == 0)
     {
-        g_state.device = *pDevice;
-        g_state.physical_device = physicalDevice;
-        if (pCreateInfo != nullptr && pCreateInfo->queueCreateInfoCount > 0 && pCreateInfo->pQueueCreateInfos != nullptr)
+        if (!g_globals_warned)
         {
-            g_state.queue_family = pCreateInfo->pQueueCreateInfos[0].queueFamilyIndex;
+            pal::logf(pal::LogLevel::Error, "overlay: could not resolve Vulkan handle globals (inst=%#zx phys=%#zx dev=%#zx fam=%#zx); overlay disabled",
+                      inst_addr, phys_addr, dev_addr, fam_addr);
+            g_globals_warned = true;
+        }
+        return;
+    }
+
+    if (g_state.instance == VK_NULL_HANDLE)
+        g_state.instance = *reinterpret_cast<VkInstance *>(inst_addr);
+    if (g_state.physical_device == VK_NULL_HANDLE)
+        g_state.physical_device = *reinterpret_cast<VkPhysicalDevice *>(phys_addr);
+    if (g_state.device == VK_NULL_HANDLE)
+        g_state.device = *reinterpret_cast<VkDevice *>(dev_addr);
+    if (!g_state.queue_family_known)
+    {
+        const std::uint32_t fam = *reinterpret_cast<std::uint32_t *>(fam_addr);
+        if (fam < 64) // sanity: a real family index, not garbage from an uninitialized global
+        {
+            g_state.queue_family = fam;
             g_state.queue_family_known = true;
         }
-        // Resolve device functions now so we can grab the queue immediately.
-        if (resolve_device_functions(g_state.device) && g_state.queue_family_known && g_vkGetDeviceQueue)
-        {
-            g_vkGetDeviceQueue(g_state.device, g_state.queue_family, 0, &g_state.queue);
-        }
-        pal::logf(pal::LogLevel::Info, "overlay: captured VkDevice (queue family %u)", g_state.queue_family);
     }
-    return r;
+
+    static bool logged = false;
+    if (!logged && g_state.instance != VK_NULL_HANDLE && g_state.physical_device != VK_NULL_HANDLE && g_state.device != VK_NULL_HANDLE &&
+        g_state.queue_family_known)
+    {
+        pal::logf(pal::LogLevel::Info, "overlay: Vulkan handles read from game globals (queue family %u)", g_state.queue_family);
+        logged = true;
+    }
 }
 
 VKAPI_ATTR VkResult VKAPI_CALL repl_vkCreateSwapchainKHR(VkDevice device, const VkSwapchainCreateInfoKHR *pCreateInfo, const VkAllocationCallbacks *pAllocator,
@@ -948,6 +973,8 @@ VKAPI_ATTR VkResult VKAPI_CALL repl_vkCreateSwapchainKHR(VkDevice device, const 
     VkResult r = g_orig_create_swapchain ? g_orig_create_swapchain(device, pCreateInfo, pAllocator, pSwapchain) : VK_ERROR_INITIALIZATION_FAILED;
     if (r != VK_SUCCESS || pSwapchain == nullptr || pCreateInfo == nullptr)
         return r;
+
+    populate_state_from_globals(); // instance/phys/device/family come from game globals, not vkCreateDevice
 
     if (g_state.device == VK_NULL_HANDLE)
     {
@@ -974,6 +1001,8 @@ VKAPI_ATTR VkResult VKAPI_CALL repl_vkQueuePresentKHR(VkQueue queue, const VkPre
 {
     if (g_state.queue == VK_NULL_HANDLE)
         g_state.queue = queue;
+
+    populate_state_from_globals();
 
     if (!state_complete_for_render() || pPresentInfo == nullptr)
     {
@@ -1184,8 +1213,6 @@ bool try_install_vulkan_hooks()
         void **trampoline;
     };
     const Spec specs[] = {
-        {"vkCreateInstance", reinterpret_cast<void *>(&repl_vkCreateInstance), reinterpret_cast<void **>(&g_orig_create_instance)},
-        {"vkCreateDevice", reinterpret_cast<void *>(&repl_vkCreateDevice), reinterpret_cast<void **>(&g_orig_create_device)},
         {"vkCreateSwapchainKHR", reinterpret_cast<void *>(&repl_vkCreateSwapchainKHR), reinterpret_cast<void **>(&g_orig_create_swapchain)},
         {"vkQueuePresentKHR", reinterpret_cast<void *>(&repl_vkQueuePresentKHR), reinterpret_cast<void **>(&g_orig_present)},
     };
