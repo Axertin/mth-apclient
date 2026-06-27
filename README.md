@@ -29,13 +29,13 @@ See [docs/architecture.md](docs/architecture.md) for the full design.
 ## Installing & running
 
 You need the files for your platform - build them yourself (see [CONTRIBUTING.md](CONTRIBUTING.md))
-or download a release artifact. The mod requires Mina the Hollower on the **modding beta branch**
+or download a release artifact. The mod requires Mina the Hollower on the **experimental-modding** (password `modsmodsmods`)
 with the `mod-allow-code` launch option set (this enables loading a mod's code library).
 
 ### Linux
 
 Copy the `mods/apclient/` directory (containing `mod.so` and `mod.yc`) into the game's mods
-folder, which lives under its save directory (the SDL pref path), not the install dir:
+folder, which lives under its save directory (the SDL prefix path), not the install dir:
 
 ```
 ~/.local/share/Yacht Club Games/Mina the Hollower/mods/apclient/
@@ -44,7 +44,7 @@ folder, which lives under its save directory (the SDL pref path), not the instal
 Set Steam launch options for Mina the Hollower:
 
 ```
-mod-allow-code %command%
+-mod -mod-allow-code
 ```
 
 The game's mod loader writes `~/.local/share/Yacht Club Games/Mina the Hollower/mod.log` each
@@ -62,7 +62,7 @@ Copy the `mods\apclient\` directory (containing `mod.dll` and `mod.yc`) into:
 Set Steam launch options for Mina the Hollower:
 
 ```
-mod-allow-code
+-mod -mod-allow-code
 ```
 
 The game's mod loader writes `%APPDATA%\Yacht Club Games\Mina the Hollower\mod.log` each run;
