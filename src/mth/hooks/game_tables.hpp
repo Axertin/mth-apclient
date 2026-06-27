@@ -62,6 +62,15 @@ void resolve();
     return true;
 }
 
+// Armor upgrades (Vitality Vest 0x4f = +25% max HP, Damage armor 0x50) apply their effect DIRECTLY in
+// Items::OnPickup (it ORs a bit into SaveSlot+0xc68 before the conditionally-tail-called Items::OnPickupDone)
+// -- so suppressing OnPickupDone alone leaks the vanilla upgrade for an AP shop buy (issue #71). The mod's
+// OnPickup detour suppresses these for AP locations. Pure so it is unit-testable.
+[[nodiscard]] constexpr bool is_armor_upgrade_itemtype(int item_type) noexcept
+{
+    return item_type == 0x4f || item_type == 0x50;
+}
+
 // Capacity-upgrade location: vanilla contents itemType in 0x44..0x48 (Magic/Health/Spark/Vial/Trinket
 // piece). IsItemCollected for these reads the same SaveSlot bitfield apply_upgrades repurposes as a
 // capacity counter, so a per-location collected query is aliased; the mod overrides it (issue #8).

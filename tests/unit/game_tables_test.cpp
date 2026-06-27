@@ -23,6 +23,18 @@ TEST_CASE("is_item_keyed_collected_kind: location-bit-keyed kinds do not alias",
     CHECK_FALSE(mth::tables::is_item_keyed_collected_kind(0));  // none / no-grant
 }
 
+// is_armor_upgrade_itemtype flags the two itemTypes whose vanilla effect is applied inside Items::OnPickup
+// (before the hooked OnPickupDone), so the OnPickup detour must suppress them for AP locations (issue #71).
+TEST_CASE("is_armor_upgrade_itemtype: vest and damage armor only", "[game_tables]")
+{
+    CHECK(mth::tables::is_armor_upgrade_itemtype(0x4f));       // Vitality Vest (ArmorUpgrade_Health), the reported case
+    CHECK(mth::tables::is_armor_upgrade_itemtype(0x50));       // ArmorUpgrade_Damage
+    CHECK_FALSE(mth::tables::is_armor_upgrade_itemtype(0x45)); // health capacity piece (handled via UpgradeState)
+    CHECK_FALSE(mth::tables::is_armor_upgrade_itemtype(0x4e));
+    CHECK_FALSE(mth::tables::is_armor_upgrade_itemtype(0x51));
+    CHECK_FALSE(mth::tables::is_armor_upgrade_itemtype(0));
+}
+
 // should_redirect_collected_query decides whether the IsItemCollected override redirects to the AP
 // checked-state. It redirects for capacity-upgrade (#8) and item-keyed have-bit (#61) AP locations, but
 // NOT for an ownership query (IsItemCollected param5/b5 = true) on a weapon-kind (1) location: the
