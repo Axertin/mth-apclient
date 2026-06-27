@@ -32,7 +32,7 @@ inline constexpr const char *room_manager_update = "_ZN11RoomManager6UpdateEP20y
 // (0..197); captured to qualify the per-area room index into a globally-unique screen id.
 inline constexpr const char *area_new_area = "_ZN11AreaManager7NewAreaEii";
 
-inline constexpr const char *pickup_init = "_ZN6Pickup4InitEii";                         // Pickup::Init(int itemType, int locIdx)
+inline constexpr const char *pickup_init = "_ZN6Pickup4InitEiib";                        // Pickup::Init(int itemType, int locIdx, bool)
 inline constexpr const char *pickup_on_pickup = "_ZN6Pickup8OnPickupEP14PickupListener"; // Pickup::OnPickup(PickupListener*)
 
 // ShopMenu::ItemPresent(): shop-buy grant funnel; calls Items::OnPickup directly (no Pickup entity).

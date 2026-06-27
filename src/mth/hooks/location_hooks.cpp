@@ -126,12 +126,12 @@ void collect_ap_location(int loc_idx)
     }
 }
 
-void (*g_orig_pickup_init)(void *, int, int) = nullptr;
+void (*g_orig_pickup_init)(void *, int, int, bool) = nullptr;
 
-void repl_pickup_init(void *self, int item_type, int loc_idx)
+void repl_pickup_init(void *self, int item_type, int loc_idx, bool flag)
 {
     if (g_orig_pickup_init)
-        g_orig_pickup_init(self, item_type, loc_idx);
+        g_orig_pickup_init(self, item_type, loc_idx, flag);
 
     // Offset self-check: if the entity doesn't store loc_idx at our offset, layout shifted; disable redirect.
     if (g_pickup_offsets_ok && pickup_loc_idx(self) != loc_idx)
@@ -218,7 +218,7 @@ int on_shop_buy(int loc_idx, int item_type)
 // ShopItem::Refresh level classifier: the PAL walks a slot's level chain and asks, per level loc_idx,
 // whether it's an AP location and whether it's been checked. We suppress the vanilla grant for AP buys
 // (the grant is what normally advances the slot / zeroes its stock), so the platform replays it from AP
-// state instead -- advancing tiered slots past bought levels and selling out only when all are checked
+// state instead - advancing tiered slots past bought levels and selling out only when all are checked
 // (issue #48). 0 = not an AP location, 1 = AP location not yet checked, 2 = AP location checked.
 int on_shop_stock(int loc_idx)
 {
@@ -238,7 +238,7 @@ int on_shop_stock(int loc_idx)
 // For such AP locations report the AP checked-state; pass everything else through (-1). The cheap
 // kind/itemType checks fast-reject the vast majority of (hot-path) queries before the AP-location lookup.
 // `ownership_query` is IsItemCollected's param5 (b5): the weapon-swap chest reads weapon ownership via
-// IsItemCollected with b5=true, and must see the real have-item bit -- redirecting it to the location's
+// IsItemCollected with b5=true, and must see the real have-item bit - redirecting it to the location's
 // AP checked-state hides any weapon received from another player (its own location never checked). So
 // ownership queries on weapon-kind (1) locations pass through; see should_redirect_collected_query.
 int on_item_collected_query(int loc_idx, bool ownership_query)
