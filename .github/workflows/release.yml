@@ -50,11 +50,11 @@ jobs:
         run: cmake --preset clang-x64-release
       - name: Build
         run: cmake --build --preset clang-x64-release
-      - name: Upload libmthap.so
+      - name: Upload mod drop-in (Linux)
         uses: actions/upload-artifact@v4
         with:
           name: release-linux
-          path: build/clang-x64-release/src/mth/libmthap.so
+          path: build/clang-x64-release/mods/apclient/
           if-no-files-found: error
 
   build-windows:
@@ -83,11 +83,11 @@ jobs:
         run: cmake --preset clang-cl-x64-release
       - name: Build
         run: cmake --build --preset clang-cl-x64-release
-      - name: Upload version.dll
+      - name: Upload mod drop-in (Windows)
         uses: actions/upload-artifact@v4
         with:
           name: release-windows
-          path: build/clang-cl-x64-release/src/mth/version.dll
+          path: build/clang-cl-x64-release/mods/apclient/
           if-no-files-found: error
 
   release:
@@ -118,4 +118,4 @@ jobs:
         run: |
           args=(--title "$GITHUB_REF_NAME" --generate-notes)
           if [[ "${{ steps.tag.outputs.prerelease }}" == "true" ]]; then args+=(--prerelease); fi
-          gh release create "$GITHUB_REF_NAME" dist/libmthap.so dist/version.dll "${args[@]}"
+          gh release create "$GITHUB_REF_NAME" dist/mod.so dist/mod.dll dist/mod.yc "${args[@]}"

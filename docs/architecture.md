@@ -8,29 +8,34 @@ The game runs on a custom engine (`yc`), rendering with Vulkan on Linux and Dire
 
 ## Targets
 
-The build produces three layers with a strict dependency direction (`core` ← `pal` ← `mthap`):
+The build produces three layers with a strict dependency direction (`core` <- `pal` <- `mthap`):
 
 | Target       | Kind       | Contents                                                                                                                                                                                                                       |
 | ------------ | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `mthap_core` | static lib | Pure, cross-platform logic: AP state/coordinator, the location/item bridge, inbound granter, save state, ID mapping, startup config, enforcement policy, and the signature matcher. No OS/backend headers that require linking. **The unit tests link only this.** |
 | `mthap_pal`  | object lib | The Platform Abstraction Layer: process entry points and the hook backend, under `src/pal/{linux,windows}/`. Built as an OBJECT library so loader-injected entry points are never dropped by the linker.                       |
-| `mthap`      | module     | The final shared object (`libmthap.so` / `version.dll`) — the composition root (`mth::App`) that wires `core` to `pal`.                                                                                                        |
+| `mthap`      | module     | The final shared object (`mod.so` / `mod.dll`) - the composition root (`mth::App`) that wires `core` to `pal`.                                                                                                        |
 
 `mth::App` owns the runtime. The logger and the hook engine are PAL globals exposed through
 interfaces with injectable seams, so the core can be unit-tested without a real platform.
 
-## Injection
+## Loading
 
-|              | Linux                     | Windows                                                                             |
-| ------------ | ------------------------- | ----------------------------------------------------------------------------------- |
-| Binary       | `libmthap.so`             | `version.dll`                                                                       |
-| Mechanism    | `LD_PRELOAD`              | `version.dll` proxy beside the game exe (the game statically imports `VERSION.DLL`) |
-| Entry point  | shared-object constructor | `DllMain`                                                                           |
-| Hook backend | Frida-Gum                 | MinHook                                                                             |
+|              | Linux                                     | Windows                                                 |
+| ------------ | ----------------------------------------- | ------------------------------------------------------- |
+| Binary       | `mod.so`                                  | `mod.dll`                                               |
+| Manifest     | `mod.yc`                                  | `mod.yc`                                                |
+| Mechanism    | Native game mod loader (modding beta)     | Native game mod loader (modding beta)                  |
+| Entry point  | `MinaMod_Init(MinaModAPI*)`               | `MinaMod_Init(MinaModAPI*)`                             |
+| Hook backend | Frida-Gum                                 | MinHook                                                 |
 
-The Windows proxy forwards the standard `version.dll` exports to the real system DLL, so the game
-and other software see no difference. The proxy is additive and survives Steam's file-integrity
-verification.
+Both files (`mod.so`/`mod.dll` and `mod.yc`) belong in a per-mod folder under the game's mods
+directory, which lives in its save dir (the SDL pref path) - on Linux
+`~/.local/share/Yacht Club Games/Mina the Hollower/mods/apclient/`, on Windows
+`%APPDATA%\Yacht Club Games\Mina the Hollower\mods\apclient\`. Loading the code library requires
+the `mod-allow-code` Steam launch option on the modding beta branch (matched as a case-insensitive
+substring of the launch command line; there is no separate `-mod` switch - the loader always runs
+and writes `mod.log` in that save dir).
 
 ## Resolving game functions
 
@@ -39,7 +44,7 @@ Hooks target specific game functions, resolved differently per platform behind a
 
 - **Linux**: As of Mina v1.0.6, the game binary is not stripped (it ships DWARF), so functions are
   resolved by their mangled symbol name via Frida's symbol table.
-- **Windows** — the shipping PE is stripped, so functions are located by scanning the `.text`
+- **Windows** - the shipping PE is stripped, so functions are located by scanning the `.text`
   section for masked byte signatures. The pure matcher lives in `core` and is unit-tested; the
   signature table is produced by standalone tooling and validated against the shipping build.
 
@@ -111,7 +116,7 @@ src/mth/hooks/    per-feature game hooks (pickups/shop, bosses, locks, player tr
 src/mth/net/      Archipelago link implementation
 src/mth/ui/       dev console
 src/pal/linux/    Linux PAL (Frida, Vulkan/SDL overlay, entry point)
-src/pal/windows/  Windows PAL (MinHook, D3D12 overlay, version.dll proxy)
+src/pal/windows/  Windows PAL (MinHook, D3D12 overlay, native mod entry)
 cmake/            dependency + toolchain modules
 scripts/          build and signature tooling
 tests/unit/       Catch2 unit tests

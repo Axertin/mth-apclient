@@ -16,37 +16,57 @@ interfere with saves more than necessary, but use at your own risk.
 
 ## How it works
 
-The mod is a single shared library that loads into the game process and hooks game functions:
+The mod is a native game mod that loads into the game process via Mina the Hollower's built-in
+mod loader and hooks game functions:
 
-- **Linux**: `libmthap.so`, loaded via `LD_PRELOAD`; hooks via Frida-Gum.
-- **Windows**: — ships as a `version.dll` proxy placed next to `MinaTheHollower.exe` (the game
-  imports `VERSION.DLL`); hooks via MinHook. The proxy forwards the real `version.dll` exports, so
-  nothing else breaks, and it survives Steam's "verify integrity of game files".
+- **Linux**: `mod.so`, loaded by the game's native mod loader.
+- **Windows**: `mod.dll`, loaded by the game's native mod loader.
+
+Both platforms also require `mod.yc` (the mod manifest) alongside the library.
 
 See [docs/architecture.md](docs/architecture.md) for the full design.
 
 ## Installing & running
 
-You need the binary for your platform — build it yourself (see [CONTRIBUTING.md](CONTRIBUTING.md))
-or download a release artifact.
+You need the files for your platform - build them yourself (see [CONTRIBUTING.md](CONTRIBUTING.md))
+or download a release artifact. The mod requires Mina the Hollower on the **modding beta branch**
+with the `mod-allow-code` launch option set (this enables loading a mod's code library).
 
 ### Linux
 
-Copy `libmthap.so` into the game's install folder, next to `MinaTheHollower`.
+Copy the `mods/apclient/` directory (containing `mod.so` and `mod.yc`) into the game's mods
+folder, which lives under its save directory (the SDL pref path), not the install dir:
 
-Set a Steam launch option for Mina the Hollower:
-
-```bash
-LD_PRELOAD=libmthap.so %command%
+```
+~/.local/share/Yacht Club Games/Mina the Hollower/mods/apclient/
 ```
 
-Logs are written to `~/.local/share/mth-apclient/mthap_*.log` (one file per run).
+Set Steam launch options for Mina the Hollower:
+
+```
+mod-allow-code %command%
+```
+
+The game's mod loader writes `~/.local/share/Yacht Club Games/Mina the Hollower/mod.log` each
+run (whether a mod loaded, version-check or load failures) - check it first if the mod doesn't
+appear. The mod's own runtime log is `~/.local/share/mth-apclient/mthap_*.log` (one file per run).
 
 ### Windows
 
-Copy `version.dll` into the game's install folder, next to `MinaTheHollower.exe`.
+Copy the `mods\apclient\` directory (containing `mod.dll` and `mod.yc`) into:
 
-Logs are written to `%LOCALAPPDATA%\mth-apclient\mthap_*.log`.
+```
+%APPDATA%\Yacht Club Games\Mina the Hollower\mods\apclient\
+```
+
+Set Steam launch options for Mina the Hollower:
+
+```
+mod-allow-code
+```
+
+The game's mod loader writes `%APPDATA%\Yacht Club Games\Mina the Hollower\mod.log` each run;
+the mod's own runtime log is `%LOCALAPPDATA%\mth-apclient\mthap_*.log`.
 
 ## Connecting to a server
 
