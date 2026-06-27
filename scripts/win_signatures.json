@@ -812,7 +812,7 @@
     "next_insn": 0
   },
   {
-    "name": "_ZN6Pickup4InitEii",
+    "name": "_ZN6Pickup4InitEiib",
     "kind": "Code",
     "pattern": [
       72,
@@ -868,8 +868,8 @@
       76,
       141,
       37,
-      87,
-      249,
+      151,
+      89,
       104,
       255
     ],

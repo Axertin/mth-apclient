@@ -38,7 +38,7 @@
       "kind": "Code"
     },
     {
-      "name": "_ZN6Pickup4InitEii",
+      "name": "_ZN6Pickup4InitEiib",
       "kind": "Code"
     },
     {
@@ -264,8 +264,8 @@
     "_ZN5Chest11UpdateStateEv": {
       "rva": 7750096
     },
-    "_ZN6Pickup4InitEii": {
-      "rva": 9897584
+    "_ZN6Pickup4InitEiib": {
+      "rva": 9938480
     },
     "_ZN11RoomManager6UpdateEP20ycUpdateQueueContext": {
       "rva": 10699424
@@ -341,8 +341,8 @@
     "_ZNK15PlayerTrackable6GetPosEv": {
       "rva": 14023408
     },
-    "_ZN6Pickup4InitEii": {
-      "rva": 13277104
+    "_ZN6Pickup4InitEiib": {
+      "rva": 14438560
     },
     "_ZN6Pickup8OnPickupEP14PickupListener": {
       "rva": 13291056
