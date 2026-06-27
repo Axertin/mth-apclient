@@ -25,6 +25,8 @@ std::function<void(int)> g_report_collected; // RandoBridge::on_location_collect
 
 // Items::OnPickupDone(int slot, int itemType, Player*, ycVec3 const&, int, int, unsigned int, bool)
 void (*g_orig_on_pickup_done)(int, int, void *, void *, int, int, unsigned int, bool) = nullptr;
+// Items::OnPickup(int slot, int itemType, Player*, ycVec3 const&, bool, int, int, unsigned int, bool)
+void (*g_orig_on_pickup)(int, int, void *, void *, bool, int, int, unsigned int, bool) = nullptr;
 
 // Inbound-grant queue: grant() enqueues, drain() replays inside the engine's update window.
 std::mutex g_pending_mtx;
@@ -52,6 +54,28 @@ void repl_on_pickup_done(int slot, int item_type, void *player, void *vec, int a
         g_orig_on_pickup_done(slot, item_type, player, vec, a5, a6, a7, a8);
 }
 
+// Items::OnPickup runs before OnPickupDone and, for armor upgrades (Vitality Vest 0x4f, Damage armor 0x50),
+// ORs the upgrade bit into SaveSlot+0xc68 *itself* -- so suppressing only OnPickupDone leaks the vanilla
+// armor for an AP shop buy (issue #71). Suppress those armor types for AP locations here, at the real
+// chokepoint. Scoped to the two armor itemTypes so every other pickup flows through unchanged (OnPickupDone
+// still does the per-location suppression for them). Idempotent collect-report mirrors OnPickupDone.
+void repl_on_pickup(int slot, int item_type, void *player, void *vec, bool a5, int a6, int a7, unsigned int a8, bool a9)
+{
+    if (g_tracker != nullptr)
+        g_tracker->note_player(player);
+
+    if (slot >= 0 && mth::tables::is_armor_upgrade_itemtype(item_type) && g_is_ap_location && g_is_ap_location(slot))
+    {
+        pal::logf(pal::LogLevel::Info, "outbound: suppressed vanilla armor upgrade for AP location %d (itemType=%d)", slot, item_type);
+        if (g_report_collected)
+            g_report_collected(slot);
+        return;
+    }
+
+    if (g_orig_on_pickup)
+        g_orig_on_pickup(slot, item_type, player, vec, a5, a6, a7, a8, a9);
+}
+
 } // namespace
 
 namespace mth
@@ -64,6 +88,7 @@ ItemGranter::ItemGranter(PlayerTracker &tracker, std::function<bool(int)> is_ap_
     g_report_collected = std::move(report_collected);
     pickup_done_ = ScopedHook(sym::on_pickup_done, reinterpret_cast<void *>(&repl_on_pickup_done), reinterpret_cast<void **>(&g_orig_on_pickup_done),
                               "Items::OnPickupDone");
+    pickup_ = ScopedHook(sym::on_pickup, reinterpret_cast<void *>(&repl_on_pickup), reinterpret_cast<void **>(&g_orig_on_pickup), "Items::OnPickup");
 }
 
 ItemGranter::~ItemGranter()

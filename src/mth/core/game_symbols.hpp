@@ -8,7 +8,11 @@ inline constexpr const char *game_update = "_ZN4Game6UpdateEf";                 
 inline constexpr const char *world_update = "_ZN5World6UpdateEP20ycUpdateQueueContext";          // World::Update(ycUpdateQueueContext*)
 inline constexpr const char *update_queue = "_ZN13ycUpdateQueue6UpdateEf";                       // ycUpdateQueue::Update(float)
 inline constexpr const char *on_pickup_done = "_ZN5Items12OnPickupDoneEiiP6PlayerRK6ycVec3iijb"; // Items::OnPickupDone(...)
-inline constexpr const char *process_sdl_event = "_Z15ProcessSDLEventR9SDL_Event";               // ProcessSDLEvent(SDL_Event&)
+// Items::OnPickup(int slot, int itemType, Player*, ycVec3 const&, bool, int, int, unsigned int, bool): the
+// grant wrapper that runs BEFORE (and conditionally tail-calls) OnPickupDone. Hooked because armor upgrades
+// (0x4f/0x50) apply their effect here directly, bypassing the OnPickupDone suppression (issue #71).
+inline constexpr const char *on_pickup = "_ZN5Items8OnPickupEiiP6PlayerRK6ycVec3biijb";
+inline constexpr const char *process_sdl_event = "_Z15ProcessSDLEventR9SDL_Event"; // ProcessSDLEvent(SDL_Event&)
 
 // Inbound grant plumbing: Player* via ctor, trackable via Update each frame, position via GetPos.
 inline constexpr const char *player_ctor =

@@ -31,6 +31,7 @@ class ItemGranter final : public IItemGranter
 
   private:
     ScopedHook pickup_done_;
+    ScopedHook pickup_; // Items::OnPickup: suppress armor upgrades (0x4f/0x50) that grant before OnPickupDone (#71)
 };
 
 } // namespace mth
