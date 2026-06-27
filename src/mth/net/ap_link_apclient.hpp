@@ -54,7 +54,12 @@ class ApLink final : public mth::IApLink
 
     std::atomic<bool> running_{true};
     std::atomic<bool> connected_{false};
-    std::atomic<bool> deathlink_{true};
+    // Effective deathlink = slot_deathlink_ && !force_off_. deathlink_ is the cached effective gate that the
+    // send/receive/tag paths read; force_off_ is a sticky client-side opt-out (survives reconnect); slot_deathlink_
+    // remembers the last slot_data "death_link" so clearing the opt-out can defer back to it.
+    std::atomic<bool> deathlink_{false};
+    std::atomic<bool> force_off_{false};
+    std::atomic<bool> slot_deathlink_{false};
     std::mutex cmd_mutex_;
     std::queue<std::function<void()>> commands_;
     std::mutex event_mutex_;

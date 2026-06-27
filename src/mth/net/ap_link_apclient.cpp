@@ -118,16 +118,20 @@ void ApLink::set_goal()
 
 void ApLink::enable_deathlink(bool on)
 {
-    deathlink_.store(on);
+    // Console override is opt-out only: 'off' is a sticky client-side force-off; 'on' clears the force-off and
+    // defers back to slot_data, so it cannot enable deathlink beyond what the seed permits.
+    force_off_.store(!on);
+    const bool effective = slot_deathlink_.load() && !force_off_.load();
+    deathlink_.store(effective);
     enqueue(
-        [this, on]
+        [this, effective]
         {
             if (!client_)
                 return;
             try
             {
                 std::list<std::string> tags;
-                if (on)
+                if (effective)
                     tags.push_back("DeathLink");
                 client_->ConnectUpdate(false, kItemHandling, true, tags);
             }
@@ -303,8 +307,12 @@ void ApLink::setup_handlers(const std::string &slot, const std::string &password
         {
             connected_.store(true);
             connect_deadline_.reset();
+            // slot_data "death_link" sets the default; a sticky client-side force-off (console) still wins.
+            slot_deathlink_.store(data.is_object() && data.value("death_link", 0) != 0);
+            const bool deathlink = slot_deathlink_.load() && !force_off_.load();
+            deathlink_.store(deathlink);
             std::list<std::string> tags;
-            if (deathlink_.load())
+            if (deathlink)
                 tags.push_back("DeathLink");
             client_->ConnectUpdate(false, kItemHandling, true, tags);
             client_->StatusUpdate(APClient::ClientStatus::PLAYING);
@@ -322,7 +330,8 @@ void ApLink::setup_handlers(const std::string &slot, const std::string &password
             const bool train_rando = data.is_object() && data.value("train_rando", 0) != 0;
             push_event(mth::ApConnected{client_->get_seed(), data.is_null() ? std::string{} : data.dump(), client_->get_player_number(),
                                         std::vector<std::int64_t>(checked.begin(), checked.end()), std::vector<std::int64_t>(missing.begin(), missing.end()),
-                                        ossex_start, kear_rando, burrow_rando, swim_rando, rope_rando, puff_rando, spring_rando, carry_rando, train_rando});
+                                        ossex_start, kear_rando, burrow_rando, swim_rando, rope_rando, puff_rando, spring_rando, carry_rando, train_rando,
+                                        deathlink});
         });
 
     client_->set_slot_refused_handler(

@@ -96,6 +96,10 @@ class ApState
     {
         return train_rando_;
     }
+    [[nodiscard]] bool deathlink() const // slot_data flag: deaths bounce over the AP link
+    {
+        return deathlink_;
+    }
     [[nodiscard]] bool is_valid_location(std::int64_t id) const
     {
         return valid_locations_.contains(id);
@@ -140,6 +144,7 @@ class ApState
     bool spring_rando_{false};
     bool carry_rando_{false};
     bool train_rando_{false};
+    bool deathlink_{false};
     std::set<std::int64_t> valid_locations_{};
     std::vector<ReceivedItem> received_items_{};
     int last_item_index_{-1};
