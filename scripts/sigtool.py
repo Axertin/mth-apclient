@@ -47,23 +47,63 @@ def _wildcard_offsets(decoder, instr):
     return offs
 
 
+def _longest_fixed_run(mask):
+    """(start, length) of the longest run of fixed (mask != 0) bytes, or (0, 0)."""
+    best_start, best_len, i, n = 0, 0, 0, len(mask)
+    while i < n:
+        if mask[i]:
+            j = i + 1
+            while j < n and mask[j]:
+                j += 1
+            if j - i > best_len:
+                best_start, best_len = i, j - i
+            i = j
+        else:
+            i += 1
+    return best_start, best_len
+
+
+def _match_offsets(text, pattern, mask, cap):
+    """Offsets (up to cap) where pattern matches text under mask. Anchors on the
+    longest fixed-byte run and uses bytes.find (C-speed) to skip non-candidates,
+    verifying the full mask only at the few anchor hits -- vs the old O(N*M)
+    per-byte Python scan over multi-MB .text. Each full match has exactly one
+    anchor occurrence (at start + a_start), so matches are neither missed nor
+    double-counted."""
+    plen = len(pattern)
+    last = len(text) - plen
+    if last < 0:
+        return []
+    pat = bytes(pattern)
+    tb = text if isinstance(text, (bytes, bytearray)) else bytes(text)
+    a_start, a_len = _longest_fixed_run(mask)
+    if a_len == 0:  # fully wildcarded (degenerate): every position matches
+        return list(range(min(last + 1, cap)))
+    anchor = pat[a_start:a_start + a_len]
+    hits, pos = [], 0
+    while True:
+        h = tb.find(anchor, pos)
+        if h < 0:
+            break
+        pos = h + 1
+        start = h - a_start
+        if start < 0 or start > last:
+            continue
+        if all((not mask[j]) or tb[start + j] == pat[j] for j in range(plen)):
+            hits.append(start)
+            if len(hits) >= cap:
+                break
+    return hits
+
+
 def count_matches(text, pattern, mask, cap=2):
     """Count masked matches of pattern in text, stopping once cap is reached."""
-    n, plen = 0, len(pattern)
-    for i in range(len(text) - plen + 1):
-        if all((not mask[j]) or text[i + j] == pattern[j] for j in range(plen)):
-            n += 1
-            if n >= cap:
-                break
-    return n
+    return len(_match_offsets(text, pattern, mask, cap))
 
 
 def first_match_offset(text, pattern, mask):
-    plen = len(pattern)
-    for i in range(len(text) - plen + 1):
-        if all((not mask[j]) or text[i + j] == pattern[j] for j in range(plen)):
-            return i
-    return -1
+    offs = _match_offsets(text, pattern, mask, 1)
+    return offs[0] if offs else -1
 
 
 def _is_anchor(instr):
