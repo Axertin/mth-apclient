@@ -176,6 +176,10 @@
     {
       "name": "_ZN5Items8OnPickupEiiP6PlayerRK6ycVec3biijb",
       "kind": "Code"
+    },
+    {
+      "name": "_ZN26NPCBehavior_WeaponMerchant6NoLavaEb",
+      "kind": "Code"
     }
   ],
   "windows": {
@@ -311,6 +315,9 @@
     },
     "_ZN5Items8OnPickupEiiP6PlayerRK6ycVec3biijb": {
       "rva": 8541872
+    },
+    "_ZN26NPCBehavior_WeaponMerchant6NoLavaEb": {
+      "rva": 3051936
     }
   },
   "linux": {
@@ -400,6 +407,9 @@
     },
     "_ZN5Items8OnPickupEiiP6PlayerRK6ycVec3biijb": {
       "rva": 12933872
+    },
+    "_ZN26NPCBehavior_WeaponMerchant6NoLavaEb": {
+      "rva": 6667952
     }
   }
 }

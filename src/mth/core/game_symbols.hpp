@@ -126,4 +126,9 @@ inline constexpr const char *spring_bellows_collide = "_ZN13SpringBellows11Colli
 inline constexpr const char *player_pickup_carryable = "_ZN6Player30PickUpAnyNearbyCarryableObjectEbbb";
 inline constexpr const char *train_authority_on_npc_event = "_ZN14TrainAuthority10OnNPCEventEjP17InteractEventInfo";
 
+// Legovich (NPCBehavior_WeaponMerchant): NoLava(bool) clears the forge lava/doors that expose the
+// Armand (WeaponBrotherBoss) arena. Every call opens regardless of the bool (it only picks the visual);
+// detoured to stay sealed until all Legovich weapon-upgrade slots are bought (issue #67).
+inline constexpr const char *weapon_merchant_no_lava = "_ZN26NPCBehavior_WeaponMerchant6NoLavaEb";
+
 } // namespace mth::sym

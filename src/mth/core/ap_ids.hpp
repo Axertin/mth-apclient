@@ -162,6 +162,22 @@ inline constexpr std::int64_t ap_loc_id(int collection_idx)
     return kLocBase + collection_idx;
 }
 
+// Legovich (NPCBehavior_WeaponMerchant) weapon-upgrade shop slots. In vanilla, buying out his shop
+// arms the Armand (WeaponBrotherBoss, boss index 21) encounter; under rando inbound weapon grants and a
+// partial buy desync that gate and trigger Armand early, permanently killing Legovich's shop (#67). We
+// gate the vanilla arena-open (NoLava) on every one of these slots being checked instead.
+inline constexpr int kLegovichLocations[] = {174, 175, 176, 177};
+
+// Should the Armand arena be allowed to open? Seals only while a randomized Legovich slot is still
+// unbought; if none of the slots are AP locations (Legovich not randomized), defers to vanilla.
+template <typename IsApLocation, typename IsChecked> [[nodiscard]] constexpr bool legovich_arena_should_open(IsApLocation is_ap_location, IsChecked is_checked)
+{
+    for (int loc : kLegovichLocations)
+        if (is_ap_location(loc) && !is_checked(loc))
+            return false;
+    return true;
+}
+
 // Boss-defeat locations occupy location segment 1.
 inline constexpr int kBossLocBase = 1000;
 

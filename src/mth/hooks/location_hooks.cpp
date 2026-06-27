@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <functional>
 
+#include "mth/core/ap_ids.hpp"
 #include "mth/core/game_layout.hpp"
 #include "mth/core/game_symbols.hpp"
 #include "mth/core/rando_bridge.hpp"
@@ -241,6 +242,31 @@ int on_shop_stock(int loc_idx)
 // IsItemCollected with b5=true, and must see the real have-item bit - redirecting it to the location's
 // AP checked-state hides any weapon received from another player (its own location never checked). So
 // ownership queries on weapon-kind (1) locations pass through; see should_redirect_collected_query.
+void (*g_orig_no_lava)(void *, bool) = nullptr;
+
+// NPCBehavior_WeaponMerchant::NoLava(bool): clears the forge lava/doors that expose the Armand
+// (WeaponBrotherBoss) arena. Every call opens regardless of the bool; calling the original is also what
+// latches the merchant's sticky per-frame re-arm flag. Under rando, inbound weapon grants and a partial
+// shop buy desync the vanilla "shop sold out" gate and arm Armand early, whose defeat permanently bricks
+// Legovich's shop (#67). Seal the open (return before the original runs, so the flag never latches and the
+// lava/doors stay intact) until every Legovich weapon-upgrade slot is actually bought; then let it through
+// so the encounter still happens as the intended finale.
+void repl_no_lava(void *self, bool dramatic)
+{
+    if (g_bridge != nullptr)
+    {
+        const bool open =
+            mth::legovich_arena_should_open([](int loc) { return g_bridge->is_ap_location(loc); }, [](int loc) { return g_bridge->is_checked(loc); });
+        if (!open)
+        {
+            pal::logf(pal::LogLevel::Info, "legovich: sealed Armand arena (NoLava) -- not all weapon-upgrade slots bought");
+            return;
+        }
+    }
+    if (g_orig_no_lava)
+        g_orig_no_lava(self, dramatic);
+}
+
 int on_item_collected_query(int loc_idx, bool ownership_query)
 {
     if (g_bridge == nullptr)
@@ -281,6 +307,8 @@ LocationHooks::LocationHooks(RandoBridge &bridge, std::function<void *()> player
     pickup_init_ = ScopedHook(sym::pickup_init, reinterpret_cast<void *>(&repl_pickup_init), reinterpret_cast<void **>(&g_orig_pickup_init), "Pickup::Init");
     pickup_on_pickup_ = ScopedHook(sym::pickup_on_pickup, reinterpret_cast<void *>(&repl_pickup_on_pickup), reinterpret_cast<void **>(&g_orig_pickup_on_pickup),
                                    "Pickup::OnPickup");
+    no_lava_ = ScopedHook(sym::weapon_merchant_no_lava, reinterpret_cast<void *>(&repl_no_lava), reinterpret_cast<void **>(&g_orig_no_lava),
+                          "NPCBehavior_WeaponMerchant::NoLava");
     pal::install_shop_purchase_hook(&on_shop_buy);
     pal::install_shop_stock_hook(&on_shop_stock);
     pal::install_item_collected_hook(&on_item_collected_query);

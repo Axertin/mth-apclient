@@ -31,6 +31,7 @@ class LocationHooks
   private:
     ScopedHook pickup_init_;
     ScopedHook pickup_on_pickup_;
+    ScopedHook no_lava_; // Legovich NoLava gate: seals the Armand arena until all weapon slots are bought (#67)
 };
 
 } // namespace mth

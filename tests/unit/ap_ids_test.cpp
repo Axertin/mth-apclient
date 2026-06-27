@@ -1,3 +1,5 @@
+#include <iterator>
+
 #include <catch2/catch_test_macros.hpp>
 
 #include "mth/core/ap_ids.hpp"
@@ -63,6 +65,32 @@ TEST_CASE("is_vanilla_game_item recognises only item segment 0", "[ap_ids]")
     REQUIRE_FALSE(mth::is_vanilla_game_item(mth::kBlockerItemBase));   // reserved (seg 4)
     REQUIRE_FALSE(mth::is_vanilla_game_item(mth::kTrapItemBase));      // reserved (seg 5)
     REQUIRE_FALSE(mth::is_vanilla_game_item(-1));
+}
+
+TEST_CASE("Legovich weapon-upgrade shop slots are locations 174-177", "[legovich]")
+{
+    REQUIRE(std::size(mth::kLegovichLocations) == 4);
+    REQUIRE(mth::kLegovichLocations[0] == 174);
+    REQUIRE(mth::kLegovichLocations[3] == 177);
+}
+
+TEST_CASE("legovich_arena_should_open gates Armand on all weapon slots bought", "[legovich]")
+{
+    auto all_ap = [](int) { return true; };
+
+    // All Legovich slots are AP locations but none bought yet -> keep the arena sealed.
+    REQUIRE_FALSE(mth::legovich_arena_should_open(all_ap, [](int) { return false; }));
+
+    // A partial buy (only 174 and 175 checked) still seals -- this is the bug: the 2nd buy must NOT arm Armand.
+    auto partial = [](int loc) { return loc == 174 || loc == 175; };
+    REQUIRE_FALSE(mth::legovich_arena_should_open(all_ap, partial));
+
+    // Every weapon slot bought -> open the arena (the intended finale).
+    REQUIRE(mth::legovich_arena_should_open(all_ap, [](int) { return true; }));
+
+    // Legovich not randomized (no slot is an AP location) -> defer to vanilla, allow the open.
+    auto none_ap = [](int) { return false; };
+    REQUIRE(mth::legovich_arena_should_open(none_ap, [](int) { return false; }));
 }
 
 TEST_CASE("boss_location_slot maps index into the reserved range", "[boss]")
