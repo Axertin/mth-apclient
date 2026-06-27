@@ -4,6 +4,7 @@ namespace mth::sym
 {
 
 // Mangled symbol names. Stable across recompiles; verified against the unstripped Linux binary.
+inline constexpr const char *game_fixed_update = "_ZN4Game11FixedUpdateEv";                      // Game::FixedUpdate()
 inline constexpr const char *game_update = "_ZN4Game6UpdateEf";                                  // Game::Update(float)
 inline constexpr const char *world_update = "_ZN5World6UpdateEP20ycUpdateQueueContext";          // World::Update(ycUpdateQueueContext*)
 inline constexpr const char *update_queue = "_ZN13ycUpdateQueue6UpdateEf";                       // ycUpdateQueue::Update(float)
