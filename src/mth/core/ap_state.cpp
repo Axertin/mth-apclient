@@ -51,6 +51,7 @@ void ApState::apply(const ApEvent &ev)
                 spring_rando_ = e.spring_rando;
                 carry_rando_ = e.carry_rando;
                 train_rando_ = e.train_rando;
+                deathlink_ = e.deathlink;
                 valid_locations_.clear();
                 valid_locations_.insert(e.checked_locations.begin(), e.checked_locations.end());
                 valid_locations_.insert(e.missing_locations.begin(), e.missing_locations.end());

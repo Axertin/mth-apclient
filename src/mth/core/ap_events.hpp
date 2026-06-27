@@ -36,6 +36,7 @@ struct ApConnected
     bool spring_rando{false};
     bool carry_rando{false};
     bool train_rando{false};
+    bool deathlink{false}; // slot_data "death_link": bounce/receive deaths over the AP link
 };
 struct ApItemReceived
 {
