@@ -89,6 +89,25 @@ inline constexpr int weapon_itemtype(int family, int tier)
     return kWeaponItemTypes[family][tier - 1];
 }
 
+inline constexpr std::int64_t kMapItem = kProgressiveItemBase + 10;
+inline constexpr int kMapTiers = 2;
+// world_map (75), enhanced_map (76) granted in tier order.
+inline constexpr int kMapItemTypes[kMapTiers] = {75, 76};
+inline constexpr bool is_map_item(std::int64_t ap_item_id_)
+{
+    return ap_item_id_ >= kProgWeaponBase && ap_item_id_ == kMapItem;
+}
+
+
+inline constexpr int map_itemtype(int tier)
+{
+    if (tier < 1 || tier > kMapTiers)
+        return -1;
+    return kMapItemTypes[tier - 1];
+}
+
+
+
 // Stat-cap cap-ups
 // derived state (StatCapState), never granted as items. The all-stat id raises
 // every stat per receipt.

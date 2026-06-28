@@ -17,6 +17,7 @@ void InboundGranter::tick()
 {
     int weapon_tier[kWeaponFamilyCount] = {0}; // running per-family receipt count -> progressive tier
     int fishing_tier = 0;                      // running fishing-rod receipt count -> progressive tier
+    int map_tier = 0;
 
     for (const auto &it : state_.received_items())
     {
@@ -64,6 +65,28 @@ void InboundGranter::tick()
             save_.mark_granted(it.index);
             save_.save();
             pal::logf(pal::LogLevel::Info, "inbound_granter: weapon family=%d tier=%d -> itemType=%d (index=%d) granted", fam, tier, game_type, it.index);
+            continue;
+        }
+
+        if(is_map_item(it.item_id))
+        {
+            const int tier = ++map_tier;
+            
+            if (save_.is_granted(it.index))
+                continue;
+            const int game_type = map_itemtype(tier);
+            if (game_type < 0) // beyond the top tier: consume so it does not retry forever
+            {
+                pal::logf(pal::LogLevel::Warn, "inbound_granter: map tier=%d exceeds max; ignored (index=%d)", tier, it.index);
+                save_.mark_granted(it.index);
+                save_.save();
+                continue;
+            }
+            if (!granter_.grant(game_type))
+                break; // not ready; retry next tick (tier is recomputed from scratch)
+            save_.mark_granted(it.index);
+            save_.save();
+            pal::logf(pal::LogLevel::Info, "inbound_granter: map tier=%d -> itemType=%d (index=%d) granted", tier, game_type, it.index);
             continue;
         }
 
