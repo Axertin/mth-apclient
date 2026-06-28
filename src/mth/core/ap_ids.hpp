@@ -135,6 +135,10 @@ inline constexpr std::int64_t kAbilityItemBase = 3000;   // ability gates (Abili
 inline constexpr std::int64_t kBlockerItemBase = 4000;   // reserved
 inline constexpr std::int64_t kTrapItemBase = 5000;      // reserved
 
+// special Constants
+inline constexpr std::int64_t kMMFirstDoubleKearBlockID = 2304;
+inline constexpr std::int64_t kMMSecondDoubleKearBlockID = 2306;
+
 inline constexpr bool is_vanilla_game_item(std::int64_t ap_item_id_)
 {
     return ap_item_id_ >= kItemBase && ap_item_id_ < kProgressiveItemBase;
