@@ -297,8 +297,12 @@ void App::seed_kear_blocks_from_ap()
     // A kear-block item's engine id IS the KeyBlock slot; set_removed is idempotent, and the existing
     // seed pass + KeyBlock::Update hook open the lock and persist the bit.
     for (const auto &it : state_.received_items())
-        if (is_kear_block_item(it.item_id))
+        if (is_kear_block_item(it.item_id)) {
             lock_hooks_->locks().set_removed(kear_block_engine_id(it.item_id));
+            //special case for the only double lock in the game. 
+            if (it.item_id == kMMFirstDoubleKearBlockID)
+                lock_hooks_->locks().set_removed(kear_block_engine_id(kMMSecondDoubleKearBlockID));
+        }
 }
 
 void App::drain_grants()
