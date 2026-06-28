@@ -80,3 +80,12 @@ TEST_CASE("is_boss_index rejects out-of-range indices", "[boss]")
     REQUIRE_FALSE(mth::is_boss_index(mth::kMaxBossIndex + 1));
     REQUIRE_FALSE(mth::is_boss_index(64));
 }
+
+TEST_CASE("is_legovich_location matches only the WeaponMerchant shop slots", "[legovich]")
+{
+    REQUIRE(mth::is_legovich_location(174));
+    REQUIRE(mth::is_legovich_location(178));
+    REQUIRE_FALSE(mth::is_legovich_location(173));
+    REQUIRE_FALSE(mth::is_legovich_location(179));
+    REQUIRE_FALSE(mth::is_legovich_location(-1));
+}

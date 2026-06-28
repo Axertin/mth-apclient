@@ -31,6 +31,7 @@ class LocationHooks
   private:
     ScopedHook pickup_init_;
     ScopedHook pickup_on_pickup_;
+    ScopedHook shop_oos_; // brackets Shop::IsOutOfStock so the IsItemCollected override can scope to it (#67)
 };
 
 } // namespace mth

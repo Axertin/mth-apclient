@@ -162,6 +162,19 @@ inline constexpr std::int64_t ap_loc_id(int collection_idx)
     return kLocBase + collection_idx;
 }
 
+// Legovich (NPCBehavior_WeaponMerchant) weapon-upgrade shop slots. Their AP-checked count drives the shop's
+// out-of-stock total, which gates the Armand encounter; that count must reflect purchases, not weapons received
+// from the multiworld (#67 follow-up), but only when the shop itself is asking.
+inline constexpr int kLegovichLocations[] = {174, 175, 176, 177, 178};
+
+[[nodiscard]] inline constexpr bool is_legovich_location(int loc)
+{
+    for (int l : kLegovichLocations)
+        if (l == loc)
+            return true;
+    return false;
+}
+
 // Boss-defeat locations occupy location segment 1.
 inline constexpr int kBossLocBase = 1000;
 

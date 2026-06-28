@@ -176,6 +176,10 @@
     {
       "name": "_ZN5Items8OnPickupEiiP6PlayerRK6ycVec3biijb",
       "kind": "Code"
+    },
+    {
+      "name": "_ZN4Shop12IsOutOfStockEPK7ShopDefRNS_7OutInfoE",
+      "kind": "Code"
     }
   ],
   "windows": {
@@ -311,6 +315,9 @@
     },
     "_ZN5Items8OnPickupEiiP6PlayerRK6ycVec3biijb": {
       "rva": 8541872
+    },
+    "_ZN4Shop12IsOutOfStockEPK7ShopDefRNS_7OutInfoE": {
+      "rva": 10993504
     }
   },
   "linux": {
@@ -400,6 +407,9 @@
     },
     "_ZN5Items8OnPickupEiiP6PlayerRK6ycVec3biijb": {
       "rva": 12933872
+    },
+    "_ZN4Shop12IsOutOfStockEPK7ShopDefRNS_7OutInfoE": {
+      "rva": 15655568
     }
   }
 }

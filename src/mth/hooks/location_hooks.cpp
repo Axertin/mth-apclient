@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <functional>
 
+#include "mth/core/ap_ids.hpp"
 #include "mth/core/game_layout.hpp"
 #include "mth/core/game_symbols.hpp"
 #include "mth/core/rando_bridge.hpp"
@@ -255,10 +256,43 @@ int on_shop_stock(int loc_idx)
 // IsItemCollected with b5=true, and must see the real have-item bit - redirecting it to the location's
 // AP checked-state hides any weapon received from another player (its own location never checked). So
 // ownership queries on weapon-kind (1) locations pass through; see should_redirect_collected_query.
+// SaveSlot+0xc70: the WeaponMerchant's pending weapon-upgrade index (-1 = none / save unavailable).
+[[nodiscard]] int current_weapon_index()
+{
+    if (g_save_manager == 0)
+        return -1;
+    void *slot = pal::active_save_slot(g_save_manager);
+    return slot != nullptr ? *reinterpret_cast<int *>(static_cast<char *>(slot) + mth::layout::kSaveWeaponIndexOff) : -1;
+}
+
+// Set while Shop::IsOutOfStock runs (game thread; a depth counter survives any re-entry). Lets the
+// IsItemCollected override below tell the WeaponMerchant's stock tally apart from every other reader of the
+// same weapon locations -- chiefly the weapon-swap chest, which must keep seeing the real have-item bit.
+int g_shop_oos_depth = 0;
+std::uint64_t (*g_orig_shop_oos)(void *, void *) = nullptr;
+
+std::uint64_t repl_shop_is_out_of_stock(void *shop_def, void *out_info)
+{
+    ++g_shop_oos_depth;
+    const std::uint64_t r = g_orig_shop_oos != nullptr ? g_orig_shop_oos(shop_def, out_info) : 0;
+    --g_shop_oos_depth;
+    return r;
+}
+
 int on_item_collected_query(int loc_idx, bool ownership_query)
 {
     if (g_bridge == nullptr)
         return -1;
+    // Legovich (#67 follow-up): the WeaponMerchant's out-of-stock tally must count AP purchases, not weapons
+    // received from the multiworld -- otherwise a received weapon inflates the count and Armand arms early.
+    // Report AP-checked-state for his slots, but ONLY while his shop is the one tallying stock; the weapon-swap
+    // chest reads these same locations and must see the real have-item bit, so it (b5 ownership query, not under
+    // IsOutOfStock) falls through to the normal path below. EXCLUDE the slot currently being forged
+    // (SaveSlot+0xc70 == loc): vanilla counts the in-progress slot once via its "+1 for pending" term, and that
+    // slot is already AP-checked at buy-confirm, so counting it here too double-counts the first buy -> Armand
+    // after one purchase.
+    if (g_shop_oos_depth > 0 && mth::is_legovich_location(loc_idx) && g_bridge->is_ap_location(loc_idx))
+        return (g_bridge->is_checked(loc_idx) && loc_idx != current_weapon_index()) ? 1 : 0;
     const bool is_cap = mth::tables::is_capacity_upgrade_location(loc_idx);
     const int kind = is_cap ? -1 : mth::tables::native_location_kind(loc_idx); // kind unused when capacity
     if (!mth::tables::should_redirect_collected_query(is_cap, kind, ownership_query))
@@ -295,6 +329,8 @@ LocationHooks::LocationHooks(RandoBridge &bridge, std::function<void *()> player
     pickup_init_ = ScopedHook(sym::pickup_init, reinterpret_cast<void *>(&repl_pickup_init), reinterpret_cast<void **>(&g_orig_pickup_init), "Pickup::Init");
     pickup_on_pickup_ = ScopedHook(sym::pickup_on_pickup, reinterpret_cast<void *>(&repl_pickup_on_pickup), reinterpret_cast<void **>(&g_orig_pickup_on_pickup),
                                    "Pickup::OnPickup");
+    shop_oos_ = ScopedHook(sym::shop_is_out_of_stock, reinterpret_cast<void *>(&repl_shop_is_out_of_stock), reinterpret_cast<void **>(&g_orig_shop_oos),
+                           "Shop::IsOutOfStock");
     pal::install_shop_purchase_hook(&on_shop_buy);
     pal::install_shop_stock_hook(&on_shop_stock);
     pal::install_item_collected_hook(&on_item_collected_query);
