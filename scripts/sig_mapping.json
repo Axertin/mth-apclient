@@ -180,6 +180,10 @@
     {
       "name": "_ZN4Shop12IsOutOfStockEPK7ShopDefRNS_7OutInfoE",
       "kind": "Code"
+    },
+    {
+      "name": "_ZN11PawnShopNPC10OnNPCEventEjP17InteractEventInfo",
+      "kind": "Code"
     }
   ],
   "windows": {
@@ -318,6 +322,9 @@
     },
     "_ZN4Shop12IsOutOfStockEPK7ShopDefRNS_7OutInfoE": {
       "rva": 10993504
+    },
+    "_ZN11PawnShopNPC10OnNPCEventEjP17InteractEventInfo": {
+      "rva": 5769632
     }
   },
   "linux": {
@@ -410,6 +417,9 @@
     },
     "_ZN4Shop12IsOutOfStockEPK7ShopDefRNS_7OutInfoE": {
       "rva": 15655568
+    },
+    "_ZN11PawnShopNPC10OnNPCEventEjP17InteractEventInfo": {
+      "rva": 9665648
     }
   }
 }

@@ -42,6 +42,7 @@ class BossHooks;
 class LockHooks;
 class ChestHooks;
 class AbilityHooks;
+class PawnShopHooks;
 class OverlayRoot;
 
 // Composition root. Logger and hook engine are PAL globals; App owns everything else.
@@ -96,6 +97,7 @@ class App : public ICommandSink
     std::unique_ptr<ChestHooks> chest_hooks_;
     std::unique_ptr<DeathHooks> death_hooks_;
     std::unique_ptr<AbilityHooks> ability_hooks_;
+    std::unique_ptr<PawnShopHooks> pawn_shop_hooks_;
     std::unique_ptr<ModifierHooks> modifier_hooks_;
     std::unique_ptr<LevelCapHooks> level_cap_hooks_;
     std::optional<ApSaveState> save_state_;

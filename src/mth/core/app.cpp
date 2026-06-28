@@ -22,6 +22,7 @@
 #include "mth/hooks/item_granter.hpp"
 #include "mth/hooks/location_hooks.hpp"
 #include "mth/hooks/lock_hooks.hpp"
+#include "mth/hooks/pawn_shop_hooks.hpp"
 #include "mth/hooks/player_tracker.hpp"
 #include "mth/hooks/room_tracker.hpp"
 #include "mth_version.h"
@@ -113,6 +114,7 @@ App::App()
     chest_hooks_ = std::make_unique<ChestHooks>(lock_hooks_->locks()); // shares the lock registry + seed
     death_hooks_ = std::make_unique<DeathHooks>([this] { link_->send_death("Mina the Hollower"); }, [this]() -> void * { return tracker_->player(); });
     ability_hooks_ = std::make_unique<AbilityHooks>([this](std::int64_t id) { return state_.has_received(id); });
+    pawn_shop_hooks_ = std::make_unique<PawnShopHooks>([this] { return state_.phase() == ConnectionPhase::Connected; });
     // Suppress the game's default new-file starting kit while AP-authenticated (AP supplies it instead).
     // SaveSlot::Clear also fires on profile-menu / save-load, so the zero can hit an existing save's upgrade
     // fields; re-arm the upgrade re-apply each time we suppress so drive_tick refills them from AP state.
@@ -189,6 +191,7 @@ App::~App()
 #endif
     pal::remove_newfile_kit_suppressor();
     ability_hooks_.reset();
+    pawn_shop_hooks_.reset();
     death_hooks_.reset();
     modifier_hooks_.reset();
     level_cap_hooks_.reset();

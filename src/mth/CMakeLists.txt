@@ -84,6 +84,7 @@ if(NOT MTHAP_BUILD_TESTS_ONLY)
         hooks/chest_hooks.cpp
         hooks/death_hooks.cpp
         hooks/ability_hooks.cpp
+        hooks/pawn_shop_hooks.cpp
         hooks/modifier_hooks.cpp
         hooks/levelcap_hooks.cpp
     )
