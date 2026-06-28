@@ -143,6 +143,20 @@ void repl_pickup_init(void *self, int item_type, int loc_idx, bool flag)
     if (!g_pickup_offsets_ok || g_bridge == nullptr)
         return;
 
+    // #67: the WeaponMerchant (Legovich) forge spawns the forged-weapon Pickup with loc_idx == the pending
+    // weapon index SaveSlot+0xc70. The mod suppresses that grant, so the vanilla OnPickupDone `if(c70==loc)
+    // c70=-1` reset never runs and c70 sticks on the checked AP weapon location, leaving the merchant
+    // uninteractable. Clear it here -- after g_orig_pickup_init built the pickup (above), so the forge asset is
+    // resolved and the merchant can't re-spawn with itemType 0 (clearing c70 before that spawn freezes).
+    void *wsave = g_save_manager != 0 ? pal::active_save_slot(g_save_manager) : nullptr;
+    const int weapon_idx = wsave != nullptr ? *reinterpret_cast<int *>(static_cast<char *>(wsave) + mth::layout::kSaveWeaponIndexOff) : -1;
+    if (weapon_idx >= 0 && loc_idx == weapon_idx)
+    {
+        *reinterpret_cast<int *>(static_cast<char *>(wsave) + mth::layout::kSaveWeaponIndexOff) = -1;
+        *reinterpret_cast<unsigned char *>(static_cast<char *>(wsave) + mth::layout::kSaveWeaponMoldLatchOff) = 0;
+        pal::logf(pal::LogLevel::Info, "legovich: forge pickup loc=%d -> reset weapon mold to re-arm merchant (#67)", loc_idx);
+    }
+
     // Respawn suppression (fallback): already-checked location; tear down via QueueDestroy.
     if (g_queue_destroy != nullptr && g_bridge->is_checked(loc_idx))
     {
