@@ -180,7 +180,7 @@
   ],
   "windows": {
     "_ZN4Game11FixedUpdateEv": {
-      "rva": 9832736
+      "rva": 9908224
     },
     "_ZN4Game6UpdateEf": {
       "rva": 9835504
