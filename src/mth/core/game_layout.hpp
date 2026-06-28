@@ -51,6 +51,10 @@ inline constexpr std::ptrdiff_t kSaveKearSpentOff = 0x1f8;    // int spent-count
 inline constexpr std::ptrdiff_t kPlayerKearBitsOff = 0x1190;  // u64 live mirror of SaveSlot+0x1f0 (read by the live lock gate)
 inline constexpr std::ptrdiff_t kPlayerKearSpentOff = 0x1198; // int live mirror of SaveSlot+0x1f8
 
+// WeaponMerchant (Legovich) forge mold (#67): the pending weapon-upgrade index; -1 = none.
+inline constexpr std::ptrdiff_t kSaveWeaponIndexOff = 0xc70;     // int: pending weapon index the forge keys on
+inline constexpr std::ptrdiff_t kSaveWeaponMoldLatchOff = 0xc74; // byte: "mold pending pickup" latch
+
 // KeyBlockChain (multi-block lock). Build-drift; opened by req-state 2 + commit. Slot resolves from
 // the chain's SpawnPoint name-key (no cached slot).
 inline constexpr std::ptrdiff_t kChainSpawnPointOff = 0x1c0;   // SpawnPoint* the chain gates (0 if none found)
