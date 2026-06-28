@@ -68,10 +68,10 @@ void InboundGranter::tick()
             continue;
         }
 
-        if(is_map_item(it.item_id))
+        if (is_map_item(it.item_id))
         {
             const int tier = ++map_tier;
-            
+
             if (save_.is_granted(it.index))
                 continue;
             const int game_type = map_itemtype(tier);

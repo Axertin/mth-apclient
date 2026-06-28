@@ -98,15 +98,12 @@ inline constexpr bool is_map_item(std::int64_t ap_item_id_)
     return ap_item_id_ >= kProgWeaponBase && ap_item_id_ == kMapItem;
 }
 
-
 inline constexpr int map_itemtype(int tier)
 {
     if (tier < 1 || tier > kMapTiers)
         return -1;
     return kMapItemTypes[tier - 1];
 }
-
-
 
 // Stat-cap cap-ups
 // derived state (StatCapState), never granted as items. The all-stat id raises
