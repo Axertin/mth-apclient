@@ -51,6 +51,10 @@ inline constexpr const char *shop_init_state = "_ZN8ShopMenu9InitStateEv"; // Sh
 // the cached GetCollectionIndex result at (ShopItem+0xf8 def) +0x48 - the same value ShopMenu+0x218
 // (the buy-path loc_idx) is copied from, so no GetCollectionIndex call is needed.
 inline constexpr const char *shop_item_refresh = "_ZN8ShopItem7RefreshEv"; // ShopItem::Refresh()
+// Shop::IsOutOfStock(ShopDef const*, OutInfo&): tallies a shop's remaining stock via Items::IsItemCollected
+// per slot. Hooked only to bracket a flag so the IsItemCollected override can tell the WeaponMerchant's stock
+// query apart from the weapon-swap chest (both read the same weapon locations) (#67 follow-up).
+inline constexpr const char *shop_is_out_of_stock = "_ZN4Shop12IsOutOfStockEPK7ShopDefRNS_7OutInfoE";
 
 // ycWorld::QueueDestroy: unconditional teardown (no SpawnPoint gate); writes no save/grant state.
 inline constexpr const char *queue_destroy = "_ZN7ycWorld12QueueDestroyEP8ycEntityb"; // ycWorld::QueueDestroy(ycEntity*, bool)
