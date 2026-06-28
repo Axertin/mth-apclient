@@ -19,10 +19,8 @@ void RandoBridge::attach_save_state(ApSaveState &save)
 
 bool RandoBridge::is_ap_location(int collection_slot) const
 {
-    const bool ok = collection_slot >= 0 && state_.is_valid_location(ap_loc_id(collection_slot));
-    pal::logf(pal::LogLevel::Debug, "bridge: is_ap_location slot=%d id=%lld -> %s", collection_slot, static_cast<long long>(ap_loc_id(collection_slot)),
-              ok ? "yes" : "NO");
-    return ok;
+    // No per-call logging here: this is queried for every location every frame (it floods the log).
+    return collection_slot >= 0 && state_.is_valid_location(ap_loc_id(collection_slot));
 }
 
 bool RandoBridge::is_checked(int collection_slot) const
