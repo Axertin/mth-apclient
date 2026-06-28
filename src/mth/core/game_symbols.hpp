@@ -129,5 +129,8 @@ inline constexpr const char *bounce_plant_launch = "_ZN11BouncePlant12BounceLaun
 inline constexpr const char *spring_bellows_collide = "_ZN13SpringBellows11CollideWithER18PhysicsContactPair";
 inline constexpr const char *player_pickup_carryable = "_ZN6Player30PickUpAnyNearbyCarryableObjectEbbb";
 inline constexpr const char *train_authority_on_npc_event = "_ZN14TrainAuthority10OnNPCEventEjP17InteractEventInfo";
+// PawnShopNPC::OnNPCEvent: the pawn shop ("Pawnty") interaction dispatcher. Its own class (not a
+// shared NPCBehavior_*), so suppressing it to disable Pawnty cannot affect any other shop.
+inline constexpr const char *pawn_shop_on_npc_event = "_ZN11PawnShopNPC10OnNPCEventEjP17InteractEventInfo";
 
 } // namespace mth::sym

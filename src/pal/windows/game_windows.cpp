@@ -282,6 +282,27 @@ void repl_set_applied(void *self, int idx, bool applied, void *slot)
     if (g_orig_set_applied)
         g_orig_set_applied(self, idx, applied, slot);
 }
+
+// Pawnty (PawnShopNPC::OnNPCEvent) disable. event 0x1f is InteractComponent::IsInteractable's veto
+// query: a nonzero float at info+0x8 means "not interactable" -> no prompt. No-op everything else so
+// no dialogue line is set and the sell menu never opens.
+constexpr unsigned kPawnInteractableQueryEvent = 0x1f;
+constexpr std::ptrdiff_t kPawnVetoFloatOff = 0x8; // InteractEventInfo veto float
+pal::PawnShopBlockFn g_pawn_disable;
+pal::HookId g_pawn_hook = pal::kInvalidHookId;
+void (*g_orig_pawn_npc)(void *, unsigned, void *) = nullptr;
+
+void repl_pawn_npc(void *self, unsigned event, void *info)
+{
+    if (g_pawn_disable && g_pawn_disable())
+    {
+        if (event == kPawnInteractableQueryEvent && info != nullptr)
+            *reinterpret_cast<float *>(static_cast<char *>(info) + kPawnVetoFloatOff) = 1.0f;
+        return; // swallow dialogue/menu/can-interact; never call the original
+    }
+    if (g_orig_pawn_npc)
+        g_orig_pawn_npc(self, event, info);
+}
 } // namespace
 
 namespace pal
@@ -361,6 +382,36 @@ void remove_shop_purchase_hook()
         hook_engine().remove_hook(g_shop_hook);
     g_shop_hook = kInvalidHookId;
     g_on_shop_buy = nullptr;
+}
+
+bool install_pawn_shop_hook(PawnShopBlockFn disable)
+{
+    g_pawn_disable = std::move(disable);
+    const std::uintptr_t addr = resolve_game_symbol(mth::sym::pawn_shop_on_npc_event);
+    if (addr == 0)
+    {
+        logf(LogLevel::Warn, "pawnty: PawnShopNPC::OnNPCEvent not resolved; pawn-shop disable off");
+        g_pawn_disable = nullptr;
+        return false;
+    }
+    g_pawn_hook =
+        hook_engine().install_hook(reinterpret_cast<void *>(addr), reinterpret_cast<void *>(&repl_pawn_npc), reinterpret_cast<void **>(&g_orig_pawn_npc));
+    if (g_pawn_hook == kInvalidHookId)
+    {
+        logf(LogLevel::Error, "pawnty: failed to hook PawnShopNPC::OnNPCEvent");
+        g_pawn_disable = nullptr;
+        return false;
+    }
+    logf(LogLevel::Info, "pawnty: hooked PawnShopNPC::OnNPCEvent (id=%llu)", static_cast<unsigned long long>(g_pawn_hook));
+    return true;
+}
+
+void remove_pawn_shop_hook()
+{
+    if (g_pawn_hook != kInvalidHookId)
+        hook_engine().remove_hook(g_pawn_hook);
+    g_pawn_hook = kInvalidHookId;
+    g_pawn_disable = nullptr;
 }
 
 bool install_shop_stock_hook(ShopLevelFn level_state)

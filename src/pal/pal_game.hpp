@@ -144,4 +144,13 @@ void remove_ability_hooks();
 // unblocked. No-op if unavailable. Game-thread only.
 void enforce_train_presence(std::uintptr_t save_manager_global, bool blocked);
 
+// ---- Pawn shop ("Pawnty") disable. Symbol/offset divergence lives in the PAL impl. ----
+
+// PawnShopNPC::OnNPCEvent suppressor. When disable() returns true the detour no-ops every event and
+// vetoes the interactable query (no prompt); otherwise it calls through. disable() runs on the game
+// thread, so it must be cheap and thread-safe. Returns false if the chokepoint did not resolve.
+using PawnShopBlockFn = std::function<bool()>;
+bool install_pawn_shop_hook(PawnShopBlockFn disable);
+void remove_pawn_shop_hook();
+
 } // namespace pal
