@@ -135,7 +135,7 @@ inline constexpr std::int64_t kAbilityItemBase = 3000;   // ability gates (Abili
 inline constexpr std::int64_t kBlockerItemBase = 4000;   // reserved
 inline constexpr std::int64_t kTrapItemBase = 5000;      // reserved
 
-//special Constants
+// special Constants
 inline constexpr std::int64_t kMMFirstDoubleKearBlockID = 2304;
 inline constexpr std::int64_t kMMSecondDoubleKearBlockID = 2306;
 
