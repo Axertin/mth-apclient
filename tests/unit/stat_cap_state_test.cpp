@@ -105,3 +105,30 @@ TEST_CASE("out-of-range stat yields vanilla cap", "[stat_cap]")
     REQUIRE(caps.enforced_cap(3, 9) == 9);
     REQUIRE(caps.enforced_cap(-1, 9) == 9);
 }
+
+TEST_CASE("clamp_max_stat_level passes in-range values through", "[stat_cap]")
+{
+    REQUIRE(mth::clamp_max_stat_level(10) == 10);
+    REQUIRE(mth::clamp_max_stat_level(30) == 30);
+    REQUIRE(mth::clamp_max_stat_level(99) == 99);
+}
+
+TEST_CASE("clamp_max_stat_level clamps out-of-range to [10,99]", "[stat_cap]")
+{
+    REQUIRE(mth::clamp_max_stat_level(9) == 10);
+    REQUIRE(mth::clamp_max_stat_level(0) == 10);
+    REQUIRE(mth::clamp_max_stat_level(-5) == 10);
+    REQUIRE(mth::clamp_max_stat_level(100) == 99);
+    REQUIRE(mth::clamp_max_stat_level(1000) == 99);
+}
+
+TEST_CASE("stat_cap_ceiling: real stats use the slot_data max, others pass vanilla", "[stat_cap]")
+{
+    // attack/defense/sidearm (0..2) -> slot_data max_stat_level, replacing the native vanilla cap
+    REQUIRE(mth::stat_cap_ceiling(0, 30, 14) == 30);
+    REQUIRE(mth::stat_cap_ceiling(1, 30, 14) == 30);
+    REQUIRE(mth::stat_cap_ceiling(2, 30, 14) == 30);
+    // bone bank (3) and out-of-range -> native vanilla cap, untouched
+    REQUIRE(mth::stat_cap_ceiling(3, 30, 14) == 14);
+    REQUIRE(mth::stat_cap_ceiling(-1, 30, 14) == 14);
+}

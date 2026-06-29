@@ -1,8 +1,24 @@
 #pragma once
 
+#include "mth/core/ap_ids.hpp" // kStatCount
+
 namespace mth
 {
 class ApState;
+
+// slot_data "max_stat_level": per-stat level ceiling, bounded to the game-supported [10, 99]. Absent
+// slot_data already arrives as 99 (the game's absolute max). Pure so it is unit-testable.
+[[nodiscard]] constexpr int clamp_max_stat_level(int v) noexcept
+{
+    return v < 10 ? 10 : (v > 99 ? 99 : v);
+}
+
+// Ceiling fed to StatCapState::enforced_cap: real stats (0..<kStatCount) take the slot_data max_stat_level,
+// replacing the game's native cap; bone bank / out-of-range keep vanilla_cap. Pure so it is unit-testable.
+[[nodiscard]] constexpr int stat_cap_ceiling(int stat, int max_stat_level, int vanilla_cap) noexcept
+{
+    return (stat >= 0 && stat < kStatCount) ? max_stat_level : vanilla_cap;
+}
 
 // Per-stat level-cap policy, derived from received AP "cap up" items. Pure logic, no platform deps.
 // The game's per-stat buy-gate is `current_level < cap`; we feed it min(vanilla_cap, granted-count),

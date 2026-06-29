@@ -29,6 +29,7 @@ LevelCapHooks::~LevelCapHooks()
 void LevelCapHooks::recompute(const ApState &state)
 {
     caps_.recompute(state);
+    max_stat_level_ = state.max_stat_level();
 }
 
 void LevelCapHooks::set_counts(int attack, int defense, int sidearm)
@@ -45,14 +46,15 @@ int LevelCapHooks::provide(int stat, int vanilla_cap)
 {
     if (!enforce_live_.load())
         return vanilla_cap; // vanilla play (not connected, not test mode): never restrict
-    return caps_.enforced_cap(stat, vanilla_cap);
+    // Per-stat ceiling (slot_data max for real stats, native for the bone bank), then cap-up gating.
+    return caps_.enforced_cap(stat, stat_cap_ceiling(stat, max_stat_level_, vanilla_cap));
 }
 
 std::vector<std::string> LevelCapHooks::status_lines() const
 {
     std::vector<std::string> out;
     out.push_back("stat caps (granted): attack=" + std::to_string(caps_.granted(0)) + " defense=" + std::to_string(caps_.granted(1)) +
-                  " sidearm=" + std::to_string(caps_.granted(2)));
+                  " sidearm=" + std::to_string(caps_.granted(2)) + " max_stat_level=" + std::to_string(max_stat_level_));
     return out;
 }
 

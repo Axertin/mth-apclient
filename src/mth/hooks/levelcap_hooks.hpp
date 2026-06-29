@@ -32,6 +32,7 @@ class LevelCapHooks
     int provide(int stat, int vanilla_cap); // PAL callback (game thread)
 
     StatCapState caps_;
+    int max_stat_level_{99}; // slot_data ceiling for the real stats; replaces the game's native max (game thread)
     std::atomic<bool> enforce_live_{false};
     bool installed_{false};
 };

@@ -100,6 +100,10 @@ class ApState
     {
         return deathlink_;
     }
+    [[nodiscard]] int max_stat_level() const // slot_data "max_stat_level": per-stat level ceiling (10..99)
+    {
+        return max_stat_level_;
+    }
     [[nodiscard]] bool is_valid_location(std::int64_t id) const
     {
         return valid_locations_.contains(id);
@@ -145,6 +149,7 @@ class ApState
     bool carry_rando_{false};
     bool train_rando_{false};
     bool deathlink_{false};
+    int max_stat_level_{99};
     std::set<std::int64_t> valid_locations_{};
     std::vector<ReceivedItem> received_items_{};
     int last_item_index_{-1};

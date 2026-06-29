@@ -36,7 +36,8 @@ struct ApConnected
     bool spring_rando{false};
     bool carry_rando{false};
     bool train_rando{false};
-    bool deathlink{false}; // slot_data "death_link": bounce/receive deaths over the AP link
+    bool deathlink{false};  // slot_data "death_link": bounce/receive deaths over the AP link
+    int max_stat_level{99}; // slot_data "max_stat_level": per-stat level ceiling (clamped 10..99; 99 = game's absolute max)
 };
 struct ApItemReceived
 {
