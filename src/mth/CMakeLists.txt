@@ -80,6 +80,7 @@ if(NOT MTHAP_BUILD_TESTS_ONLY)
         hooks/item_granter.cpp
         hooks/location_hooks.cpp
         hooks/boss_hooks.cpp
+        hooks/goal_tracker.cpp
         hooks/lock_hooks.cpp
         hooks/chest_hooks.cpp
         hooks/death_hooks.cpp

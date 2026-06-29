@@ -104,6 +104,18 @@ class ApState
     {
         return max_stat_level_;
     }
+    [[nodiscard]] int goal_config() const // slot_data "goal_config": 0=finish, 1=generators, 2=bosses
+    {
+        return goal_config_;
+    }
+    [[nodiscard]] int goal_generators() const // slot_data "goal_generators": generators needed for the generators goal
+    {
+        return goal_generators_;
+    }
+    [[nodiscard]] int goal_bosses() const // slot_data "goal_bosses": bosses needed for the bosses goal
+    {
+        return goal_bosses_;
+    }
     [[nodiscard]] bool is_valid_location(std::int64_t id) const
     {
         return valid_locations_.contains(id);
@@ -150,6 +162,9 @@ class ApState
     bool train_rando_{false};
     bool deathlink_{false};
     int max_stat_level_{99};
+    int goal_config_{0};
+    int goal_generators_{99};
+    int goal_bosses_{99};
     std::set<std::int64_t> valid_locations_{};
     std::vector<ReceivedItem> received_items_{};
     int last_item_index_{-1};

@@ -36,8 +36,11 @@ struct ApConnected
     bool spring_rando{false};
     bool carry_rando{false};
     bool train_rando{false};
-    bool deathlink{false};  // slot_data "death_link": bounce/receive deaths over the AP link
-    int max_stat_level{99}; // slot_data "max_stat_level": per-stat level ceiling (clamped 10..99; 99 = game's absolute max)
+    bool deathlink{false};   // slot_data "death_link": bounce/receive deaths over the AP link
+    int max_stat_level{99};  // slot_data "max_stat_level": per-stat level ceiling (clamped 10..99; 99 = game's absolute max)
+    int goal_config{0};      // slot_data "goal_config": 0=finish, 1=generators, 2=bosses
+    int goal_generators{99}; // slot_data "goal_generators": generators needed (default unreachable)
+    int goal_bosses{99};     // slot_data "goal_bosses": bosses needed (default unreachable)
 };
 struct ApItemReceived
 {

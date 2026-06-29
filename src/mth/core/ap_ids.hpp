@@ -213,7 +213,4 @@ inline constexpr int kMaxBossIndex = 0x1C;
     return kBossLocBase + boss_index;
 }
 
-// GigaLionel
-inline constexpr int kGoalBossIndex = 8;
-
 } // namespace mth

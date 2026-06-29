@@ -39,6 +39,7 @@ class RandoBridge;
 class AreaReporter;
 class LocationHooks;
 class BossHooks;
+class GoalTracker;
 class LockHooks;
 class ChestHooks;
 class AbilityHooks;
@@ -93,6 +94,7 @@ class App : public ICommandSink
     std::unique_ptr<RandoBridge> rando_;
     std::unique_ptr<LocationHooks> location_hooks_;
     std::unique_ptr<BossHooks> boss_hooks_;
+    std::unique_ptr<GoalTracker> goal_tracker_;
     std::unique_ptr<LockHooks> lock_hooks_;
     std::unique_ptr<ChestHooks> chest_hooks_;
     std::unique_ptr<DeathHooks> death_hooks_;

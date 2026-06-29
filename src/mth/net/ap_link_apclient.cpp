@@ -330,10 +330,13 @@ void ApLink::setup_handlers(const std::string &slot, const std::string &password
             const bool carry_rando = data.is_object() && data.value("carry_rando", 0) != 0;
             const bool train_rando = data.is_object() && data.value("train_rando", 0) != 0;
             const int max_stat_level = mth::clamp_max_stat_level(data.is_object() ? data.value("max_stat_level", 99) : 99);
+            const int goal_config = data.is_object() ? data.value("goal_config", 0) : 0;
+            const int goal_generators = data.is_object() ? data.value("goal_generators", 99) : 99;
+            const int goal_bosses = data.is_object() ? data.value("goal_bosses", 99) : 99;
             push_event(mth::ApConnected{client_->get_seed(), data.is_null() ? std::string{} : data.dump(), client_->get_player_number(),
                                         std::vector<std::int64_t>(checked.begin(), checked.end()), std::vector<std::int64_t>(missing.begin(), missing.end()),
                                         ossex_start, kear_rando, burrow_rando, swim_rando, rope_rando, puff_rando, spring_rando, carry_rando, train_rando,
-                                        deathlink, max_stat_level});
+                                        deathlink, max_stat_level, goal_config, goal_generators, goal_bosses});
         });
 
     client_->set_slot_refused_handler(
