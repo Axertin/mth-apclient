@@ -1,0 +1,49 @@
+name: Bug report
+description: Report something not working in the mod
+labels: ["bug"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description of the bug
+      description: What went wrong? Include what you expected to happen and the steps that led to it.
+    validations:
+      required: true
+  - type: checkboxes
+    id: impact
+    attributes:
+      label: Impact
+      description: Check any that apply.
+      options:
+        - label: This bug prevents a check from being sent
+        - label: This bug prevents an item from being received
+        - label: This bug results in a crash or freeze
+  - type: input
+    id: mod-version
+    attributes:
+      label: Mod version
+      description: From the top of the mthap log or the overlaid on the top-left corner of the game window.
+      placeholder: "0.0.0"
+    validations:
+      required: true
+  - type: input
+    id: game-version
+    attributes:
+      label: Game version
+      description: The r-number shown on the in-game Options menu.
+      placeholder: "r148667"
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: mthap log
+      description: >-
+        Attach the log file by dragging it into this box (preferred). Pasting the contents works too. 
+        If GitHub rejects the .log extension, zip it or rename it to .txt.
+        The mod logs can be found in the following locations:
+        - Windows: `%LOCALAPPDATA%\mth-apclient\mthap-<timestamp>.log`
+        - Linux: `~/.local/share/mth-apclient/mthap-<timestamp>.log`
+        Also upload the crash dump if the game crashed (in the same directory as the log).
+    validations:
+      required: true
