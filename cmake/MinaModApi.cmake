@@ -13,8 +13,8 @@ include(FetchContent)
 FetchContent_Declare(
     minamodapi
     GIT_REPOSITORY https://github.com/YachtClubGames/MinaModAPI.git
-    GIT_TAG        0be0a0448f941211d9409982ccf41ffe4e032c98
-    SOURCE_SUBDIR  _headers_only
+    GIT_TAG main
+    SOURCE_SUBDIR _headers_only
 )
 FetchContent_MakeAvailable(minamodapi)
 
