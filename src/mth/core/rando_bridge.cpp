@@ -92,7 +92,7 @@ void RandoBridge::send_goal()
         return; // not an AP session; don't latch, so a later connected defeat can still send
     goal_sent_ = true;
     link_.set_goal();
-    pal::logf(pal::LogLevel::Info, "goal: final boss defeated; AP goal sent");
+    pal::logf(pal::LogLevel::Info, "goal: condition met; AP goal sent");
 }
 
 } // namespace mth

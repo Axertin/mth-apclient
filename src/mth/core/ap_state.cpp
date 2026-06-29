@@ -53,6 +53,9 @@ void ApState::apply(const ApEvent &ev)
                 train_rando_ = e.train_rando;
                 deathlink_ = e.deathlink;
                 max_stat_level_ = e.max_stat_level;
+                goal_config_ = e.goal_config;
+                goal_generators_ = e.goal_generators;
+                goal_bosses_ = e.goal_bosses;
                 valid_locations_.clear();
                 valid_locations_.insert(e.checked_locations.begin(), e.checked_locations.end());
                 valid_locations_.insert(e.missing_locations.begin(), e.missing_locations.end());

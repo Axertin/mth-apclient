@@ -28,8 +28,6 @@ void boss_defeated_from(void *boss_component, const char *funnel)
     }
     const int slot = mth::boss_location_slot(boss_index);
     pal::logf(pal::LogLevel::Info, "outbound: boss defeated index=%d -> loc slot=%d (%s)", boss_index, slot, funnel);
-    if (boss_index == mth::kGoalBossIndex)
-        g_bridge->send_goal(); // GigaLionel = final boss; independent of whether it's also an AP location
     if (g_bridge->is_ap_location(slot))
         g_bridge->on_location_collected(slot);
     else
