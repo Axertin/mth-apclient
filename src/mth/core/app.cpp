@@ -108,7 +108,7 @@ App::App()
                 rando_->on_location_collected(loc);
         });
     rando_ = std::make_unique<RandoBridge>(*link_, state_);
-    location_hooks_ = std::make_unique<LocationHooks>(*rando_, [this]() -> void * { return tracker_->player(); });
+    location_hooks_ = std::make_unique<LocationHooks>(*rando_);
     boss_hooks_ = std::make_unique<BossHooks>(*rando_);
     lock_hooks_ = std::make_unique<LockHooks>();
     chest_hooks_ = std::make_unique<ChestHooks>(lock_hooks_->locks()); // shares the lock registry + seed

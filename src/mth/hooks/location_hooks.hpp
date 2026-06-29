@@ -15,8 +15,7 @@ class RandoBridge;
 class LocationHooks
 {
   public:
-    // player_get returns the live Player* (or nullptr) for the kear-grant live-mirror sync.
-    LocationHooks(RandoBridge &bridge, std::function<void *()> player_get);
+    explicit LocationHooks(RandoBridge &bridge);
     ~LocationHooks();
     LocationHooks(const LocationHooks &) = delete;
     LocationHooks &operator=(const LocationHooks &) = delete;

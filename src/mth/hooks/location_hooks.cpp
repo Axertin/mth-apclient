@@ -27,10 +27,6 @@ void (*g_set_item_collected)(int, bool, void *, void *) = nullptr;
 // g_saveManager global (resolves the active SaveSlot); needed to neutralize the kear grant under kear_rando.
 std::uintptr_t g_save_manager = 0;
 
-// Returns the live Player* (or nullptr) so the kear neutralization can keep the live +0x1190/+0x1198
-// mirrors in sync with the SaveSlot fields; supplied by App from the PlayerTracker.
-std::function<void *()> g_player_get;
-
 // slot_data "kear_rando": kears are AP-randomized, so the SaveSlot+0x1f0 bit a kear collect sets must not
 // count as a usable key. Game-thread only (set from drive_tick, read from the pickup/shop collect path).
 bool g_kear_rando = false;
@@ -53,9 +49,9 @@ bool g_shop_offsets_ok = true;
 // A kear collect records its bit in the SaveSlot+0x1f0 bitfield, which doubles as the usable-key count
 // (usable = popcount(+0x1f0) - spent(+0x1f8)). Under kear_rando the key is AP-controlled, so for each bit
 // the just-run SetItemCollected actually NEWLY set (`new_bits`, vs `before`), bump the spent-counter in
-// lockstep to cancel the free key. The live lock gate reads the Player+0x1190/+0x1198 mirrors instead of the
-// SaveSlot, so mirror the same delta there too; otherwise usable would read one low until a reload re-syncs.
-// Delta-based so a re-collected (already-set) bit is a no-op and can't drive usable keys negative.
+// lockstep to cancel the free key. The game reads usable keys from the SaveSlot (KeyBlock::Update,
+// PlayerGetKeysSpent); there is no Player-side key mirror to update (see game_layout.hpp). Delta-based so a
+// re-collected (already-set) bit is a no-op and can't drive usable keys negative.
 void neutralize_kear_grant(int loc_idx, void *slot, std::uint64_t before)
 {
     auto &bits = *reinterpret_cast<std::uint64_t *>(static_cast<char *>(slot) + mth::layout::kSaveKearBitsOff);
@@ -65,21 +61,14 @@ void neutralize_kear_grant(int loc_idx, void *slot, std::uint64_t before)
 
     const int n = std::popcount(new_bits);
     *reinterpret_cast<int *>(static_cast<char *>(slot) + mth::layout::kSaveKearSpentOff) += n;
-
-    void *player = g_player_get ? g_player_get() : nullptr;
-    if (player != nullptr)
-    {
-        *reinterpret_cast<std::uint64_t *>(static_cast<char *>(player) + mth::layout::kPlayerKearBitsOff) |= new_bits;
-        *reinterpret_cast<int *>(static_cast<char *>(player) + mth::layout::kPlayerKearSpentOff) += n;
-    }
-    pal::logf(pal::LogLevel::Info, "kear_rando: neutralized kear grant locIdx=%d new_bits=%d spent+=%d player=%p", loc_idx, n, n, player);
+    pal::logf(pal::LogLevel::Info, "kear_rando: neutralized kear grant locIdx=%d new_bits=%d spent+=%d", loc_idx, n, n);
 }
 
 // Reload-durable counterpart to neutralize_kear_grant: the collect-time spent bump above is not rebuilt on
 // reload (only the +0x1f0 collected bitfield is), so after loading a save the AP-collected kears read as
 // usable keys again ("one kear on load"). Run every tick under kear_rando to raise +0x1f8 back up to
-// popcount(+0x1f0), cancelling the leaked keys; never lowers it, so real lock-spends survive. Keeps the live
-// Player mirror (+0x1190/+0x1198) in lockstep so the live lock gate agrees with the SaveSlot.
+// popcount(+0x1f0), cancelling the leaked keys; never lowers it, so real lock-spends survive. SaveSlot is the
+// authoritative usable-key source (no Player mirror exists -- see neutralize_kear_grant).
 void reconcile_kear_keys()
 {
     if (!g_kear_rando || g_save_manager == 0)
@@ -94,13 +83,6 @@ void reconcile_kear_keys()
         return; // already balanced; no leaked key
     pal::logf(pal::LogLevel::Info, "kear_rando: reconciled spent %d -> %d (popcount=%d) on slot=%p", spent, reconciled, std::popcount(bits), slot);
     spent = reconciled;
-
-    void *player = g_player_get ? g_player_get() : nullptr;
-    if (player != nullptr)
-    {
-        *reinterpret_cast<std::uint64_t *>(static_cast<char *>(player) + mth::layout::kPlayerKearBitsOff) = bits;
-        *reinterpret_cast<int *>(static_cast<char *>(player) + mth::layout::kPlayerKearSpentOff) = reconciled;
-    }
 }
 
 // Shared collect path for pickups and shop buys: record/send the check, then write the
@@ -307,10 +289,9 @@ int on_item_collected_query(int loc_idx, bool ownership_query)
 namespace mth
 {
 
-LocationHooks::LocationHooks(RandoBridge &bridge, std::function<void *()> player_get)
+LocationHooks::LocationHooks(RandoBridge &bridge)
 {
     g_bridge = &bridge;
-    g_player_get = std::move(player_get);
     tables::resolve();
     tables::repurpose_dummy_item();
 
@@ -353,7 +334,6 @@ LocationHooks::~LocationHooks()
     pal::remove_shop_purchase_hook();
     // g_bridge nulled before the ScopedHook members remove the detours; the repls null-check it.
     g_bridge = nullptr;
-    g_player_get = nullptr;
 }
 
 } // namespace mth

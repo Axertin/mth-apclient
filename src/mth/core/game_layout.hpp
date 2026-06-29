@@ -48,8 +48,8 @@ inline constexpr std::ptrdiff_t kKeyBlockEntityRefOff = 0xa8; // start of the +0
 inline constexpr std::ptrdiff_t kSaveBlockUnlockOff = 0x200;  // u64 lock-unlocked bitfield in SaveSlot
 inline constexpr std::ptrdiff_t kSaveKearBitsOff = 0x1f0;     // u64 kear-collected bitfield in SaveSlot
 inline constexpr std::ptrdiff_t kSaveKearSpentOff = 0x1f8;    // int spent-counter; usable keys = popcount(SaveSlot+0x1f0) - this
-inline constexpr std::ptrdiff_t kPlayerKearBitsOff = 0x1190;  // u64 live mirror of SaveSlot+0x1f0 (read by the live lock gate)
-inline constexpr std::ptrdiff_t kPlayerKearSpentOff = 0x1198; // int live mirror of SaveSlot+0x1f8
+// NOTE: no Player-side key mirror exists. Player+0x1190/+0x1198 are the money current/cap fields
+// (see Player::AddMoney); the game reads usable keys from the SaveSlot above, never from the Player.
 
 // WeaponMerchant (Legovich) forge mold (#67): the pending weapon-upgrade index; -1 = none.
 inline constexpr std::ptrdiff_t kSaveWeaponIndexOff = 0xc70;     // int: pending weapon index the forge keys on
