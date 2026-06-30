@@ -89,3 +89,20 @@ TEST_CASE("is_legovich_location matches only the WeaponMerchant shop slots", "[l
     REQUIRE_FALSE(mth::is_legovich_location(179));
     REQUIRE_FALSE(mth::is_legovich_location(-1));
 }
+
+TEST_CASE("upgrade_field_value: vials are authoritative and clear the vanilla base-3 (#83)", "[upgrade]")
+{
+    // Vanilla seeds 3 vials as SaveSlot+0x18c = 0x7; OR could never reduce it, so the count floored at 3.
+    REQUIRE(mth::upgrade_field_value(mth::kVialUpgradeIndex, 0, 0x7u) == 0x0u);
+    REQUIRE(mth::upgrade_field_value(mth::kVialUpgradeIndex, 1, 0x7u) == 0x1u);
+    REQUIRE(mth::upgrade_field_value(mth::kVialUpgradeIndex, 2, 0x7u) == 0x3u);
+    REQUIRE(mth::upgrade_field_value(mth::kVialUpgradeIndex, 3, 0x0u) == 0x7u);
+    REQUIRE(mth::upgrade_field_value(mth::kVialUpgradeIndex, 10, 0xFFFFu) == 0x3FFu); // overrides stale bits
+}
+
+TEST_CASE("upgrade_field_value: non-vial pools accumulate onto the current bits", "[upgrade]")
+{
+    REQUIRE(mth::upgrade_field_value(1, 0, 0x5u) == 0x5u); // count 0 leaves the field untouched
+    REQUIRE(mth::upgrade_field_value(1, 2, 0x4u) == 0x7u); // OR: 0x4 | 0x3
+    REQUIRE(mth::upgrade_field_value(0, 3, 0x0u) == 0x7u);
+}

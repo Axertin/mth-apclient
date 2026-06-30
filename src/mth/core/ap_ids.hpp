@@ -34,6 +34,16 @@ inline constexpr int game_item_type(std::int64_t ap_item_id_)
 inline constexpr int kUpgradeItemBase = 68;
 inline constexpr int kUpgradeCount = 5;
 inline constexpr int kUpgradeCaps[kUpgradeCount] = {10, 18, 4, 10, 6}; // Magic, Health, Spark, Vial, Trinket (full-game counts)
+inline constexpr int kVialUpgradeIndex = 3;                            // Vial's slot in the index order above
+
+// SaveSlot bitfield value granting `count` of capacity-upgrade `upgrade_index` (low `count` bits;
+// popcount == capacity). Vials overwrite `current` instead of OR-ing it: the vanilla new file seeds a
+// 3-bit vial base an OR can't clear (#83), and the field is vial-only so overwriting is safe.
+[[nodiscard]] inline constexpr std::uint32_t upgrade_field_value(int upgrade_index, int count, std::uint32_t current) noexcept
+{
+    const std::uint32_t bits = count <= 0 ? 0u : (count >= 32 ? 0xFFFFFFFFu : (1u << count) - 1u);
+    return upgrade_index == kVialUpgradeIndex ? bits : (current | bits);
+}
 
 inline constexpr bool is_capacity_upgrade_item(std::int64_t ap_item_id_)
 {
