@@ -5,6 +5,7 @@
 #include <functional>
 #include <utility>
 
+#include "mth/core/ap_ids.hpp"
 #include "mth/core/game_symbols.hpp"
 #include "pal/pal_game.hpp"
 #include "pal/pal_hook.hpp"
@@ -828,10 +829,8 @@ bool apply_upgrades(const int *counts, void *player)
 
     for (int i = 0; i < 5; ++i)
     {
-        if (counts[i] <= 0)
-            continue;
-        const std::uint32_t mask = counts[i] >= 32 ? 0xFFFFFFFFu : (1u << counts[i]) - 1u; // low N bits; popcount = count
-        *reinterpret_cast<std::uint32_t *>(static_cast<char *>(slot) + kUpgradeFieldOff[i]) |= mask;
+        auto &fieldv = *reinterpret_cast<std::uint32_t *>(static_cast<char *>(slot) + kUpgradeFieldOff[i]);
+        fieldv = mth::upgrade_field_value(i, counts[i], fieldv);
     }
     g_up_update_stats(player); // recompute live maxima from the owned-bit fields
 
