@@ -154,15 +154,15 @@ void repl_pickup_init(void *self, int item_type, int loc_idx, bool flag)
         return;
     }
 
+    // The dummy-itemType redirect is deferred to repl_pickup_on_pickup, not done here: the Pickup ctor's
+    // surprise-spawn emerge block runs AFTER Init and reads s_rItems[storedType].kind to decide whether to
+    // detach the revealed pickup from the dying wall (SpawnPoint::DisownParent); the dummy's kind 0 misses
+    // that branch, so a hidden-room kear stays attached and invisible until a room reload (#86). Init builds
+    // the sprite from the real itemType regardless, so deferring changes no visual.
     if (g_bridge->is_ap_location(loc_idx))
-    {
-        pickup_item_type(self) = mth::layout::kApDummyItemType; // AP dummy: no-op grant + AP visual
-        pal::logf(pal::LogLevel::Debug, "Pickup::Init locIdx=%d itemType=%d -> redirected to AP dummy", loc_idx, item_type);
-    }
+        pal::logf(pal::LogLevel::Debug, "Pickup::Init locIdx=%d itemType=%d -> AP location (dummy redirect deferred to collect)", loc_idx, item_type);
     else
-    {
         pal::logf(pal::LogLevel::Debug, "Pickup::Init locIdx=%d itemType=%d -> vanilla (not an AP location)", loc_idx, item_type);
-    }
 }
 
 void (*g_orig_pickup_on_pickup)(void *, void *) = nullptr;
@@ -181,6 +181,9 @@ void repl_pickup_on_pickup(void *self, void *listener)
         {
             pal::logf(pal::LogLevel::Info, "outbound: collected AP location locIdx=%d", loc_idx);
             collect_ap_location(loc_idx);
+            // No-op the vanilla grant: deferred from Pickup::Init (see #86). The vanilla OnPickup below re-reads
+            // this field live, so OnPickupDone still receives the dummy (kind 0 -> no grant).
+            pickup_item_type(pickup) = mth::layout::kApDummyItemType;
         }
     }
     if (g_orig_pickup_on_pickup)
