@@ -128,6 +128,12 @@ inline constexpr const char *bounce_plant_collide = "_ZN11BouncePlant11CollideWi
 inline constexpr const char *bounce_plant_launch = "_ZN11BouncePlant12BounceLaunchEP6Player";
 inline constexpr const char *spring_bellows_collide = "_ZN13SpringBellows11CollideWithER18PhysicsContactPair";
 inline constexpr const char *player_pickup_carryable = "_ZN6Player30PickUpAnyNearbyCarryableObjectEbbb";
+// #56: burrow-emerge commit. With carry disabled we suppress the emerge when a carryable is overhead so
+// Mina stays burrowed beneath it (no native "duck under a carryable" exists). The overhead check reuses
+// the game's own grab query (read-only): PhysicsComponent::GetAABB + CarryManager::GetClosestCarryableObject.
+inline constexpr const char *mina_on_burrow_jump = "_ZN4Mina12OnBurrowJumpEv";
+inline constexpr const char *physics_get_aabb = "_ZNK16PhysicsComponent7GetAABBEbj";
+inline constexpr const char *carry_get_closest = "_ZN12CarryManager25GetClosestCarryableObjectE6ycAABBifPim";
 inline constexpr const char *train_authority_on_npc_event = "_ZN14TrainAuthority10OnNPCEventEjP17InteractEventInfo";
 // PawnShopNPC::OnNPCEvent: the pawn shop ("Pawnty") interaction dispatcher. Its own class (not a
 // shared NPCBehavior_*), so suppressing it to disable Pawnty cannot affect any other shop.
