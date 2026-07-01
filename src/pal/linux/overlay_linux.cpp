@@ -916,6 +916,16 @@ constexpr const char *kSymVkPhysDev = "g_vkPhysDev";
 constexpr const char *kSymVkDevice = "g_vkDev";
 constexpr const char *kSymVkGfxFamily = "g_vkGfxQueueIdx";
 
+// The game's active render window (ycRenderer::s_mainWindow -> ycRenderWindow*) holds the swapchain and
+// its format/extent. Under native modding the game creates the swapchain before our vkCreateSwapchainKHR
+// hook is installed, so that hook never fires and resources are never built; read these from the window
+// and build lazily on first present instead. Offsets verified on build 8de7a6b5 (re-verify on game update).
+constexpr const char *kSymMainWindow = "_ZN10ycRenderer12s_mainWindowE"; // ycRenderWindow** (single deref)
+constexpr std::ptrdiff_t kRWExtentWidthOff = 0x18;
+constexpr std::ptrdiff_t kRWExtentHeightOff = 0x1c;
+constexpr std::ptrdiff_t kRWSwapchainOff = 0xb0; // VkSwapchainKHR
+constexpr std::ptrdiff_t kRWFormatOff = 0xb8;    // VkFormat (u32)
+
 bool g_globals_warned = false;
 
 // Populate instance/physical-device/device/queue-family from the game's globals.
@@ -967,6 +977,37 @@ void populate_state_from_globals()
     }
 }
 
+// Recover the game's swapchain from ycRenderer::s_mainWindow and build our render resources, for the case
+// where we loaded after the game already created the swapchain (so repl_vkCreateSwapchainKHR never fired).
+// No-op once resources are ready; the create hook takes over for later recreates (resize).
+void try_adopt_game_swapchain()
+{
+    if (g_state.resources_ready.load(std::memory_order_acquire) || g_state.device == VK_NULL_HANDLE)
+        return;
+    static const std::uintptr_t mw_addr = pal::resolve_game_symbol(kSymMainWindow);
+    if (mw_addr == 0)
+        return;
+    void *win = *reinterpret_cast<void **>(mw_addr);
+    if (win == nullptr)
+        return;
+    const VkSwapchainKHR sc = *reinterpret_cast<VkSwapchainKHR *>(static_cast<char *>(win) + kRWSwapchainOff);
+    const std::uint32_t fmt = *reinterpret_cast<std::uint32_t *>(static_cast<char *>(win) + kRWFormatOff);
+    const std::uint32_t w = *reinterpret_cast<std::uint32_t *>(static_cast<char *>(win) + kRWExtentWidthOff);
+    const std::uint32_t h = *reinterpret_cast<std::uint32_t *>(static_cast<char *>(win) + kRWExtentHeightOff);
+    if (sc == VK_NULL_HANDLE || w == 0 || h == 0)
+        return; // swapchain not created yet
+
+    g_state.swapchain = sc;
+    g_state.format = static_cast<VkFormat>(fmt);
+    g_state.extent = VkExtent2D{w, h};
+    pal::logf(pal::LogLevel::Info, "overlay: adopting game swapchain from ycRenderWindow (fmt=%u %ux%u)", fmt, w, h);
+    if (g_imgui_inited.load(std::memory_order_acquire))
+        shutdown_imgui(); // rebuild ImGui against the recovered render pass
+    if (!build_swapchain_resources())
+        pal::logf(pal::LogLevel::Warn, "overlay: adopted-swapchain resource build failed; overlay inactive");
+    g_warned_incomplete = false;
+}
+
 VKAPI_ATTR VkResult VKAPI_CALL repl_vkCreateSwapchainKHR(VkDevice device, const VkSwapchainCreateInfoKHR *pCreateInfo, const VkAllocationCallbacks *pAllocator,
                                                          VkSwapchainKHR *pSwapchain)
 {
@@ -1003,6 +1044,7 @@ VKAPI_ATTR VkResult VKAPI_CALL repl_vkQueuePresentKHR(VkQueue queue, const VkPre
         g_state.queue = queue;
 
     populate_state_from_globals();
+    try_adopt_game_swapchain(); // native modload: recover the pre-created swapchain the create hook missed
 
     if (!state_complete_for_render() || pPresentInfo == nullptr)
     {
