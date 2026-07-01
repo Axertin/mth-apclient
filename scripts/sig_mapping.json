@@ -184,6 +184,18 @@
     {
       "name": "_ZN11PawnShopNPC10OnNPCEventEjP17InteractEventInfo",
       "kind": "Code"
+    },
+    {
+      "name": "_ZN4Mina12OnBurrowJumpEv",
+      "kind": "Code"
+    },
+    {
+      "name": "_ZNK16PhysicsComponent7GetAABBEbj",
+      "kind": "Code"
+    },
+    {
+      "name": "_ZN12CarryManager25GetClosestCarryableObjectE6ycAABBifPim",
+      "kind": "Code"
     }
   ],
   "windows": {
@@ -325,6 +337,15 @@
     },
     "_ZN11PawnShopNPC10OnNPCEventEjP17InteractEventInfo": {
       "rva": 5769632
+    },
+    "_ZN4Mina12OnBurrowJumpEv": {
+      "rva": 9198256
+    },
+    "_ZNK16PhysicsComponent7GetAABBEbj": {
+      "rva": 9685392
+    },
+    "_ZN12CarryManager25GetClosestCarryableObjectE6ycAABBifPim": {
+      "rva": 7793056
     }
   },
   "linux": {
@@ -420,6 +441,15 @@
     },
     "_ZN11PawnShopNPC10OnNPCEventEjP17InteractEventInfo": {
       "rva": 9665648
+    },
+    "_ZN4Mina12OnBurrowJumpEv": {
+      "rva": 12555344
+    },
+    "_ZNK16PhysicsComponent7GetAABBEbj": {
+      "rva": 13141392
+    },
+    "_ZN12CarryManager25GetClosestCarryableObjectE6ycAABBifPim": {
+      "rva": 11056480
     }
   }
 }

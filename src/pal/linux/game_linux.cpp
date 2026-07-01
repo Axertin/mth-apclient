@@ -350,6 +350,7 @@ std::uintptr_t g_addr_bounce_launch = 0;
 std::uintptr_t g_addr_spring = 0;
 std::uintptr_t g_addr_pickup = 0;
 std::uintptr_t g_addr_train_npc = 0;
+std::uintptr_t g_addr_burrow_jump = 0; // #56
 
 pal::HookId g_id_burrow = pal::kInvalidHookId;
 pal::HookId g_id_rope = pal::kInvalidHookId;
@@ -358,6 +359,7 @@ pal::HookId g_id_launch = pal::kInvalidHookId;
 pal::HookId g_id_spring = pal::kInvalidHookId;
 pal::HookId g_id_carry = pal::kInvalidHookId;
 pal::HookId g_id_train = pal::kInvalidHookId;
+pal::HookId g_id_burrow_jump = pal::kInvalidHookId; // #56
 
 unsigned long (*g_orig_burrow_ground)(void *) = nullptr;
 char (*g_water_is_deep)(void *, bool) = nullptr; // WaterListener::IsInDeepWaterInternal(wl, false)
@@ -367,6 +369,7 @@ void (*g_orig_bounce_launch)(void *, void *) = nullptr;
 void (*g_orig_spring)(void *, void *) = nullptr;
 unsigned long (*g_orig_pickup)(void *, bool, bool, bool) = nullptr;
 void (*g_orig_train_npc)(void *, unsigned, void *) = nullptr;
+void (*g_orig_burrow_jump)(void *) = nullptr; // #56
 
 bool ability_blocked(int ordinal)
 {
@@ -450,6 +453,59 @@ unsigned long repl_pickup(void *self, bool a, bool b, bool c)
         return 0;
     }
     return g_orig_pickup ? g_orig_pickup(self, a, b, c) : 0;
+}
+
+// #56: no native "duck under a carryable" exists (the burrow-emerge roof/snap handles only low map
+// ceilings), so with carry disabled we detect a carryable in grab range and suppress the emerge, leaving
+// Mina burrowed beneath it. carryable_overhead is a read-only replica of the game's own grab query.
+// Offsets from Player::PickUpAnyNearbyCarryableObject (0xd515b0, build 8de7a6b5).
+struct ycAABB
+{
+    float v[6]; // center.xyz [0..2], halfExtent.xyz [3..5]
+};
+void (*g_get_aabb)(ycAABB *, void *, bool, unsigned) = nullptr;                     // PhysicsComponent::GetAABB (sret)
+void *(*g_get_closest)(void *, ycAABB, int, float, int *, unsigned long) = nullptr; // CarryManager::GetClosestCarryableObject
+
+bool carryable_overhead(void *self)
+{
+    if (self == nullptr || g_get_aabb == nullptr || g_get_closest == nullptr)
+        return false;
+    char *P = static_cast<char *>(self);
+    void *e0 = *reinterpret_cast<void **>(P + 0x278);
+    void *E = e0 != nullptr ? *reinterpret_cast<void **>(static_cast<char *>(e0) + 0x70) : nullptr;
+    if (E == nullptr)
+        return false;
+    char *Ec = static_cast<char *>(E);
+    void *comp = *reinterpret_cast<void **>(Ec + 0x10);
+    void *phys = *reinterpret_cast<void **>(Ec + 0xb0);
+    const int layer = *reinterpret_cast<int *>(Ec + 0x15c);
+    void *w0 = *reinterpret_cast<void **>(P + 0x10);
+    void *w1 = w0 != nullptr ? *reinterpret_cast<void **>(static_cast<char *>(w0) + 0x50) : nullptr;
+    void *mgr = w1 != nullptr ? *reinterpret_cast<void **>(static_cast<char *>(w1) + 0x1748) : nullptr;
+    if (phys == nullptr || comp == nullptr || mgr == nullptr)
+        return false;
+
+    ycAABB box{};
+    g_get_aabb(&box, phys, false, 0u);
+    // The game clamps the box's z half-extent to |comp+0xd8| * 1.6 * 0.3 before the query.
+    const float fd8 = *reinterpret_cast<float *>(static_cast<char *>(comp) + 0xd8);
+    const float clamp = (fd8 < 0.0f ? -fd8 : fd8) * 1.6f * 0.3f;
+    if (clamp < box.v[5])
+        box.v[5] = clamp;
+
+    int out_n = 0;
+    return g_get_closest(mgr, box, layer, 1.6f, &out_n, 0ul) != nullptr; // radius 1.6, mask 0 (emerge args)
+}
+
+void repl_burrow_jump(void *self)
+{
+    if (self != nullptr && ability_blocked(kAbCarry) && carryable_overhead(self))
+    {
+        pal::logf(pal::LogLevel::Debug, "carry: burrow-emerge suppressed (carryable overhead)");
+        return;
+    }
+    if (g_orig_burrow_jump)
+        g_orig_burrow_jump(self);
 }
 
 // TrainAuthority::OnNPCEvent case 0x15 picks a destination by ticket itemType. Forcing the selected
@@ -988,6 +1044,9 @@ bool abilities_available()
     g_addr_spring = resolve_game_symbol(mth::sym::spring_bellows_collide);
     g_addr_pickup = resolve_game_symbol(mth::sym::player_pickup_carryable);
     g_addr_train_npc = resolve_game_symbol(mth::sym::train_authority_on_npc_event);
+    g_addr_burrow_jump = resolve_game_symbol(mth::sym::mina_on_burrow_jump); // #56
+    g_get_aabb = reinterpret_cast<void (*)(ycAABB *, void *, bool, unsigned)>(resolve_game_symbol(mth::sym::physics_get_aabb));
+    g_get_closest = reinterpret_cast<void *(*)(void *, ycAABB, int, float, int *, unsigned long)>(resolve_game_symbol(mth::sym::carry_get_closest));
     g_ab_ok = g_addr_burrow_ground != 0 || g_addr_rope_climb != 0 || g_addr_bounce_plant != 0 || g_addr_bounce_launch != 0 || g_addr_spring != 0 ||
               g_addr_pickup != 0 || g_addr_train_npc != 0;
     if (!g_ab_ok)
@@ -1073,8 +1132,18 @@ bool install_ability_hooks(AbilityBlockFn block)
     else
         logf(LogLevel::Warn, "abilities: TrainAuthority::OnNPCEvent not resolved; train gating disabled");
 
+    if (g_addr_burrow_jump != 0) // #56: OnBurrowJump: suppress emerge under a carryable
+    {
+        g_id_burrow_jump = hook_engine().install_hook(reinterpret_cast<void *>(g_addr_burrow_jump), reinterpret_cast<void *>(&repl_burrow_jump),
+                                                      reinterpret_cast<void **>(&g_orig_burrow_jump));
+        if (g_id_burrow_jump == kInvalidHookId)
+            logf(LogLevel::Warn, "abilities: failed to hook Mina::OnBurrowJump (#56)");
+    }
+    else
+        logf(LogLevel::Warn, "abilities: Mina::OnBurrowJump not resolved; carry emerge-suppress disabled");
+
     const bool any = g_id_burrow != kInvalidHookId || g_id_rope != kInvalidHookId || g_id_puff != kInvalidHookId || g_id_launch != kInvalidHookId ||
-                     g_id_spring != kInvalidHookId || g_id_carry != kInvalidHookId || g_id_train != kInvalidHookId;
+                     g_id_spring != kInvalidHookId || g_id_carry != kInvalidHookId || g_id_train != kInvalidHookId || g_id_burrow_jump != kInvalidHookId;
     if (any)
         logf(LogLevel::Info, "abilities: ability gating hooks installed");
     else
@@ -1084,7 +1153,7 @@ bool install_ability_hooks(AbilityBlockFn block)
 
 void remove_ability_hooks()
 {
-    for (HookId *id : {&g_id_burrow, &g_id_rope, &g_id_puff, &g_id_launch, &g_id_spring, &g_id_carry, &g_id_train})
+    for (HookId *id : {&g_id_burrow, &g_id_rope, &g_id_puff, &g_id_launch, &g_id_spring, &g_id_carry, &g_id_train, &g_id_burrow_jump})
     {
         if (*id != kInvalidHookId)
             hook_engine().remove_hook(*id);
