@@ -32,7 +32,8 @@ inline constexpr std::ptrdiff_t kEntityWorldOff = 0x50;
 // Pickup entity (verified by the startup self-check in the Pickup::Init hook).
 inline constexpr std::ptrdiff_t kPickupLocIdxOff = 0x380;
 inline constexpr std::ptrdiff_t kPickupItemTypeOff = 0x384;
-inline constexpr std::ptrdiff_t kPickupKilledFlagOff = 0x160; // unsigned; bit 0 = killed
+inline constexpr std::ptrdiff_t kPickupKilledFlagOff = 0x160;      // unsigned; bit 0 = killed
+inline constexpr std::ptrdiff_t kPickupSaveTrackedFlagOff = 0x3ac; // u8; nonzero = collected-state self-kill gate armed (#93)
 
 // AP dummy item: itemType 1 (Shop_Exit, dead data) patched to kind 0 with sprite
 // assets borrowed from donor row 40 (kItemType_Treasure_Smallest).
