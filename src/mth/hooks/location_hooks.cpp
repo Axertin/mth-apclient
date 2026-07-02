@@ -154,6 +154,14 @@ void repl_pickup_init(void *self, int item_type, int loc_idx, bool flag)
         return;
     }
 
+    // #93: for a have-bit location (kinds 1/9/11) the game self-kills the box when IsItemCollected reports the
+    // item owned, which any AP grant of that item does while the location is still unchecked. The IsItemCollected
+    // hook redirects that read, but MSVC inlines IsItemCollected into the Pickup ctor's copy of the self-kill,
+    // out of the hook's reach (GCC keeps a real call, so Linux is unaffected). The ctor arms the kill via
+    // Pickup+0x3ac; clearing it for these locations skips the inlined gate. Checked ones returned via QueueDestroy above.
+    if (g_bridge->is_ap_location(loc_idx) && mth::tables::is_item_keyed_collected_kind(mth::tables::native_location_kind(loc_idx)))
+        *reinterpret_cast<unsigned char *>(static_cast<char *>(self) + mth::layout::kPickupSaveTrackedFlagOff) = 0;
+
     // The dummy-itemType redirect is deferred to repl_pickup_on_pickup, not done here: the Pickup ctor's
     // surprise-spawn emerge block runs AFTER Init and reads s_rItems[storedType].kind to decide whether to
     // detach the revealed pickup from the dying wall (SpawnPoint::DisownParent); the dummy's kind 0 misses
