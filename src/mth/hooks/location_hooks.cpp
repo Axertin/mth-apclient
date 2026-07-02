@@ -154,6 +154,18 @@ void repl_pickup_init(void *self, int item_type, int loc_idx, bool flag)
         return;
     }
 
+    // #93: an item-keyed have-bit location (kinds 1/9/11 -- weapon/vessel/trinket) self-kills its box when
+    // IsItemCollected reads the item's global have-bit as owned, which an out-of-order AP grant sets even though
+    // the LOCATION is unchecked. The Items::IsItemCollected override neutralizes the standalone-call self-kills
+    // (Pickup::Init, Chest::Chest), but on Windows the Pickup CTOR *inlines* IsItemCollected, so the standalone
+    // hook can't reach it and an owned-but-unchecked trinket box self-kills during construction (invisible/
+    // uncollectable -> no check). The ctor sets the save-tracked flag Pickup+0x3ac=1 before calling this Init
+    // and gates the inlined kill on it; clear it here so the subsequent inlined gate short-circuits. Harmless on
+    // Linux (the real call is already redirected) and for not-owned boxes (their self-kill wouldn't fire anyway).
+    // Only reached for unchecked AP locations (checked ones QueueDestroy'd above).
+    if (g_bridge->is_ap_location(loc_idx) && mth::tables::is_item_keyed_collected_kind(mth::tables::native_location_kind(loc_idx)))
+        *reinterpret_cast<unsigned char *>(static_cast<char *>(self) + mth::layout::kPickupSaveTrackedFlagOff) = 0;
+
     // The dummy-itemType redirect is deferred to repl_pickup_on_pickup, not done here: the Pickup ctor's
     // surprise-spawn emerge block runs AFTER Init and reads s_rItems[storedType].kind to decide whether to
     // detach the revealed pickup from the dying wall (SpawnPoint::DisownParent); the dummy's kind 0 misses
