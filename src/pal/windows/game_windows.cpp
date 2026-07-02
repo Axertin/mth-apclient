@@ -76,11 +76,11 @@ pal::HookId g_shop_stock_hook = pal::kInvalidHookId;
 void (*g_orig_shop_refresh)(void *) = nullptr;
 
 // A shop slot is a chain of ShopItemDef variants (one per level; rising price), linked via +0x28, each
-// with its own loc_idx at +0x48. Vanilla advances past bought levels and sells out via the suppressed
-// grant, so for AP slots we replicate it from AP state: walk from the active variant, advance to the
-// first level not yet checked, set the stock count (ShopItem+0xec) to the number of unchecked AP levels
-// (so the displayed quantity is right), and let it reach 0 only when every level is checked (sold out).
-// A slot with no AP-location levels (normal items, consumables) is left entirely untouched.
+// with its own loc_idx at +0x48. ShopMenu::SetupBoxes already advances the active variant (ShopItem+0xf8)
+// past bought levels (gated on ShopItemDef+0x4d) before it calls Refresh, so we must NOT advance it again:
+// re-advancing double-counts and skips a level per buy (#94). We only correct the stock count the suppressed
+// grant no longer maintains -- set ShopItem+0xec to the number of unchecked AP levels, and 0 (sold out) once
+// every level is checked. A slot with no AP-location levels (normal items, consumables) is left untouched.
 void repl_shop_refresh(void *self)
 {
     void *def = self != nullptr ? *reinterpret_cast<void **>(static_cast<char *>(self) + kShopItemDefOff) : nullptr;
@@ -106,10 +106,7 @@ void repl_shop_refresh(void *self)
         if (first_unbought == nullptr)
             *reinterpret_cast<int *>(static_cast<char *>(self) + kShopItemStockOff) = 0; // all levels bought -> sold out
         else if (any_ap)
-        {
-            *reinterpret_cast<void **>(static_cast<char *>(self) + kShopItemDefOff) = first_unbought; // show first unbought level
-            *reinterpret_cast<int *>(static_cast<char *>(self) + kShopItemStockOff) = remaining;      // remaining-level count
-        }
+            *reinterpret_cast<int *>(static_cast<char *>(self) + kShopItemStockOff) = remaining; // remaining unchecked levels
     }
     if (g_orig_shop_refresh)
         g_orig_shop_refresh(self);
