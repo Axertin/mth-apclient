@@ -6,13 +6,66 @@ as an in-process mod that injects into the running game on Linux and Windows.
 This project is **not affiliated with or endorsed by** Yacht Club Games. Efforts are made to not
 interfere with saves more than necessary, but use at your own risk.
 
-## What it does
+## Known Issues
 
-- **Outbound location checks** detects when you collect a randomized pickup and reports it to the
-  Archipelago server.
-- **Inbound item grants** applies items the server sends you, in-game.
-- **In-game dev console** a Dear ImGui overlay (toggle `F1`) for connecting, checking status,
-  and inspecting state.
+- Using the backer code modifiers in an AP save breaks a lot of starting-item related things. For the moment, avoid using them in AP.
+- Sometimes, if you die (or more likely, receive a deathlink) while in the process of sending a location check, you will be given the vanilla item and the check will not send.
+- Make sure to look at the [reported bugs](https://github.com/Axertin/mth-apclient/issues?q=is%3Aissue%20state%3Aopen%20label%3Abug)
+
+## Features
+
+### Locations
+
+- Chests
+- Trinket Boxes
+- Kears
+- Legovitch's Arms
+- Trinket Bazaar
+- Panino's Trinket Stand
+- The Emporium
+- Kear Institute Kears
+- Knitts's Atelier
+- Poppit's Shops
+- Belvedere's Shop
+- Pinky's Parlor
+- Swamp Shack
+- Madd House
+- Crow Town Shop
+- Tent Vendor
+- Rupert
+- Tupert
+- Health Upgrade Roses
+- Weapons (Except the starting weapon chest in the ship's hold)
+- Starting Item Set
+
+### Items
+
+- Abilities (Burrow, Carry, Swim, Climb, Spring, Bounce)
+- Weapons (Progressive upgrades)
+- Trinkets
+- Trinket Bags
+- Health Upgrades
+- Spark Upgrades
+- Magic (Sidearm) Upgrades
+- Vial Upgrades
+- Underlab Upgrades
+- Kear Locks (Unlock a specific lock with each item)
+- Bone-Up Stat Caps
+- Bonestone (Of various quantities)
+- Bones (Of various quantities)
+- Magic Refills
+- Health Refills
+- Plasma Refills
+- Vial Refills
+
+### Goals
+
+- N Generators Completed (configurable)
+- Roll Credits
+
+### Other Features
+
+- Deathlink (currently all deaths, will only be sparkless in the future)
 
 ## How it works
 
