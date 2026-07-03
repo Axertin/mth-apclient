@@ -21,7 +21,6 @@ add_library(mthap_core STATIC
     core/modifier_table.cpp
     core/stat_cap_state.cpp
     core/upgrade_state.cpp
-    core/config.cpp
     core/area_reporter.cpp
 )
 

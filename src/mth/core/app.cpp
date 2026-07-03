@@ -10,9 +10,9 @@
 #include "mth/core/ap_link.hpp"
 #include "mth/core/area_reporter.hpp"
 #include "mth/core/broadcast.hpp"
-#include "mth/core/config.hpp"
 #include "mth/core/game_events.hpp"
 #include "mth/core/inbound_granter.hpp"
+#include "mth/core/modifier_config.hpp"
 #include "mth/core/rando_bridge.hpp"
 #include "mth/hooks/ability_hooks.hpp"
 #include "mth/hooks/boss_hooks.hpp"
@@ -128,51 +128,9 @@ App::App()
             return true;
         });
 
-    const Config cfg = load_config_from_env();
-
-    if (!cfg.remove_locks_csv.empty())
-    {
-        lock_hooks_->locks().add_from_list(cfg.remove_locks_csv);
-        pal::logf(pal::LogLevel::Info, "locks: removed-set seeded from MTHAP_REMOVE_LOCKS=%s", cfg.remove_locks_csv.c_str());
-    }
-
-    if (cfg.modifiers_from_env)
-    {
-        policy_.arm_env_modifiers();
-        pal::logf(pal::LogLevel::Info, "modifiers: %zu index(es) from MTHAP_MODIFIERS (offline test mode)", cfg.modifiers.indices.size());
-    }
-    modifier_hooks_ = std::make_unique<ModifierHooks>(cfg.modifiers);
+    modifier_hooks_ = std::make_unique<ModifierHooks>(ModifierRequest{});
 
     level_cap_hooks_ = std::make_unique<LevelCapHooks>();
-    if (cfg.stat_caps)
-    {
-        level_cap_hooks_->set_counts((*cfg.stat_caps)[0], (*cfg.stat_caps)[1], (*cfg.stat_caps)[2]);
-        policy_.arm_forced_caps();
-        pal::logf(pal::LogLevel::Info, "levelcap: forced caps attack=%d defense=%d sidearm=%d (offline test)", (*cfg.stat_caps)[0], (*cfg.stat_caps)[1],
-                  (*cfg.stat_caps)[2]);
-    }
-
-    // MTHAP_MOCK_AP: offline test mode; fakes AP-connected state for locations 0..N.
-    if (cfg.mock_ap_max_idx)
-    {
-        ApConnected ev;
-        ev.seed = "mock";
-        ev.player_slot = 0;
-        for (int i = 0; i <= *cfg.mock_ap_max_idx; ++i)
-            ev.missing_locations.push_back(ap_loc_id(i));
-        state_.apply(ev);
-        pal::logf(pal::LogLevel::Info, "AP: MOCK state injected (every pickup is an AP location, idx 0..%d)", *cfg.mock_ap_max_idx);
-    }
-
-    if (!cfg.ap_server.empty())
-    {
-        pal::logf(pal::LogLevel::Info, "AP: MTHAP_AP_SERVER set; connecting to %s", cfg.ap_server.c_str());
-        link_->connect(cfg.ap_server, cfg.ap_slot, cfg.ap_password);
-    }
-    else
-    {
-        pal::logf(pal::LogLevel::Info, "AP: MTHAP_AP_SERVER unset; net idle");
-    }
 #ifdef MTHAP_HAS_OVERLAY
     {
         const pal::OverlayConfig ocfg{pal::resolve_game_symbol(sym::process_sdl_event)};
