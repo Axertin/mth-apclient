@@ -5,6 +5,7 @@
 #include "pal/pal_entry.hpp"
 #include "pal/pal_game.hpp"
 #include "pal/pal_log.hpp"
+#include "pal/pal_module.hpp"
 #include "pal/pal_thread.hpp"
 
 #if defined(_WIN32)
@@ -123,6 +124,11 @@ void remove_world_update_hook()
         g_mod_api->RemoveHook(g_world_update_handle);
     g_world_update_handle = nullptr;
     g_world_update_cb = nullptr;
+}
+
+std::uint32_t game_revision()
+{
+    return (g_mod_api != nullptr && g_mod_api->GetGameRevision != nullptr) ? g_mod_api->GetGameRevision() : 0;
 }
 
 } // namespace pal

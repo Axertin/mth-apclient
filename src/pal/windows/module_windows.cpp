@@ -78,22 +78,4 @@ void *find_symbol(const char *module_basename, const char *symbol)
     return reinterpret_cast<void *>(GetProcAddress(h, symbol));
 }
 
-std::string game_build_id()
-{
-    HMODULE h = GetModuleHandleW(nullptr);
-    if (!h)
-        return {};
-    const auto *dos = reinterpret_cast<const IMAGE_DOS_HEADER *>(h);
-    if (!dos || dos->e_magic != IMAGE_DOS_SIGNATURE)
-        return {};
-    const auto *nt = reinterpret_cast<const IMAGE_NT_HEADERS *>(reinterpret_cast<const BYTE *>(h) + dos->e_lfanew);
-    if (nt->Signature != IMAGE_NT_SIGNATURE)
-        return {};
-
-    char buf[32];
-    std::snprintf(buf, sizeof(buf), "%08lx:%08lx", static_cast<unsigned long>(nt->FileHeader.TimeDateStamp),
-                  static_cast<unsigned long>(nt->OptionalHeader.SizeOfImage));
-    return buf;
-}
-
 } // namespace pal

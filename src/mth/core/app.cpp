@@ -76,11 +76,10 @@ App::App()
 
     const auto game = pal::game_module();
     const auto self = pal::self_module();
-    const auto bid = pal::game_build_id();
 
     pal::logf(pal::LogLevel::Info, "game base=0x%llx size=0x%zx path=%s", static_cast<unsigned long long>(game.base), game.size, game.path.c_str());
     pal::logf(pal::LogLevel::Info, "self base=0x%llx path=%s", static_cast<unsigned long long>(self.base), self.path.c_str());
-    pal::logf(pal::LogLevel::Info, "build_id=%s", bid.c_str());
+    pal::logf(pal::LogLevel::Info, "game revision=r%u", pal::game_revision());
 
     pal::init_hook_engine();
 
