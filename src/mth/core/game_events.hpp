@@ -15,14 +15,12 @@ struct IGameEvents
     virtual void on_game_update(float /*dt*/)
     {
     } // Game::Update
-    virtual void on_world_update()
-    {
-    } // World::Update
     virtual void on_update_queue(float /*dt*/)
     {
     } // ycUpdateQueue::Update
 
-    // Fired BEFORE World::Update. Spawns must happen here to avoid update-queue hangs.
+    // Fired BEFORE World::Update (via the native "WorldUpdate" mod hook). Spawns must happen here to
+    // avoid update-queue hangs.
     virtual void on_world_update_pre()
     {
     }

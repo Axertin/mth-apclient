@@ -62,6 +62,15 @@ using ItemCollectedFn = int (*)(int loc_idx, bool ownership_query);
 bool install_item_collected_hook(ItemCollectedFn query);
 void remove_item_collected_hook();
 
+// World::Update pre-tick notification via the native "WorldUpdate" mod hook. It fires at the top of
+// World::Update -- the pre-update spawn window where grants/lock-seeds must happen to avoid update-queue
+// hangs -- so it replaces the old detour's pre-hook (the old post-hook was an unused no-op). on_pre runs
+// on the game thread. Cross-platform: both builds inline the named hook. false if the modding API is
+// unavailable.
+using WorldUpdatePreFn = void (*)();
+bool install_world_update_hook(WorldUpdatePreFn on_pre);
+void remove_world_update_hook();
+
 // Per-frame "open a removed lock" hooks for KeyBlockChain / locked Chest. The platform owns the hook
 // target and the this->base normalization: Linux hooks ::Update (self == entity base); Windows hooks
 // ::UpdateState (self == the StateMachine sub-object, so base = self - 0x170) because the game's MSVC
