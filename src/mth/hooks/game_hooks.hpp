@@ -20,8 +20,7 @@ class GameHooks
   private:
     ScopedHook fixed_update_;
     ScopedHook update_;
-    ScopedHook world_update_;
-    ScopedHook update_queue_;
+    ScopedHook update_queue_; // World::Update is not here: it uses the native "WorldUpdate" mod hook (see .cpp)
 };
 
 } // namespace mth

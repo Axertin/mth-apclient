@@ -1,455 +1,435 @@
 {
-  "_comment": "Per-symbol carving inputs. RVA = address minus image base. For DataRef, ref_site_rva is the address of the instruction that references the global; disp_off/next_insn are byte offsets within that instruction.",
-  "symbols": [
-    {
-      "name": "_ZN4Game11FixedUpdateEv",
-      "kind": "Code"
-    },
-    {
-      "name": "_ZN4Game6UpdateEf",
-      "kind": "Code"
-    },
-    {
-      "name": "_ZN5World6UpdateEP20ycUpdateQueueContext",
-      "kind": "Code"
-    },
-    {
-      "name": "_ZN13ycUpdateQueue6UpdateEf",
-      "kind": "Code"
-    },
-    {
-      "name": "_ZN5Items12OnPickupDoneEiiP6PlayerRK6ycVec3iijb",
-      "kind": "Code"
-    },
-    {
-      "name": "_Z15ProcessSDLEventR9SDL_Event",
-      "kind": "Code"
-    },
-    {
-      "name": "_ZN6PlayerC2EP8ycEntityP17GameComponentDescP11PlayerSetup",
-      "kind": "Code"
-    },
-    {
-      "name": "_ZN15PlayerTrackable6UpdateEP20ycUpdateQueueContext",
-      "kind": "Code"
-    },
-    {
-      "name": "_ZNK15PlayerTrackable6GetPosEv",
-      "kind": "Code"
-    },
-    {
-      "name": "_ZN6Pickup4InitEiib",
-      "kind": "Code"
-    },
-    {
-      "name": "_ZN6Pickup8OnPickupEP14PickupListener",
-      "kind": "Code"
-    },
-    {
-      "name": "_ZN7ycWorld12QueueDestroyEP8ycEntityb",
-      "kind": "Code"
-    },
-    {
-      "name": "_ZN5Items16SetItemCollectedEibP14ItemCollectionP8SaveSlot",
-      "kind": "Code"
-    },
-    {
-      "name": "_ZN12_GLOBAL__N_18s_rItemsE",
-      "kind": "DataRef"
-    },
-    {
-      "name": "_ZN12_GLOBAL__N_117s_rItemCollectionE",
-      "kind": "DataRef"
-    },
-    {
-      "name": "_ZN13BossComponent20TriggerDeathSequenceEP15BossDeathParamsj",
-      "kind": "Code"
-    },
-    {
-      "name": "_ZN13BossComponent20OnDefeatedNoSkeletonER19BossDeathRewardInfo",
-      "kind": "Code"
-    },
-    {
-      "name": "_ZN8KeyBlock6UpdateEP20ycUpdateQueueContext",
-      "kind": "Code"
-    },
-    {
-      "name": "_ZN6Player9InitDeathEb",
-      "kind": "Code"
-    },
-    {
-      "name": "_ZN6Player12TriggerDeathEv",
-      "kind": "Code"
-    },
-    {
-      "name": "_ZN8ShopMenu9InitStateEv",
-      "kind": "Code"
-    },
-    {
-      "name": "_ZN14SessionManager16ActivateSaveSlotEb",
-      "kind": "Code"
-    },
-    {
-      "name": "_ZN8SaveSlot5ClearEb",
-      "kind": "Code"
-    },
-    {
-      "name": "_ZN12CheatManager18ActivateSaveCheatsEv",
-      "kind": "Code"
-    },
-    {
-      "name": "_ZN12CheatManager15SetCheatAppliedEibP8SaveSlot",
-      "kind": "Code"
-    },
-    {
-      "name": "_ZN12CheatManager11ToggleCheatEibP8SaveSlotbi",
-      "kind": "Code"
-    },
-    {
-      "name": "_ZN11LevelUpMenu6UpdateEP20ycUpdateQueueContext",
-      "kind": "Code"
-    },
-    {
-      "name": "_ZN13KeyBlockChain11UpdateStateEv",
-      "kind": "Code"
-    },
-    {
-      "name": "_ZN5Chest11UpdateStateEv",
-      "kind": "Code"
-    },
-    {
-      "name": "_ZN11RoomManager6UpdateEP20ycUpdateQueueContext",
-      "kind": "Code"
-    },
-    {
-      "name": "_ZN6Player11UpdateStatsEv",
-      "kind": "Code"
-    },
-    {
-      "name": "_ZN11AreaManager7NewAreaEii",
-      "kind": "Code"
-    },
-    {
-      "name": "_ZN6Player15SetBurrowGroundEv",
-      "kind": "Code"
-    },
-    {
-      "name": "_ZN13WaterListener21IsInDeepWaterInternalEb",
-      "kind": "Code"
-    },
-    {
-      "name": "_ZN6Player14RopeClimbStartEP13GameComponentbb",
-      "kind": "Code"
-    },
-    {
-      "name": "_ZN11BouncePlant11CollideWithER18PhysicsContactPair",
-      "kind": "Code"
-    },
-    {
-      "name": "_ZN11BouncePlant12BounceLaunchEP6Player",
-      "kind": "Code"
-    },
-    {
-      "name": "_ZN13SpringBellows11CollideWithER18PhysicsContactPair",
-      "kind": "Code"
-    },
-    {
-      "name": "_ZN6Player30PickUpAnyNearbyCarryableObjectEbbb",
-      "kind": "Code"
-    },
-    {
-      "name": "_ZN14TrainAuthority10OnNPCEventEjP17InteractEventInfo",
-      "kind": "Code"
-    },
-    {
-      "name": "_ZN6Player16SetVialItemCountEi",
-      "kind": "Code"
-    },
-    {
-      "name": "_ZN8ShopItem7RefreshEv",
-      "kind": "Code"
-    },
-    {
-      "name": "_ZN5Items15IsItemCollectedEiP14ItemCollectionP8SaveSlotbb",
-      "kind": "Code"
-    },
-    {
-      "name": "_ZN5Items8OnPickupEiiP6PlayerRK6ycVec3biijb",
-      "kind": "Code"
-    },
-    {
-      "name": "_ZN4Shop12IsOutOfStockEPK7ShopDefRNS_7OutInfoE",
-      "kind": "Code"
-    },
-    {
-      "name": "_ZN11PawnShopNPC10OnNPCEventEjP17InteractEventInfo",
-      "kind": "Code"
-    },
-    {
-      "name": "_ZN4Mina12OnBurrowJumpEv",
-      "kind": "Code"
-    },
-    {
-      "name": "_ZNK16PhysicsComponent7GetAABBEbj",
-      "kind": "Code"
-    },
-    {
-      "name": "_ZN12CarryManager25GetClosestCarryableObjectE6ycAABBifPim",
-      "kind": "Code"
-    }
-  ],
-  "windows": {
-    "_ZN4Game11FixedUpdateEv": {
-      "rva": 9908224
-    },
-    "_ZN4Game6UpdateEf": {
-      "rva": 9835504
-    },
-    "_ZN5World6UpdateEP20ycUpdateQueueContext": {
-      "rva": 11785136
-    },
-    "_ZN5Items12OnPickupDoneEiiP6PlayerRK6ycVec3iijb": {
-      "rva": 8542656
-    },
-    "_ZN5Items16SetItemCollectedEibP14ItemCollectionP8SaveSlot": {
-      "rva": 8548144
-    },
-    "_ZN6Player9InitDeathEb": {
-      "rva": 10245872
-    },
-    "_Z15ProcessSDLEventR9SDL_Event": {
-      "rva": 723344
-    },
-    "_ZN6PlayerC2EP8ycEntityP17GameComponentDescP11PlayerSetup": {
-      "rva": 9974368
-    },
-    "_ZN15PlayerTrackable6UpdateEP20ycUpdateQueueContext": {
-      "rva": 10535344
-    },
-    "_ZNK15PlayerTrackable6GetPosEv": {
-      "rva": 10534832
-    },
-    "_ZN6Pickup8OnPickupEP14PickupListener": {
-      "rva": 9906720
-    },
-    "_ZN7ycWorld12QueueDestroyEP8ycEntityb": {
-      "rva": 1387760
-    },
-    "_ZN12_GLOBAL__N_18s_rItemsE": {
-      "ref_site_rva": 9907588,
-      "disp_off": 3,
-      "next_insn": 7
-    },
-    "_ZN12_GLOBAL__N_117s_rItemCollectionE": {
-      "ref_site_rva": 8549462,
-      "disp_off": 3,
-      "next_insn": 7
-    },
-    "_ZN13BossComponent20TriggerDeathSequenceEP15BossDeathParamsj": {
-      "rva": 5332640
-    },
-    "_ZN13BossComponent20OnDefeatedNoSkeletonER19BossDeathRewardInfo": {
-      "rva": 5338864
-    },
-    "_ZN8KeyBlock6UpdateEP20ycUpdateQueueContext": {
-      "rva": 8579632
-    },
-    "_ZN6Player12TriggerDeathEv": {
-      "rva": 10379008
-    },
-    "_ZN8ShopMenu9InitStateEv": {
-      "rva": 10939904
-    },
-    "_ZN14SessionManager16ActivateSaveSlotEb": {
-      "rva": 10769568
-    },
-    "_ZN8SaveSlot5ClearEb": {
-      "rva": 10737824
-    },
-    "_ZN12CheatManager18ActivateSaveCheatsEv": {
-      "rva": 1526256
-    },
-    "_ZN12CheatManager15SetCheatAppliedEibP8SaveSlot": {
-      "rva": 1531680
-    },
-    "_ZN12CheatManager11ToggleCheatEibP8SaveSlotbi": {
-      "rva": 1512336
-    },
-    "_ZN11LevelUpMenu6UpdateEP20ycUpdateQueueContext": {
-      "rva": 8605664
-    },
-    "_ZN13KeyBlockChain11UpdateStateEv": {
-      "rva": 8014000
-    },
-    "_ZN5Chest11UpdateStateEv": {
-      "rva": 7750096
-    },
-    "_ZN6Pickup4InitEiib": {
-      "rva": 9938480
-    },
-    "_ZN11RoomManager6UpdateEP20ycUpdateQueueContext": {
-      "rva": 10699424
-    },
-    "_ZN6Player11UpdateStatsEv": {
-      "rva": 10306096
-    },
-    "_ZN11AreaManager7NewAreaEii": {
-      "rva": 5122112
-    },
-    "_ZN6Player15SetBurrowGroundEv": {
-      "rva": 10199136
-    },
-    "_ZN13WaterListener21IsInDeepWaterInternalEb": {
-      "rva": 11599168
-    },
-    "_ZN6Player14RopeClimbStartEP13GameComponentbb": {
-      "rva": 10409568
-    },
-    "_ZN11BouncePlant11CollideWithER18PhysicsContactPair": {
-      "rva": 1458176
-    },
-    "_ZN11BouncePlant12BounceLaunchEP6Player": {
-      "rva": 1458384
-    },
-    "_ZN13SpringBellows11CollideWithER18PhysicsContactPair": {
-      "rva": 11152096
-    },
-    "_ZN6Player30PickUpAnyNearbyCarryableObjectEbbb": {
-      "rva": 10310720
-    },
-    "_ZN14TrainAuthority10OnNPCEventEjP17InteractEventInfo": {
-      "rva": 7064096
-    },
-    "_ZN6Player16SetVialItemCountEi": {
-      "rva": 10296528
-    },
-    "_ZN8ShopItem7RefreshEv": {
-      "rva": 10926544
-    },
-    "_ZN5Items15IsItemCollectedEiP14ItemCollectionP8SaveSlotbb": {
-      "rva": 8549408
-    },
-    "_ZN5Items8OnPickupEiiP6PlayerRK6ycVec3biijb": {
-      "rva": 8541872
-    },
-    "_ZN4Shop12IsOutOfStockEPK7ShopDefRNS_7OutInfoE": {
-      "rva": 10993504
-    },
-    "_ZN11PawnShopNPC10OnNPCEventEjP17InteractEventInfo": {
-      "rva": 5769632
-    },
-    "_ZN4Mina12OnBurrowJumpEv": {
-      "rva": 9198256
-    },
-    "_ZNK16PhysicsComponent7GetAABBEbj": {
-      "rva": 9685392
-    },
-    "_ZN12CarryManager25GetClosestCarryableObjectE6ycAABBifPim": {
-      "rva": 7793056
-    }
+ "_comment": "Per-symbol carving inputs. RVA = address minus image base. For DataRef, ref_site_rva is the address of the instruction that references the global; disp_off/next_insn are byte offsets within that instruction.",
+ "symbols": [
+  {
+   "name": "_ZN4Game11FixedUpdateEv",
+   "kind": "Code"
   },
-  "linux": {
-    "_ZN4Game11FixedUpdateEv": {
-      "rva": 13163600
-    },
-    "_ZN4Game6UpdateEf": {
-      "rva": 13168320
-    },
-    "_ZN5World6UpdateEP20ycUpdateQueueContext": {
-      "rva": 15593552
-    },
-    "_ZN13ycUpdateQueue6UpdateEf": {
-      "rva": 3276656
-    },
-    "_ZN5Items12OnPickupDoneEiiP6PlayerRK6ycVec3iijb": {
-      "rva": 11768832
-    },
-    "_Z15ProcessSDLEventR9SDL_Event": {
-      "rva": 2160784
-    },
-    "_ZN6PlayerC2EP8ycEntityP17GameComponentDescP11PlayerSetup": {
-      "rva": 13358512
-    },
-    "_ZN15PlayerTrackable6UpdateEP20ycUpdateQueueContext": {
-      "rva": 14024608
-    },
-    "_ZNK15PlayerTrackable6GetPosEv": {
-      "rva": 14023408
-    },
-    "_ZN6Pickup4InitEiib": {
-      "rva": 14438560
-    },
-    "_ZN6Pickup8OnPickupEP14PickupListener": {
-      "rva": 13291056
-    },
-    "_ZN7ycWorld12QueueDestroyEP8ycEntityb": {
-      "rva": 3285616
-    },
-    "_ZN5Items16SetItemCollectedEibP14ItemCollectionP8SaveSlot": {
-      "rva": 11775264
-    },
-    "_ZN8SaveSlot5ClearEb": {
-      "rva": 14271120
-    },
-    "_ZN13KeyBlockChain11UpdateStateEv": {
-      "rva": 12245872
-    },
-    "_ZN5Chest11UpdateStateEv": {
-      "rva": 11926128
-    },
-    "_ZN11RoomManager6UpdateEP20ycUpdateQueueContext": {
-      "rva": 14245920
-    },
-    "_ZN6Player15SetBurrowGroundEv": {
-      "rva": 14918192
-    },
-    "_ZN13WaterListener21IsInDeepWaterInternalEb": {
-      "rva": 16363664
-    },
-    "_ZN6Player14RopeClimbStartEP13GameComponentbb": {
-      "rva": 14797696
-    },
-    "_ZN11BouncePlant11CollideWithER18PhysicsContactPair": {
-      "rva": 4440320
-    },
-    "_ZN11BouncePlant12BounceLaunchEP6Player": {
-      "rva": 4443744
-    },
-    "_ZN13SpringBellows11CollideWithER18PhysicsContactPair": {
-      "rva": 15845280
-    },
-    "_ZN6Player30PickUpAnyNearbyCarryableObjectEbbb": {
-      "rva": 14827968
-    },
-    "_ZN14TrainAuthority10OnNPCEventEjP17InteractEventInfo": {
-      "rva": 11118944
-    },
-    "_ZN6Player16SetVialItemCountEi": {
-      "rva": 14909472
-    },
-    "_ZN8ShopItem7RefreshEv": {
-      "rva": 14511376
-    },
-    "_ZN5Items15IsItemCollectedEiP14ItemCollectionP8SaveSlotbb": {
-      "rva": 11799632
-    },
-    "_ZN5Items8OnPickupEiiP6PlayerRK6ycVec3biijb": {
-      "rva": 12933872
-    },
-    "_ZN4Shop12IsOutOfStockEPK7ShopDefRNS_7OutInfoE": {
-      "rva": 15655568
-    },
-    "_ZN11PawnShopNPC10OnNPCEventEjP17InteractEventInfo": {
-      "rva": 9665648
-    },
-    "_ZN4Mina12OnBurrowJumpEv": {
-      "rva": 12555344
-    },
-    "_ZNK16PhysicsComponent7GetAABBEbj": {
-      "rva": 13141392
-    },
-    "_ZN12CarryManager25GetClosestCarryableObjectE6ycAABBifPim": {
-      "rva": 11056480
-    }
+  {
+   "name": "_ZN4Game6UpdateEf",
+   "kind": "Code"
+  },
+  {
+   "name": "_ZN13ycUpdateQueue6UpdateEf",
+   "kind": "Code"
+  },
+  {
+   "name": "_ZN5Items12OnPickupDoneEiiP6PlayerRK6ycVec3iijb",
+   "kind": "Code"
+  },
+  {
+   "name": "_Z15ProcessSDLEventR9SDL_Event",
+   "kind": "Code"
+  },
+  {
+   "name": "_ZN6PlayerC2EP8ycEntityP17GameComponentDescP11PlayerSetup",
+   "kind": "Code"
+  },
+  {
+   "name": "_ZN15PlayerTrackable6UpdateEP20ycUpdateQueueContext",
+   "kind": "Code"
+  },
+  {
+   "name": "_ZNK15PlayerTrackable6GetPosEv",
+   "kind": "Code"
+  },
+  {
+   "name": "_ZN6Pickup4InitEiib",
+   "kind": "Code"
+  },
+  {
+   "name": "_ZN6Pickup8OnPickupEP14PickupListener",
+   "kind": "Code"
+  },
+  {
+   "name": "_ZN7ycWorld12QueueDestroyEP8ycEntityb",
+   "kind": "Code"
+  },
+  {
+   "name": "_ZN5Items16SetItemCollectedEibP14ItemCollectionP8SaveSlot",
+   "kind": "Code"
+  },
+  {
+   "name": "_ZN12_GLOBAL__N_18s_rItemsE",
+   "kind": "DataRef"
+  },
+  {
+   "name": "_ZN12_GLOBAL__N_117s_rItemCollectionE",
+   "kind": "DataRef"
+  },
+  {
+   "name": "_ZN13BossComponent20TriggerDeathSequenceEP15BossDeathParamsj",
+   "kind": "Code"
+  },
+  {
+   "name": "_ZN13BossComponent20OnDefeatedNoSkeletonER19BossDeathRewardInfo",
+   "kind": "Code"
+  },
+  {
+   "name": "_ZN8KeyBlock6UpdateEP20ycUpdateQueueContext",
+   "kind": "Code"
+  },
+  {
+   "name": "_ZN6Player9InitDeathEb",
+   "kind": "Code"
+  },
+  {
+   "name": "_ZN6Player12TriggerDeathEv",
+   "kind": "Code"
+  },
+  {
+   "name": "_ZN8ShopMenu9InitStateEv",
+   "kind": "Code"
+  },
+  {
+   "name": "_ZN14SessionManager16ActivateSaveSlotEb",
+   "kind": "Code"
+  },
+  {
+   "name": "_ZN8SaveSlot5ClearEb",
+   "kind": "Code"
+  },
+  {
+   "name": "_ZN12CheatManager18ActivateSaveCheatsEv",
+   "kind": "Code"
+  },
+  {
+   "name": "_ZN12CheatManager15SetCheatAppliedEibP8SaveSlot",
+   "kind": "Code"
+  },
+  {
+   "name": "_ZN12CheatManager11ToggleCheatEibP8SaveSlotbi",
+   "kind": "Code"
+  },
+  {
+   "name": "_ZN11LevelUpMenu6UpdateEP20ycUpdateQueueContext",
+   "kind": "Code"
+  },
+  {
+   "name": "_ZN13KeyBlockChain11UpdateStateEv",
+   "kind": "Code"
+  },
+  {
+   "name": "_ZN5Chest11UpdateStateEv",
+   "kind": "Code"
+  },
+  {
+   "name": "_ZN11RoomManager6UpdateEP20ycUpdateQueueContext",
+   "kind": "Code"
+  },
+  {
+   "name": "_ZN6Player11UpdateStatsEv",
+   "kind": "Code"
+  },
+  {
+   "name": "_ZN11AreaManager7NewAreaEii",
+   "kind": "Code"
+  },
+  {
+   "name": "_ZN6Player15SetBurrowGroundEv",
+   "kind": "Code"
+  },
+  {
+   "name": "_ZN13WaterListener21IsInDeepWaterInternalEb",
+   "kind": "Code"
+  },
+  {
+   "name": "_ZN6Player14RopeClimbStartEP13GameComponentbb",
+   "kind": "Code"
+  },
+  {
+   "name": "_ZN11BouncePlant11CollideWithER18PhysicsContactPair",
+   "kind": "Code"
+  },
+  {
+   "name": "_ZN11BouncePlant12BounceLaunchEP6Player",
+   "kind": "Code"
+  },
+  {
+   "name": "_ZN13SpringBellows11CollideWithER18PhysicsContactPair",
+   "kind": "Code"
+  },
+  {
+   "name": "_ZN6Player30PickUpAnyNearbyCarryableObjectEbbb",
+   "kind": "Code"
+  },
+  {
+   "name": "_ZN14TrainAuthority10OnNPCEventEjP17InteractEventInfo",
+   "kind": "Code"
+  },
+  {
+   "name": "_ZN6Player16SetVialItemCountEi",
+   "kind": "Code"
+  },
+  {
+   "name": "_ZN8ShopItem7RefreshEv",
+   "kind": "Code"
+  },
+  {
+   "name": "_ZN5Items8OnPickupEiiP6PlayerRK6ycVec3biijb",
+   "kind": "Code"
+  },
+  {
+   "name": "_ZN4Shop12IsOutOfStockEPK7ShopDefRNS_7OutInfoE",
+   "kind": "Code"
+  },
+  {
+   "name": "_ZN11PawnShopNPC10OnNPCEventEjP17InteractEventInfo",
+   "kind": "Code"
+  },
+  {
+   "name": "_ZN4Mina12OnBurrowJumpEv",
+   "kind": "Code"
+  },
+  {
+   "name": "_ZNK16PhysicsComponent7GetAABBEbj",
+   "kind": "Code"
+  },
+  {
+   "name": "_ZN12CarryManager25GetClosestCarryableObjectE6ycAABBifPim",
+   "kind": "Code"
   }
+ ],
+ "windows": {
+  "_ZN4Game11FixedUpdateEv": {
+   "rva": 9908224
+  },
+  "_ZN4Game6UpdateEf": {
+   "rva": 9835504
+  },
+  "_ZN5Items12OnPickupDoneEiiP6PlayerRK6ycVec3iijb": {
+   "rva": 8542656
+  },
+  "_ZN5Items16SetItemCollectedEibP14ItemCollectionP8SaveSlot": {
+   "rva": 8548144
+  },
+  "_ZN6Player9InitDeathEb": {
+   "rva": 10245872
+  },
+  "_Z15ProcessSDLEventR9SDL_Event": {
+   "rva": 723344
+  },
+  "_ZN6PlayerC2EP8ycEntityP17GameComponentDescP11PlayerSetup": {
+   "rva": 9974368
+  },
+  "_ZN15PlayerTrackable6UpdateEP20ycUpdateQueueContext": {
+   "rva": 10535344
+  },
+  "_ZNK15PlayerTrackable6GetPosEv": {
+   "rva": 10534832
+  },
+  "_ZN6Pickup8OnPickupEP14PickupListener": {
+   "rva": 9906720
+  },
+  "_ZN7ycWorld12QueueDestroyEP8ycEntityb": {
+   "rva": 1387760
+  },
+  "_ZN12_GLOBAL__N_18s_rItemsE": {
+   "ref_site_rva": 9907588,
+   "disp_off": 3,
+   "next_insn": 7
+  },
+  "_ZN12_GLOBAL__N_117s_rItemCollectionE": {
+   "ref_site_rva": 3088757,
+   "disp_off": 3,
+   "next_insn": 7
+  },
+  "_ZN13BossComponent20TriggerDeathSequenceEP15BossDeathParamsj": {
+   "rva": 5332640
+  },
+  "_ZN13BossComponent20OnDefeatedNoSkeletonER19BossDeathRewardInfo": {
+   "rva": 5338864
+  },
+  "_ZN8KeyBlock6UpdateEP20ycUpdateQueueContext": {
+   "rva": 8579632
+  },
+  "_ZN6Player12TriggerDeathEv": {
+   "rva": 10379008
+  },
+  "_ZN8ShopMenu9InitStateEv": {
+   "rva": 10939904
+  },
+  "_ZN14SessionManager16ActivateSaveSlotEb": {
+   "rva": 10769568
+  },
+  "_ZN8SaveSlot5ClearEb": {
+   "rva": 10737824
+  },
+  "_ZN12CheatManager18ActivateSaveCheatsEv": {
+   "rva": 1526256
+  },
+  "_ZN12CheatManager15SetCheatAppliedEibP8SaveSlot": {
+   "rva": 1531680
+  },
+  "_ZN12CheatManager11ToggleCheatEibP8SaveSlotbi": {
+   "rva": 1512336
+  },
+  "_ZN11LevelUpMenu6UpdateEP20ycUpdateQueueContext": {
+   "rva": 8605664
+  },
+  "_ZN13KeyBlockChain11UpdateStateEv": {
+   "rva": 8014000
+  },
+  "_ZN5Chest11UpdateStateEv": {
+   "rva": 7750096
+  },
+  "_ZN6Pickup4InitEiib": {
+   "rva": 9938480
+  },
+  "_ZN11RoomManager6UpdateEP20ycUpdateQueueContext": {
+   "rva": 10699424
+  },
+  "_ZN6Player11UpdateStatsEv": {
+   "rva": 10306096
+  },
+  "_ZN11AreaManager7NewAreaEii": {
+   "rva": 5122112
+  },
+  "_ZN6Player15SetBurrowGroundEv": {
+   "rva": 10199136
+  },
+  "_ZN13WaterListener21IsInDeepWaterInternalEb": {
+   "rva": 11599168
+  },
+  "_ZN6Player14RopeClimbStartEP13GameComponentbb": {
+   "rva": 10409568
+  },
+  "_ZN11BouncePlant11CollideWithER18PhysicsContactPair": {
+   "rva": 1458176
+  },
+  "_ZN11BouncePlant12BounceLaunchEP6Player": {
+   "rva": 1458384
+  },
+  "_ZN13SpringBellows11CollideWithER18PhysicsContactPair": {
+   "rva": 11152096
+  },
+  "_ZN6Player30PickUpAnyNearbyCarryableObjectEbbb": {
+   "rva": 10310720
+  },
+  "_ZN14TrainAuthority10OnNPCEventEjP17InteractEventInfo": {
+   "rva": 7064096
+  },
+  "_ZN6Player16SetVialItemCountEi": {
+   "rva": 10296528
+  },
+  "_ZN8ShopItem7RefreshEv": {
+   "rva": 10926544
+  },
+  "_ZN5Items8OnPickupEiiP6PlayerRK6ycVec3biijb": {
+   "rva": 8541872
+  },
+  "_ZN4Shop12IsOutOfStockEPK7ShopDefRNS_7OutInfoE": {
+   "rva": 11006736
+  },
+  "_ZN11PawnShopNPC10OnNPCEventEjP17InteractEventInfo": {
+   "rva": 5769632
+  },
+  "_ZN4Mina12OnBurrowJumpEv": {
+   "rva": 9198256
+  },
+  "_ZNK16PhysicsComponent7GetAABBEbj": {
+   "rva": 9685392
+  },
+  "_ZN12CarryManager25GetClosestCarryableObjectE6ycAABBifPim": {
+   "rva": 7793056
+  }
+ },
+ "linux": {
+  "_ZN4Game11FixedUpdateEv": {
+   "rva": 13163600
+  },
+  "_ZN4Game6UpdateEf": {
+   "rva": 13168320
+  },
+  "_ZN13ycUpdateQueue6UpdateEf": {
+   "rva": 3276656
+  },
+  "_ZN5Items12OnPickupDoneEiiP6PlayerRK6ycVec3iijb": {
+   "rva": 11768832
+  },
+  "_Z15ProcessSDLEventR9SDL_Event": {
+   "rva": 2160784
+  },
+  "_ZN6PlayerC2EP8ycEntityP17GameComponentDescP11PlayerSetup": {
+   "rva": 13358512
+  },
+  "_ZN15PlayerTrackable6UpdateEP20ycUpdateQueueContext": {
+   "rva": 14024608
+  },
+  "_ZNK15PlayerTrackable6GetPosEv": {
+   "rva": 14023408
+  },
+  "_ZN6Pickup4InitEiib": {
+   "rva": 14438560
+  },
+  "_ZN6Pickup8OnPickupEP14PickupListener": {
+   "rva": 13291056
+  },
+  "_ZN7ycWorld12QueueDestroyEP8ycEntityb": {
+   "rva": 3285616
+  },
+  "_ZN5Items16SetItemCollectedEibP14ItemCollectionP8SaveSlot": {
+   "rva": 11775264
+  },
+  "_ZN8SaveSlot5ClearEb": {
+   "rva": 14271120
+  },
+  "_ZN13KeyBlockChain11UpdateStateEv": {
+   "rva": 12245872
+  },
+  "_ZN5Chest11UpdateStateEv": {
+   "rva": 11926128
+  },
+  "_ZN11RoomManager6UpdateEP20ycUpdateQueueContext": {
+   "rva": 14245920
+  },
+  "_ZN6Player15SetBurrowGroundEv": {
+   "rva": 14918192
+  },
+  "_ZN13WaterListener21IsInDeepWaterInternalEb": {
+   "rva": 16363664
+  },
+  "_ZN6Player14RopeClimbStartEP13GameComponentbb": {
+   "rva": 14797696
+  },
+  "_ZN11BouncePlant11CollideWithER18PhysicsContactPair": {
+   "rva": 4440320
+  },
+  "_ZN11BouncePlant12BounceLaunchEP6Player": {
+   "rva": 4443744
+  },
+  "_ZN13SpringBellows11CollideWithER18PhysicsContactPair": {
+   "rva": 15845280
+  },
+  "_ZN6Player30PickUpAnyNearbyCarryableObjectEbbb": {
+   "rva": 14827968
+  },
+  "_ZN14TrainAuthority10OnNPCEventEjP17InteractEventInfo": {
+   "rva": 11118944
+  },
+  "_ZN6Player16SetVialItemCountEi": {
+   "rva": 14909472
+  },
+  "_ZN8ShopItem7RefreshEv": {
+   "rva": 14511376
+  },
+  "_ZN5Items8OnPickupEiiP6PlayerRK6ycVec3biijb": {
+   "rva": 12933872
+  },
+  "_ZN4Shop12IsOutOfStockEPK7ShopDefRNS_7OutInfoE": {
+   "rva": 14725584
+  },
+  "_ZN11PawnShopNPC10OnNPCEventEjP17InteractEventInfo": {
+   "rva": 9665648
+  },
+  "_ZN4Mina12OnBurrowJumpEv": {
+   "rva": 12555344
+  },
+  "_ZNK16PhysicsComponent7GetAABBEbj": {
+   "rva": 13141392
+  },
+  "_ZN12CarryManager25GetClosestCarryableObjectE6ycAABBifPim": {
+   "rva": 11056480
+  }
+ }
 }

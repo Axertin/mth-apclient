@@ -112,21 +112,9 @@ void repl_shop_refresh(void *self)
         g_orig_shop_refresh(self);
 }
 
-// ---- Items::IsItemCollected override (capacity-upgrade locations report AP checked-state) ----
-pal::ItemCollectedFn g_item_collected_cb = nullptr;
-pal::HookId g_item_collected_hook = pal::kInvalidHookId;
-unsigned (*g_orig_is_item_collected)(int, void *, void *, bool, bool) = nullptr;
-
-unsigned repl_is_item_collected(int loc_idx, void *coll, void *slot, bool b4, bool b5)
-{
-    if (g_item_collected_cb != nullptr && loc_idx >= 0)
-    {
-        const int ov = g_item_collected_cb(loc_idx, b5); // b5: ownership query (weapon-swap chest) vs location-collected
-        if (ov >= 0)
-            return static_cast<unsigned>(ov); // forced AP checked-state
-    }
-    return g_orig_is_item_collected ? g_orig_is_item_collected(loc_idx, coll, slot, b4, b5) : 0;
-}
+// Items::IsItemCollected override lives in native_mod_entry.cpp (native modding hook; cross-platform).
+// This also catches clang-cl's inlined copies of IsItemCollected (e.g. the Pickup-ctor self-kill), which a
+// standalone-function detour could not -- so the #93 have-bit box workaround is no longer platform-specific.
 
 // ---- chain-open / chest-unlock per-frame hooks. Hook ::UpdateState (self == the StateMachine
 // sub-object; recover base = self - 0x170): the game's MSVC linker ICF-folds the per-class ::Update
@@ -443,36 +431,7 @@ void remove_shop_stock_hook()
     g_orig_shop_refresh = nullptr;
 }
 
-bool install_item_collected_hook(ItemCollectedFn query)
-{
-    g_item_collected_cb = query;
-    const std::uintptr_t addr = resolve_game_symbol(mth::sym::items_is_item_collected);
-    if (addr == 0)
-    {
-        logf(LogLevel::Warn, "items: IsItemCollected not resolved; upgrade-location override disabled");
-        g_item_collected_cb = nullptr;
-        return false;
-    }
-    g_item_collected_hook = hook_engine().install_hook(reinterpret_cast<void *>(addr), reinterpret_cast<void *>(&repl_is_item_collected),
-                                                       reinterpret_cast<void **>(&g_orig_is_item_collected));
-    if (g_item_collected_hook == kInvalidHookId)
-    {
-        logf(LogLevel::Error, "items: failed to hook IsItemCollected");
-        g_item_collected_cb = nullptr;
-        return false;
-    }
-    logf(LogLevel::Info, "items: hooked IsItemCollected (id=%llu)", static_cast<unsigned long long>(g_item_collected_hook));
-    return true;
-}
-
-void remove_item_collected_hook()
-{
-    if (g_item_collected_hook != kInvalidHookId)
-        hook_engine().remove_hook(g_item_collected_hook);
-    g_item_collected_hook = kInvalidHookId;
-    g_item_collected_cb = nullptr;
-    g_orig_is_item_collected = nullptr;
-}
+// install_item_collected_hook / remove_item_collected_hook live in native_mod_entry.cpp.
 
 bool install_chain_open_hook(EntityFrameFn on_frame)
 {
