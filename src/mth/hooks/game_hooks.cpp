@@ -1,8 +1,8 @@
 #include "mth/hooks/game_hooks.hpp"
 
 #include "mod/mod_api.hpp"
+#include "mth/core/data/game_symbols.hpp"
 #include "mth/core/game_events.hpp"
-#include "mth/core/game_symbols.hpp"
 
 // File-scope globals: Frida replacements have no user context; exactly one GameHooks exists.
 namespace

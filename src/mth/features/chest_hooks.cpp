@@ -3,8 +3,8 @@
 #include <cstdint>
 #include <set>
 
-#include "mth/core/game_layout.hpp"
-#include "mth/hooks/game_tables.hpp"
+#include "mth/core/data/game_layout.hpp"
+#include "mth/core/data/game_tables.hpp"
 #include "pal/pal_game.hpp"
 #include "pal/pal_log.hpp"
 

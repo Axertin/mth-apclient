@@ -6,10 +6,10 @@
 #include <string>
 #include <vector>
 
-#include "mth/core/ability_ids.hpp"
-#include "mth/core/ap_save_state.hpp"
-#include "mth/core/ap_state.hpp"
+#include "mth/core/ap/ap_save_state.hpp"
+#include "mth/core/ap/ap_state.hpp"
 #include "mth/core/command_sink.hpp"
+#include "mth/core/data/ability_ids.hpp"
 #include "mth/core/session_policy.hpp"
 #include "mth/core/upgrade_state.hpp"
 #include "mth/features/death_hooks.hpp"

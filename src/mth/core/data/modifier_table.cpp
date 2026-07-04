@@ -1,4 +1,4 @@
-#include "mth/core/modifier_table.hpp"
+#include "mth/core/data/modifier_table.hpp"
 
 #include "mth/core/modifier_config.hpp" // kCheatCount
 

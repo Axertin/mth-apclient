@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <utility>
 
-#include "mth/core/modifier_table.hpp"
+#include "mth/core/data/modifier_table.hpp"
 #include "pal/pal_game.hpp"
 #include "pal/pal_log.hpp"
 

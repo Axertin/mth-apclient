@@ -3,8 +3,8 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "mocks/fake_ap_link.hpp"
-#include "mth/core/ap_save_state.hpp"
-#include "mth/core/ap_state.hpp"
+#include "mth/core/ap/ap_save_state.hpp"
+#include "mth/core/ap/ap_state.hpp"
 #include "mth/core/rando_bridge.hpp"
 
 using mth::ap_loc_id;

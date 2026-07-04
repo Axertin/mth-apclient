@@ -1,8 +1,8 @@
 #include "mth/features/boss_hooks.hpp"
 
-#include "mth/core/ap_ids.hpp"
-#include "mth/core/game_layout.hpp"
-#include "mth/core/game_symbols.hpp"
+#include "mth/core/ap/ap_ids.hpp"
+#include "mth/core/data/game_layout.hpp"
+#include "mth/core/data/game_symbols.hpp"
 #include "mth/core/rando_bridge.hpp"
 #include "pal/pal_log.hpp"
 

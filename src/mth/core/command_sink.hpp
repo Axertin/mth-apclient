@@ -4,8 +4,8 @@
 #include <string>
 #include <vector>
 
-#include "mth/core/ability_ids.hpp"
-#include "mth/core/ap_state.hpp" // ConnectionPhase
+#include "mth/core/ap/ap_state.hpp" // ConnectionPhase
+#include "mth/core/data/ability_ids.hpp"
 
 namespace mth
 {

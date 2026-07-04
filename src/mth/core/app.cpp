@@ -6,9 +6,9 @@
 #include <vector>
 
 #include "mod/mod_api.hpp"
-#include "mth/core/ap_coordinator.hpp"
-#include "mth/core/ap_ids.hpp"
-#include "mth/core/ap_link.hpp"
+#include "mth/core/ap/ap_coordinator.hpp"
+#include "mth/core/ap/ap_ids.hpp"
+#include "mth/core/ap/ap_link.hpp"
 #include "mth/core/area_reporter.hpp"
 #include "mth/core/broadcast.hpp"
 #include "mth/core/game_events.hpp"
@@ -35,10 +35,10 @@
 #ifdef MTHAP_HAS_NET
 #include "mth/net/ap_link_apclient.hpp"
 #else
-#include "mth/core/null_ap_link.hpp"
+#include "mth/core/ap/null_ap_link.hpp"
 #endif
 #ifdef MTHAP_HAS_OVERLAY
-#include "mth/core/game_symbols.hpp"
+#include "mth/core/data/game_symbols.hpp"
 #include "mth/ui/overlay_root.hpp"
 #include "pal/pal_overlay.hpp"
 #endif

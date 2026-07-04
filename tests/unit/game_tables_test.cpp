@@ -1,6 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
-#include "mth/hooks/game_tables.hpp"
+#include "mth/core/data/game_tables.hpp"
 
 // is_item_keyed_collected_kind identifies storage-kinds whose "collected" state is a global per-itemType
 // have-item bit (kinds 1/9/11) rather than the location's own bit-index (kinds 8/12/17/19). The former

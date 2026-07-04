@@ -7,18 +7,18 @@
 #                Added in a later task; guarded on NOT MTHAP_BUILD_TESTS_ONLY.
 
 add_library(mthap_core STATIC
-    core/ap_state.cpp
-    core/ap_coordinator.cpp
+    core/ap/ap_state.cpp
+    core/ap/ap_coordinator.cpp
     core/broadcast.cpp
     core/rando_bridge.cpp
     core/dev_commands.cpp
     core/log_ring.cpp
-    core/ap_save_state.cpp
+    core/ap/ap_save_state.cpp
     core/inbound_granter.cpp
     core/sig_scan.cpp
     core/lock_registry.cpp
     core/modifier_config.cpp
-    core/modifier_table.cpp
+    core/data/modifier_table.cpp
     core/stat_cap_state.cpp
     core/upgrade_state.cpp
     core/area_reporter.cpp
@@ -73,7 +73,7 @@ if(NOT MTHAP_BUILD_TESTS_ONLY)
         mth-apclient.cpp
         core/app.cpp
         hooks/game_hooks.cpp
-        hooks/game_tables.cpp
+        core/data/game_tables.cpp
         features/player_tracker.cpp
         features/room_tracker.cpp
         features/item_granter.cpp

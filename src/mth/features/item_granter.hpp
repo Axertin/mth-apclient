@@ -2,7 +2,7 @@
 
 #include <functional>
 
-#include "mth/core/item_granter.hpp"
+#include "mth/core/item_granter_interface.hpp"
 #include "mth/hooks/scoped_hook.hpp"
 
 namespace mth

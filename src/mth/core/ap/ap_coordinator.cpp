@@ -1,10 +1,10 @@
-#include "mth/core/ap_coordinator.hpp"
+#include "mth/core/ap/ap_coordinator.hpp"
 
 #include <variant>
 
-#include "mth/core/ap_events.hpp"
-#include "mth/core/ap_link.hpp"
-#include "mth/core/ap_state.hpp"
+#include "mth/core/ap/ap_events.hpp"
+#include "mth/core/ap/ap_link.hpp"
+#include "mth/core/ap/ap_state.hpp"
 #include "pal/pal_log.hpp"
 
 namespace mth

@@ -1,9 +1,9 @@
 #include "mth/core/inbound_granter.hpp"
 
-#include "mth/core/ap_ids.hpp"
-#include "mth/core/ap_save_state.hpp"
-#include "mth/core/ap_state.hpp"
-#include "mth/core/item_granter.hpp"
+#include "mth/core/ap/ap_ids.hpp"
+#include "mth/core/ap/ap_save_state.hpp"
+#include "mth/core/ap/ap_state.hpp"
+#include "mth/core/item_granter_interface.hpp"
 #include "pal/pal_log.hpp"
 
 namespace mth

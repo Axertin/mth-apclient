@@ -1,10 +1,10 @@
-#include "mth/core/ap_state.hpp"
+#include "mth/core/ap/ap_state.hpp"
 
 #include <type_traits>
 #include <utility>
 #include <variant>
 
-#include "mth/core/ability_ids.hpp"
+#include "mth/core/data/ability_ids.hpp"
 #include "pal/pal_log.hpp"
 
 namespace mth

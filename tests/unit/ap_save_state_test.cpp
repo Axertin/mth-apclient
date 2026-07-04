@@ -2,7 +2,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-#include "mth/core/ap_save_state.hpp"
+#include "mth/core/ap/ap_save_state.hpp"
 
 TEST_CASE("ApSaveState round-trips both sets through a file", "[ap_save_state]")
 {

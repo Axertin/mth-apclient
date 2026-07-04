@@ -2,7 +2,7 @@
 
 #include <utility>
 
-#include "mth/core/game_symbols.hpp"
+#include "mth/core/data/game_symbols.hpp"
 #include "pal/pal_game.hpp"
 #include "pal/pal_log.hpp"
 #include "pal/pal_module.hpp"

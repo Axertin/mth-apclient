@@ -4,7 +4,7 @@
 #include <optional>
 #include <string_view>
 
-#include "mth/core/ap_ids.hpp" // kAbilityItemBase
+#include "mth/core/ap/ap_ids.hpp" // kAbilityItemBase
 
 namespace mth
 {

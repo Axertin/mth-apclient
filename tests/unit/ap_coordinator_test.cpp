@@ -1,8 +1,8 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "mocks/fake_ap_link.hpp"
-#include "mth/core/ap_coordinator.hpp"
-#include "mth/core/ap_state.hpp"
+#include "mth/core/ap/ap_coordinator.hpp"
+#include "mth/core/ap/ap_state.hpp"
 
 TEST_CASE("ap_coordinator: tick drains link events into state", "[mth][ap_coordinator]")
 {

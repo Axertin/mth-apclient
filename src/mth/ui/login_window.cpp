@@ -2,7 +2,7 @@
 
 #include <imgui.h>
 
-#include "mth/core/ap_state.hpp" // ConnectionPhase
+#include "mth/core/ap/ap_state.hpp" // ConnectionPhase
 #include "mth/core/command_sink.hpp"
 
 namespace mth
