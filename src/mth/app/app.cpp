@@ -6,12 +6,10 @@
 #include <vector>
 
 #include "mod/mod_api.hpp"
+#include "mth/app/ap_session.hpp"
 #include "mth/app/grant_pipeline.hpp"
-#include "mth/core/ap/ap_coordinator.hpp"
 #include "mth/core/ap/ap_ids.hpp"
 #include "mth/core/ap/ap_link.hpp"
-#include "mth/core/area_reporter.hpp"
-#include "mth/core/broadcast.hpp"
 #include "mth/core/game_events.hpp"
 #include "mth/core/modifier_config.hpp"
 #include "mth/core/rando_bridge.hpp"
@@ -31,11 +29,6 @@
 #include "pal/pal_hook.hpp"
 #include "pal/pal_log.hpp"
 #include "pal/pal_module.hpp"
-#ifdef MTHAP_HAS_NET
-#include "mth/net/ap_link_apclient.hpp"
-#else
-#include "mth/core/ap/null_ap_link.hpp"
-#endif
 #ifdef MTHAP_HAS_OVERLAY
 #include "mth/core/data/game_symbols.hpp"
 #include "mth/ui/overlay_root.hpp"
@@ -87,37 +80,19 @@ App::App()
 
     pal::init_hook_engine();
 
-#ifdef MTHAP_HAS_NET
-    link_ = std::make_unique<mth::net::ApLink>();
-#else
-    link_ = std::make_unique<mth::NullApLink>();
-    pal::logf(pal::LogLevel::Warn, "net: lane NOT compiled in (NullApLink); connect is a no-op");
-#endif
-    std::function<void(const std::vector<mth::BannerSegment> &)> on_broadcast;
-#ifdef MTHAP_HAS_OVERLAY
-    banner_queue_ = std::make_unique<BannerQueue>();
-    on_broadcast = [this](const std::vector<mth::BannerSegment> &segs) { banner_queue_->push(segs); };
-#endif
-    coordinator_ = std::make_unique<ApCoordinator>(*link_, state_, [this] { pending_inbound_death_.store(true); }, std::move(on_broadcast));
-    area_reporter_ = std::make_unique<AreaReporter>(*link_);
+    net_ = std::make_unique<ApSession>(state_, [this] { pending_inbound_death_.store(true); });
     events_ = std::make_unique<AppTickSink>(*this);
     hooks_ = std::make_unique<GameHooks>(*events_);
     tracker_ = std::make_unique<PlayerTracker>();
     room_tracker_ = std::make_unique<RoomTracker>();
     grants_ = std::make_unique<GrantPipeline>(
-        *tracker_, [this](int loc) { return rando_ != nullptr && rando_->is_ap_location(loc); },
-        [this](int loc)
-        {
-            if (rando_ != nullptr)
-                rando_->on_location_collected(loc);
-        });
-    rando_ = std::make_unique<RandoBridge>(*link_, state_);
-    location_hooks_ = std::make_unique<LocationHooks>(*rando_);
-    boss_hooks_ = std::make_unique<BossHooks>(*rando_);
-    goal_tracker_ = std::make_unique<GoalTracker>(*rando_);
+        *tracker_, [this](int loc) { return net_->rando().is_ap_location(loc); }, [this](int loc) { net_->rando().on_location_collected(loc); });
+    location_hooks_ = std::make_unique<LocationHooks>(net_->rando());
+    boss_hooks_ = std::make_unique<BossHooks>(net_->rando());
+    goal_tracker_ = std::make_unique<GoalTracker>(net_->rando());
     lock_hooks_ = std::make_unique<LockHooks>();
     chest_hooks_ = std::make_unique<ChestHooks>(lock_hooks_->locks()); // shares the lock registry + seed
-    death_hooks_ = std::make_unique<DeathHooks>([this] { link_->send_death("Mina the Hollower"); }, [this]() -> void * { return tracker_->player(); });
+    death_hooks_ = std::make_unique<DeathHooks>([this] { net_->link().send_death("Mina the Hollower"); }, [this]() -> void * { return tracker_->player(); });
     ability_hooks_ = std::make_unique<AbilityHooks>([this](std::int64_t id) { return state_.has_received(id); });
     pawn_shop_hooks_ = std::make_unique<PawnShopHooks>([this] { return state_.phase() == ConnectionPhase::Connected; });
     // Suppress the game's default new-file starting kit while AP-authenticated (AP supplies it instead).
@@ -138,7 +113,7 @@ App::App()
 #ifdef MTHAP_HAS_OVERLAY
     {
         const pal::OverlayConfig ocfg{pal::resolve_game_symbol(sym::process_sdl_event)};
-        overlay_root_ = std::make_unique<OverlayRoot>(*this, *banner_queue_);
+        overlay_root_ = std::make_unique<OverlayRoot>(*this, net_->banner_queue());
         overlay_ = pal::make_overlay(ocfg);
         overlay_->set_ui(overlay_root_.get());
         pal::logf(pal::LogLevel::Info, "overlay: dev console attached"); // overlay logs the resolved toggle key
@@ -163,15 +138,12 @@ App::~App()
     boss_hooks_.reset();
     chest_hooks_.reset(); // references lock_hooks_'s registry; tear down first
     lock_hooks_.reset();
-    rando_.reset();
     grants_.reset();
     room_tracker_.reset();
     tracker_.reset();
     hooks_.reset();
     events_.reset();
-    area_reporter_.reset();
-    coordinator_.reset();
-    link_.reset();
+    net_.reset();
     pal::shutdown_hook_engine();
     pal::logf(pal::LogLevel::Info, "mth-apclient unloading");
 }
@@ -188,13 +160,11 @@ void App::drive_tick()
         first_tick_logged_ = true;
         pal::logf(pal::LogLevel::Info, "tick: Game::FixedUpdate live; AP coordinator pumping");
     }
-    coordinator_->tick();
-    if (area_reporter_ && room_tracker_)
-    {
-        std::uint32_t screen = 0;
-        const bool have = room_tracker_->current_screen(&screen);
-        area_reporter_->tick(state_.authenticated(), have ? std::optional<std::uint32_t>{screen} : std::nullopt);
-    }
+    std::optional<std::uint32_t> screen;
+    std::uint32_t screen_id = 0;
+    if (room_tracker_ && room_tracker_->current_screen(&screen_id))
+        screen = screen_id;
+    net_->tick(state_, screen);
     const bool authed = state_.authenticated();
     if (modifier_hooks_)
     {
@@ -293,19 +263,19 @@ void App::ensure_inbound_ready()
     pal::logf(pal::LogLevel::Info, "inbound: state loaded (%s); granter live", key.c_str());
     if (modifier_hooks_)
         modifier_hooks_->set_ap_slot(save_state_->game_slot()); // restore the AP-game slot (skip capture if known)
-    rando_->attach_save_state(*save_state_);
-    rando_->flush(); // resend any checks recorded before/while disconnected
+    net_->rando().attach_save_state(*save_state_);
+    net_->rando().flush(); // resend any checks recorded before/while disconnected
     pal::logf(pal::LogLevel::Info, "outbound: bridge attached to %s; flushed checked-set", key.c_str());
 }
 
 void App::connect(const std::string &server, const std::string &slot, const std::string &password)
 {
-    link_->connect(server, slot, password);
+    net_->link().connect(server, slot, password);
 }
 
 void App::disconnect()
 {
-    link_->disconnect();
+    net_->link().disconnect();
 }
 
 ConnectionStatus App::connection_status() const
@@ -316,7 +286,7 @@ ConnectionStatus App::connection_status() const
 std::vector<std::string> App::status_lines() const
 {
     std::vector<std::string> out;
-    out.push_back(std::string("connected: ") + (link_->is_connected() ? "yes" : "no"));
+    out.push_back(std::string("connected: ") + (net_->link().is_connected() ? "yes" : "no"));
     out.push_back("ap status: " + state_.status());
     out.push_back("player slot: " + std::to_string(state_.player_slot()));
     out.push_back("received items: " + std::to_string(state_.received_items().size()));
@@ -402,8 +372,7 @@ void App::set_ability_randomized(Ability a, bool on)
 
 void App::enable_deathlink(bool on)
 {
-    if (link_)
-        link_->enable_deathlink(on);
+    net_->link().enable_deathlink(on);
     pal::logf(pal::LogLevel::Info, "console: deathlink %s", on ? "enabled" : "disabled");
 }
 } // namespace mth

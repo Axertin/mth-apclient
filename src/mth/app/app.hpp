@@ -28,13 +28,9 @@ namespace mth
 
 struct IGameEvents;
 class GameHooks;
-class IApLink;
-class BannerQueue;
-class ApCoordinator;
+class ApSession;
 class PlayerTracker;
 class RoomTracker;
-class RandoBridge;
-class AreaReporter;
 class LocationHooks;
 class BossHooks;
 class GoalTracker;
@@ -79,17 +75,13 @@ class App : public ICommandSink
     void ensure_inbound_ready();     // lazily builds save_state_/inbound_ once connected
     void seed_kear_blocks_from_ap(); // received kear-block items -> LockRegistry removals (idempotent)
     // Destruction order: feature hooks first (remove game hooks), then granter_/tracker_,
-    // then events_/hooks_, area_reporter_, coordinator_, link_ (stops net thread), then state_.
+    // then events_/hooks_, net_ (stops net thread last), then state_.
     ApState state_;
-    std::unique_ptr<BannerQueue> banner_queue_; // net->render banner mailbox; outlives coordinator_/overlay_root_ that reference it
-    std::unique_ptr<IApLink> link_;
-    std::unique_ptr<ApCoordinator> coordinator_;
-    std::unique_ptr<AreaReporter> area_reporter_;
+    std::unique_ptr<ApSession> net_;
     std::unique_ptr<IGameEvents> events_;
     std::unique_ptr<GameHooks> hooks_;
     std::unique_ptr<PlayerTracker> tracker_;
     std::unique_ptr<RoomTracker> room_tracker_;
-    std::unique_ptr<RandoBridge> rando_;
     std::unique_ptr<LocationHooks> location_hooks_;
     std::unique_ptr<BossHooks> boss_hooks_;
     std::unique_ptr<GoalTracker> goal_tracker_;
