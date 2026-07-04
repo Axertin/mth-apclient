@@ -1,4 +1,4 @@
-#include "mth/hooks/death_hooks.hpp"
+#include "mth/features/death_hooks.hpp"
 
 #include <utility>
 

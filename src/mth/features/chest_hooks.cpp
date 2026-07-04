@@ -1,4 +1,4 @@
-#include "mth/hooks/chest_hooks.hpp"
+#include "mth/features/chest_hooks.hpp"
 
 #include <cstdint>
 #include <set>

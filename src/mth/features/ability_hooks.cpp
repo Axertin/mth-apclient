@@ -1,4 +1,4 @@
-#include "mth/hooks/ability_hooks.hpp"
+#include "mth/features/ability_hooks.hpp"
 
 #include <utility>
 

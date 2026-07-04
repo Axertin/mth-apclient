@@ -1,4 +1,4 @@
-#include "mth/hooks/levelcap_hooks.hpp"
+#include "mth/features/levelcap_hooks.hpp"
 
 #include "mth/core/ap_state.hpp"
 #include "pal/pal_game.hpp"

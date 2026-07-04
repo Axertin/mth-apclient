@@ -12,9 +12,9 @@
 #include "mth/core/command_sink.hpp"
 #include "mth/core/session_policy.hpp"
 #include "mth/core/upgrade_state.hpp"
-#include "mth/hooks/death_hooks.hpp"
-#include "mth/hooks/levelcap_hooks.hpp"
-#include "mth/hooks/modifier_hooks.hpp"
+#include "mth/features/death_hooks.hpp"
+#include "mth/features/levelcap_hooks.hpp"
+#include "mth/features/modifier_hooks.hpp"
 
 #ifdef MTHAP_HAS_OVERLAY
 namespace pal

@@ -1,4 +1,4 @@
-#include "mth/hooks/boss_hooks.hpp"
+#include "mth/features/boss_hooks.hpp"
 
 #include "mth/core/ap_ids.hpp"
 #include "mth/core/game_layout.hpp"

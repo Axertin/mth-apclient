@@ -1,4 +1,4 @@
-#include "mth/hooks/location_hooks.hpp"
+#include "mth/features/location_hooks.hpp"
 
 #include <bit>
 #include <cstdint>

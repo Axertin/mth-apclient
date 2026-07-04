@@ -1,4 +1,4 @@
-#include "mth/hooks/item_granter.hpp"
+#include "mth/features/item_granter.hpp"
 
 #include <cmath>
 #include <functional>
@@ -7,8 +7,8 @@
 
 #include "mth/core/game_layout.hpp"
 #include "mth/core/game_symbols.hpp"
+#include "mth/features/player_tracker.hpp"
 #include "mth/hooks/game_tables.hpp"
-#include "mth/hooks/player_tracker.hpp"
 #include "pal/pal_log.hpp"
 
 namespace

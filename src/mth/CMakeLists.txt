@@ -74,19 +74,19 @@ if(NOT MTHAP_BUILD_TESTS_ONLY)
         core/app.cpp
         hooks/game_hooks.cpp
         hooks/game_tables.cpp
-        hooks/player_tracker.cpp
-        hooks/room_tracker.cpp
-        hooks/item_granter.cpp
-        hooks/location_hooks.cpp
-        hooks/boss_hooks.cpp
-        hooks/goal_tracker.cpp
-        hooks/lock_hooks.cpp
-        hooks/chest_hooks.cpp
-        hooks/death_hooks.cpp
-        hooks/ability_hooks.cpp
-        hooks/pawn_shop_hooks.cpp
-        hooks/modifier_hooks.cpp
-        hooks/levelcap_hooks.cpp
+        features/player_tracker.cpp
+        features/room_tracker.cpp
+        features/item_granter.cpp
+        features/location_hooks.cpp
+        features/boss_hooks.cpp
+        features/goal_tracker.cpp
+        features/lock_hooks.cpp
+        features/chest_hooks.cpp
+        features/death_hooks.cpp
+        features/ability_hooks.cpp
+        features/pawn_shop_hooks.cpp
+        features/modifier_hooks.cpp
+        features/levelcap_hooks.cpp
     )
 
     target_link_libraries(mthap PRIVATE

@@ -1,4 +1,4 @@
-#include "mth/hooks/lock_hooks.hpp"
+#include "mth/features/lock_hooks.hpp"
 
 #include <cstdint>
 #include <set>

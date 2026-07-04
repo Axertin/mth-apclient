@@ -1,4 +1,4 @@
-#include "mth/hooks/goal_tracker.hpp"
+#include "mth/features/goal_tracker.hpp"
 
 #include <bit>
 

@@ -1,4 +1,4 @@
-#include "mth/hooks/pawn_shop_hooks.hpp"
+#include "mth/features/pawn_shop_hooks.hpp"
 
 #include <utility>
 
