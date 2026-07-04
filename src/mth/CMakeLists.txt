@@ -72,6 +72,7 @@ if(NOT MTHAP_BUILD_TESTS_ONLY)
     add_library(mthap MODULE
         app/entry.cpp
         app/app.cpp
+        app/grant_pipeline.cpp
         hooks/game_hooks.cpp
         core/data/game_tables.cpp
         features/player_tracker.cpp

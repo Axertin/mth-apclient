@@ -31,10 +31,8 @@ class GameHooks;
 class IApLink;
 class BannerQueue;
 class ApCoordinator;
-class InboundGranter;
 class PlayerTracker;
 class RoomTracker;
-class ItemGranter;
 class RandoBridge;
 class AreaReporter;
 class LocationHooks;
@@ -45,6 +43,7 @@ class ChestHooks;
 class AbilityHooks;
 class PawnShopHooks;
 class OverlayRoot;
+class GrantPipeline;
 
 // Composition root. Logger and hook engine are PAL globals; App owns everything else.
 // Implements ICommandSink unconditionally (the dev console is the only caller today,
@@ -90,7 +89,6 @@ class App : public ICommandSink
     std::unique_ptr<GameHooks> hooks_;
     std::unique_ptr<PlayerTracker> tracker_;
     std::unique_ptr<RoomTracker> room_tracker_;
-    std::unique_ptr<ItemGranter> granter_;
     std::unique_ptr<RandoBridge> rando_;
     std::unique_ptr<LocationHooks> location_hooks_;
     std::unique_ptr<BossHooks> boss_hooks_;
@@ -103,7 +101,7 @@ class App : public ICommandSink
     std::unique_ptr<ModifierHooks> modifier_hooks_;
     std::unique_ptr<LevelCapHooks> level_cap_hooks_;
     std::optional<ApSaveState> save_state_;
-    std::unique_ptr<InboundGranter> inbound_;
+    std::unique_ptr<GrantPipeline> grants_;
     std::atomic<bool> pending_inbound_death_{false};
     bool first_tick_logged_{false};
     SessionPolicy policy_;

@@ -6,13 +6,13 @@
 #include <vector>
 
 #include "mod/mod_api.hpp"
+#include "mth/app/grant_pipeline.hpp"
 #include "mth/core/ap/ap_coordinator.hpp"
 #include "mth/core/ap/ap_ids.hpp"
 #include "mth/core/ap/ap_link.hpp"
 #include "mth/core/area_reporter.hpp"
 #include "mth/core/broadcast.hpp"
 #include "mth/core/game_events.hpp"
-#include "mth/core/inbound_granter.hpp"
 #include "mth/core/modifier_config.hpp"
 #include "mth/core/rando_bridge.hpp"
 #include "mth/features/ability_hooks.hpp"
@@ -20,7 +20,6 @@
 #include "mth/features/chest_hooks.hpp"
 #include "mth/features/death_hooks.hpp"
 #include "mth/features/goal_tracker.hpp"
-#include "mth/features/item_granter.hpp"
 #include "mth/features/location_hooks.hpp"
 #include "mth/features/lock_hooks.hpp"
 #include "mth/features/pawn_shop_hooks.hpp"
@@ -105,7 +104,7 @@ App::App()
     hooks_ = std::make_unique<GameHooks>(*events_);
     tracker_ = std::make_unique<PlayerTracker>();
     room_tracker_ = std::make_unique<RoomTracker>();
-    granter_ = std::make_unique<ItemGranter>(
+    grants_ = std::make_unique<GrantPipeline>(
         *tracker_, [this](int loc) { return rando_ != nullptr && rando_->is_ap_location(loc); },
         [this](int loc)
         {
@@ -165,7 +164,7 @@ App::~App()
     chest_hooks_.reset(); // references lock_hooks_'s registry; tear down first
     lock_hooks_.reset();
     rando_.reset();
-    granter_.reset();
+    grants_.reset();
     room_tracker_.reset();
     tracker_.reset();
     hooks_.reset();
@@ -245,8 +244,7 @@ void App::drive_tick()
     if (pending_inbound_death_.exchange(false) && death_hooks_)
         death_hooks_->kill();
     ensure_inbound_ready();
-    if (inbound_)
-        inbound_->tick();
+    grants_->tick();
     // Persist a freshly captured AP-game slot so it's known on the next load/session.
     if (modifier_hooks_ && save_state_)
     {
@@ -282,17 +280,16 @@ void App::drain_grants()
         lock_hooks_->seed_removed_locks();
     if (ability_hooks_)
         ability_hooks_->enforce_train_tick();
-    if (granter_)
-        granter_->drain();
+    grants_->drain();
 }
 
 void App::ensure_inbound_ready()
 {
-    if (inbound_ || !state_.authenticated())
+    if (grants_->inbound_ready() || !state_.authenticated())
         return;
     const std::string key = "ap_" + state_.seed() + "_" + std::to_string(state_.player_slot()) + ".state";
     save_state_.emplace(pal::log_dir() / key);
-    inbound_ = std::make_unique<InboundGranter>(*granter_, state_, *save_state_);
+    grants_->build_inbound(state_, *save_state_);
     pal::logf(pal::LogLevel::Info, "inbound: state loaded (%s); granter live", key.c_str());
     if (modifier_hooks_)
         modifier_hooks_->set_ap_slot(save_state_->game_slot()); // restore the AP-game slot (skip capture if known)
@@ -358,7 +355,7 @@ void App::give_item(std::int64_t ap_item_id)
     }
 
     const int item_type = mth::game_item_type(ap_item_id);
-    if (granter_->grant(item_type))
+    if (grants_->grant(item_type))
         pal::logf(pal::LogLevel::Info, "console: giveapitem %lld (type=%d) granted", static_cast<long long>(ap_item_id), item_type);
     else
         pal::logf(pal::LogLevel::Warn, "console: giveapitem %lld not ready (collect any pickup first to capture player + position)",
