@@ -724,6 +724,7 @@ constexpr std::ptrdiff_t kVialTrinketOff = 0x1190;   // Player, int
 
 bool g_up_resolved = false;
 bool g_up_ok = false;
+bool g_up_layout_ok = true; // cleared permanently if an upgrade field reads out of its plausible domain
 std::uintptr_t g_up_save_manager = 0;
 void (*g_up_update_stats)(void *) = nullptr;        // Player::UpdateStats(this)
 void (*g_up_set_vial_count)(void *, int) = nullptr; // Player::SetVialItemCount(total)
@@ -766,7 +767,7 @@ bool upgrades_available()
 
 bool apply_upgrades(const int *counts, void *player)
 {
-    if (!upgrades_available() || player == nullptr)
+    if (!upgrades_available() || player == nullptr || !g_up_layout_ok)
         return false;
     void *slot = *reinterpret_cast<void **>(g_up_save_manager); // global holds the active SaveSlot*
     if (!pal::pointer_looks_valid(slot))
@@ -784,6 +785,13 @@ bool apply_upgrades(const int *counts, void *player)
     for (int i = 0; i < 5; ++i)
     {
         auto &fieldv = *reinterpret_cast<std::uint32_t *>(static_cast<char *>(slot) + kUpgradeFieldOff[i]);
+        if (!mth::upgrade_field_in_domain(i, fieldv))
+        {
+            g_up_layout_ok = false;
+            logf(LogLevel::Warn, "upgrades: kUpgradeFieldOff[%d] read=0x%x exceeds cap %d; offset may have shifted, upgrade writes DISABLED", i, fieldv,
+                 mth::kUpgradeCaps[i]);
+            return false;
+        }
         fieldv = mth::upgrade_field_value(i, counts[i], fieldv);
     }
     g_up_update_stats(player); // recompute live maxima from the owned-bit fields

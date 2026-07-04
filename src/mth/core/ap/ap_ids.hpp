@@ -45,6 +45,16 @@ inline constexpr int kVialUpgradeIndex = 3;                            // Vial's
     return upgrade_index == kVialUpgradeIndex ? bits : (current | bits);
 }
 
+// Plausibility bound for a capacity-upgrade SaveSlot field read *before* we write it: a valid field is a
+// low-bit popcount mask holding at most kUpgradeCaps[index] bits, so it never exceeds this max. A read above
+// it means the offset drifted onto unrelated memory (a pointer/float/large counter) - the caller fails closed.
+[[nodiscard]] inline constexpr bool upgrade_field_in_domain(int upgrade_index, std::uint32_t value) noexcept
+{
+    const int cap = (upgrade_index >= 0 && upgrade_index < kUpgradeCount) ? kUpgradeCaps[upgrade_index] : 0;
+    const std::uint32_t max = cap >= 32 ? 0xFFFFFFFFu : (1u << cap) - 1u;
+    return value <= max;
+}
+
 inline constexpr bool is_capacity_upgrade_item(std::int64_t ap_item_id_)
 {
     return ap_item_id_ >= kUpgradeItemBase && ap_item_id_ < kUpgradeItemBase + kUpgradeCount;
