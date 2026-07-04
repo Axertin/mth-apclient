@@ -80,7 +80,11 @@ App::App()
 
     pal::logf(pal::LogLevel::Info, "game base=0x%llx size=0x%zx path=%s", static_cast<unsigned long long>(game.base), game.size, game.path.c_str());
     pal::logf(pal::LogLevel::Info, "self base=0x%llx path=%s", static_cast<unsigned long long>(self.base), self.path.c_str());
-    pal::logf(pal::LogLevel::Info, "game revision=r%u", mod::game_revision());
+    const std::uint32_t game_rev = mod::game_revision();
+    pal::logf(pal::LogLevel::Info, "game revision=r%u", game_rev);
+    if (game_rev == 0)
+        pal::logf(pal::LogLevel::Warn, "modding API reports revision 0: native mod hooks (WorldUpdate/IsItemCollected) will NOT fire on this "
+                                       "build, so item grants and collection redirects are DISABLED. Ensure the game is the experimental-modding build.");
 
     pal::init_hook_engine();
 
