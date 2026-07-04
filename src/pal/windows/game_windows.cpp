@@ -10,6 +10,7 @@
 #include "pal/pal_game.hpp"
 #include "pal/pal_hook.hpp"
 #include "pal/pal_log.hpp"
+#include "pal/pal_mem.hpp"
 #include "pal/pal_module.hpp"
 
 namespace
@@ -192,11 +193,6 @@ void (*g_orig_activate_cheats)(void *) = nullptr;
 void (*g_orig_toggle)(void *, int, bool, void *, bool, int) = nullptr;
 void (*g_orig_set_applied)(void *, int, bool, void *) = nullptr;
 
-bool slot_looks_valid(void *p)
-{
-    const auto v = reinterpret_cast<std::uintptr_t>(p);
-    return v >= 0x10000 && v < 0x0000800000000000;
-}
 void *mod_live_slot()
 {
     return g_mod_save_manager != 0 ? *reinterpret_cast<void **>(g_mod_save_manager) : nullptr;
@@ -207,7 +203,7 @@ int mod_slot_index()
 }
 void set_mask_bit(void *slot, int idx, bool on)
 {
-    if (!slot_looks_valid(slot))
+    if (!pal::pointer_looks_valid(slot))
         return;
     auto *mask = reinterpret_cast<std::uint32_t *>(static_cast<char *>(slot) + kCheatMaskOff);
     const std::uint32_t bit = 1u << (static_cast<unsigned>(idx) & 31u);
@@ -222,7 +218,7 @@ void repl_activate_slot(void *self, bool flag)
     void *slot = mod_live_slot();
     const int slot_index = mod_slot_index();
     pal::logf(pal::LogLevel::Debug, "modifiers: ActivateSaveSlot flag=%d slot_index=%d live=%p", static_cast<int>(flag), slot_index, slot);
-    if (g_seed_fn && flag && slot_looks_valid(slot))
+    if (g_seed_fn && flag && pal::pointer_looks_valid(slot))
     {
         auto *mask = reinterpret_cast<std::uint32_t *>(static_cast<char *>(slot) + kCheatMaskOff);
         std::uint32_t words[8];
@@ -339,7 +335,9 @@ void *active_save_slot(std::uintptr_t save_manager_global)
 {
     if (save_manager_global == 0)
         return nullptr;
-    return *reinterpret_cast<void **>(save_manager_global); // the global already holds the active SaveSlot*
+    void *slot = *reinterpret_cast<void **>(save_manager_global); // the global already holds the active SaveSlot*
+    // Fail closed on an uninitialized/garbage slot; every caller null-checks.
+    return pal::pointer_looks_valid(slot) ? slot : nullptr;
 }
 
 bool install_shop_purchase_hook(ShopBuyFn on_buy)
@@ -573,7 +571,7 @@ bool apply_live_modifier(int idx, bool on)
     if (!modifiers_available() || idx < 0 || idx >= 254)
         return false;
     void *slot = mod_live_slot();
-    if (!slot_looks_valid(slot))
+    if (!pal::pointer_looks_valid(slot))
     {
         logf(LogLevel::Warn, "modifiers: live set idx=%d failed (no valid save slot)", idx);
         return false;
@@ -624,7 +622,7 @@ void *lc_active_slot()
     if (g_lc_save_manager == 0)
         return nullptr;
     void *slot = *reinterpret_cast<void **>(g_lc_save_manager);
-    return slot_looks_valid(slot) ? slot : nullptr;
+    return pal::pointer_looks_valid(slot) ? slot : nullptr;
 }
 
 // LevelUpMenu::Update wrapper. Before the original runs the inlined buy-gate, overwrite the stored level
@@ -771,7 +769,7 @@ bool apply_upgrades(const int *counts, void *player)
     if (!upgrades_available() || player == nullptr)
         return false;
     void *slot = *reinterpret_cast<void **>(g_up_save_manager); // global holds the active SaveSlot*
-    if (!slot_looks_valid(slot))
+    if (!pal::pointer_looks_valid(slot))
         return false;
     void *cc = *reinterpret_cast<void **>(static_cast<char *>(player) + kCombatCoreOff);
 

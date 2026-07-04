@@ -10,6 +10,7 @@
 #include "pal/pal_game.hpp"
 #include "pal/pal_hook.hpp"
 #include "pal/pal_log.hpp"
+#include "pal/pal_mem.hpp"
 #include "pal/pal_module.hpp"
 
 namespace
@@ -177,17 +178,9 @@ void *mod_slot(std::ptrdiff_t off)
     return *reinterpret_cast<void **>(g_mod_save_manager + off);
 }
 
-// ActivateSaveSlot also fires from title/menu init, where g_saveManager+0x08 holds an
-// uninitialized (non-pointer) value; only deref a slot that looks like a canonical user pointer.
-bool slot_looks_valid(void *p)
-{
-    const auto v = reinterpret_cast<std::uintptr_t>(p);
-    return v >= 0x10000 && v < 0x0000800000000000;
-}
-
 void set_mask_bit(void *slot, int idx, bool on)
 {
-    if (!slot_looks_valid(slot))
+    if (!pal::pointer_looks_valid(slot))
         return;
     auto *mask = reinterpret_cast<std::uint32_t *>(static_cast<char *>(slot) + kCheatMaskOff);
     const std::uint32_t bit = 1u << (static_cast<unsigned>(idx) & 31u);
@@ -209,7 +202,7 @@ void repl_activate_slot(void *self, bool flag)
         void *slots[2] = {aslot, (lslot != aslot) ? lslot : nullptr};
         for (void *slot : slots)
         {
-            if (!slot_looks_valid(slot))
+            if (!pal::pointer_looks_valid(slot))
                 continue;
             auto *mask = reinterpret_cast<std::uint32_t *>(static_cast<char *>(slot) + kCheatMaskOff);
             std::uint32_t words[8];
@@ -565,7 +558,9 @@ void *active_save_slot(std::uintptr_t save_manager_global)
 {
     if (save_manager_global == 0)
         return nullptr;
-    return *reinterpret_cast<void **>(save_manager_global + 0x18); // SaveSlot* = *(g_saveManager + 0x18)
+    void *slot = *reinterpret_cast<void **>(save_manager_global + 0x18); // SaveSlot* = *(g_saveManager + 0x18)
+    // Title/menu init leaves this uninitialized (non-pointer); every caller null-checks, so fail closed.
+    return pal::pointer_looks_valid(slot) ? slot : nullptr;
 }
 
 bool install_shop_purchase_hook(ShopBuyFn on_buy)
@@ -803,7 +798,7 @@ bool apply_live_modifier(int idx, bool on)
         return false;
     void *aslot = mod_slot(kApplySlotOff);
     void *lslot = mod_slot(kLiveSlotOff);
-    if (!slot_looks_valid(aslot) && !slot_looks_valid(lslot))
+    if (!pal::pointer_looks_valid(aslot) && !pal::pointer_looks_valid(lslot))
     {
         logf(LogLevel::Warn, "modifiers: live set idx=%d failed (no valid save slot active)", idx);
         return false;
@@ -811,10 +806,10 @@ bool apply_live_modifier(int idx, bool on)
     set_mask_bit(aslot, idx, on);
     if (lslot != aslot)
         set_mask_bit(lslot, idx, on);
-    if (!slot_looks_valid(aslot) || !slot_looks_valid(lslot))
+    if (!pal::pointer_looks_valid(aslot) || !pal::pointer_looks_valid(lslot))
         logf(LogLevel::Warn, "modifiers: live set idx=%d partial (apply=%p live=%p)", idx, aslot, lslot);
     // ActivateSaveCheats reads the apply-path slot internally, so only rebuild when it is valid.
-    if (slot_looks_valid(aslot) && g_cheat_mgr != nullptr && g_orig_activate_cheats != nullptr)
+    if (pal::pointer_looks_valid(aslot) && g_cheat_mgr != nullptr && g_orig_activate_cheats != nullptr)
         g_orig_activate_cheats(g_cheat_mgr); // rebuild [CheatManager+0x20] mirror from the mask
     else
         logf(LogLevel::Warn, "modifiers: live set idx=%d bit written but mirror NOT rebuilt (apply slot/CheatManager unavailable)", idx);

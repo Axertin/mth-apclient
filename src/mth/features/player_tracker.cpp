@@ -4,6 +4,8 @@
 
 #include "mth/core/data/game_symbols.hpp"
 #include "pal/pal_game.hpp"
+#include "pal/pal_log.hpp"
+#include "pal/pal_mem.hpp"
 
 namespace
 {
@@ -57,6 +59,18 @@ PlayerTracker::~PlayerTracker()
 
 void *PlayerTracker::player() const
 {
+    // The Player ctor hook captures a real `self`; a non-null-but-non-canonical value means the hook
+    // resolved wrong. Fail closed (return null; upgrades/deathlink/abilities all null-check) + warn once.
+    if (g_player != nullptr && !pal::pointer_looks_valid(g_player))
+    {
+        static bool warned = false;
+        if (!warned)
+        {
+            warned = true;
+            pal::logf(pal::LogLevel::Warn, "player pointer looks invalid (%p); write paths (upgrades/deathlink/abilities) disabled this session", g_player);
+        }
+        return nullptr;
+    }
     return g_player;
 }
 
