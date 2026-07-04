@@ -38,6 +38,16 @@ constexpr int kKearStorageKind = 8; // s_rItems kind 8: kear/key items; their co
 bool g_pickup_offsets_ok = true;
 bool g_shop_offsets_ok = true;
 
+// Kear offset self-check: the usable-key count lives in a u64 bitfield (+0x1f0) and its spent counter
+// (+0x1f8). A real spent count is non-negative and never exceeds the keys collected (popcount of the
+// bitfield). An implausible read means +0x1f0/+0x1f8 drifted; disable the kear writes rather than corrupt.
+bool g_kear_offsets_ok = true;
+
+[[nodiscard]] bool kear_fields_plausible(int spent)
+{
+    return spent >= 0 && spent <= 64; // u64 bitfield holds <=64 keys; catches garbage without hugging the spent==popcount steady state
+}
+
 [[nodiscard]] int &pickup_loc_idx(void *self)
 {
     return *reinterpret_cast<int *>(static_cast<char *>(self) + mth::layout::kPickupLocIdxOff);
@@ -55,13 +65,25 @@ bool g_shop_offsets_ok = true;
 // re-collected (already-set) bit is a no-op and can't drive usable keys negative.
 void neutralize_kear_grant(int loc_idx, void *slot, std::uint64_t before)
 {
+    if (!g_kear_offsets_ok)
+        return;
     auto &bits = *reinterpret_cast<std::uint64_t *>(static_cast<char *>(slot) + mth::layout::kSaveKearBitsOff);
     const std::uint64_t new_bits = bits & ~before;
     if (new_bits == 0)
         return; // bit already collected; no key was granted, nothing to neutralize
 
+    int &spent = *reinterpret_cast<int *>(static_cast<char *>(slot) + mth::layout::kSaveKearSpentOff);
+    if (!kear_fields_plausible(spent))
+    {
+        g_kear_offsets_ok = false;
+        pal::logf(pal::LogLevel::Error,
+                  "kear_rando: SaveSlot+0x1f0/+0x1f8 read implausible (popcount=%d spent=%d); offset may have shifted, kear writes DISABLED",
+                  std::popcount(bits), spent);
+        return;
+    }
+
     const int n = std::popcount(new_bits);
-    *reinterpret_cast<int *>(static_cast<char *>(slot) + mth::layout::kSaveKearSpentOff) += n;
+    spent += n;
     pal::logf(pal::LogLevel::Info, "kear_rando: neutralized kear grant locIdx=%d new_bits=%d spent+=%d", loc_idx, n, n);
 }
 
@@ -77,8 +99,18 @@ void reconcile_kear_keys()
     void *slot = pal::active_save_slot(g_save_manager);
     if (slot == nullptr)
         return;
+    if (!g_kear_offsets_ok)
+        return;
     const std::uint64_t bits = *reinterpret_cast<std::uint64_t *>(static_cast<char *>(slot) + mth::layout::kSaveKearBitsOff);
     int &spent = *reinterpret_cast<int *>(static_cast<char *>(slot) + mth::layout::kSaveKearSpentOff);
+    if (!kear_fields_plausible(spent))
+    {
+        g_kear_offsets_ok = false;
+        pal::logf(pal::LogLevel::Error,
+                  "kear_rando: SaveSlot+0x1f0/+0x1f8 read implausible (popcount=%d spent=%d); offset may have shifted, kear writes DISABLED",
+                  std::popcount(bits), spent);
+        return;
+    }
     const int reconciled = mth::tables::kear_reconciled_spent(bits, spent);
     if (reconciled == spent)
         return; // already balanced; no leaked key

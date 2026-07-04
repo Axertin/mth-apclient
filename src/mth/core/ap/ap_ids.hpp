@@ -48,6 +48,9 @@ inline constexpr int kVialUpgradeIndex = 3;                            // Vial's
 // Plausibility bound for a capacity-upgrade SaveSlot field read *before* we write it: a valid field is a
 // low-bit popcount mask holding at most kUpgradeCaps[index] bits, so it never exceeds this max. A read above
 // it means the offset drifted onto unrelated memory (a pointer/float/large counter) - the caller fails closed.
+// Depends on a well-formed apworld never granting more than kUpgradeCaps[index] of an upgrade: an over-grant
+// writes a field above this bound, so the NEXT resend reads it back as out-of-domain and disables upgrades
+// for the session.
 [[nodiscard]] inline constexpr bool upgrade_field_in_domain(int upgrade_index, std::uint32_t value) noexcept
 {
     const int cap = (upgrade_index >= 0 && upgrade_index < kUpgradeCount) ? kUpgradeCaps[upgrade_index] : 0;
