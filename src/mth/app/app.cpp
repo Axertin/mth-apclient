@@ -1,4 +1,4 @@
-#include "mth/core/app.hpp"
+#include "mth/app/app.hpp"
 
 #include <cstdint>
 #include <functional>

@@ -67,11 +67,11 @@ if(NOT MTHAP_BUILD_TESTS_ONLY)
         apply_release_optimizations(mthap_net)
     endif()
 
-    # mth-apclient.cpp / app.cpp call PAL impls, so they live in the module,
+    # entry.cpp / app.cpp call PAL impls, so they live in the module,
     # not in mthap_core (keeps the pure test link clean).
     add_library(mthap MODULE
-        mth-apclient.cpp
-        core/app.cpp
+        app/entry.cpp
+        app/app.cpp
         hooks/game_hooks.cpp
         core/data/game_tables.cpp
         features/player_tracker.cpp
