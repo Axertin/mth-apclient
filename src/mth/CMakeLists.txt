@@ -74,6 +74,7 @@ if(NOT MTHAP_BUILD_TESTS_ONLY)
         app/app.cpp
         app/grant_pipeline.cpp
         app/ap_session.cpp
+        app/hook_manager.cpp
         hooks/game_hooks.cpp
         core/data/game_tables.cpp
         features/player_tracker.cpp

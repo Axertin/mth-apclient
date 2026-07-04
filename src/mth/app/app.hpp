@@ -12,9 +12,6 @@
 #include "mth/core/data/ability_ids.hpp"
 #include "mth/core/session_policy.hpp"
 #include "mth/core/upgrade_state.hpp"
-#include "mth/features/death_hooks.hpp"
-#include "mth/features/levelcap_hooks.hpp"
-#include "mth/features/modifier_hooks.hpp"
 
 #ifdef MTHAP_HAS_OVERLAY
 namespace pal
@@ -27,17 +24,10 @@ namespace mth
 {
 
 struct IGameEvents;
-class GameHooks;
+class HookManager;
 class ApSession;
 class PlayerTracker;
 class RoomTracker;
-class LocationHooks;
-class BossHooks;
-class GoalTracker;
-class LockHooks;
-class ChestHooks;
-class AbilityHooks;
-class PawnShopHooks;
 class OverlayRoot;
 class GrantPipeline;
 
@@ -72,26 +62,15 @@ class App : public ICommandSink
     void enable_deathlink(bool on) override;
 
   private:
-    void ensure_inbound_ready();     // lazily builds save_state_/inbound_ once connected
-    void seed_kear_blocks_from_ap(); // received kear-block items -> LockRegistry removals (idempotent)
-    // Destruction order: feature hooks first (remove game hooks), then granter_/tracker_,
-    // then events_/hooks_, net_ (stops net thread last), then state_.
+    void ensure_inbound_ready(); // lazily builds save_state_ + the grant pipeline's inbound granter once connected
+    // Destruction order: overlay first, then hooks_ (game hooks stop first inside the manager),
+    // grants_, tracker_/room_tracker_, events_ (AppTickSink, after hooks_), net_ (stops net thread last).
     ApState state_;
     std::unique_ptr<ApSession> net_;
     std::unique_ptr<IGameEvents> events_;
-    std::unique_ptr<GameHooks> hooks_;
     std::unique_ptr<PlayerTracker> tracker_;
     std::unique_ptr<RoomTracker> room_tracker_;
-    std::unique_ptr<LocationHooks> location_hooks_;
-    std::unique_ptr<BossHooks> boss_hooks_;
-    std::unique_ptr<GoalTracker> goal_tracker_;
-    std::unique_ptr<LockHooks> lock_hooks_;
-    std::unique_ptr<ChestHooks> chest_hooks_;
-    std::unique_ptr<DeathHooks> death_hooks_;
-    std::unique_ptr<AbilityHooks> ability_hooks_;
-    std::unique_ptr<PawnShopHooks> pawn_shop_hooks_;
-    std::unique_ptr<ModifierHooks> modifier_hooks_;
-    std::unique_ptr<LevelCapHooks> level_cap_hooks_;
+    std::unique_ptr<HookManager> hooks_;
     std::optional<ApSaveState> save_state_;
     std::unique_ptr<GrantPipeline> grants_;
     std::atomic<bool> pending_inbound_death_{false};
