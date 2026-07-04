@@ -3,6 +3,7 @@
 namespace mth
 {
 
+// twin: mth/features/item_granter.hpp is the game-coupled impl.
 // Grants one item by game itemType. Returns false if unavailable now; caller retries without marking.
 class IItemGranter
 {

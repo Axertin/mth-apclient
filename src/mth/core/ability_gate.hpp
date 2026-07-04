@@ -9,6 +9,7 @@
 namespace mth
 {
 
+// twin: mth/features/ability_hooks.hpp enforces this in-game.
 // Pure per-ability gate decision. No game/PAL/IO dependency; the caller supplies the AP-grant lookup
 // and whether the active save is the AP slot.
 class AbilityGate

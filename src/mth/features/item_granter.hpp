@@ -10,6 +10,7 @@ namespace mth
 
 class PlayerTracker;
 
+// twin: mth/core/item_granter_interface.hpp (the IItemGranter interface).
 // IItemGranter via Items::OnPickupDone replay. Owns the OnPickupDone hook (which also
 // refreshes the tracker's Player* on every vanilla pickup). grant() enqueues (false
 // until a Player* is captured); drain() replays from the engine's spawn window

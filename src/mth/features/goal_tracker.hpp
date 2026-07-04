@@ -9,6 +9,7 @@ namespace mth
 class RandoBridge;
 class ApState;
 
+// twin: mth/core/goal_state.hpp (pure goal_met()).
 // Polls the active SaveSlot each tick and fires the AP goal when the slot_data-configured condition is met:
 // finish = the game-clear flag; generators/bosses = popcount of the matching SaveSlot bitfield >= threshold.
 // Read-only (installs no detours), so both platforms share it; send_goal() is one-shot in the bridge.

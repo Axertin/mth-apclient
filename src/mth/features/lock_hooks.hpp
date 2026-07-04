@@ -6,6 +6,7 @@
 namespace mth
 {
 
+// twin: mth/core/lock_registry.hpp (pure removed-set).
 // Kear-lock removal. The KeyBlock::Update hook removes already-spawned single-block locks whose slot
 // is in the registry; the PAL-owned chain hook opens multi-block KeyBlockChain locks (a distinct
 // class). seed_removed_locks() sets the persistent SaveSlot unlock bit each tick for re-entry.

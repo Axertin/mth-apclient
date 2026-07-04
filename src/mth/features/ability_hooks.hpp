@@ -9,6 +9,7 @@
 namespace mth
 {
 
+// twin: mth/core/ability_gate.hpp (pure gate decision).
 // Drives the PAL ability-gate seam from AP state. The block lambda installed in the ctor runs on the
 // game thread (invoked by the detours); enforce_/gate_ are written only from the game-thread per-tick
 // path, so plain members suffice (one-frame staleness acceptable).
