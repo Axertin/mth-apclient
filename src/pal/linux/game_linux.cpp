@@ -657,7 +657,7 @@ void remove_shop_stock_hook()
     g_orig_shop_refresh = nullptr;
 }
 
-// install_item_collected_hook / remove_item_collected_hook live in native_mod_entry.cpp.
+// install_item_collected_hook / remove_item_collected_hook live in mod/mod_api.cpp.
 
 bool install_chain_open_hook(EntityFrameFn on_frame)
 {

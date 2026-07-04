@@ -92,6 +92,7 @@ if(NOT MTHAP_BUILD_TESTS_ONLY)
     target_link_libraries(mthap PRIVATE
         mthap_core
         mthap_pal
+        mthap_mod
     )
 
     if(MTHAP_ENABLE_NET)

@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <functional>
 
+#include "mod/mod_api.hpp"
 #include "mth/core/ap_ids.hpp"
 #include "mth/core/game_layout.hpp"
 #include "mth/core/game_symbols.hpp"
@@ -325,7 +326,7 @@ LocationHooks::LocationHooks(RandoBridge &bridge)
                            "Shop::IsOutOfStock");
     pal::install_shop_purchase_hook(&on_shop_buy);
     pal::install_shop_stock_hook(&on_shop_stock);
-    pal::install_item_collected_hook(&on_item_collected_query);
+    mod::install_item_collected_hook(&on_item_collected_query);
 }
 
 void LocationHooks::set_kear_rando(bool on)
@@ -340,7 +341,7 @@ void LocationHooks::reconcile_kear_keys()
 
 LocationHooks::~LocationHooks()
 {
-    pal::remove_item_collected_hook();
+    mod::remove_item_collected_hook();
     pal::remove_shop_stock_hook();
     pal::remove_shop_purchase_hook();
     // g_bridge nulled before the ScopedHook members remove the detours; the repls null-check it.

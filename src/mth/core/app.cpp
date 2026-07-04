@@ -5,6 +5,7 @@
 #include <optional>
 #include <vector>
 
+#include "mod/mod_api.hpp"
 #include "mth/core/ap_coordinator.hpp"
 #include "mth/core/ap_ids.hpp"
 #include "mth/core/ap_link.hpp"
@@ -79,7 +80,7 @@ App::App()
 
     pal::logf(pal::LogLevel::Info, "game base=0x%llx size=0x%zx path=%s", static_cast<unsigned long long>(game.base), game.size, game.path.c_str());
     pal::logf(pal::LogLevel::Info, "self base=0x%llx path=%s", static_cast<unsigned long long>(self.base), self.path.c_str());
-    pal::logf(pal::LogLevel::Info, "game revision=r%u", pal::game_revision());
+    pal::logf(pal::LogLevel::Info, "game revision=r%u", mod::game_revision());
 
     pal::init_hook_engine();
 

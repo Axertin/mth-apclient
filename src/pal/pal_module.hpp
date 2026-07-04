@@ -21,10 +21,6 @@ ModuleInfo self_module();
 // game_module().base + relative (convenience).
 std::uintptr_t rva(std::uintptr_t relative);
 
-// Game revision ("r-number") from the mod API (MinaModAPI::GetGameRevision); 0 if unavailable.
-// Preferred over parsing the binary id -- the game reports its own logical version.
-std::uint32_t game_revision();
-
 // nullptr module_basename consults the global symbol table only.
 void *find_symbol(const char *module_basename, const char *symbol);
 

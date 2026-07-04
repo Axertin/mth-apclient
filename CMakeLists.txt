@@ -43,6 +43,7 @@ if(NOT MTHAP_BUILD_TESTS_ONLY)
     endif()
     include(MinaModApi)
     add_subdirectory(src/pal)
+    add_subdirectory(src/mod)
 
     # Archipelago net stack (apclientpp/wswrap/websocketpp), fetched + patched
     # into the build dir. websocketpp 0.8.2 needs a small C++23 ctor/dtor fix,
