@@ -35,6 +35,14 @@ using WorldUpdatePreFn = void (*)();
 bool install_world_update_hook(WorldUpdatePreFn on_pre);
 void remove_world_update_hook();
 
+// World teardown via the native "WorldDestroy" mod hook. Fires when a World is destroyed (exit-to-menu,
+// save reload, shutdown), so cached per-world game pointers (e.g. the live Player*) can be dropped before
+// the game frees them. A stale one is a use-after-free the next time a tick writes through it. on_destroy
+// runs on the game thread. false if the modding API is unavailable.
+using WorldDestroyFn = void (*)();
+bool install_world_destroy_hook(WorldDestroyFn on_destroy);
+void remove_world_destroy_hook();
+
 // modHookCtx for "IsItemCollected"; the layout MUST mirror the game's struct exactly. The game calls
 // RunHooks("IsItemCollected", &ctx) at the top of Items::IsItemCollected.
 struct IsItemCollectedCtx
