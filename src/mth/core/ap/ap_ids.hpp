@@ -58,6 +58,15 @@ inline constexpr int kVialUpgradeIndex = 3;                            // Vial's
     return value <= max;
 }
 
+// New held-vial count that preserves the missing amount (old_max - old_held) across a capacity change,
+// clamped to [0, new_max]. So a capacity grant mid-run raises the ceiling without refilling flasks, and a
+// full player stays full. Used by the mod-API vial path (PlayerSetMaxVials/PlayerSetVials).
+[[nodiscard]] inline constexpr int maintained_vial_held(int old_max, int old_held, int new_max) noexcept
+{
+    const int held = old_held + (new_max - old_max);
+    return held < 0 ? 0 : (held > new_max ? new_max : held);
+}
+
 inline constexpr bool is_capacity_upgrade_item(std::int64_t ap_item_id_)
 {
     return ap_item_id_ >= kUpgradeItemBase && ap_item_id_ < kUpgradeItemBase + kUpgradeCount;

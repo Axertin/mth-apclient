@@ -43,6 +43,17 @@ using WorldDestroyFn = void (*)();
 bool install_world_destroy_hook(WorldDestroyFn on_destroy);
 void remove_world_destroy_hook();
 
+// Vial (health-flask) capacity and held count via the native MinaModAPI Player accessors. These are
+// offset-free and self-resolving: the game reads its own current-Player and active-SaveSlot globals, so we
+// pass only an int. Capacity writes are durable (they set the underlying vial bitfield UpdateStats re-reads),
+// which is why vials go through here instead of a raw SaveSlot offset that drifts between builds. All no-op
+// until a player exists. available() is false when the build's API lacks the vial setters.
+bool vial_api_available();
+int player_max_vials();
+int player_vials();
+void set_player_max_vials(int n);
+void set_player_vials(int n);
+
 // modHookCtx for "IsItemCollected"; the layout MUST mirror the game's struct exactly. The game calls
 // RunHooks("IsItemCollected", &ctx) at the top of Items::IsItemCollected.
 struct IsItemCollectedCtx

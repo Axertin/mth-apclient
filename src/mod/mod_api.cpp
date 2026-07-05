@@ -138,4 +138,32 @@ void remove_world_destroy_hook()
     g_world_destroy_cb = nullptr;
 }
 
+bool vial_api_available()
+{
+    return g_mod_api != nullptr && g_mod_api->PlayerGetMaxVials != nullptr && g_mod_api->PlayerSetMaxVials != nullptr && g_mod_api->PlayerGetVials != nullptr &&
+           g_mod_api->PlayerSetVials != nullptr;
+}
+
+int player_max_vials()
+{
+    return vial_api_available() ? g_mod_api->PlayerGetMaxVials() : 0;
+}
+
+int player_vials()
+{
+    return vial_api_available() ? g_mod_api->PlayerGetVials() : 0;
+}
+
+void set_player_max_vials(int n)
+{
+    if (vial_api_available())
+        g_mod_api->PlayerSetMaxVials(n);
+}
+
+void set_player_vials(int n)
+{
+    if (vial_api_available())
+        g_mod_api->PlayerSetVials(n);
+}
+
 } // namespace mod
