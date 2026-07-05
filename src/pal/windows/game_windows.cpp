@@ -227,7 +227,11 @@ void repl_activate_slot(void *self, bool flag)
         g_seed_fn(slot_index, words);
         for (int i = 0; i < 8; ++i)
             mask[i] = words[i];
-        pal::logf(pal::LogLevel::Debug, "modifiers: seeded cheat mask on slot=%p (slot_index=%d)", slot, slot_index);
+        // Diagnostic (#46): report the force-on baseline bits so we can see the seed landed. warp_home=121
+        // lives in word3 bit25; landing(ossex)=128 in word4 bit0. If these read 1 here but are inert
+        // in-game, the mask was seeded but never re-applied to the runtime mirror (ActivateSaveCheats).
+        pal::logf(pal::LogLevel::Debug, "modifiers: seeded cheat mask on slot=%p (slot_index=%d) warp_home[121]=%d landing[128]=%d", slot, slot_index,
+                  (mask[3] >> 25) & 1, mask[4] & 1);
     }
     if (g_orig_activate_slot)
         g_orig_activate_slot(self, flag);
@@ -235,6 +239,9 @@ void repl_activate_slot(void *self, bool flag)
 void repl_activate_cheats(void *self)
 {
     g_cheat_mgr = self; // capture the CheatManager singleton (not a player path)
+    // Diagnostic (#46): logs each rebuild of the runtime cheat mirror from the mask. If this does NOT
+    // fire AFTER the flag=1 seed on the custom-mode new game, our seeded force-on bits never go live.
+    pal::logf(pal::LogLevel::Debug, "modifiers: ActivateSaveCheats fired (cheatmgr=%p)", self);
     if (g_orig_activate_cheats)
         g_orig_activate_cheats(self);
 }
@@ -756,11 +763,38 @@ bool upgrades_available()
 
 bool apply_upgrades(const int *counts, void *player)
 {
-    if (!upgrades_available() || player == nullptr || !g_up_layout_ok)
+    // Diagnostic (#46): this is called every tick while dirty, so log only when the outcome CHANGES to
+    // avoid per-frame spam. Distinguishes which silent guard drops the new-file start-inventory grant.
+    static int s_last_outcome = -1;
+    auto trace = [&](int outcome, const char *what, void *slot)
+    {
+        if (outcome == s_last_outcome)
+            return;
+        s_last_outcome = outcome;
+        pal::logf(pal::LogLevel::Debug, "upgrades: apply -> %s (player=%p slot=%p counts=[%d,%d,%d,%d,%d])", what, player, slot, counts[0], counts[1],
+                  counts[2], counts[3], counts[4]);
+    };
+    if (!upgrades_available())
+    {
+        trace(1, "skip: symbols unavailable", nullptr);
         return false;
+    }
+    if (player == nullptr)
+    {
+        trace(2, "skip: player null", nullptr);
+        return false;
+    }
+    if (!g_up_layout_ok)
+    {
+        trace(3, "skip: layout disabled", nullptr);
+        return false;
+    }
     void *slot = *reinterpret_cast<void **>(g_up_save_manager); // global holds the active SaveSlot*
     if (!pal::pointer_looks_valid(slot))
+    {
+        trace(4, "skip: active SaveSlot* invalid", slot);
         return false;
+    }
     void *cc = *reinterpret_cast<void **>(static_cast<char *>(player) + kCombatCoreOff);
 
     // Keep each pool's missing amount constant across the grant (current = new_max - old_missing);
@@ -795,6 +829,7 @@ bool apply_upgrades(const int *counts, void *player)
     const int magic_max = fld_i(player, kMagicMaxOff);
     *reinterpret_cast<int *>(static_cast<char *>(player) + kMagicCurOff) = std::clamp(magic_max - magic_missing, 0, magic_max);
 
+    trace(0, "applied", slot);
     return true;
 }
 

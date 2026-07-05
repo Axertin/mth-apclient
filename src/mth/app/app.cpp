@@ -153,6 +153,19 @@ void App::drive_tick()
     net_->tick(state_, screen);
     hooks_->tick(state_, policy_, save_state_ ? save_state_->game_slot() : -1);
     upgrades_.recompute(state_);
+    // Diagnostic (#46): apply_upgrades runs only while dirty, so if it never fires the pal-layer trace is
+    // silent. Log the call-site gating on change to separate "never attempted" from "attempted and failed".
+    {
+        static int s_last_gate = -1;
+        const int gate = !upgrades_.dirty() ? 0 : (!tracker_ ? 1 : (tracker_->player() == nullptr ? 2 : 3));
+        if (gate != s_last_gate)
+        {
+            s_last_gate = gate;
+            const int *c = upgrades_.counts();
+            const char *w = gate == 0 ? "idle (not dirty)" : gate == 1 ? "dirty, no tracker" : gate == 2 ? "dirty, player null" : "dirty, attempting apply";
+            pal::logf(pal::LogLevel::Debug, "upgrades: drive_tick gate -> %s counts=[%d,%d,%d,%d,%d]", w, c[0], c[1], c[2], c[3], c[4]);
+        }
+    }
     if (upgrades_.dirty() && tracker_ && pal::apply_upgrades(upgrades_.counts(), tracker_->player()))
     {
         apply_vial_capacity();    // vials go through the offset-free mod API, not a raw SaveSlot poke
