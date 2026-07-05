@@ -45,8 +45,9 @@ class App : public ICommandSink
 
     void run();
 
-    void drive_tick();   // called by tick sink each fixed update
-    void drain_grants(); // called by tick sink from World::Update pre-hook
+    void drive_tick();       // called by tick sink each fixed update
+    void drain_grants();     // called by tick sink from World::Update pre-hook
+    void on_world_destroy(); // called by tick sink on World teardown; drops the cached Player*
 
     void connect(const std::string &server, const std::string &slot, const std::string &password) override;
     void disconnect() override;

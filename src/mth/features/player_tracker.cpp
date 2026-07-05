@@ -90,4 +90,13 @@ void PlayerTracker::note_player(void *player)
         g_player = player;
 }
 
+void PlayerTracker::invalidate_player()
+{
+    // World teardown frees the Player; a cached pointer past this point is a use-after-free the next time
+    // a tick writes through it (apply_upgrades then Player::UpdateStats). Position is per-player, so drop
+    // it too, since it is recaptured on the next PlayerTrackable::Update.
+    g_player = nullptr;
+    g_have_pos = false;
+}
+
 } // namespace mth

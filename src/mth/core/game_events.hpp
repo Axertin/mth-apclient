@@ -24,6 +24,12 @@ struct IGameEvents
     virtual void on_world_update_pre()
     {
     }
+
+    // Fired when a World is destroyed (via the native "WorldDestroy" mod hook): exit-to-menu, save
+    // reload, shutdown. Drop any cached per-world game pointers here before the game frees them.
+    virtual void on_world_destroy()
+    {
+    }
 };
 
 } // namespace mth

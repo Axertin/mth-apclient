@@ -33,6 +33,15 @@ void world_update_trampoline(void * /*pctx*/)
         g_world_update_cb();
 }
 
+mod::WorldDestroyFn g_world_destroy_cb = nullptr;
+void *g_world_destroy_handle = nullptr;
+
+void world_destroy_trampoline(void * /*pctx*/)
+{
+    if (g_world_destroy_cb != nullptr)
+        g_world_destroy_cb();
+}
+
 } // namespace
 
 namespace mod
@@ -100,6 +109,33 @@ void remove_world_update_hook()
         g_mod_api->RemoveHook(g_world_update_handle);
     g_world_update_handle = nullptr;
     g_world_update_cb = nullptr;
+}
+
+bool install_world_destroy_hook(WorldDestroyFn on_destroy)
+{
+    if (g_mod_api == nullptr || g_mod_api->InstallHook == nullptr)
+    {
+        pal::logf(pal::LogLevel::Warn, "world: modding API unavailable; World::Destroy hook disabled");
+        return false;
+    }
+    g_world_destroy_cb = on_destroy;
+    g_world_destroy_handle = g_mod_api->InstallHook("WorldDestroy", 0, &world_destroy_trampoline);
+    if (g_world_destroy_handle == nullptr)
+    {
+        pal::logf(pal::LogLevel::Warn, "world: InstallHook(WorldDestroy) returned null; teardown hook disabled");
+        g_world_destroy_cb = nullptr;
+        return false;
+    }
+    pal::logf(pal::LogLevel::Info, "world: World::Destroy hook installed (modding hook)");
+    return true;
+}
+
+void remove_world_destroy_hook()
+{
+    if (g_world_destroy_handle != nullptr && g_mod_api != nullptr && g_mod_api->RemoveHook != nullptr)
+        g_mod_api->RemoveHook(g_world_destroy_handle);
+    g_world_destroy_handle = nullptr;
+    g_world_destroy_cb = nullptr;
 }
 
 } // namespace mod

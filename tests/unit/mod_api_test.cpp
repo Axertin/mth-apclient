@@ -15,6 +15,11 @@ void world_cb()
 {
     g_world_fired = true;
 }
+bool g_destroy_fired = false;
+void destroy_cb()
+{
+    g_destroy_fired = true;
+}
 } // namespace
 
 TEST_CASE("mod: game_revision reflects the API, 0 when unset", "[mod]")
@@ -96,17 +101,34 @@ TEST_CASE("mod: WorldUpdate hook fires the registered callback", "[mod]")
     mod::set_api(nullptr);
 }
 
+TEST_CASE("mod: WorldDestroy hook fires the registered callback", "[mod]")
+{
+    mth::test::recorder().reset();
+    auto fake = mth::test::make_fake_api();
+    mod::set_api(&fake);
+    g_destroy_fired = false;
+    REQUIRE(mod::install_world_destroy_hook(&destroy_cb));
+
+    mth::test::recorder().fire("WorldDestroy", nullptr);
+    REQUIRE(g_destroy_fired);
+
+    mod::remove_world_destroy_hook();
+    mod::set_api(nullptr);
+}
+
 TEST_CASE("mod: install fails when the API is absent or InstallHook returns null", "[mod]")
 {
     mth::test::recorder().reset();
     mod::set_api(nullptr);
     REQUIRE_FALSE(mod::install_item_collected_hook(&forced_query));
     REQUIRE_FALSE(mod::install_world_update_hook(&world_cb));
+    REQUIRE_FALSE(mod::install_world_destroy_hook(&destroy_cb));
 
     auto fake = mth::test::make_fake_api();
     mth::test::recorder().install_returns_null = true;
     mod::set_api(&fake);
     REQUIRE_FALSE(mod::install_item_collected_hook(&forced_query));
     REQUIRE_FALSE(mod::install_world_update_hook(&world_cb));
+    REQUIRE_FALSE(mod::install_world_destroy_hook(&destroy_cb));
     mod::set_api(nullptr);
 }

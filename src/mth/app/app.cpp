@@ -45,6 +45,10 @@ class AppTickSink final : public mth::IGameEvents
     {
         app_.drain_grants();
     }
+    void on_world_destroy() override
+    {
+        app_.on_world_destroy();
+    }
 
   private:
     mth::App &app_;
@@ -163,6 +167,14 @@ void App::drain_grants()
 {
     hooks_->drain();
     grants_->drain();
+}
+
+void App::on_world_destroy()
+{
+    // The Player is freed with the world; drop our cached pointer so the next drive_tick's upgrade
+    // re-apply (armed by the newfile-kit suppressor on reload) can't write through a dead Player.
+    if (tracker_)
+        tracker_->invalidate_player();
 }
 
 void App::ensure_inbound_ready()
