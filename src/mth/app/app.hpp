@@ -71,6 +71,7 @@ class App : public ICommandSink
 
   private:
     void ensure_inbound_ready(); // lazily builds save_state_ + the grant pipeline's inbound granter once connected
+    void apply_vial_capacity();  // push the AP vial count through the offset-free mod-API accessors
     // Destruction order: overlay first, then hooks_ (game hooks stop first inside the manager),
     // grants_, tracker_/room_tracker_, events_ (AppTickSink, after hooks_), net_ (stops net thread last).
     ApState state_;

@@ -122,8 +122,9 @@ void repl_chest_update(void *self, void *ctx)
 constexpr std::ptrdiff_t kSparkUpgOff = 0x54;    // Spark_Upgrade   (itemType 0x46)
 constexpr std::ptrdiff_t kHealthUpgOff = 0x130;  // Health_Upgrade  (itemType 0x45) bitfield (0xff = 8)
 constexpr std::ptrdiff_t kMagicUpgOff = 0x170;   // Magic_Upgrade   (itemType 0x44)
-constexpr std::ptrdiff_t kVialUpgOff = 0x18c;    // Vial_Upgrade    (itemType 0x47)
 constexpr std::ptrdiff_t kTrinketUpgOff = 0x950; // Trinket_Upgrade (itemType 0x48)
+// Vials are not zeroed here: their bitfield offset drifts (#97) and App re-asserts the AP vial count via
+// the mod API each tick anyway, overwriting the vanilla seed.
 
 pal::NewfileKitSuppressFn g_kit_suppress = nullptr;
 pal::HookId g_kit_hook = pal::kInvalidHookId;
@@ -135,12 +136,11 @@ void repl_save_slot_clear(void *self, bool arg)
     if (self == nullptr || !g_kit_suppress || !g_kit_suppress())
         return;
     auto field = [self](std::ptrdiff_t off) -> std::uint32_t & { return *reinterpret_cast<std::uint32_t *>(static_cast<char *>(self) + off); };
-    pal::logf(pal::LogLevel::Info, "newfile-kit: zeroing default upgrades (health=%#x magic=%#x spark=%#x vial=%#x trinket=%#x)", field(kHealthUpgOff),
-              field(kMagicUpgOff), field(kSparkUpgOff), field(kVialUpgOff), field(kTrinketUpgOff));
+    pal::logf(pal::LogLevel::Info, "newfile-kit: zeroing default upgrades (health=%#x magic=%#x spark=%#x trinket=%#x)", field(kHealthUpgOff),
+              field(kMagicUpgOff), field(kSparkUpgOff), field(kTrinketUpgOff));
     field(kHealthUpgOff) = 0;
     field(kMagicUpgOff) = 0;
     field(kSparkUpgOff) = 0;
-    field(kVialUpgOff) = 0;
     field(kTrinketUpgOff) = 0;
 }
 
@@ -878,7 +878,8 @@ void remove_level_cap_hook()
 // ---- capacity upgrades ----
 // Per-upgrade SaveSlot field (index Magic,Health,Spark,Vial,Trinket); popcount = capacity. These
 // SaveSlot offsets match on both platforms; UpdateStats recomputes the live maxima from them.
-// Build-specific: re-verify against the shipping build.
+// Build-specific: re-verify against the shipping build. The Vial slot (kVialUpgradeIndex) is a placeholder
+// and never written: vials go through the mod API (see App).
 namespace
 {
 constexpr std::ptrdiff_t kUpgradeFieldOff[5] = {0x170, 0x130, 0x54, 0x18c, 0x950};
@@ -886,24 +887,21 @@ constexpr std::ptrdiff_t kUpgradeFieldOff[5] = {0x170, 0x130, 0x54, 0x18c, 0x950
 // Live resource-pool fields, so a capacity grant can keep the missing amount constant instead of
 // leaving current untouched (build 9b29bd0d). CombatCore = *(Player+0x130). See the re-note
 // 2026-06-24-resource-current-max-fields. Trinket has no depleting pool and is skipped.
-constexpr std::ptrdiff_t kCombatCoreOff = 0x130;     // Player -> CombatCore*
-constexpr std::ptrdiff_t kHpCurOff = 0x1e0;          // CombatCore, float
-constexpr std::ptrdiff_t kHpMaxOff = 0x1e8;          // CombatCore, float
-constexpr std::ptrdiff_t kMagicCurOff = 0x1174;      // Player, int (sidearm ammo)
-constexpr std::ptrdiff_t kMagicMaxOff = 0x1178;      // Player, int
-constexpr std::ptrdiff_t kSparkCurOff = 0x50;        // SaveSlot, int
-constexpr std::ptrdiff_t kSparkMaxOff = 0x230;       // CombatCore, int
-constexpr std::ptrdiff_t kVialOverflowOff = 0x1184;  // Player, int
-constexpr std::ptrdiff_t kVialOwnedBitsOff = 0x1188; // Player, int (popcount = vial capacity)
-constexpr std::ptrdiff_t kVialHeldOff = 0x118c;      // Player, int
-constexpr std::ptrdiff_t kVialTrinketOff = 0x1190;   // Player, int
+constexpr std::ptrdiff_t kCombatCoreOff = 0x130; // Player -> CombatCore*
+constexpr std::ptrdiff_t kHpCurOff = 0x1e0;      // CombatCore, float
+constexpr std::ptrdiff_t kHpMaxOff = 0x1e8;      // CombatCore, float
+constexpr std::ptrdiff_t kMagicCurOff = 0x1174;  // Player, int (sidearm ammo)
+constexpr std::ptrdiff_t kMagicMaxOff = 0x1178;  // Player, int
+constexpr std::ptrdiff_t kSparkCurOff = 0x50;    // SaveSlot, int
+constexpr std::ptrdiff_t kSparkMaxOff = 0x230;   // CombatCore, int
+// Vials are NOT written here: their SaveSlot bitfield offset drifts between builds (#97), so App drives
+// them through the offset-free mod-API accessors (mod::set_player_max_vials) instead.
 
 bool g_up_resolved = false;
 bool g_up_ok = false;
 bool g_up_layout_ok = true; // cleared permanently if an upgrade field reads out of its plausible domain
 std::uintptr_t g_up_save_manager = 0;
-void (*g_up_update_stats)(void *) = nullptr;        // Player::UpdateStats(this)
-void (*g_up_set_vial_count)(void *, int) = nullptr; // Player::SetVialItemCount(total)
+void (*g_up_update_stats)(void *) = nullptr; // Player::UpdateStats(this)
 
 float fld_f(void *base, std::ptrdiff_t off)
 {
@@ -912,15 +910,6 @@ float fld_f(void *base, std::ptrdiff_t off)
 int fld_i(void *base, std::ptrdiff_t off)
 {
     return *reinterpret_cast<int *>(static_cast<char *>(base) + off);
-}
-// Vials consumed = overflow + min(held, trinket-slots); popcount(owned-bits) = base capacity.
-int vial_total(void *player)
-{
-    return fld_i(player, kVialOverflowOff) + std::min(fld_i(player, kVialHeldOff), fld_i(player, kVialTrinketOff));
-}
-int vial_capacity(void *player)
-{
-    return std::popcount(static_cast<unsigned>(fld_i(player, kVialOwnedBitsOff)));
 }
 } // namespace
 
@@ -931,7 +920,6 @@ bool upgrades_available()
     g_up_resolved = true;
     g_up_save_manager = resolve_game_symbol(mth::sym::save_manager);
     g_up_update_stats = reinterpret_cast<void (*)(void *)>(resolve_game_symbol(mth::sym::player_update_stats));
-    g_up_set_vial_count = reinterpret_cast<void (*)(void *, int)>(resolve_game_symbol(mth::sym::player_set_vial_item_count));
     g_up_ok = g_up_save_manager != 0 && g_up_update_stats != nullptr;
     if (!g_up_ok)
         logf(LogLevel::Warn, "upgrades: symbols unresolved (save=0x%llx updatestats=0x%llx); feature disabled",
@@ -954,11 +942,11 @@ bool apply_upgrades(const int *counts, void *player)
     const float hp_missing = cc != nullptr ? fld_f(cc, kHpMaxOff) - fld_f(cc, kHpCurOff) : 0.0f;
     const int magic_missing = fld_i(player, kMagicMaxOff) - fld_i(player, kMagicCurOff);
     const int spark_missing = cc != nullptr ? fld_i(cc, kSparkMaxOff) - fld_i(slot, kSparkCurOff) : 0;
-    const int vial_total_old = vial_total(player);
-    const int vial_cap_old = vial_capacity(player);
 
     for (int i = 0; i < 5; ++i)
     {
+        if (i == mth::kVialUpgradeIndex)
+            continue; // vials are applied via the mod API (offset-free), not this bitfield
         auto &fieldv = *reinterpret_cast<std::uint32_t *>(static_cast<char *>(slot) + kUpgradeFieldOff[i]);
         if (!mth::upgrade_field_in_domain(i, fieldv))
         {
@@ -980,10 +968,6 @@ bool apply_upgrades(const int *counts, void *player)
     }
     const int magic_max = fld_i(player, kMagicMaxOff);
     *reinterpret_cast<int *>(static_cast<char *>(player) + kMagicCurOff) = std::clamp(magic_max - magic_missing, 0, magic_max);
-
-    const int vial_cap_new = vial_capacity(player);
-    if (g_up_set_vial_count != nullptr && vial_cap_new != vial_cap_old)
-        g_up_set_vial_count(player, std::max(0, vial_total_old + (vial_cap_new - vial_cap_old)));
 
     return true;
 }

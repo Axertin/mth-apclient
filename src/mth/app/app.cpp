@@ -154,7 +154,10 @@ void App::drive_tick()
     hooks_->tick(state_, policy_, save_state_ ? save_state_->game_slot() : -1);
     upgrades_.recompute(state_);
     if (upgrades_.dirty() && tracker_ && pal::apply_upgrades(upgrades_.counts(), tracker_->player()))
+    {
+        apply_vial_capacity();    // vials go through the offset-free mod API, not a raw SaveSlot poke
         upgrades_.mark_applied(); // applied to the save; retry next tick if player not ready yet
+    }
     if (pending_inbound_death_.exchange(false))
         hooks_->kill_player();
     ensure_inbound_ready();
@@ -176,6 +179,20 @@ void App::drain_grants()
 {
     hooks_->drain();
     grants_->drain();
+}
+
+void App::apply_vial_capacity()
+{
+    // Vial capacity is popcount of a SaveSlot bitfield whose offset drifts between builds (#97); drive it
+    // through the mod API instead, which resolves the current player/save-slot itself. Preserve the missing
+    // flask count across the capacity change. No-op until a player exists.
+    if (!mod::vial_api_available())
+        return;
+    const int want = upgrades_.counts()[kVialUpgradeIndex];
+    const int old_max = mod::player_max_vials();
+    const int old_held = mod::player_vials();
+    mod::set_player_max_vials(want);
+    mod::set_player_vials(maintained_vial_held(old_max, old_held, want));
 }
 
 void App::on_world_destroy()

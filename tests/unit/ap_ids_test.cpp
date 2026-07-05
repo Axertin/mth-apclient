@@ -106,3 +106,13 @@ TEST_CASE("upgrade_field_value: non-vial pools accumulate onto the current bits"
     REQUIRE(mth::upgrade_field_value(1, 2, 0x4u) == 0x7u); // OR: 0x4 | 0x3
     REQUIRE(mth::upgrade_field_value(0, 3, 0x0u) == 0x7u);
 }
+
+TEST_CASE("maintained_vial_held preserves the missing flask count across a capacity change", "[upgrade]")
+{
+    REQUIRE(mth::maintained_vial_held(3, 3, 1) == 1); // full 3/3 -> new cap 1 stays full 1/1
+    REQUIRE(mth::maintained_vial_held(3, 3, 5) == 5); // full 3/3 -> cap 5 fills to 5/5
+    REQUIRE(mth::maintained_vial_held(2, 0, 3) == 1); // empty 0/2, +1 cap -> 1/3 (missing 2 preserved)
+    REQUIRE(mth::maintained_vial_held(1, 1, 1) == 1); // resend, no change
+    REQUIRE(mth::maintained_vial_held(3, 1, 0) == 0); // cap drops to 0 -> clamped, no negative
+    REQUIRE(mth::maintained_vial_held(0, 0, 4) == 4); // fresh file, cap 4 -> full 4/4
+}
