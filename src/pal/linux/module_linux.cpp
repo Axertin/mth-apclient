@@ -48,57 +48,6 @@ int dlpi_collect_main(struct dl_phdr_info *info, size_t /*size*/, void *data)
     return out->info.path.empty() ? 1 : 0;
 }
 
-std::string read_gnu_build_id_from_phdr(const ElfW(Phdr) * phdrs, int phnum, std::uintptr_t base)
-{
-    for (int i = 0; i < phnum; ++i)
-    {
-        const auto &ph = phdrs[i];
-        if (ph.p_type != PT_NOTE)
-            continue;
-        const auto *note = reinterpret_cast<const std::uint8_t *>(base + ph.p_vaddr);
-        const auto *end = note + ph.p_memsz;
-        while (note + sizeof(ElfW(Nhdr)) <= end)
-        {
-            const auto *nh = reinterpret_cast<const ElfW(Nhdr) *>(note);
-            const auto name_sz = (nh->n_namesz + 3) & ~3u;
-            const auto desc_sz = (nh->n_descsz + 3) & ~3u;
-            const char *name = reinterpret_cast<const char *>(note + sizeof(ElfW(Nhdr)));
-            const auto *desc = note + sizeof(ElfW(Nhdr)) + name_sz;
-            if (nh->n_type == NT_GNU_BUILD_ID && nh->n_namesz == 4 && std::memcmp(name, "GNU", 4) == 0)
-            {
-                std::string hex;
-                hex.reserve(nh->n_descsz * 2);
-                for (unsigned k = 0; k < nh->n_descsz; ++k)
-                {
-                    char b[3];
-                    std::snprintf(b, sizeof(b), "%02x", desc[k]);
-                    hex.append(b, 2);
-                }
-                return hex;
-            }
-            note += sizeof(ElfW(Nhdr)) + name_sz + desc_sz;
-        }
-    }
-    return {};
-}
-
-struct BuildIdMatch
-{
-    std::string build_id;
-    bool is_main{true};
-    bool done{false};
-};
-
-int dlpi_collect_build_id(struct dl_phdr_info *info, size_t /*size*/, void *data)
-{
-    auto *out = static_cast<BuildIdMatch *>(data);
-    if (out->done)
-        return 1;
-    out->build_id = read_gnu_build_id_from_phdr(info->dlpi_phdr, info->dlpi_phnum, info->dlpi_addr);
-    out->done = true;
-    return 1;
-}
-
 } // namespace
 
 namespace pal
@@ -126,13 +75,6 @@ ModuleInfo self_module()
 std::uintptr_t rva(std::uintptr_t relative)
 {
     return game_module().base + relative;
-}
-
-std::string game_build_id()
-{
-    BuildIdMatch m{};
-    dl_iterate_phdr(&dlpi_collect_build_id, &m);
-    return m.build_id;
 }
 
 void *find_symbol(const char *module_basename, const char *symbol)

@@ -3,6 +3,7 @@
 namespace mth
 {
 
+// twin: mth/features/goal_tracker.hpp polls the save against this.
 // slot_data "goal_config": which condition completes the AP goal. Unknown/absent -> finish.
 inline constexpr int kGoalFinish = 0;     // beat the game (SaveSlot game-clear flag)
 inline constexpr int kGoalGenerators = 1; // repair >= goal_generators generators

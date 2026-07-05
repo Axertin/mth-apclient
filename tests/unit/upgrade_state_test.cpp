@@ -2,9 +2,9 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-#include "mth/core/ap_events.hpp"
-#include "mth/core/ap_ids.hpp"
-#include "mth/core/ap_state.hpp"
+#include "mth/core/ap/ap_events.hpp"
+#include "mth/core/ap/ap_ids.hpp"
+#include "mth/core/ap/ap_state.hpp"
 #include "mth/core/upgrade_state.hpp"
 
 namespace

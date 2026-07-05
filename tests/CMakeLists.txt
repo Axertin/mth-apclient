@@ -34,12 +34,12 @@ add_executable(mthap_unit_tests
     unit/modifier_table_test.cpp
     unit/stat_cap_state_test.cpp
     unit/upgrade_state_test.cpp
-    unit/config_test.cpp
     unit/session_policy_test.cpp
     unit/area_reporter_test.cpp
     unit/ability_gate_test.cpp
     unit/game_tables_test.cpp
     unit/goal_state_test.cpp
+    unit/mod_api_test.cpp
 )
 
 target_include_directories(mthap_unit_tests PRIVATE
@@ -49,6 +49,8 @@ target_include_directories(mthap_unit_tests PRIVATE
 target_link_libraries(mthap_unit_tests PRIVATE
     Catch2::Catch2WithMain
     mthap_core
+    mthap_mod
+    mthap::minamodapi
 )
 target_compile_features(mthap_unit_tests PRIVATE cxx_std_23)
 

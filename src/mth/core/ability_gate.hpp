@@ -4,11 +4,12 @@
 #include <cstdint>
 #include <functional>
 
-#include "mth/core/ability_ids.hpp"
+#include "mth/core/data/ability_ids.hpp"
 
 namespace mth
 {
 
+// twin: mth/features/ability_hooks.hpp enforces this in-game.
 // Pure per-ability gate decision. No game/PAL/IO dependency; the caller supplies the AP-grant lookup
 // and whether the active save is the AP slot.
 class AbilityGate

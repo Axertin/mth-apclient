@@ -1,6 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
-#include "mth/core/ap_ids.hpp"
+#include "mth/core/ap/ap_ids.hpp"
 
 TEST_CASE("ap_item_id and game_item_type round-trip", "[ap_ids]")
 {

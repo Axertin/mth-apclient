@@ -49,28 +49,6 @@ using ShopLevelFn = int (*)(int loc_idx);
 bool install_shop_stock_hook(ShopLevelFn level_state);
 void remove_shop_stock_hook();
 
-// Items::IsItemCollected override. Capacity-upgrade locations (itemTypes 0x44..0x48) read the same
-// SaveSlot bitfield apply_upgrades repurposes as a capacity counter, so a vanilla collected-bit query
-// for one reports "an upgrade was received" -- which makes boss rose-reward spawns (gated on
-// !IsItemCollected(rewardLoc)) wrongly skip (issue #8). The platform hooks Items::IsItemCollected and
-// consults query(loc_idx, ownership_query): -1 = pass through to the original; 0/1 = force the result
-// (used to report the AP checked-state for such locations). `ownership_query` is IsItemCollected's
-// param5 (b5): true when the caller asks "do I persistently own this item" (the weapon-swap chest),
-// false for location-collected queries (chest-open, pickup self-kill, boss reward-rose). The mth-side
-// query needs it to avoid hiding a received weapon from the swap chest. Returns false if not installed.
-using ItemCollectedFn = int (*)(int loc_idx, bool ownership_query);
-bool install_item_collected_hook(ItemCollectedFn query);
-void remove_item_collected_hook();
-
-// World::Update pre-tick notification via the native "WorldUpdate" mod hook. It fires at the top of
-// World::Update -- the pre-update spawn window where grants/lock-seeds must happen to avoid update-queue
-// hangs -- so it replaces the old detour's pre-hook (the old post-hook was an unused no-op). on_pre runs
-// on the game thread. Cross-platform: both builds inline the named hook. false if the modding API is
-// unavailable.
-using WorldUpdatePreFn = void (*)();
-bool install_world_update_hook(WorldUpdatePreFn on_pre);
-void remove_world_update_hook();
-
 // Per-frame "open a removed lock" hooks for KeyBlockChain / locked Chest. The platform owns the hook
 // target and the this->base normalization: Linux hooks ::Update (self == entity base); Windows hooks
 // ::UpdateState (self == the StateMachine sub-object, so base = self - 0x170) because the game's MSVC

@@ -41,7 +41,6 @@ if(NOT MTHAP_BUILD_TESTS_ONLY)
     else()
         include(FridaGum)
     endif()
-    include(MinaModApi)
     add_subdirectory(src/pal)
 
     # Archipelago net stack (apclientpp/wswrap/websocketpp), fetched + patched
@@ -55,6 +54,12 @@ if(NOT MTHAP_BUILD_TESTS_ONLY)
         include(DearImGui)
     endif()
 endif()
+
+# mthap_mod (mod::) is header-only-dependent (mthap::minamodapi, a FetchContent
+# INTERFACE lib with no vcpkg/net bootstrap) and pure logic, so it builds in both
+# lanes; the unit tests link it directly to exercise the mod:: marshaling.
+include(MinaModApi)
+add_subdirectory(src/mod)
 
 # mthap_core is pure (PAL headers only) and is linked by tests; build it in
 # both lanes. The mthap MODULE target inside this subdir is guarded on

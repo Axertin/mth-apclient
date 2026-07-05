@@ -21,9 +21,6 @@ ModuleInfo self_module();
 // game_module().base + relative (convenience).
 std::uintptr_t rva(std::uintptr_t relative);
 
-// Linux: GNU BuildID; Windows: PE TimeDateStamp:SizeOfImage hex string.
-std::string game_build_id();
-
 // nullptr module_basename consults the global symbol table only.
 void *find_symbol(const char *module_basename, const char *symbol);
 

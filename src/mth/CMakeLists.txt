@@ -7,21 +7,20 @@
 #                Added in a later task; guarded on NOT MTHAP_BUILD_TESTS_ONLY.
 
 add_library(mthap_core STATIC
-    core/ap_state.cpp
-    core/ap_coordinator.cpp
+    core/ap/ap_state.cpp
+    core/ap/ap_coordinator.cpp
     core/broadcast.cpp
     core/rando_bridge.cpp
     core/dev_commands.cpp
     core/log_ring.cpp
-    core/ap_save_state.cpp
+    core/ap/ap_save_state.cpp
     core/inbound_granter.cpp
     core/sig_scan.cpp
     core/lock_registry.cpp
     core/modifier_config.cpp
-    core/modifier_table.cpp
+    core/data/modifier_table.cpp
     core/stat_cap_state.cpp
     core/upgrade_state.cpp
-    core/config.cpp
     core/area_reporter.cpp
 )
 
@@ -68,31 +67,35 @@ if(NOT MTHAP_BUILD_TESTS_ONLY)
         apply_release_optimizations(mthap_net)
     endif()
 
-    # mth-apclient.cpp / app.cpp call PAL impls, so they live in the module,
+    # entry.cpp / app.cpp call PAL impls, so they live in the module,
     # not in mthap_core (keeps the pure test link clean).
     add_library(mthap MODULE
-        mth-apclient.cpp
-        core/app.cpp
+        app/entry.cpp
+        app/app.cpp
+        app/grant_pipeline.cpp
+        app/ap_session.cpp
+        app/hook_manager.cpp
         hooks/game_hooks.cpp
-        hooks/game_tables.cpp
-        hooks/player_tracker.cpp
-        hooks/room_tracker.cpp
-        hooks/item_granter.cpp
-        hooks/location_hooks.cpp
-        hooks/boss_hooks.cpp
-        hooks/goal_tracker.cpp
-        hooks/lock_hooks.cpp
-        hooks/chest_hooks.cpp
-        hooks/death_hooks.cpp
-        hooks/ability_hooks.cpp
-        hooks/pawn_shop_hooks.cpp
-        hooks/modifier_hooks.cpp
-        hooks/levelcap_hooks.cpp
+        core/data/game_tables.cpp
+        features/player_tracker.cpp
+        features/room_tracker.cpp
+        features/item_granter.cpp
+        features/location_hooks.cpp
+        features/boss_hooks.cpp
+        features/goal_tracker.cpp
+        features/lock_hooks.cpp
+        features/chest_hooks.cpp
+        features/death_hooks.cpp
+        features/ability_hooks.cpp
+        features/pawn_shop_hooks.cpp
+        features/modifier_hooks.cpp
+        features/levelcap_hooks.cpp
     )
 
     target_link_libraries(mthap PRIVATE
         mthap_core
         mthap_pal
+        mthap_mod
     )
 
     if(MTHAP_ENABLE_NET)

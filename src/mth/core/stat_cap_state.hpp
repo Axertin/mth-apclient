@@ -1,6 +1,6 @@
 #pragma once
 
-#include "mth/core/ap_ids.hpp" // kStatCount
+#include "mth/core/ap/ap_ids.hpp" // kStatCount
 
 namespace mth
 {
@@ -20,6 +20,7 @@ class ApState;
     return (stat >= 0 && stat < kStatCount) ? max_stat_level : vanilla_cap;
 }
 
+// twin: mth/features/levelcap_hooks.hpp enforces this in-game.
 // Per-stat level-cap policy, derived from received AP "cap up" items. Pure logic, no platform deps.
 // The game's per-stat buy-gate is `current_level < cap`; we feed it min(vanilla_cap, granted-count),
 // so with 0 cap-ups a stat is frozen at its starting level and each cap-up unlocks one more level.

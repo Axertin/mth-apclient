@@ -2,7 +2,7 @@
 
 #include <algorithm>
 
-#include "mth/core/ap_state.hpp"
+#include "mth/core/ap/ap_state.hpp"
 
 namespace mth
 {

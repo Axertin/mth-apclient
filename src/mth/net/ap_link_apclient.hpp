@@ -12,7 +12,7 @@
 #include <thread>
 #include <vector>
 
-#include "mth/core/ap_link.hpp"
+#include "mth/core/ap/ap_link.hpp"
 
 class APClient; // forward-declared; full type only in the .cpp
 

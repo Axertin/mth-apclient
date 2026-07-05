@@ -5,11 +5,12 @@
 #include <functional>
 #include <utility>
 
-#include "mth/core/ap_ids.hpp"
-#include "mth/core/game_symbols.hpp"
+#include "mth/core/ap/ap_ids.hpp"
+#include "mth/core/data/game_symbols.hpp"
 #include "pal/pal_game.hpp"
 #include "pal/pal_hook.hpp"
 #include "pal/pal_log.hpp"
+#include "pal/pal_mem.hpp"
 #include "pal/pal_module.hpp"
 
 namespace
@@ -177,17 +178,9 @@ void *mod_slot(std::ptrdiff_t off)
     return *reinterpret_cast<void **>(g_mod_save_manager + off);
 }
 
-// ActivateSaveSlot also fires from title/menu init, where g_saveManager+0x08 holds an
-// uninitialized (non-pointer) value; only deref a slot that looks like a canonical user pointer.
-bool slot_looks_valid(void *p)
-{
-    const auto v = reinterpret_cast<std::uintptr_t>(p);
-    return v >= 0x10000 && v < 0x0000800000000000;
-}
-
 void set_mask_bit(void *slot, int idx, bool on)
 {
-    if (!slot_looks_valid(slot))
+    if (!pal::pointer_looks_valid(slot))
         return;
     auto *mask = reinterpret_cast<std::uint32_t *>(static_cast<char *>(slot) + kCheatMaskOff);
     const std::uint32_t bit = 1u << (static_cast<unsigned>(idx) & 31u);
@@ -209,7 +202,7 @@ void repl_activate_slot(void *self, bool flag)
         void *slots[2] = {aslot, (lslot != aslot) ? lslot : nullptr};
         for (void *slot : slots)
         {
-            if (!slot_looks_valid(slot))
+            if (!pal::pointer_looks_valid(slot))
                 continue;
             auto *mask = reinterpret_cast<std::uint32_t *>(static_cast<char *>(slot) + kCheatMaskOff);
             std::uint32_t words[8];
@@ -565,7 +558,9 @@ void *active_save_slot(std::uintptr_t save_manager_global)
 {
     if (save_manager_global == 0)
         return nullptr;
-    return *reinterpret_cast<void **>(save_manager_global + 0x18); // SaveSlot* = *(g_saveManager + 0x18)
+    void *slot = *reinterpret_cast<void **>(save_manager_global + 0x18); // SaveSlot* = *(g_saveManager + 0x18)
+    // Title/menu init leaves this uninitialized (non-pointer); every caller null-checks, so fail closed.
+    return pal::pointer_looks_valid(slot) ? slot : nullptr;
 }
 
 bool install_shop_purchase_hook(ShopBuyFn on_buy)
@@ -657,7 +652,7 @@ void remove_shop_stock_hook()
     g_orig_shop_refresh = nullptr;
 }
 
-// install_item_collected_hook / remove_item_collected_hook live in native_mod_entry.cpp.
+// install_item_collected_hook / remove_item_collected_hook live in mod/mod_api.cpp.
 
 bool install_chain_open_hook(EntityFrameFn on_frame)
 {
@@ -803,7 +798,7 @@ bool apply_live_modifier(int idx, bool on)
         return false;
     void *aslot = mod_slot(kApplySlotOff);
     void *lslot = mod_slot(kLiveSlotOff);
-    if (!slot_looks_valid(aslot) && !slot_looks_valid(lslot))
+    if (!pal::pointer_looks_valid(aslot) && !pal::pointer_looks_valid(lslot))
     {
         logf(LogLevel::Warn, "modifiers: live set idx=%d failed (no valid save slot active)", idx);
         return false;
@@ -811,10 +806,10 @@ bool apply_live_modifier(int idx, bool on)
     set_mask_bit(aslot, idx, on);
     if (lslot != aslot)
         set_mask_bit(lslot, idx, on);
-    if (!slot_looks_valid(aslot) || !slot_looks_valid(lslot))
+    if (!pal::pointer_looks_valid(aslot) || !pal::pointer_looks_valid(lslot))
         logf(LogLevel::Warn, "modifiers: live set idx=%d partial (apply=%p live=%p)", idx, aslot, lslot);
     // ActivateSaveCheats reads the apply-path slot internally, so only rebuild when it is valid.
-    if (slot_looks_valid(aslot) && g_cheat_mgr != nullptr && g_orig_activate_cheats != nullptr)
+    if (pal::pointer_looks_valid(aslot) && g_cheat_mgr != nullptr && g_orig_activate_cheats != nullptr)
         g_orig_activate_cheats(g_cheat_mgr); // rebuild [CheatManager+0x20] mirror from the mask
     else
         logf(LogLevel::Warn, "modifiers: live set idx=%d bit written but mirror NOT rebuilt (apply slot/CheatManager unavailable)", idx);
@@ -905,6 +900,7 @@ constexpr std::ptrdiff_t kVialTrinketOff = 0x1190;   // Player, int
 
 bool g_up_resolved = false;
 bool g_up_ok = false;
+bool g_up_layout_ok = true; // cleared permanently if an upgrade field reads out of its plausible domain
 std::uintptr_t g_up_save_manager = 0;
 void (*g_up_update_stats)(void *) = nullptr;        // Player::UpdateStats(this)
 void (*g_up_set_vial_count)(void *, int) = nullptr; // Player::SetVialItemCount(total)
@@ -945,7 +941,7 @@ bool upgrades_available()
 
 bool apply_upgrades(const int *counts, void *player)
 {
-    if (!upgrades_available() || player == nullptr)
+    if (!upgrades_available() || player == nullptr || !g_up_layout_ok)
         return false;
     void *slot = active_save_slot(g_up_save_manager);
     if (slot == nullptr)
@@ -964,6 +960,13 @@ bool apply_upgrades(const int *counts, void *player)
     for (int i = 0; i < 5; ++i)
     {
         auto &fieldv = *reinterpret_cast<std::uint32_t *>(static_cast<char *>(slot) + kUpgradeFieldOff[i]);
+        if (!mth::upgrade_field_in_domain(i, fieldv))
+        {
+            g_up_layout_ok = false; // upgrades_available()-adjacent guard now short-circuits future calls
+            logf(LogLevel::Warn, "upgrades: kUpgradeFieldOff[%d] read=0x%x exceeds cap %d; offset may have shifted, upgrade writes DISABLED", i, fieldv,
+                 mth::kUpgradeCaps[i]);
+            return false;
+        }
         fieldv = mth::upgrade_field_value(i, counts[i], fieldv);
     }
     g_up_update_stats(player); // recompute live maxima from the owned-bit fields

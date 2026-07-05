@@ -6,8 +6,8 @@
 
 #include <imgui.h>
 
-#include "mth/core/ability_ids.hpp"
 #include "mth/core/command_sink.hpp"
+#include "mth/core/data/ability_ids.hpp"
 #include "mth/core/dev_commands.hpp"
 #include "mth_version.h"
 #include "pal/pal_log.hpp"

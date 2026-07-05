@@ -1,6 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
-#include "mth/core/modifier_table.hpp"
+#include "mth/core/data/modifier_table.hpp"
 
 using mth::CheatClass;
 

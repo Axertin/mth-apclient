@@ -1,7 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "mth/core/ability_gate.hpp"
-#include "mth/core/ability_ids.hpp"
+#include "mth/core/data/ability_ids.hpp"
 
 using mth::Ability;
 

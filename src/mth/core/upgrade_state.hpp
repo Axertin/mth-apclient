@@ -1,11 +1,12 @@
 #pragma once
 
-#include "mth/core/ap_ids.hpp"
+#include "mth/core/ap/ap_ids.hpp"
 
 namespace mth
 {
 class ApState;
 
+// twin: pal::apply_upgrades pushes counts() to the save (PAL, not a feature module).
 // Counts received capacity-upgrade items (68..72) per type, clamped to each cap. pal::apply_upgrades
 // pushes counts() to the save; dirty() gates re-applying so the owner only writes on change.
 class UpgradeState

@@ -1,8 +1,8 @@
 #include "mth/hooks/game_hooks.hpp"
 
+#include "mod/mod_api.hpp"
+#include "mth/core/data/game_symbols.hpp"
 #include "mth/core/game_events.hpp"
-#include "mth/core/game_symbols.hpp"
-#include "pal/pal_game.hpp"
 
 // File-scope globals: Frida replacements have no user context; exactly one GameHooks exists.
 namespace
@@ -57,14 +57,14 @@ GameHooks::GameHooks(IGameEvents &sink)
     fixed_update_ = ScopedHook(sym::game_fixed_update, reinterpret_cast<void *>(&repl_game_fixed_update), reinterpret_cast<void **>(&g_orig_game_fixed_update),
                                "Game::FixedUpdate");
     update_ = ScopedHook(sym::game_update, reinterpret_cast<void *>(&repl_game_update), reinterpret_cast<void **>(&g_orig_game_update), "Game::Update");
-    pal::install_world_update_hook(&world_update_notify);
+    mod::install_world_update_hook(&world_update_notify);
     update_queue_ =
         ScopedHook(sym::update_queue, reinterpret_cast<void *>(&repl_update_queue), reinterpret_cast<void **>(&g_orig_update_queue), "ycUpdateQueue::Update");
 }
 
 GameHooks::~GameHooks()
 {
-    pal::remove_world_update_hook(); // stop the mod hook before the sink goes away
+    mod::remove_world_update_hook(); // stop the mod hook before the sink goes away
     // g_sink cleared first; the repls null-check it, so a hook firing during member
     // teardown is a safe no-op forward.
     g_sink = nullptr;

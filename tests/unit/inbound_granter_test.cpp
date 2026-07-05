@@ -3,10 +3,10 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-#include "mth/core/ap_save_state.hpp"
-#include "mth/core/ap_state.hpp"
+#include "mth/core/ap/ap_save_state.hpp"
+#include "mth/core/ap/ap_state.hpp"
 #include "mth/core/inbound_granter.hpp"
-#include "mth/core/item_granter.hpp"
+#include "mth/core/item_granter_interface.hpp"
 #include "mth/core/rando_bridge.hpp"
 
 namespace
