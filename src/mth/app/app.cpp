@@ -37,17 +37,24 @@ class AppTickSink final : public mth::IGameEvents
     explicit AppTickSink(mth::App &app) : app_(app)
     {
     }
+    // Every game-thread event is gated on App being fully constructed. The tick hooks go live mid-ctor
+    // (GameHooks installs Game::FixedUpdate before hooks_ is assigned), so on a fast-initializing host an
+    // event can arrive before App is wired; app_ exists (we are its member) but its members may not, and
+    // ready() is the release/acquire barrier. Gating here covers every current and future forward at once.
     void on_game_fixed_update() override
     {
-        app_.drive_tick();
+        if (app_.ready())
+            app_.drive_tick();
     }
     void on_world_update_pre() override
     {
-        app_.drain_grants();
+        if (app_.ready())
+            app_.drain_grants();
     }
     void on_world_destroy() override
     {
-        app_.on_world_destroy();
+        if (app_.ready())
+            app_.on_world_destroy();
     }
 
   private:
@@ -106,10 +113,12 @@ App::App()
         pal::logf(pal::LogLevel::Info, "overlay: dev console attached"); // overlay logs the resolved toggle key
     }
 #endif
+    ready_.store(true); // everything wired: allow the game-thread tick hooks to run (they may already be firing)
 }
 
 App::~App()
 {
+    ready_.store(false); // stop ticking before any member is torn down
 #ifdef MTHAP_HAS_OVERLAY
     overlay_.reset();      // removes render/input hooks + stops drawing first
     overlay_root_.reset(); // then unregister the log observer

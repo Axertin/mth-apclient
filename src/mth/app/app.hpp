@@ -45,9 +45,16 @@ class App : public ICommandSink
 
     void run();
 
-    void drive_tick();       // called by tick sink each fixed update
-    void drain_grants();     // called by tick sink from World::Update pre-hook
-    void on_world_destroy(); // called by tick sink on World teardown; drops the cached Player*
+    // False until the ctor finishes wiring every member. The tick sink checks this before forwarding any
+    // game-thread event, so a hook that goes live mid-construction can't reach a half-built App.
+    [[nodiscard]] bool ready() const noexcept
+    {
+        return ready_.load();
+    }
+
+    void drive_tick();       // called by tick sink each fixed update (only once ready())
+    void drain_grants();     // called by tick sink from World::Update pre-hook (only once ready())
+    void on_world_destroy(); // called by tick sink on World teardown (only once ready()); drops the cached Player*
 
     void connect(const std::string &server, const std::string &slot, const std::string &password) override;
     void disconnect() override;
@@ -75,6 +82,11 @@ class App : public ICommandSink
     std::optional<ApSaveState> save_state_;
     std::unique_ptr<GrantPipeline> grants_;
     std::atomic<bool> pending_inbound_death_{false};
+    // Gates the tick entry points until construction finishes. The game-thread tick hooks go live mid-ctor
+    // (GameHooks installs Game::FixedUpdate before hooks_ is even assigned), so on a fast-initializing host
+    // the first tick can land on a half-built App and deref a null member. Release on the last ctor line,
+    // acquire at the top of each tick; cleared first in the dtor so teardown can't be ticked either.
+    std::atomic<bool> ready_{false};
     bool first_tick_logged_{false};
     SessionPolicy policy_;
     UpgradeState upgrades_;
