@@ -8,7 +8,6 @@ interfere with saves more than necessary, but use at your own risk.
 
 ## Known Issues
 
-- Using the backer code modifiers in an AP save breaks a lot of starting-item related things. For the moment, avoid using them in AP.
 - Sometimes, if you die (or more likely, receive a deathlink) while in the process of sending a location check, you will be given the vanilla item and the check will not send.
 - Make sure to look at the [reported bugs](https://github.com/Axertin/mth-apclient/issues?q=is%3Aissue%20state%3Aopen%20label%3Abug)
 
