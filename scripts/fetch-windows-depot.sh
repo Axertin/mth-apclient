@@ -26,7 +26,27 @@ BRANCH=${3:-experimental-modding}
 BETAPW=${4:-}
 
 # @sSteamCmdForcePlatformType windows MUST precede +login so the Windows depot variant is selected on Linux.
-run_steamcmd() { "$STEAMCMD" +@sSteamCmdForcePlatformType windows +login "$STEAM_USER" "$@" +quit; }
+# stdin is closed (</dev/null): this script is non-interactive, and without a TTY an uncached +login would
+# otherwise hang forever on steamcmd's password prompt (which our pipes redirect off-screen anyway). Closing
+# stdin makes an uncached login fail fast so assert_login_ok can report it. Cache creds via RELOGIN_HINT.
+run_steamcmd() { "$STEAMCMD" +@sSteamCmdForcePlatformType windows +login "$STEAM_USER" "$@" +quit </dev/null; }
+
+# steamcmd caches a login token after one interactive login; a Steam client self-update or unclean shutdown
+# can wipe that cache. A non-interactive +login then falls back to an unanswerable password prompt and fails,
+# with the error buried in the piped log. Scan the log and surface a clear, actionable message instead of
+# dying silently under `set -e`; the interactive re-login re-caches the token so later runs are automatic.
+RELOGIN_HINT="$STEAMCMD +@sSteamCmdForcePlatformType windows +login $STEAM_USER +quit"
+assert_login_ok()
+{
+    local log=$1
+    if grep -qiE 'Cached credentials not found|Invalid Password|Rate Limit|Two[ -]?Factor|Account Logon Denied|Invalid Login Auth Code|Login Failure|Logging in user .* (FAILED|ERROR)' "$log"; then
+        echo "!! steamcmd could not log in as '$STEAM_USER' (cached credentials missing or expired)." >&2
+        echo "!! Re-cache them ONCE in an interactive terminal (answer the password + Steam Guard prompts):" >&2
+        echo "!!   $RELOGIN_HINT" >&2
+        echo "!! then re-run this script. Full steamcmd output: $log" >&2
+        exit 1
+    fi
+}
 
 MANIFEST=""
 if [ "$BRANCH" != "public" ]; then
@@ -34,7 +54,8 @@ if [ "$BRANCH" != "public" ]; then
     # A password-protected beta must be unlocked once via app_update -beta so app_info shows its manifest.
     UPDATE_ARGS=()
     [ -n "$BETAPW" ] && UPDATE_ARGS=(+app_update "$APP" -beta "$BRANCH" -betapassword "$BETAPW")
-    run_steamcmd "${UPDATE_ARGS[@]}" +app_info_update 1 +app_info_print "$APP" 2>&1 | tee /tmp/steamcmd_appinfo.log >/dev/null
+    run_steamcmd "${UPDATE_ARGS[@]}" +app_info_update 1 +app_info_print "$APP" >/tmp/steamcmd_appinfo.log 2>&1 || true
+    assert_login_ok /tmp/steamcmd_appinfo.log
 
     # NB: the log path is an argv (not stdin) -- `python3 -` already consumes stdin for the heredoc.
     MANIFEST=$(python3 - "$WIN_DEPOT" "$BRANCH" /tmp/steamcmd_appinfo.log <<'PY'
@@ -67,18 +88,24 @@ PY
 fi
 
 echo ">> steamcmd: downloading app $APP windows depot $WIN_DEPOT${MANIFEST:+ manifest $MANIFEST} (branch: $BRANCH)"
-run_steamcmd +download_depot "$APP" "$WIN_DEPOT" $MANIFEST | tee /tmp/steamcmd_fetch.log
+run_steamcmd +download_depot "$APP" "$WIN_DEPOT" $MANIFEST 2>&1 | tee /tmp/steamcmd_fetch.log || true
+assert_login_ok /tmp/steamcmd_fetch.log
 
 # download_depot stages under <steam home>/steamapps/content/app_<APP>/depot_<DEPOT>/ and prints the
 # path -- but in windows-platform mode steamcmd prints it with backslashes and quotes, so normalize.
-SRC=$(sed -n 's/^Depot download complete : //p' /tmp/steamcmd_fetch.log | tr -d '\r"' | tr '\\' '/' | tail -1)
+# steamcmd prints: Depot download complete : "<path-with-backslashes>" (manifest <gid>). Extract just the
+# quoted path (dropping the trailing " (manifest ...)"), then normalize backslashes to forward slashes.
+SRC=$(sed -n 's/^Depot download complete : "\([^"]*\)".*/\1/p' /tmp/steamcmd_fetch.log | tr -d '\r' | tr '\\' '/' | tail -1)
 if [ -z "${SRC:-}" ] || [ ! -d "$SRC" ]; then
+    # -print -quit stops at the first match; a `| head` would leave find writing into a closed pipe (SIGPIPE),
+    # which under pipefail + `set -e` silently kills the script. `|| true` keeps a genuine no-match from doing
+    # the same, so the guard below reports it with a message instead.
     SRC=$(find "$HOME/.local/share/Steam/steamcmd" "$HOME/.steam" "$HOME/Steam" \
-        -type d -path "*content/app_${APP}/depot_${WIN_DEPOT}" 2>/dev/null | head -1)
+        -type d -path "*content/app_${APP}/depot_${WIN_DEPOT}" -print -quit 2>/dev/null || true)
 fi
 [ -n "${SRC:-}" ] && [ -d "$SRC" ] || { echo "!! could not locate downloaded depot dir"; exit 1; }
 
-EXE=$(find "$SRC" -iname MinaTheHollower.exe | head -1)
+EXE=$(find "$SRC" -iname MinaTheHollower.exe -print -quit 2>/dev/null || true)
 [ -n "$EXE" ] || { echo "!! MinaTheHollower.exe not found under $SRC"; exit 1; }
 
 mkdir -p "$OUTDIR"
