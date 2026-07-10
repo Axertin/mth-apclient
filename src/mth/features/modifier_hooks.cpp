@@ -119,6 +119,15 @@ void ModifierHooks::set_ossex_start(bool on)
         force_on_.erase(kCheatLandingDone);
 }
 
+void ModifierHooks::set_cheaper_boneups(bool on)
+{
+    std::lock_guard<std::mutex> lk(mtx_);
+    if (on)
+        force_on_.insert(kCheatCheaperBoneUp);
+    else
+        force_on_.erase(kCheatCheaperBoneUp);
+}
+
 void ModifierHooks::set_ap_slot(int slot)
 {
     std::lock_guard<std::mutex> lk(mtx_);

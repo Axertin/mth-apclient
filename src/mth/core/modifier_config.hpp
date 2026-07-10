@@ -14,6 +14,7 @@ inline constexpr int kCheatCount = 254; // valid modifier indices are 0..253
 // Ossex hub) is forced only when slot_data sets "ossex_start".
 inline constexpr int kCheatWarpHome = 121;
 inline constexpr int kCheatLandingDone = 128;
+inline constexpr int kCheatCheaperBoneUp = 102;
 
 // Result of parsing a modifier-index list. `indices` is the requested set (stable order, deduped).
 // `forced` are indices the user opted into despite being on the deny-list (token prefixed `force:`).
