@@ -107,6 +107,39 @@ TEST_CASE("upgrade_field_value: non-vial pools accumulate onto the current bits"
     REQUIRE(mth::upgrade_field_value(0, 3, 0x0u) == 0x7u);
 }
 
+TEST_CASE("train tickets map itemTypes 95-99 to destination-line bits", "[train]")
+{
+    REQUIRE(mth::is_train_ticket_item_type(0x5f));       // line 0 (95)
+    REQUIRE(mth::is_train_ticket_item_type(0x63));       // line 4 (99)
+    REQUIRE_FALSE(mth::is_train_ticket_item_type(0x5e)); // 94, just below
+    REQUIRE_FALSE(mth::is_train_ticket_item_type(0x64)); // 100, just above
+    REQUIRE_FALSE(mth::is_train_ticket_item_type(0));
+
+    REQUIRE(mth::train_ticket_bit(0x5f) == 0x1u);  // 1 << 0
+    REQUIRE(mth::train_ticket_bit(0x60) == 0x2u);  // 1 << 1
+    REQUIRE(mth::train_ticket_bit(0x63) == 0x10u); // 1 << 4
+    REQUIRE(mth::train_ticket_bit(0x64) == 0x0u);  // not a ticket
+    REQUIRE(mth::train_ticket_bit(41) == 0x0u);    // a normal item
+}
+
+TEST_CASE("train_destination_blocked cancels un-granted ticket lines", "[train]")
+{
+    // A ticket line is blocked (selection cancelled) unless its bit is in the granted mask.
+    REQUIRE(mth::train_destination_blocked(0x5f, 0x00));       // line 0 ungranted -> blocked
+    REQUIRE_FALSE(mth::train_destination_blocked(0x5f, 0x01)); // line 0 granted -> allowed
+    REQUIRE(mth::train_destination_blocked(0x60, 0x01));       // line 1 ungranted (only line 0) -> blocked
+    REQUIRE_FALSE(mth::train_destination_blocked(0x60, 0x02)); // line 1 granted -> allowed
+
+    // Lines 0 (95) and 4 (99) are hardcoded always-shown in the menu, so the gate MUST still block them.
+    REQUIRE(mth::train_destination_blocked(0x63, 0x00));       // line 4 ungranted -> blocked
+    REQUIRE_FALSE(mth::train_destination_blocked(0x63, 0x10)); // line 4 granted -> allowed
+
+    // Non-ticket codes are never blocked (100 = Exit/cancel sentinel; a normal item).
+    REQUIRE_FALSE(mth::train_destination_blocked(100, 0x00));
+    REQUIRE_FALSE(mth::train_destination_blocked(0x5e, 0x00)); // 94 generic pass, not a destination line
+    REQUIRE_FALSE(mth::train_destination_blocked(41, 0x00));
+}
+
 TEST_CASE("maintained_vial_held preserves the missing flask count across a capacity change", "[upgrade]")
 {
     REQUIRE(mth::maintained_vial_held(3, 3, 1) == 1); // full 3/3 -> new cap 1 stays full 1/1

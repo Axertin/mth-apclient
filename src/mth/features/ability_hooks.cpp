@@ -37,9 +37,28 @@ void AbilityHooks::set_enforce(bool on)
     enforce_ = on;
 }
 
+void AbilityHooks::set_train_gate(bool rando_active, std::uint32_t line_mask)
+{
+    train_rando_active_ = rando_active;
+    train_mask_ = line_mask;
+    pal::set_train_destination_gate(line_mask, rando_active); // published to the OnNPCEvent detour
+}
+
 void AbilityHooks::enforce_train_tick()
 {
-    pal::enforce_train_presence(g_save_manager_, gate_.blocked(Ability::Train, AbilityGate::GrantQuery{enforce_, is_granted_}));
+    // train_rando: boarding requires the generic Train Pass (#98), and each destination is gated on its AP
+    // ticket -- the +0x1e0 clamp undoes the footfall auto-unlock (box UX), while the OnNPCEvent detour (fed
+    // by set_train_gate) refuses the warp for un-granted lines. Otherwise fall back to the whole-train
+    // ability gate (console-driven Train ability), which hides the conductor while blocked.
+    if (train_rando_active_)
+    {
+        pal::enforce_train_boarding(g_save_manager_);
+        pal::enforce_train_destinations(g_save_manager_, train_mask_);
+    }
+    else
+    {
+        pal::enforce_train_presence(g_save_manager_, gate_.blocked(Ability::Train, AbilityGate::GrantQuery{enforce_, is_granted_}));
+    }
 }
 
 } // namespace mth

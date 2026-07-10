@@ -871,12 +871,26 @@ constexpr std::ptrdiff_t kInteractKindOff = 0x6c;       // component + 0x6c -> i
 constexpr int kInteractKindPlayer = 8;
 // TrainAuthority::OnNPCEvent case 0x15 selected-ticket-code chain; 100 = Exit (vanilla cancel).
 constexpr unsigned kTrainDestPickEvent = 0x15;
-constexpr std::ptrdiff_t kTrainAuthOwnerOff = 0x1b0; // this + 0x1b0 -> menu owner
-constexpr std::ptrdiff_t kTrainMenuObjOff = 0xc8;    // owner + 0xc8 -> selection obj
-constexpr std::ptrdiff_t kTrainSelCodeOff = 0x21c;   // obj + 0x21c -> int selected ticket itemType
+// Windows OnNPCEvent gets a `this` adjusted +0x170 vs the Linux struct base (MI thunk), so the owner is at
+// +0x40 here where Linux reads +0x1b0. The game's case-0x15 chain is self+0x40 -> +0xc8 -> +0x21c.
+constexpr std::ptrdiff_t kTrainAuthOwnerOff = 0x40; // this + 0x40 -> menu owner
+constexpr std::ptrdiff_t kTrainMenuObjOff = 0xc8;   // owner + 0xc8 -> selection obj
+constexpr std::ptrdiff_t kTrainSelCodeOff = 0x21c;  // obj + 0x21c -> int selected ticket itemType
 constexpr int kTrainExitCode = 100;
+// SaveSlot generic Train Pass (item 94) owned byte. Set by Items::OnPickupDone on collect; gates boarding
+// (train presence) under train_rando. Platform data; not an mth/ layout offset.
+constexpr std::ptrdiff_t kSaveTrainPassOwnedOff = 0x1c0;
 // SaveSlot train-present byte (platform data; not an mth/ layout offset).
 constexpr std::ptrdiff_t kSaveTrainPresentOff = 0x1c1;
+// SaveSlot unlocked-train-lines bitfield (5 low bits, one per destination). Set by the TrainAuthority ctor
+// on station footfall; the AP client clamps it to the granted-ticket mask. Same layout on both platforms.
+constexpr std::ptrdiff_t kSaveTrainUnlockedLinesOff = 0x1e0;
+
+// train_rando destination gate, published from mth each tick. When active, repl_train_npc cancels any
+// ticket line whose bit isn't in the granted mask (the +0x1e0 menu clamp can't hide lines 95/99); when
+// inactive it falls back to the console Train-ability block.
+std::uint32_t g_train_granted_mask = 0;
+bool g_train_rando_gate = false;
 
 pal::AbilityBlockFn g_ability_block;
 bool g_ab_resolved = false;
@@ -1052,12 +1066,19 @@ void repl_burrow_jump(void *self)
 // code to Exit (100) makes vanilla treat it as a cancel.
 void repl_train_npc(void *self, unsigned event, void *info)
 {
-    if (self != nullptr && event == kTrainDestPickEvent && ability_blocked(kAbTrain))
+    if (self != nullptr && event == kTrainDestPickEvent)
     {
         void *owner = *reinterpret_cast<void **>(static_cast<char *>(self) + kTrainAuthOwnerOff);
         void *obj = owner != nullptr ? *reinterpret_cast<void **>(static_cast<char *>(owner) + kTrainMenuObjOff) : nullptr;
         if (obj != nullptr)
-            *reinterpret_cast<int *>(static_cast<char *>(obj) + kTrainSelCodeOff) = kTrainExitCode;
+        {
+            int *code = reinterpret_cast<int *>(static_cast<char *>(obj) + kTrainSelCodeOff);
+            // train_rando: cancel any destination whose AP ticket isn't granted. Console Train ability: cancel
+            // all destinations while the ability is blocked.
+            const bool block = g_train_rando_gate ? mth::train_destination_blocked(*code, g_train_granted_mask) : ability_blocked(kAbTrain);
+            if (block)
+                *code = kTrainExitCode;
+        }
     }
     if (g_orig_train_npc)
         g_orig_train_npc(self, event, info);
@@ -1206,6 +1227,33 @@ void enforce_train_presence(std::uintptr_t save_manager_global, bool blocked)
     if (slot == nullptr)
         return;
     *reinterpret_cast<char *>(static_cast<char *>(slot) + kSaveTrainPresentOff) = 0;
+}
+
+void enforce_train_destinations(std::uintptr_t save_manager_global, std::uint32_t line_mask)
+{
+    void *slot = active_save_slot(save_manager_global);
+    if (slot == nullptr)
+        return;
+    // Unlocked-lines bitfield is a byte at +0x1e0 (5 low bits); the footfall unlock only ORs bits in, so
+    // writing the granted mask each frame clears any line the game auto-unlocked on a station visit.
+    *reinterpret_cast<std::uint8_t *>(static_cast<char *>(slot) + kSaveTrainUnlockedLinesOff) = static_cast<std::uint8_t>(line_mask & 0xffu);
+}
+
+void enforce_train_boarding(std::uintptr_t save_manager_global)
+{
+    void *slot = active_save_slot(save_manager_global);
+    if (slot == nullptr)
+        return;
+    // Require the generic Train Pass (#98): while +0x1c0 (pass owned) is 0, keep the train hidden so it
+    // cannot be boarded. Once the pass is received (OnPickupDone sets +0x1c0) leave the story-set presence.
+    if (*reinterpret_cast<std::uint8_t *>(static_cast<char *>(slot) + kSaveTrainPassOwnedOff) == 0)
+        *reinterpret_cast<char *>(static_cast<char *>(slot) + kSaveTrainPresentOff) = 0;
+}
+
+void set_train_destination_gate(std::uint32_t granted_mask, bool rando_active)
+{
+    g_train_granted_mask = granted_mask;
+    g_train_rando_gate = rando_active;
 }
 
 } // namespace pal
