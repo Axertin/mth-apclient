@@ -7,6 +7,7 @@
 
 #include "mth/core/ap/ap_ids.hpp"
 #include "mth/core/data/game_symbols.hpp"
+#include "mth/core/stat_cap_state.hpp"
 #include "pal/pal_game.hpp"
 #include "pal/pal_hook.hpp"
 #include "pal/pal_log.hpp"
@@ -615,6 +616,13 @@ namespace
 constexpr std::ptrdiff_t kSaveStatArrOff = 0x174; // *(saveSlot + 0x174 + stat*4) = int stat level
 constexpr int kLvlMaxRealStat = 2;                // stats 0..2 = attack/defense/sidearm; 3 = bone bank
 constexpr int kMaxedLevel = 1000;                 // present an at-cap stat as this so the inlined cap gate trips
+// LevelUpMenu state field on the derived `this` (r148714): the state-machine switch value. 3 = the
+// interactive selection/row-display state that runs the inlined buy-gate + SetDescription; 0 = entry gate,
+// 4 = commit, 6 = reopen. We present capped stats as maxed only in state 3, so the entry gate stays on the
+// real level (menu opens, bank row reachable, level-up pulse resolves) and the commit recompute is never fed
+// a fake level.
+constexpr std::ptrdiff_t kLevelUpMenuStateOff = 0x64;
+constexpr int kLevelUpMenuInteractiveState = 3;
 
 std::uintptr_t g_lc_save_manager = 0; // g_saveManager; *(g_lc_save_manager) = the active SaveSlot the menu reads
 std::uintptr_t g_lc_addr_update = 0;
@@ -640,12 +648,18 @@ void repl_lvlup_update(void *self, void *ctx)
 {
     void *slot = lc_active_slot();
     int saved[3] = {-1, -1, -1};
+    // Only present capped stats as maxed while the menu is in its interactive selection state. Faking during
+    // the entry state (0) would trip the open gate (menu never opens -> the uncapped bank row is unreachable
+    // and the vanilla "level-up available" pulse never resolves); commit (4)/reopen (6) must see the real
+    // level so the stat recompute is never fed a fake value.
+    const int menu_state = self != nullptr ? *reinterpret_cast<int *>(static_cast<char *>(self) + kLevelUpMenuStateOff) : -1;
+    const bool interactive = menu_state == kLevelUpMenuInteractiveState;
     if (slot != nullptr && g_lc_cap_fn)
     {
         for (int s = 0; s <= kLvlMaxRealStat; ++s)
         {
             int *lvl = reinterpret_cast<int *>(static_cast<char *>(slot) + kSaveStatArrOff + static_cast<std::ptrdiff_t>(s) * 4);
-            if (*lvl >= g_lc_cap_fn(s, 0x7fffffff))
+            if (mth::boneup_fake_capped_stat(interactive, *lvl, g_lc_cap_fn(s, 0x7fffffff)))
             {
                 saved[s] = *lvl;
                 *lvl = kMaxedLevel;
