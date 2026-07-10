@@ -76,6 +76,36 @@ inline constexpr int upgrade_index(std::int64_t ap_item_id_)
 {
     return static_cast<int>(ap_item_id_ - kUpgradeItemBase); // valid only when is_capacity_upgrade_item()
 }
+
+// Train fast-travel: the 5 destinations are vanilla itemTypes 0x5f..0x63 (95..99, "tickets"). Whether a
+// destination is travelable lives in a SaveSlot unlocked-lines bitfield, one bit per line
+// (bit = 1 << (itemType - kTrainTicketItemTypeBase)). AP unlocks a destination by setting its bit; the game
+// otherwise sets it for free just by visiting the station (#98), so the client clamps the field to the mask
+// of AP-granted tickets each frame.
+inline constexpr int kTrainTicketItemTypeBase = 0x5f; // itemType 95 == train line 0
+inline constexpr int kTrainLineCount = 5;
+
+[[nodiscard]] inline constexpr bool is_train_ticket_item_type(int item_type) noexcept
+{
+    return item_type >= kTrainTicketItemTypeBase && item_type < kTrainTicketItemTypeBase + kTrainLineCount;
+}
+
+// The unlocked-lines bit for a train-ticket itemType, or 0 when item_type is not a ticket.
+[[nodiscard]] inline constexpr std::uint32_t train_ticket_bit(int item_type) noexcept
+{
+    return is_train_ticket_item_type(item_type) ? (1u << (item_type - kTrainTicketItemTypeBase)) : 0u;
+}
+
+// Destination-picker gate: the selected ticket code should be cancelled unless its line is AP-granted.
+// This is the load-bearing per-destination enforcement -- the +0x1e0 menu clamp cannot hide lines 0 (95)
+// and 4 (99), which the menu builder always shows, so the warp must be refused here. Non-ticket codes
+// (e.g. 100 = Exit) are never blocked.
+[[nodiscard]] inline constexpr bool train_destination_blocked(int selected_code, std::uint32_t granted_mask) noexcept
+{
+    const std::uint32_t bit = train_ticket_bit(selected_code);
+    return bit != 0 && (granted_mask & bit) == 0;
+}
+
 // Progressive Items
 // Count-based: the Nth receipt of a chain's id is "tier N". Sub-layout:
 //   1000..1004  weapon families  (kProgWeaponBase + family)

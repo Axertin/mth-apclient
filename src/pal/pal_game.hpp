@@ -131,6 +131,21 @@ void remove_ability_hooks();
 // unblocked. No-op if unavailable. Game-thread only.
 void enforce_train_presence(std::uintptr_t save_manager_global, bool blocked);
 
+// Clamps the SaveSlot unlocked-train-lines bitfield to line_mask (bit N = destination line N travelable).
+// The game auto-unlocks a line just by visiting its station (#98), so AP-only gating overwrites the field
+// with the granted-ticket mask each frame. This is box-hiding UX only: the menu builder always shows lines
+// 95/99 regardless, so the warp is refused by the destination gate below. No-op if unavailable. Game-thread.
+void enforce_train_destinations(std::uintptr_t save_manager_global, std::uint32_t line_mask);
+
+// Requires the generic Train Pass (item 94) before the train can be boarded: forces the train-present byte
+// to 0 while the pass is unowned, then releases it once received (#98). No-op if unavailable. Game-thread.
+void enforce_train_boarding(std::uintptr_t save_manager_global);
+
+// Publishes the train_rando destination gate read by the OnNPCEvent detour. When rando_active, a selected
+// ticket line is cancelled unless its bit is in granted_mask; when inactive the detour uses the console
+// Train-ability block instead. Cheap; call each tick.
+void set_train_destination_gate(std::uint32_t granted_mask, bool rando_active);
+
 // ---- Pawn shop ("Pawnty") disable. Symbol/offset divergence lives in the PAL impl. ----
 
 // PawnShopNPC::OnNPCEvent suppressor. When disable() returns true the detour no-ops every event and

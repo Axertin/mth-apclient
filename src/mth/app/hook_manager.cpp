@@ -84,9 +84,17 @@ void HookManager::tick(ApState &state, SessionPolicy &policy, int save_game_slot
         ability_hooks_->set_randomized(Ability::BouncePuff, state.puff_rando());
         ability_hooks_->set_randomized(Ability::BounceSpring, state.spring_rando());
         ability_hooks_->set_randomized(Ability::Carry, state.carry_rando());
-        ability_hooks_->set_randomized(Ability::Train, state.train_rando());
     }
     // offline: leave randomized as the `ability` console command set it.
+
+    // Train fast-travel (train_rando): gate each destination on its AP ticket rather than the whole-train
+    // ability, so visiting a station no longer unlocks it (#98). Build the granted-line mask from received
+    // ticket itemTypes; enforce_train_tick clamps the SaveSlot bitfield to it each frame.
+    std::uint32_t train_mask = 0;
+    for (const auto &it : state.received_items())
+        if (is_vanilla_game_item(it.item_id))
+            train_mask |= train_ticket_bit(game_item_type(it.item_id));
+    ability_hooks_->set_train_gate(authed && state.train_rando(), train_mask);
     const bool armed = policy.enforce_abilities(authed);
     const bool slot_ok = !authed ? true : (save_game_slot >= 0 && modifier_hooks_->captured_ap_slot() == save_game_slot);
     ability_hooks_->set_enforce(armed && slot_ok);
