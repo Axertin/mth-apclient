@@ -96,12 +96,12 @@ inline constexpr int kTrainLineCount = 5;
     return is_train_ticket_item_type(item_type) ? (1u << (item_type - kTrainTicketItemTypeBase)) : 0u;
 }
 
-// Destination-picker gate: the selected ticket code should be cancelled unless its line is AP-granted.
-// This is the load-bearing per-destination enforcement -- the +0x1e0 menu clamp cannot hide lines 0 (95)
-// and 4 (99), which the menu builder always shows, so the warp must be refused here. Non-ticket codes
-// (e.g. 100 = Exit) are never blocked.
+// Cancel a picked line whose AP ticket isn't granted (96-99). Line 0 (Ossex/HUB, 95) rides on the Train
+// Pass alone, so it is never blocked; non-ticket codes (100 Exit, 101 locked box) aren't either.
 [[nodiscard]] inline constexpr bool train_destination_blocked(int selected_code, std::uint32_t granted_mask) noexcept
 {
+    if (selected_code == kTrainTicketItemTypeBase) // 95 = Ossex/HUB, always rideable with the pass
+        return false;
     const std::uint32_t bit = train_ticket_bit(selected_code);
     return bit != 0 && (granted_mask & bit) == 0;
 }

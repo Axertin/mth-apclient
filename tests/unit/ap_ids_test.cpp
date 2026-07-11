@@ -124,13 +124,15 @@ TEST_CASE("train tickets map itemTypes 95-99 to destination-line bits", "[train]
 
 TEST_CASE("train_destination_blocked cancels un-granted ticket lines", "[train]")
 {
-    // A ticket line is blocked (selection cancelled) unless its bit is in the granted mask.
-    REQUIRE(mth::train_destination_blocked(0x5f, 0x00));       // line 0 ungranted -> blocked
+    // Line 0 (Ossex/HUB, 95) is the free hub: rideable on the Train Pass alone, so it is NEVER blocked.
+    REQUIRE_FALSE(mth::train_destination_blocked(0x5f, 0x00)); // line 0 (Ossex) -> always allowed
     REQUIRE_FALSE(mth::train_destination_blocked(0x5f, 0x01)); // line 0 granted -> allowed
+
+    // Lines 1-4 (96-99) are blocked (selection cancelled) unless their bit is in the granted mask.
     REQUIRE(mth::train_destination_blocked(0x60, 0x01));       // line 1 ungranted (only line 0) -> blocked
     REQUIRE_FALSE(mth::train_destination_blocked(0x60, 0x02)); // line 1 granted -> allowed
 
-    // Lines 0 (95) and 4 (99) are hardcoded always-shown in the menu, so the gate MUST still block them.
+    // Line 4 (99, Coltrane) is hardcoded always-shown in the menu, so the gate MUST still block it.
     REQUIRE(mth::train_destination_blocked(0x63, 0x00));       // line 4 ungranted -> blocked
     REQUIRE_FALSE(mth::train_destination_blocked(0x63, 0x10)); // line 4 granted -> allowed
 
