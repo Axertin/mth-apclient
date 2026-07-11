@@ -328,7 +328,9 @@ void ApLink::setup_handlers(const std::string &slot, const std::string &password
             const bool puff_rando = data.is_object() && data.value("puff_rando", 0) != 0;
             const bool spring_rando = data.is_object() && data.value("spring_rando", 0) != 0;
             const bool carry_rando = data.is_object() && data.value("carry_rando", 0) != 0;
-            const bool train_rando = data.is_object() && data.value("train_rando", 0) != 0;
+            // Default true until the apworld ships a train-rando option: current seeds omit the key but
+            // still shuffle the tickets/Train Pass, so gating must be on. Send train_rando=0 to opt out.
+            const bool train_rando = data.is_object() && data.value("train_rando", 1) != 0;
             const int max_stat_level = mth::clamp_max_stat_level(data.is_object() ? data.value("max_stat_level", 99) : 99);
             const int goal_config = data.is_object() ? data.value("goal_config", 0) : 0;
             const int goal_generators = data.is_object() ? data.value("goal_generators", 99) : 99;
