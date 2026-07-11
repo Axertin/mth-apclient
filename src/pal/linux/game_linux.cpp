@@ -3,10 +3,12 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <span>
 #include <utility>
 
 #include "mth/core/ap/ap_ids.hpp"
 #include "mth/core/data/game_symbols.hpp"
+#include "mth/core/sig_scan.hpp"
 #include "pal/pal_game.hpp"
 #include "pal/pal_hook.hpp"
 #include "pal/pal_log.hpp"
@@ -513,8 +515,9 @@ void repl_train_npc(void *self, unsigned event, void *info)
         if (obj != nullptr)
         {
             int *code = reinterpret_cast<int *>(static_cast<char *>(obj) + kTrainSelCodeOff);
-            // train_rando: cancel any destination whose AP ticket isn't granted. Console Train ability: cancel
-            // all destinations while the ability is blocked.
+            // Backstop only: the SetupBoxes patch below makes un-ticketed lines non-selectable, but if one is
+            // somehow picked, force the code to Exit. train_rando keys per-destination; console Train ability
+            // cancels all destinations while blocked.
             const bool block = g_train_rando_gate ? mth::train_destination_blocked(*code, g_train_granted_mask) : ability_blocked(kAbTrain);
             if (block)
                 *code = kTrainExitCode;
@@ -522,6 +525,46 @@ void repl_train_npc(void *self, unsigned event, void *info)
     }
     if (g_orig_train_npc)
         g_orig_train_npc(self, event, info);
+}
+
+// One-time .text patch of ShopMenu::SetupBoxes' hardcoded "always-shown" train-line mask. The menu shows a
+// ticket box when its itemType is in a hardcoded set (mask 0x23 = lines 94/95/99) OR its SaveSlot+0x1e0 bit
+// is set. That hardcode makes Coltrane Peak (99) selectable regardless of ticket, defeating the +0x1e0 clamp.
+// Drop the mask to 0x03 so only 94 (board) and 95 (Ossex/HUB) stay unconditional and 96-99 gate on +0x1e0
+// (driven by enforce_train_destinations). #98.
+void patch_train_destination_menu()
+{
+    const pal::ModuleInfo gm = pal::game_module();
+    if (gm.base == 0 || gm.size == 0)
+    {
+        pal::logf(pal::LogLevel::Warn, "train: game module unavailable; SetupBoxes mask patch skipped (99 stays always-shown)");
+        return;
+    }
+    // Anchor: lea eax,[rcx-0x5e]; cmp eax,5; ja +0xa; mov edx,0x23; bt edx,eax  (0x23 immediate at index 9).
+    static const std::uint8_t pat[] = {0x8D, 0x41, 0xA2, 0x83, 0xF8, 0x05, 0x77, 0x0A, 0xBA, 0x23, 0x00, 0x00, 0x00, 0x0F, 0xA3, 0xC2};
+    static const std::uint8_t msk[] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+    constexpr std::size_t kMaskByte = 9;
+    const std::span<const std::uint8_t> region{reinterpret_cast<const std::uint8_t *>(gm.base), gm.size};
+    const mth::sig::Match m = mth::sig::find_masked(region, pat, msk, sizeof(pat));
+    if (!m.found || !m.unique)
+    {
+        pal::logf(pal::LogLevel::Warn, "train: SetupBoxes mask site %s; Coltrane may stay always-shown", m.found ? "ambiguous" : "not found");
+        return;
+    }
+    auto *site = reinterpret_cast<std::uint8_t *>(gm.base + m.offset + kMaskByte);
+    if (*site != 0x23)
+    {
+        pal::logf(pal::LogLevel::Warn, "train: SetupBoxes mask byte=0x%02x (expected 0x23); patch skipped", *site);
+        return;
+    }
+    const std::uint8_t patched = 0x03;
+    if (!pal::patch_code(site, &patched, 1))
+    {
+        pal::logf(pal::LogLevel::Error, "train: SetupBoxes mask patch_code failed");
+        return;
+    }
+    pal::logf(pal::LogLevel::Info, "train: SetupBoxes mask 0x23->0x03 at 0x%llx (un-ticketed Coltrane now non-selectable)",
+              static_cast<unsigned long long>(gm.base + m.offset + kMaskByte));
 }
 
 // Pawnty (PawnShopNPC::OnNPCEvent) disable. event 0x1f is InteractComponent::IsInteractable's veto
@@ -1122,9 +1165,13 @@ bool install_ability_hooks(AbilityBlockFn block)
                                                 reinterpret_cast<void **>(&g_orig_train_npc));
         if (g_id_train == kInvalidHookId)
             logf(LogLevel::Error, "abilities: failed to hook TrainAuthority::OnNPCEvent");
+        else
+            logf(LogLevel::Info, "abilities: hooked TrainAuthority::OnNPCEvent at 0x%llx", static_cast<unsigned long long>(g_addr_train_npc));
     }
     else
         logf(LogLevel::Warn, "abilities: TrainAuthority::OnNPCEvent not resolved; train gating disabled");
+
+    patch_train_destination_menu(); // make un-ticketed Coltrane Peak (line 99) non-selectable (#98)
 
     if (g_addr_burrow_jump != 0) // #56: OnBurrowJump: suppress emerge under a carryable
     {
