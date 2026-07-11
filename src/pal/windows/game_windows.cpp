@@ -873,6 +873,9 @@ constexpr std::ptrdiff_t kInteractKindOff = 0x6c;       // component + 0x6c -> i
 constexpr int kInteractKindPlayer = 8;
 // TrainAuthority::OnNPCEvent case 0x15 selected-ticket-code chain; 100 = Exit (vanilla cancel).
 constexpr unsigned kTrainDestPickEvent = 0x15;
+// OnNPCEvent case 1 (interact/dialogue) and case 9 (TriggerRideDone/warp) carry the CTP boss ride gate.
+constexpr unsigned kTrainInteractEvent = 1;
+constexpr unsigned kTrainRideDoneEvent = 9;
 // Windows OnNPCEvent gets a `this` adjusted +0x170 vs the Linux struct base (MI thunk), so the owner is at
 // +0x40 here where Linux reads +0x1b0. The game's case-0x15 chain is self+0x40 -> +0xc8 -> +0x21c.
 constexpr std::ptrdiff_t kTrainAuthOwnerOff = 0x40; // this + 0x40 -> menu owner
@@ -887,6 +890,10 @@ constexpr std::ptrdiff_t kSaveTrainPresentOff = 0x1c1;
 // SaveSlot unlocked-train-lines bitfield (5 low bits, one per destination). Set by the TrainAuthority ctor
 // on station footfall; the AP client clamps it to the granted-ticket mask. Same layout on both platforms.
 constexpr std::ptrdiff_t kSaveTrainUnlockedLinesOff = 0x1e0;
+// CTP boss (Thorne 2) defeated bit: byte +0x281 mask 0x02 of the SaveSlot+0x280 boss bitfield. The Coltrane
+// line ride is gated on it (#108). Shared layout.
+constexpr std::ptrdiff_t kSaveCtpBossByteOff = 0x281;
+constexpr std::uint8_t kCtpBossGateMask = 0x02;
 
 // train_rando destination gate, published from mth each tick. When active, repl_train_npc cancels any
 // ticket line whose bit isn't in the granted mask (the +0x1e0 menu clamp can't hide lines 95/99); when
@@ -1075,16 +1082,34 @@ void repl_train_npc(void *self, unsigned event, void *info)
         if (obj != nullptr)
         {
             int *code = reinterpret_cast<int *>(static_cast<char *>(obj) + kTrainSelCodeOff);
-            // Backstop only: the SetupBoxes patch below makes un-ticketed lines non-selectable, but if one is
-            // somehow picked, force the code to Exit. train_rando keys per-destination; console Train ability
-            // cancels all destinations while blocked.
+            // Backstop to the SetupBoxes patch: cancel a picked line that isn't AP-granted.
             const bool block = g_train_rando_gate ? mth::train_destination_blocked(*code, g_train_granted_mask) : ability_blocked(kAbTrain);
             if (block)
                 *code = kTrainExitCode;
         }
     }
+
+    // #108: the Coltrane line ride is gated on the CTP boss (Thorne 2), softlocking a player who leaves CTP
+    // first. Once the pass is owned, set the boss bit only across the original call so the ride completes,
+    // restoring it after so the save is never marked (the boss still arms and fights).
+    void *slot = nullptr;
+    std::uint8_t saved_boss = 0;
+    bool bypass = false;
+    if (event == kTrainInteractEvent || event == kTrainRideDoneEvent)
+    {
+        slot = pal::active_save_slot(g_mod_save_manager);
+        if (slot != nullptr && *reinterpret_cast<std::uint8_t *>(static_cast<char *>(slot) + kSaveTrainPassOwnedOff) != 0)
+        {
+            auto *gate = reinterpret_cast<std::uint8_t *>(static_cast<char *>(slot) + kSaveCtpBossByteOff);
+            saved_boss = *gate;
+            *gate = static_cast<std::uint8_t>(saved_boss | kCtpBossGateMask);
+            bypass = true;
+        }
+    }
     if (g_orig_train_npc)
         g_orig_train_npc(self, event, info);
+    if (bypass)
+        *reinterpret_cast<std::uint8_t *>(static_cast<char *>(slot) + kSaveCtpBossByteOff) = saved_boss;
 }
 
 // One-time .text patch of ShopMenu::SetupBoxes' hardcoded "always-shown" train-line test. MSVC expands the
