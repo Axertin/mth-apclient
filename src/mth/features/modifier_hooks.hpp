@@ -48,7 +48,7 @@ class ModifierHooks
     mutable std::mutex mtx_;
     std::set<int> enforced_;
     std::set<int> forced_;
-    std::set<int> force_on_{kCheatWarpHome, kCheatCheaperBoneUp}; // additive AP force-on (Warp Home always; Landing Done per ossex_start)
+    std::set<int> force_on_{kCheatWarpHome, kCheatCheaperBoneUp, kCheatUnlockBoneUps}; // additive AP force-on (Warp Home always; Landing Done per ossex_start)
     bool armed_{false};
     bool installed_{false};
     int ap_slot_{-1};                                // captured AP-game slot index (-1 = none yet); guarded by mtx_
