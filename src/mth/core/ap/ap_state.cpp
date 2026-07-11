@@ -68,9 +68,9 @@ void ApState::apply(const ApEvent &ev)
                 const std::int64_t lo = valid_locations_.empty() ? 0 : *valid_locations_.begin();
                 const std::int64_t hi = valid_locations_.empty() ? 0 : *valid_locations_.rbegin();
                 pal::logf(pal::LogLevel::Info,
-                          "ap_state: CONNECTED slot=%d seed=%s slot_data=%zuB ossex_start=%d kear_rando=%d max_stat_level=%d; valid_locations=%zu "
-                          "(checked=%zu missing=%zu) id_range=[%lld..%lld]",
-                          player_slot_, seed_.c_str(), slot_data_.size(), ossex_start_, kear_rando_, max_stat_level_, valid_locations_.size(),
+                          "ap_state: CONNECTED slot=%d seed=%s slot_data=%zuB ossex_start=%d kear_rando=%d train_rando=%d max_stat_level=%d; "
+                          "valid_locations=%zu (checked=%zu missing=%zu) id_range=[%lld..%lld]",
+                          player_slot_, seed_.c_str(), slot_data_.size(), ossex_start_, kear_rando_, train_rando_, max_stat_level_, valid_locations_.size(),
                           e.checked_locations.size(), e.missing_locations.size(), static_cast<long long>(lo), static_cast<long long>(hi));
             }
             else if constexpr (std::is_same_v<T, ApConnecting>)
