@@ -6,8 +6,13 @@
 namespace pal
 {
 
-// RW-protect [addr, addr+len); not restored. Linux page-aligns internally.
+// RW-protect [addr, addr+len); not restored. Linux page-aligns internally. Drops execute permission, so
+// this is for DATA only -- never use it on .text (the game will fault executing the de-exec'd page).
 bool make_writable(void *addr, std::size_t len);
+
+// Overwrite len bytes of executable code at addr: temporarily add write permission, copy, restore the
+// original (executable) protection, and flush the instruction cache. Use for .text patches.
+bool patch_code(void *addr, const void *bytes, std::size_t len);
 
 // A pointer that could plausibly be a live game object: a canonical low-half user address.
 // NOT a bounds check against the game module (heap objects live outside it) - it just rejects

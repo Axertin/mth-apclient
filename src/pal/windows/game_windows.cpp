@@ -3,10 +3,12 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <span>
 #include <utility>
 
 #include "mth/core/ap/ap_ids.hpp"
 #include "mth/core/data/game_symbols.hpp"
+#include "mth/core/sig_scan.hpp"
 #include "mth/core/stat_cap_state.hpp"
 #include "pal/pal_game.hpp"
 #include "pal/pal_hook.hpp"
@@ -1073,8 +1075,9 @@ void repl_train_npc(void *self, unsigned event, void *info)
         if (obj != nullptr)
         {
             int *code = reinterpret_cast<int *>(static_cast<char *>(obj) + kTrainSelCodeOff);
-            // train_rando: cancel any destination whose AP ticket isn't granted. Console Train ability: cancel
-            // all destinations while the ability is blocked.
+            // Backstop only: the SetupBoxes patch below makes un-ticketed lines non-selectable, but if one is
+            // somehow picked, force the code to Exit. train_rando keys per-destination; console Train ability
+            // cancels all destinations while blocked.
             const bool block = g_train_rando_gate ? mth::train_destination_blocked(*code, g_train_granted_mask) : ability_blocked(kAbTrain);
             if (block)
                 *code = kTrainExitCode;
@@ -1082,6 +1085,46 @@ void repl_train_npc(void *self, unsigned event, void *info)
     }
     if (g_orig_train_npc)
         g_orig_train_npc(self, event, info);
+}
+
+// One-time .text patch of ShopMenu::SetupBoxes' hardcoded "always-shown" train-line test. MSVC expands the
+// mask into `cmp r8d,{0x5e,0x5f,0x63}; je shown`; the 0x63 (line 99, Coltrane Peak) compare forces its box
+// selectable regardless of ticket, defeating the +0x1e0 clamp. Neutralize just that compare (imm 0x63->0xff,
+// an impossible itemType) so 99 falls through to the SaveSlot+0x1e0 gate (driven by enforce_train_destinations),
+// leaving 0x5e/0x5f (board / Ossex-HUB) always-shown. #98.
+void patch_train_destination_menu()
+{
+    const pal::ModuleInfo gm = pal::game_module();
+    if (gm.base == 0 || gm.size == 0)
+    {
+        pal::logf(pal::LogLevel::Warn, "train: game module unavailable; SetupBoxes mask patch skipped (99 stays always-shown)");
+        return;
+    }
+    // Anchor on the three cmp/je triples: cmp r8d,0x5e;je .. cmp r8d,0x5f;je .. cmp r8d,0x63;je (0x63 at idx 15).
+    static const std::uint8_t pat[] = {0x41, 0x83, 0xF8, 0x5E, 0x74, 0x00, 0x41, 0x83, 0xF8, 0x5F, 0x74, 0x00, 0x41, 0x83, 0xF8, 0x63, 0x74, 0x00};
+    static const std::uint8_t msk[] = {1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0};
+    constexpr std::size_t kColtraneImm = 15;
+    const std::span<const std::uint8_t> region{reinterpret_cast<const std::uint8_t *>(gm.base), gm.size};
+    const mth::sig::Match m = mth::sig::find_masked(region, pat, msk, sizeof(pat));
+    if (!m.found || !m.unique)
+    {
+        pal::logf(pal::LogLevel::Warn, "train: SetupBoxes mask site %s; Coltrane may stay always-shown", m.found ? "ambiguous" : "not found");
+        return;
+    }
+    auto *site = reinterpret_cast<std::uint8_t *>(gm.base + m.offset + kColtraneImm);
+    if (*site != 0x63)
+    {
+        pal::logf(pal::LogLevel::Warn, "train: SetupBoxes Coltrane cmp imm=0x%02x (expected 0x63); patch skipped", *site);
+        return;
+    }
+    const std::uint8_t patched = 0xFF;
+    if (!pal::patch_code(site, &patched, 1))
+    {
+        pal::logf(pal::LogLevel::Error, "train: SetupBoxes mask patch_code failed");
+        return;
+    }
+    pal::logf(pal::LogLevel::Info, "train: SetupBoxes Coltrane cmp 0x63->0xff at 0x%llx (un-ticketed Coltrane now non-selectable)",
+              static_cast<unsigned long long>(gm.base + m.offset + kColtraneImm));
 }
 } // namespace
 
@@ -1188,6 +1231,8 @@ bool install_ability_hooks(AbilityBlockFn block)
     }
     else
         logf(LogLevel::Warn, "abilities: TrainAuthority::OnNPCEvent not resolved; train gating disabled");
+
+    patch_train_destination_menu(); // make un-ticketed Coltrane Peak (line 99) non-selectable (#98)
 
     if (g_addr_burrow_jump != 0) // #56: suppress the burrow-emerge when a carryable is overhead
     {
