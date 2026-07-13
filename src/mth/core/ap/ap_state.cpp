@@ -92,6 +92,12 @@ void ApState::apply(const ApEvent &ev)
                     pal::logf(pal::LogLevel::Debug, "ap_state: item index=%d <= cursor=%d, dropped as duplicate", e.item.index, last_item_index_);
                 }
             }
+            else if constexpr (std::is_same_v<T, ApLocationsChecked>)
+            {
+                server_checked_pending_.insert(server_checked_pending_.end(), e.ap_location_ids.begin(), e.ap_location_ids.end());
+                pal::logf(pal::LogLevel::Info, "ap_state: server reported %zu checked location(s) (pending=%zu)", e.ap_location_ids.size(),
+                          server_checked_pending_.size());
+            }
             else if constexpr (std::is_same_v<T, ApDisconnected>)
             {
                 authenticated_ = false;

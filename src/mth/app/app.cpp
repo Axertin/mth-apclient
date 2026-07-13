@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <limits>
 #include <optional>
 #include <vector>
 
@@ -174,6 +175,7 @@ void App::drive_tick()
     if (pending_inbound_death_.exchange(false))
         hooks_->kill_player();
     ensure_inbound_ready();
+    reconcile_server_checked();
     grants_->tick();
     // Persist a freshly captured AP-game slot so it's known on the next load/session.
     if (save_state_)
@@ -228,6 +230,19 @@ void App::ensure_inbound_ready()
     net_->rando().attach_save_state(*save_state_);
     net_->rando().flush(); // resend any checks recorded before/while disconnected
     pal::logf(pal::LogLevel::Info, "outbound: bridge attached to %s; flushed checked-set", key.c_str());
+}
+
+void App::reconcile_server_checked()
+{
+    if (!save_state_) // inbound not ready yet; ids remain pending in ApState until the save attaches
+        return;
+    const auto ids = state_.take_server_checked_pending();
+    bool changed = false;
+    for (std::int64_t id : ids)
+        if (id >= 0 && id <= std::numeric_limits<int>::max())
+            changed |= net_->rando().reconcile_server_checked(static_cast<int>(id));
+    if (changed)
+        save_state_->save(); // one persist per reconcile pass (batched)
 }
 
 void App::connect(const std::string &server, const std::string &slot, const std::string &password)

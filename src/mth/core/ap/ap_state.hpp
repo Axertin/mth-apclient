@@ -5,6 +5,7 @@
 #include <mutex>
 #include <set>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "mth/core/ap/ap_events.hpp"
@@ -124,6 +125,12 @@ class ApState
     {
         return received_items_;
     }
+    // Drain the server-reported checked location ids accumulated since the last call (Collect / coop).
+    // Game-thread only; App reconciles these into the save-state checked set, then this returns empty.
+    [[nodiscard]] std::vector<std::int64_t> take_server_checked_pending()
+    {
+        return std::exchange(server_checked_pending_, {});
+    }
     [[nodiscard]] int last_item_index() const
     {
         return last_item_index_;
@@ -167,6 +174,7 @@ class ApState
     int goal_bosses_{99};
     std::set<std::int64_t> valid_locations_{};
     std::vector<ReceivedItem> received_items_{};
+    std::vector<std::int64_t> server_checked_pending_{}; // server-reported checks awaiting reconcile (game-thread)
     int last_item_index_{-1};
     int console_index_{-1000000}; // synthetic index for console-injected items; decremented, never collides with server's >=0 cursor
 };

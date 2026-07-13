@@ -184,3 +184,51 @@ TEST_CASE("rando_bridge: send_goal is a no-op when not authenticated", "[mth][ra
     bridge.send_goal();
     REQUIRE(link.goal_calls == 0);
 }
+
+TEST_CASE("rando_bridge: reconcile_server_checked marks without sending", "[mth][rando]")
+{
+    const auto path = std::filesystem::temp_directory_path() / "mthap_bridge_collect.state";
+    std::filesystem::remove(path);
+    mth::ApSaveState save(path);
+    mth::test::FakeApLink link;
+    link.connected = true;
+    mth::ApState state;
+    connect_with(state, {ap_loc_id(5), ap_loc_id(9)});
+    mth::RandoBridge bridge(link, state);
+    bridge.attach_save_state(save);
+
+    REQUIRE(bridge.reconcile_server_checked(5)); // newly checked
+    REQUIRE(bridge.is_checked(5));
+    REQUIRE(save.is_checked(5));
+    REQUIRE(link.sent_locations.empty()); // never sent to the server
+}
+
+TEST_CASE("rando_bridge: reconcile_server_checked dedups and rejects non-AP", "[mth][rando]")
+{
+    const auto path = std::filesystem::temp_directory_path() / "mthap_bridge_collect_dup.state";
+    std::filesystem::remove(path);
+    mth::ApSaveState save(path);
+    mth::test::FakeApLink link;
+    mth::ApState state;
+    connect_with(state, {ap_loc_id(5)});
+    mth::RandoBridge bridge(link, state);
+    bridge.attach_save_state(save);
+
+    REQUIRE(bridge.reconcile_server_checked(5));       // first time
+    REQUIRE_FALSE(bridge.reconcile_server_checked(5)); // already checked
+    REQUIRE_FALSE(bridge.reconcile_server_checked(7)); // not a valid AP location
+    REQUIRE_FALSE(bridge.reconcile_server_checked(-1));
+    REQUIRE(link.sent_locations.empty());
+}
+
+TEST_CASE("rando_bridge: reconcile_server_checked is a no-op without a save", "[mth][rando]")
+{
+    mth::test::FakeApLink link;
+    mth::ApState state;
+    connect_with(state, {ap_loc_id(5)});
+    mth::RandoBridge bridge(link, state); // no attach_save_state
+
+    REQUIRE_FALSE(bridge.reconcile_server_checked(5)); // ids stay pending in ApState until inbound-ready
+    REQUIRE_FALSE(bridge.is_checked(5));
+    REQUIRE(link.sent_locations.empty());
+}
