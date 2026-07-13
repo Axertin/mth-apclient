@@ -176,6 +176,11 @@ void App::drive_tick()
         hooks_->kill_player();
     ensure_inbound_ready();
     reconcile_server_checked();
+    if (resend_gate_.fire(net_->link().is_connected(), grants_->inbound_ready()))
+    {
+        net_->rando().flush(); // (re)connect: resend the full persisted checked set; server dedups
+        pal::logf(pal::LogLevel::Info, "outbound: (re)connect -> flushed checked-set");
+    }
     grants_->tick();
     // Persist a freshly captured AP-game slot so it's known on the next load/session.
     if (save_state_)
@@ -228,8 +233,7 @@ void App::ensure_inbound_ready()
     pal::logf(pal::LogLevel::Info, "inbound: state loaded (%s); granter live", key.c_str());
     hooks_->set_ap_slot(save_state_->game_slot()); // restore the AP-game slot (skip capture if known)
     net_->rando().attach_save_state(*save_state_);
-    net_->rando().flush(); // resend any checks recorded before/while disconnected
-    pal::logf(pal::LogLevel::Info, "outbound: bridge attached to %s; flushed checked-set", key.c_str());
+    pal::logf(pal::LogLevel::Info, "outbound: bridge attached to %s", key.c_str());
 }
 
 void App::reconcile_server_checked()

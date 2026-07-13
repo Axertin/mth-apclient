@@ -40,6 +40,7 @@ add_executable(mthap_unit_tests
     unit/game_tables_test.cpp
     unit/goal_state_test.cpp
     unit/mod_api_test.cpp
+    unit/connect_resend_gate_test.cpp
 )
 
 target_include_directories(mthap_unit_tests PRIVATE
