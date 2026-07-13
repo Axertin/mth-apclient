@@ -9,6 +9,7 @@
 #include "mth/core/ap/ap_save_state.hpp"
 #include "mth/core/ap/ap_state.hpp"
 #include "mth/core/command_sink.hpp"
+#include "mth/core/connect_resend_gate.hpp"
 #include "mth/core/data/ability_ids.hpp"
 #include "mth/core/session_policy.hpp"
 #include "mth/core/upgrade_state.hpp"
@@ -94,6 +95,7 @@ class App : public ICommandSink
     bool first_tick_logged_{false};
     SessionPolicy policy_;
     UpgradeState upgrades_;
+    ConnectResendGate resend_gate_; // fires flush() once per (re)connection
 #ifdef MTHAP_HAS_OVERLAY
     std::unique_ptr<pal::IOverlay> overlay_;
     std::unique_ptr<OverlayRoot> overlay_root_;
