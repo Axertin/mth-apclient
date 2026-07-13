@@ -25,6 +25,12 @@ class RandoBridge
     // Record a collected slot (persisted if attached); send check if connected, else wait for flush().
     void on_location_collected(int collection_slot);
 
+    // Mark a slot checked because the SERVER reported it (Collect / same-slot coop), not the player.
+    // Persists into the attached save state but NEVER sends to the server. Returns true if this call
+    // newly checked a valid AP location (save attached, not already checked), so the caller can batch a
+    // single save() per reconcile pass. No-op returning false when no save is attached.
+    [[nodiscard]] bool reconcile_server_checked(int collection_slot);
+
     // Resend the full checked-set (server dedups). Call on (re)connect.
     void flush();
 

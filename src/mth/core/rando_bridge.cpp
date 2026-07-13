@@ -64,6 +64,19 @@ void RandoBridge::on_location_collected(int collection_slot)
         link_.send_locations({id});
 }
 
+bool RandoBridge::reconcile_server_checked(int collection_slot)
+{
+    if (save_ == nullptr)
+        return false; // App reconciles only once inbound is ready; ids stay pending in ApState until then
+    if (!is_ap_location(collection_slot))
+        return false;
+    if (save_->is_checked(collection_slot))
+        return false;
+    save_->mark_checked(collection_slot); // no send; caller batches the save()
+    pal::logf(pal::LogLevel::Info, "bridge: server-checked slot=%d (Collect/coop); marked locally, not resent", collection_slot);
+    return true;
+}
+
 void RandoBridge::flush()
 {
     if (!link_.is_connected())

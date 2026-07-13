@@ -116,3 +116,12 @@ TEST_CASE("ap_state: ApDisconnected -> Disconnected phase", "[mth][ap_state]")
     s.apply(mth::ApDisconnected{});
     REQUIRE(s.phase() == mth::ConnectionPhase::Disconnected);
 }
+
+TEST_CASE("ap_state: ApLocationsChecked accumulates and drains once", "[mth][ap_state]")
+{
+    mth::ApState s;
+    s.apply(mth::ApLocationsChecked{{10, 11}});
+    s.apply(mth::ApLocationsChecked{{12}});
+    REQUIRE(s.take_server_checked_pending() == std::vector<std::int64_t>{10, 11, 12});
+    REQUIRE(s.take_server_checked_pending().empty()); // drained
+}

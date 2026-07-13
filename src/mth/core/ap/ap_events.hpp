@@ -46,6 +46,12 @@ struct ApItemReceived
 {
     ReceivedItem item;
 };
+// Locations the SERVER reports checked (Connected full set + RoomUpdate deltas): Collect, same-slot
+// coop, or connect-time self-heal. Reconciled locally without re-sending.
+struct ApLocationsChecked
+{
+    std::vector<std::int64_t> ap_location_ids;
+};
 struct ApConnecting
 {
 };
@@ -71,7 +77,7 @@ struct ApPrintBroadcast
     std::vector<BannerSegment> segments;
 };
 
-using ApEvent =
-    std::variant<ApConnected, ApConnecting, ApItemReceived, ApDisconnected, ApConnectionRefused, ApStatusChanged, ApDeathReceived, ApPrintBroadcast>;
+using ApEvent = std::variant<ApConnected, ApConnecting, ApItemReceived, ApLocationsChecked, ApDisconnected, ApConnectionRefused, ApStatusChanged,
+                             ApDeathReceived, ApPrintBroadcast>;
 
 } // namespace mth

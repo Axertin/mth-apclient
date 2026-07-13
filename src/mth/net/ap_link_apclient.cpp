@@ -361,6 +361,11 @@ void ApLink::setup_handlers(const std::string &slot, const std::string &password
             }
         });
 
+    // Server-reported checked locations (Connected full set + RoomUpdate deltas): Collect, same-slot coop,
+    // connect-time self-heal. Reconciled locally (no re-send); see App::reconcile_server_checked.
+    client_->set_location_checked_handler([this](const std::list<std::int64_t> &locations)
+                                          { push_event(mth::ApLocationsChecked{std::vector<std::int64_t>(locations.begin(), locations.end())}); });
+
     client_->set_bounced_handler(
         [this](const nlohmann::json &cmd)
         {
