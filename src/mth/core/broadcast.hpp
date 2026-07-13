@@ -18,9 +18,11 @@ struct BannerSegment
     std::uint32_t rgba{};
 };
 
-// Relevant when our slot is the sender (`slot`) or receiver (`receiving`) and the team matches. Absent
-// team passes (single-team default); only a present, different team filters out.
-[[nodiscard]] bool broadcast_relevant(int our_team, int our_slot, std::optional<int> team, std::optional<int> slot, std::optional<int> receiving);
+// Relevant when our slot is the message actor (`slot`), the item receiver (`receiving`), or the item
+// finder (`item_player`, i.e. a check we sent) and the team matches. Absent team passes (single-team
+// default); only a present, different team filters out.
+[[nodiscard]] bool broadcast_relevant(int our_team, int our_slot, std::optional<int> team, std::optional<int> slot, std::optional<int> receiving,
+                                      std::optional<int> item_player);
 
 // AP-palette color for a PrintJSON node, mirroring apclientpp render_json (explicit color wins, else by
 // type/flags). Alpha is 255; the fade scales it.

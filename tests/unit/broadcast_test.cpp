@@ -11,17 +11,27 @@ using mth::broadcast_relevant;
 TEST_CASE("broadcast_relevant: matches on our slot or receiving", "[mth][broadcast]")
 {
     // our team 0, our slot 3
-    REQUIRE(broadcast_relevant(0, 3, 0, 3, std::nullopt));            // slot is us
-    REQUIRE(broadcast_relevant(0, 3, 0, std::nullopt, 3));            // receiving is us
-    REQUIRE(broadcast_relevant(0, 3, std::nullopt, std::nullopt, 3)); // team absent -> treated as ours
-    REQUIRE(broadcast_relevant(0, 3, 0, 9, 3));                       // receiving is us, slot someone else
+    REQUIRE(broadcast_relevant(0, 3, 0, 3, std::nullopt, std::nullopt));            // slot is us
+    REQUIRE(broadcast_relevant(0, 3, 0, std::nullopt, 3, std::nullopt));            // receiving is us
+    REQUIRE(broadcast_relevant(0, 3, std::nullopt, std::nullopt, 3, std::nullopt)); // team absent -> treated as ours
+    REQUIRE(broadcast_relevant(0, 3, 0, 9, 3, std::nullopt));                       // receiving is us, slot someone else
+}
+
+TEST_CASE("broadcast_relevant: matches when we are the item finder (checks we send)", "[mth][broadcast]")
+{
+    // We (slot 3) found an item destined for slot 9: no top-level slot, receiving is someone else,
+    // but the item's finder (item.player) is us. This is a check we sent -> relevant.
+    REQUIRE(broadcast_relevant(0, 3, std::nullopt, std::nullopt, 9, 3));
+    REQUIRE(broadcast_relevant(0, 3, 0, std::nullopt, 9, 3)); // team present + ours, finder us
+    // Team still filters even when the finder is us.
+    REQUIRE_FALSE(broadcast_relevant(0, 3, 1, std::nullopt, 9, 3));
 }
 
 TEST_CASE("broadcast_relevant: filters out irrelevant", "[mth][broadcast]")
 {
-    REQUIRE_FALSE(broadcast_relevant(0, 3, 0, 5, 7));                                  // neither field is us
-    REQUIRE_FALSE(broadcast_relevant(0, 3, 1, 3, std::nullopt));                       // team mismatch
-    REQUIRE_FALSE(broadcast_relevant(0, 3, std::nullopt, std::nullopt, std::nullopt)); // no slot info at all
+    REQUIRE_FALSE(broadcast_relevant(0, 3, 0, 5, 7, 8));                                             // slot/receiving/finder all someone else
+    REQUIRE_FALSE(broadcast_relevant(0, 3, 1, 3, std::nullopt, 3));                                  // team mismatch (finder us but wrong team)
+    REQUIRE_FALSE(broadcast_relevant(0, 3, std::nullopt, std::nullopt, std::nullopt, std::nullopt)); // no slot info at all
 }
 
 TEST_CASE("banner_color: type/flags select distinct AP colors", "[mth][broadcast]")
