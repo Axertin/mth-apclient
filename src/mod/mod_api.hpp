@@ -59,6 +59,12 @@ void set_player_vials(int n);
 // is unavailable.
 bool player_die();
 
+// Native Player health, used by deathlink to re-arm the broadcast only on a true respawn (health > 0) --
+// the death-guard byte pulses during the death sequence, health does not. available() is false when the
+// build's API lacks the getter; player_health() returns 0 then.
+bool health_api_available();
+float player_health();
+
 // modHookCtx for "IsItemCollected"; the layout MUST mirror the game's struct exactly. The game calls
 // RunHooks("IsItemCollected", &ctx) at the top of Items::IsItemCollected.
 struct IsItemCollectedCtx

@@ -31,9 +31,15 @@ DeathHooks::~DeathHooks() = default;
 void DeathHooks::poll()
 {
     void *p = get_player_ ? get_player_() : nullptr;
-    if (gate_.observe(is_dying(p)) && on_local_death_)
+    if (p == nullptr)
+        return; // no player -> no signal; keep the edge state frozen across world transitions
+    const bool dying = is_dying(p);
+    // Re-arm only on a true respawn: the guard byte pulses through the death sequence, so use health > 0 as
+    // the stable "alive" signal. Fall back to the guard byte if the health API is unavailable.
+    const bool alive = mod::health_api_available() ? (mod::player_health() > 0.0f) : !dying;
+    if (gate_.observe(dying, alive) && on_local_death_)
     {
-        pal::logf(pal::LogLevel::Info, "deathlink: local death (guard-byte edge) -> broadcasting");
+        pal::logf(pal::LogLevel::Info, "deathlink: local death -> broadcasting");
         on_local_death_();
     }
 }
