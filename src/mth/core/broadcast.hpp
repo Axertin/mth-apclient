@@ -34,25 +34,32 @@ struct BannerFrame
     float alpha{}; // 0..1
 };
 
-// Thread-safe FIFO shown one at a time: push() on the producer thread, update(now) on the render thread.
-// `now` is injected (monotonic seconds, e.g. ImGui::GetTime()) so the queue/fade logic stays testable.
+// Thread-safe FIFO that shows up to kMaxVisible messages stacked at once: push() on the producer thread,
+// update(now) on the render thread. Each visible message keeps its own hold+fade timer; a fresh push shows
+// immediately while a slot is free, otherwise waits until an active one fades out. `now` is injected
+// (monotonic seconds, e.g. ImGui::GetTime()) so the queue/fade logic stays testable.
 class BannerQueue
 {
   public:
     static constexpr double kHoldSeconds = 3.0; // fully opaque
     static constexpr double kFadeSeconds = 1.0; // then fades to gone
+    static constexpr int kMaxVisible = 3;       // messages shown stacked at once
 
     void push(std::vector<BannerSegment> segments);
 
-    // Advances the queue against `now` and returns the message to draw + its alpha, or nullopt when idle.
-    [[nodiscard]] std::optional<BannerFrame> update(double now);
+    // Advances the queue against `now` and returns the active messages to draw (oldest first), each with its
+    // own alpha. Empty when idle. The renderer stacks them top-to-bottom.
+    [[nodiscard]] std::vector<BannerFrame> update(double now);
 
   private:
+    struct Active
+    {
+        std::vector<BannerSegment> segments;
+        double start{0.0};
+    };
     std::mutex mutex_;
     std::deque<std::vector<BannerSegment>> pending_;
-    std::vector<BannerSegment> current_; // render-thread only (under mutex)
-    double start_{0.0};
-    bool showing_{false};
+    std::deque<Active> active_; // render-thread only (under mutex); oldest at front, <= kMaxVisible
 };
 
 } // namespace mth

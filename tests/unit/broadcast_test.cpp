@@ -58,8 +58,8 @@ TEST_CASE("banner_color: type/flags select distinct AP colors", "[mth][broadcast
 TEST_CASE("BannerQueue: idle returns nothing", "[mth][broadcast]")
 {
     BannerQueue q;
-    REQUIRE_FALSE(q.update(0.0).has_value());
-    REQUIRE_FALSE(q.update(99.0).has_value());
+    REQUIRE(q.update(0.0).empty());
+    REQUIRE(q.update(99.0).empty());
 }
 
 TEST_CASE("BannerQueue: shows a message and fades over hold+fade", "[mth][broadcast]")
@@ -72,26 +72,42 @@ TEST_CASE("BannerQueue: shows a message and fades over hold+fade", "[mth][broadc
     q.push({{"hi", 0xFFFFFFFFu}});
 
     const auto f0 = q.update(t0);
-    REQUIRE(f0.has_value());
-    REQUIRE(f0->segments.size() == 1);
-    REQUIRE(f0->segments[0].text == "hi");
-    REQUIRE(f0->alpha == Approx(1.0f));                               // within hold
-    REQUIRE(q.update(t0 + hold * 0.5)->alpha == Approx(1.0f));        // still hold
-    REQUIRE(q.update(t0 + hold + fade * 0.5)->alpha == Approx(0.5f)); // mid fade
-    REQUIRE_FALSE(q.update(t0 + hold + fade).has_value());            // fully faded -> gone
+    REQUIRE(f0.size() == 1);
+    REQUIRE(f0[0].segments.size() == 1);
+    REQUIRE(f0[0].segments[0].text == "hi");
+    REQUIRE(f0[0].alpha == Approx(1.0f));                               // within hold
+    REQUIRE(q.update(t0 + hold * 0.5)[0].alpha == Approx(1.0f));        // still hold
+    REQUIRE(q.update(t0 + hold + fade * 0.5)[0].alpha == Approx(0.5f)); // mid fade
+    REQUIRE(q.update(t0 + hold + fade).empty());                        // fully faded -> gone
 }
 
-TEST_CASE("BannerQueue: drains queued messages in order", "[mth][broadcast]")
+TEST_CASE("BannerQueue: shows up to kMaxVisible messages stacked at once", "[mth][broadcast]")
+{
+    BannerQueue q;
+    for (int i = 0; i < BannerQueue::kMaxVisible + 2; ++i)
+        q.push({{"msg", 0xFFFFFFFFu}});
+
+    const auto frames = q.update(0.0);
+    REQUIRE(static_cast<int>(frames.size()) == BannerQueue::kMaxVisible); // no more than the cap, even with extras pending
+    for (const auto &f : frames)
+        REQUIRE(f.alpha == Approx(1.0f)); // each shown independently, all within hold
+}
+
+TEST_CASE("BannerQueue: a queued message waits until a visible slot frees, in order", "[mth][broadcast]")
 {
     constexpr double life = BannerQueue::kHoldSeconds + BannerQueue::kFadeSeconds;
 
     BannerQueue q;
-    q.push({{"first", 0xFFFFFFFFu}});
-    q.push({{"second", 0xFFFFFFFFu}});
+    for (int i = 0; i < BannerQueue::kMaxVisible; ++i)
+        q.push({{"filler", 0xFFFFFFFFu}});
+    q.push({{"overflow", 0xFFFFFFFFu}}); // one past the cap -> must wait
 
-    REQUIRE(q.update(0.0)->segments[0].text == "first");
-    REQUIRE(q.update(life * 0.5)->segments[0].text == "first");  // still first
-    REQUIRE(q.update(life + 0.1)->segments[0].text == "second"); // first expired, second begins
-    REQUIRE(q.update(life + 0.2)->segments[0].text == "second");
-    REQUIRE_FALSE(q.update(2.0 * life + 0.2).has_value()); // second expired too
+    // At t0 only the first kMaxVisible show; "overflow" is still pending.
+    REQUIRE(static_cast<int>(q.update(0.0).size()) == BannerQueue::kMaxVisible);
+
+    // After the first batch fades out, the overflow message takes a freed slot.
+    const auto after = q.update(life + 0.1);
+    REQUIRE(after.size() == 1);
+    REQUIRE(after[0].segments[0].text == "overflow");
+    REQUIRE(q.update(2.0 * life + 0.2).empty()); // overflow expired too
 }
