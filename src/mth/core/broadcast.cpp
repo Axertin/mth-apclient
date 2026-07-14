@@ -99,33 +99,34 @@ void BannerQueue::push(std::vector<BannerSegment> segments)
     pending_.push_back(std::move(segments));
 }
 
-std::optional<BannerFrame> BannerQueue::update(double now)
+std::vector<BannerFrame> BannerQueue::update(double now)
 {
     std::lock_guard<std::mutex> lock(mutex_);
 
-    if (showing_ && now - start_ >= kHoldSeconds + kFadeSeconds)
-    {
-        showing_ = false;
-        current_.clear();
-    }
+    // Retire any faded-out banners. All share the same lifetime and start in arrival order, so the oldest
+    // (front) always expires first; erasing in place keeps the rest ordered.
+    while (!active_.empty() && now - active_.front().start >= kHoldSeconds + kFadeSeconds)
+        active_.pop_front();
 
-    if (!showing_ && !pending_.empty())
+    // Fill freed slots from the pending queue; a banner promoted now starts its hold from `now`.
+    while (static_cast<int>(active_.size()) < kMaxVisible && !pending_.empty())
     {
-        current_ = std::move(pending_.front());
+        active_.push_back(Active{std::move(pending_.front()), now});
         pending_.pop_front();
-        start_ = now;
-        showing_ = true;
     }
 
-    if (!showing_)
-        return std::nullopt;
-
-    const double elapsed = now - start_;
-    float alpha = 1.0f;
-    if (elapsed > kHoldSeconds)
-        alpha = static_cast<float>(1.0 - (elapsed - kHoldSeconds) / kFadeSeconds);
-    alpha = std::clamp(alpha, 0.0f, 1.0f);
-    return BannerFrame{current_, alpha};
+    std::vector<BannerFrame> frames;
+    frames.reserve(active_.size());
+    for (const Active &a : active_)
+    {
+        const double elapsed = now - a.start;
+        float alpha = 1.0f;
+        if (elapsed > kHoldSeconds)
+            alpha = static_cast<float>(1.0 - (elapsed - kHoldSeconds) / kFadeSeconds);
+        alpha = std::clamp(alpha, 0.0f, 1.0f);
+        frames.push_back(BannerFrame{a.segments, alpha});
+    }
+    return frames;
 }
 
 } // namespace mth
