@@ -174,4 +174,14 @@ bool player_die()
     return true;
 }
 
+bool health_api_available()
+{
+    return g_mod_api != nullptr && g_mod_api->PlayerGetHealth != nullptr;
+}
+
+float player_health()
+{
+    return health_api_available() ? g_mod_api->PlayerGetHealth() : 0.0f;
+}
+
 } // namespace mod

@@ -3,37 +3,45 @@
 namespace mth
 {
 
-// Edge-detects a local death (is-dying 0->1) for deathlink broadcast, and consumes a self-applied death
-// (an inbound deathlink we enacted) via a one-shot suppress latch so it is not echoed back. Pure/testable:
-// the caller polls observe() each tick with the live is-dying state and calls arm_suppress() when it applies
-// an inbound death. Replaces the old Player::InitDeath detour (no game-symbol sig needed).
+// Decides when a local death should be broadcast for deathlink. Broadcasts once per death and re-arms only
+// on a real respawn, so a pulsing/flickering death-state signal cannot fire repeatedly. Pure/testable.
+//
+// observe(dying, alive) is polled each tick:
+//   - `dying`  the death-state trigger (the Player death-guard byte). It PULSES during the death sequence,
+//              so it is used only to trigger the (latched) broadcast, never to re-arm.
+//   - `alive`  a stable "truly alive" signal (health > 0). A real respawn (not dying AND alive) re-arms;
+//              the guard byte going 0 mid-death does not, because health stays 0 until respawn.
+// arm_suppress() is called just before applying an inbound death so its own edge is not echoed back.
 class DeathBroadcastGate
 {
   public:
-    // Arm the one-shot latch: the next death edge is one WE caused (inbound deathlink) -> do not broadcast it.
     void arm_suppress()
     {
         suppress_ = true;
     }
 
-    // Returns true iff is_dying is a fresh 0->1 edge that should be broadcast (not a sustained death, and not
-    // a death consumed by the suppress latch).
-    bool observe(bool is_dying)
+    // Returns true iff this is a fresh local death that should be broadcast.
+    bool observe(bool dying, bool alive)
     {
-        const bool fresh = is_dying && !was_dying_;
-        was_dying_ = is_dying;
-        if (!fresh)
-            return false;
-        if (suppress_)
+        if (dying)
         {
-            suppress_ = false; // this death is one we applied; consume the latch, do not broadcast
-            return false;
+            if (latched_)
+                return false; // already broadcast this death; survives the guard byte's mid-death flicker
+            latched_ = true;
+            if (suppress_)
+            {
+                suppress_ = false; // this death is one we applied (inbound); consume, do not broadcast
+                return false;
+            }
+            return true;
         }
-        return true;
+        if (alive)
+            latched_ = false; // a real respawn (not dying + health > 0) re-arms for the next death
+        return false;
     }
 
   private:
-    bool was_dying_ = false;
+    bool latched_ = false;
     bool suppress_ = false;
 };
 
