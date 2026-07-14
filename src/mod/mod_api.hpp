@@ -54,6 +54,14 @@ int player_vials();
 void set_player_max_vials(int n);
 void set_player_vials(int n);
 
+// Current bone (money) count via the native MinaModAPI Player accessors. Offset-free and self-resolving
+// like the vial accessors above; the wallet cap (#112) clamps this each frame instead of writing the
+// build-drifting Player cap field. No-op until a player exists; available() is false when the build's API
+// lacks the bone setters.
+bool bones_api_available();
+int player_bones();
+void set_player_bones(int n);
+
 // Kill the player via the native MinaModAPI PlayerDie (deathlink apply). Offset-free and cross-platform,
 // replacing the old Player::TriggerDeath sig detour. Returns false (no-op) if the modding API or PlayerDie
 // is unavailable.

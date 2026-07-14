@@ -21,6 +21,7 @@ add_library(mthap_core STATIC
     core/data/modifier_table.cpp
     core/stat_cap_state.cpp
     core/upgrade_state.cpp
+    core/wallet_cap_state.cpp
     core/area_reporter.cpp
 )
 
