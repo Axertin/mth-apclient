@@ -3,6 +3,7 @@
 #include <bit>
 #include <cstdint>
 #include <functional>
+#include <set>
 
 #include "mod/mod_api.hpp"
 #include "mth/core/ap/ap_ids.hpp"
@@ -118,28 +119,75 @@ void reconcile_kear_keys()
     spent = reconciled;
 }
 
-// Shared collect path for pickups and shop buys: record/send the check, then write the
-// durable native collected-bit where SetItemCollected is side-effect-free.
+// Write the native durable collected-bit for a location where SetItemCollected is side-effect-free
+// (is_durable_bit_kind: 8=key/kear, 12=bonestone, 19=fish), so the game's own reload gate treats it as
+// collected -- the chest spawns opened, pickup respawn is suppressed -- exactly as a live player collect
+// does. No-op (returns false) for other kinds or if SetItemCollected is unresolved. Kear (kind 8)
+// neutralizes the usable key it would grant under kear_rando. Idempotent: re-writing an already-set bit is
+// a no-op (SetItemCollected sees the bit set; the delta-based kear neutralize acts only on newly-set bits).
+bool apply_native_collected(int loc_idx)
+{
+    const int kind = mth::tables::native_location_kind(loc_idx);
+    if (g_set_item_collected == nullptr || !mth::tables::is_durable_bit_kind(kind))
+        return false;
+
+    // Kear (kind 8): capture the bitfield before the write so neutralization targets exactly the new bit.
+    const bool neutralize = g_kear_rando && kind == kKearStorageKind && g_save_manager != 0;
+    void *slot = neutralize ? pal::active_save_slot(g_save_manager) : nullptr;
+    const std::uint64_t before = slot != nullptr ? *reinterpret_cast<std::uint64_t *>(static_cast<char *>(slot) + mth::layout::kSaveKearBitsOff) : 0;
+
+    g_set_item_collected(loc_idx, true, nullptr, nullptr);
+
+    if (neutralize && slot != nullptr)
+        neutralize_kear_grant(loc_idx, slot, before); // kear collected-bit == usable key; cancel it (AP controls keys)
+    else if (neutralize)
+        pal::logf(pal::LogLevel::Warn, "kear_rando: no active save slot; kear grant NOT neutralized (locIdx=%d)", loc_idx);
+    return true;
+}
+
+// Shared collect path for pickups and shop buys: record/send the check, then write the durable native
+// collected-bit where SetItemCollected is side-effect-free.
 void collect_ap_location(int loc_idx)
 {
     g_bridge->on_location_collected(loc_idx); // mark_checked, persist, send if connected
+    if (apply_native_collected(loc_idx))
+        pal::logf(pal::LogLevel::Info, "outbound: SetItemCollected(locIdx=%d kind=%d) -> native reload suppression", loc_idx,
+                  mth::tables::native_location_kind(loc_idx));
+}
 
-    const int kind = mth::tables::native_location_kind(loc_idx);
-    if (g_set_item_collected != nullptr && mth::tables::is_durable_bit_kind(kind))
-    {
-        // Kear (kind 8): capture the bitfield before the write so neutralization targets exactly the new bit.
-        const bool neutralize = g_kear_rando && kind == kKearStorageKind && g_save_manager != 0;
-        void *slot = neutralize ? pal::active_save_slot(g_save_manager) : nullptr;
-        const std::uint64_t before = slot != nullptr ? *reinterpret_cast<std::uint64_t *>(static_cast<char *>(slot) + mth::layout::kSaveKearBitsOff) : 0;
+// Server-collected (Collect/coop) locations only get their .state marked; unlike a live collect, the native
+// durable collected-bit is never written, so a "normal" durable-bit chest (keys/bonestone/fish) reads
+// uncollected at spawn and stays closed. Re-assert the native bit for every durable-bit checked slot once a
+// save is active, so those chests spawn opened like a live collect. Cheap: re-runs only when the checked-set
+// grows or after a world teardown re-arms it (via reset_native_bit_enforcement). Guarded on a resolved
+// collection + an active save slot, so it no-ops at the title screen (connected before a save loads) and
+// retries once a save is live. Idempotent. Game-thread, per-tick.
+int g_native_last_checked_count = -1;
 
-        g_set_item_collected(loc_idx, true, nullptr, nullptr);
-        pal::logf(pal::LogLevel::Info, "outbound: SetItemCollected(locIdx=%d kind=%d) -> native reload suppression", loc_idx, kind);
+void enforce_checked_native_bits()
+{
+    if (g_bridge == nullptr || g_set_item_collected == nullptr || !mth::tables::collection_resolved())
+        return;
+    if (g_save_manager == 0 || pal::active_save_slot(g_save_manager) == nullptr)
+        return; // no active save yet (e.g. connected at the title screen); retry next tick
+    const std::set<int> *checked = g_bridge->checked_slots();
+    if (checked == nullptr || static_cast<int>(checked->size()) == g_native_last_checked_count)
+        return; // nothing new since the last pass
 
-        if (neutralize && slot != nullptr)
-            neutralize_kear_grant(loc_idx, slot, before); // kear collected-bit == usable key; cancel it (AP controls keys)
-        else if (neutralize)
-            pal::logf(pal::LogLevel::Warn, "kear_rando: no active save slot; kear grant NOT neutralized (locIdx=%d)", loc_idx);
-    }
+    int applied = 0;
+    for (int slot : *checked)
+        if (apply_native_collected(slot))
+            ++applied;
+    g_native_last_checked_count = static_cast<int>(checked->size());
+    if (applied > 0)
+        pal::logf(pal::LogLevel::Info, "collect: applied native collected-bit to %d durable-bit checked location(s)", applied);
+}
+
+// Re-arm the enforcement so the next tick re-applies: a save reload clears s_rItemCollection of our
+// in-memory writes, and a world teardown is the signal that one may have happened.
+void reset_native_bit_enforcement()
+{
+    g_native_last_checked_count = -1;
 }
 
 void (*g_orig_pickup_init)(void *, int, int, bool) = nullptr;
@@ -369,6 +417,16 @@ void LocationHooks::set_kear_rando(bool on)
 void LocationHooks::reconcile_kear_keys()
 {
     ::reconcile_kear_keys();
+}
+
+void LocationHooks::enforce_native_bits()
+{
+    enforce_checked_native_bits();
+}
+
+void LocationHooks::reset_native_bits()
+{
+    reset_native_bit_enforcement();
 }
 
 LocationHooks::~LocationHooks()

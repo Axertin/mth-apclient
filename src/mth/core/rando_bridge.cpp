@@ -32,6 +32,11 @@ bool RandoBridge::is_checked(int collection_slot) const
     return sent_.count(ap_loc_id(collection_slot)) != 0;
 }
 
+const std::set<int> *RandoBridge::checked_slots() const
+{
+    return save_ != nullptr ? &save_->checked() : nullptr;
+}
+
 void RandoBridge::on_location_collected(int collection_slot)
 {
     const std::int64_t id = ap_loc_id(collection_slot);
