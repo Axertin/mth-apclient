@@ -166,4 +166,12 @@ void set_player_vials(int n)
         g_mod_api->PlayerSetVials(n);
 }
 
+bool player_die()
+{
+    if (g_mod_api == nullptr || g_mod_api->PlayerDie == nullptr)
+        return false;
+    g_mod_api->PlayerDie();
+    return true;
+}
+
 } // namespace mod

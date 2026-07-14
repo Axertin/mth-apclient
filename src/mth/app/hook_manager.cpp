@@ -101,6 +101,8 @@ void HookManager::tick(ApState &state, SessionPolicy &policy, int save_game_slot
     ability_hooks_->set_enforce(armed && slot_ok);
 
     seed_kear_blocks(state);
+
+    death_hooks_->poll(); // edge-detect a local death for deathlink (send_death gates on deathlink enabled)
 }
 
 void HookManager::seed_kear_blocks(ApState &state)

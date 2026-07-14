@@ -123,4 +123,3 @@ print(f"{pe.FILE_HEADER.TimeDateStamp:x}:{pe.OPTIONAL_HEADER.SizeOfImage:08x}")
 PY
 )
 echo ">> staged $OUTDIR/MinaTheHollower.exe   build_id=$BID   (branch=$BRANCH)"
-echo ">> next: regenerate Windows signatures against this binary (see CLAUDE.md runbook)."
