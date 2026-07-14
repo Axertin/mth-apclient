@@ -94,10 +94,9 @@ inline constexpr const char *save_manager = "g_saveManager";
 // Called only at new-file creation, so a post-hook field zero never touches a progressed save.
 inline constexpr const char *save_slot_clear = "_ZN8SaveSlot5ClearEb"; // SaveSlot::Clear(bool)
 
-// Deathlink. InitDeath = deepest once-per-death convergence (DETECT, edge via Player+0x1380);
-// TriggerDeath = APPLY (call on the live Player to kill). Player+0x1380 = once-per-death guard byte.
-inline constexpr const char *player_init_death = "_ZN6Player9InitDeathEb";        // Player::InitDeath(bool)
-inline constexpr const char *player_trigger_death = "_ZN6Player12TriggerDeathEv"; // Player::TriggerDeath()
+// Deathlink no longer resolves game symbols: detection polls the Player+0x1380 death-guard byte edge each
+// tick (DeathBroadcastGate) and apply goes through the native MinaModAPI PlayerDie. The old
+// Player::InitDeath (DETECT) and Player::TriggerDeath (APPLY) sigs were dropped (broke on game rebuilds).
 
 // Modifiers ("cheats"). Apply hub reads SaveSlot at *(g_saveManager+0x08); live gameplay uses
 // *(g_saveManager+0x18). ToggleCheat (menu) + SetCheatApplied (cheat-code) are the only two

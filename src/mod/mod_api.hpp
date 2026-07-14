@@ -54,6 +54,11 @@ int player_vials();
 void set_player_max_vials(int n);
 void set_player_vials(int n);
 
+// Kill the player via the native MinaModAPI PlayerDie (deathlink apply). Offset-free and cross-platform,
+// replacing the old Player::TriggerDeath sig detour. Returns false (no-op) if the modding API or PlayerDie
+// is unavailable.
+bool player_die();
+
 // modHookCtx for "IsItemCollected"; the layout MUST mirror the game's struct exactly. The game calls
 // RunHooks("IsItemCollected", &ctx) at the top of Items::IsItemCollected.
 struct IsItemCollectedCtx

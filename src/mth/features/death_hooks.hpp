@@ -2,13 +2,15 @@
 
 #include <functional>
 
-#include "mth/hooks/scoped_hook.hpp"
+#include "mth/core/death_broadcast_gate.hpp"
 
 namespace mth
 {
 
-// Hooks Player::InitDeath to DETECT a true death (HP->0) and broadcast; kill() APPLIES an inbound
-// death by calling Player::TriggerDeath on the captured live Player. Edge-latched loop guard.
+// Deathlink via the native modding API (no game-symbol sigs): poll() edge-detects a local death (the
+// Player death-guard byte) each tick and broadcasts it; kill() applies an inbound death via
+// mod::player_die(). A one-shot suppress latch stops a death we applied from echoing back. Replaces the
+// old Player::InitDeath detour (DETECT) + Player::TriggerDeath call (APPLY), which broke on game rebuilds.
 class DeathHooks
 {
   public:
@@ -17,11 +19,13 @@ class DeathHooks
     DeathHooks(const DeathHooks &) = delete;
     DeathHooks &operator=(const DeathHooks &) = delete;
 
-    void kill(); // game-thread; applies an inbound death (no-op if no Player captured / already dying)
-    [[nodiscard]] bool ready() const;
+    void poll(); // game-thread, per-tick: detect a fresh local death edge and broadcast it
+    void kill(); // game-thread: apply an inbound death (no-op if no Player captured / already dying / API absent)
 
   private:
-    ScopedHook init_death_;
+    DeathBroadcastGate gate_;
+    std::function<void()> on_local_death_;
+    std::function<void *()> get_player_;
 };
 
 } // namespace mth
