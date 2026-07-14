@@ -37,9 +37,22 @@ void DeathHooks::poll()
     // Re-arm only on a true respawn: the guard byte pulses through the death sequence, so use health > 0 as
     // the stable "alive" signal. Fall back to the guard byte if the health API is unavailable.
     const bool alive = mod::health_api_available() ? (mod::player_health() > 0.0f) : !dying;
+
+    // Player::DropDeathSpark zeroes the live spark mid-death, before this poll sees the edge, so read it while
+    // alive instead. Gate on `alive` not `!dying`: the guard byte pulses mid-death while health stays 0, and a
+    // pulse must not resample the already-dropped spark. Spark API absent -> hold 0 (still broadcasts).
+    if (alive)
+        last_alive_spark_ = mod::spark_api_available() ? mod::player_spark() : 0;
+
     if (gate_.observe(dying, alive) && on_local_death_)
     {
-        pal::logf(pal::LogLevel::Info, "deathlink: local death -> broadcasting");
+        // Only broadcast a sparkless demise (0 sparks at death, per the pre-death snapshot).
+        if (last_alive_spark_ > 0)
+        {
+            pal::logf(pal::LogLevel::Info, "deathlink: local death suppressed (had %d spark(s); not sparkless)", last_alive_spark_);
+            return;
+        }
+        pal::logf(pal::LogLevel::Info, "deathlink: sparkless local death -> broadcasting");
         on_local_death_();
     }
 }

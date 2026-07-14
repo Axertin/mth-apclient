@@ -15,6 +15,8 @@ struct ModApiRecorder
     std::unordered_map<std::string, MM_HookCallback> hooks;
     std::uint32_t revision = 148716; // a plausible real r-number
     bool install_returns_null = false;
+    float health = 0.0f; // served by PlayerGetHealth
+    int spark = 0;       // served by PlayerGetSpark
 
     void fire(const char *name, void *ctx)
     {
@@ -27,6 +29,8 @@ struct ModApiRecorder
         hooks.clear();
         revision = 148716;
         install_returns_null = false;
+        health = 0.0f;
+        spark = 0;
     }
 };
 
@@ -50,6 +54,14 @@ inline std::uint32_t fake_get_revision()
 {
     return recorder().revision;
 }
+inline float fake_get_health()
+{
+    return recorder().health;
+}
+inline std::int32_t fake_get_spark()
+{
+    return recorder().spark;
+}
 
 // A MinaModAPI wired to the recorder stubs. reset() the recorder before use.
 inline MinaModAPI make_fake_api()
@@ -59,6 +71,8 @@ inline MinaModAPI make_fake_api()
     mm.InstallHook = &fake_install_hook;
     mm.RemoveHook = &fake_remove_hook;
     mm.GetGameRevision = &fake_get_revision;
+    mm.PlayerGetHealth = &fake_get_health;
+    mm.PlayerGetSpark = &fake_get_spark;
     return mm;
 }
 

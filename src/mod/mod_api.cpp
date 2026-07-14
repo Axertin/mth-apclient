@@ -200,4 +200,14 @@ float player_health()
     return health_api_available() ? g_mod_api->PlayerGetHealth() : 0.0f;
 }
 
+bool spark_api_available()
+{
+    return g_mod_api != nullptr && g_mod_api->PlayerGetSpark != nullptr;
+}
+
+int player_spark()
+{
+    return spark_api_available() ? g_mod_api->PlayerGetSpark() : 0;
+}
+
 } // namespace mod
