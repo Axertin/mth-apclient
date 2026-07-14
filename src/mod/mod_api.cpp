@@ -166,6 +166,22 @@ void set_player_vials(int n)
         g_mod_api->PlayerSetVials(n);
 }
 
+bool bones_api_available()
+{
+    return g_mod_api != nullptr && g_mod_api->PlayerGetBones != nullptr && g_mod_api->PlayerSetBones != nullptr;
+}
+
+int player_bones()
+{
+    return bones_api_available() ? g_mod_api->PlayerGetBones() : 0;
+}
+
+void set_player_bones(int n)
+{
+    if (bones_api_available())
+        g_mod_api->PlayerSetBones(n);
+}
+
 bool player_die()
 {
     if (g_mod_api == nullptr || g_mod_api->PlayerDie == nullptr)

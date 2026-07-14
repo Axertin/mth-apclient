@@ -172,6 +172,7 @@ void App::drive_tick()
         apply_vial_capacity();    // vials go through the offset-free mod API, not a raw SaveSlot poke
         upgrades_.mark_applied(); // applied to the save; retry next tick if player not ready yet
     }
+    enforce_wallet_cap();
     if (pending_inbound_death_.exchange(false))
         hooks_->kill_player();
     ensure_inbound_ready();
@@ -213,6 +214,21 @@ void App::apply_vial_capacity()
     const int old_held = mod::player_vials();
     mod::set_player_max_vials(want);
     mod::set_player_vials(maintained_vial_held(old_max, old_held, want));
+}
+
+void App::enforce_wallet_cap()
+{
+    // slot_data "wallet_cap": cap the bone wallet at 750 + 500 per received wallet item, uncapped at 8+.
+    // The game's own cap field drifts between builds, so clamp current bones through the offset-free mod API
+    // each frame instead. Inert unless AP-authenticated and the flag is set; vanilla play is untouched.
+    if (!state_.authenticated() || !state_.wallet_cap())
+        return;
+    wallet_.recompute(state_);
+    const std::optional<int> cap = wallet_.enforced_cap();
+    if (!cap || !mod::bones_api_available())
+        return;
+    if (mod::player_bones() > *cap)
+        mod::set_player_bones(*cap);
 }
 
 void App::on_world_destroy()

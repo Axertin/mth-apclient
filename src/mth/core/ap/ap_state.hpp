@@ -117,6 +117,10 @@ class ApState
     {
         return goal_bosses_;
     }
+    [[nodiscard]] bool wallet_cap() const // slot_data "wallet_cap": cap the bone wallet by received wallet items
+    {
+        return wallet_cap_;
+    }
     [[nodiscard]] bool is_valid_location(std::int64_t id) const
     {
         return valid_locations_.contains(id);
@@ -172,6 +176,7 @@ class ApState
     int goal_config_{0};
     int goal_generators_{99};
     int goal_bosses_{99};
+    bool wallet_cap_{false};
     std::set<std::int64_t> valid_locations_{};
     std::vector<ReceivedItem> received_items_{};
     std::vector<std::int64_t> server_checked_pending_{}; // server-reported checks awaiting reconcile (game-thread)

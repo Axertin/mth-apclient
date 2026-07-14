@@ -56,6 +56,7 @@ void ApState::apply(const ApEvent &ev)
                 goal_config_ = e.goal_config;
                 goal_generators_ = e.goal_generators;
                 goal_bosses_ = e.goal_bosses;
+                wallet_cap_ = e.wallet_cap;
                 valid_locations_.clear();
                 valid_locations_.insert(e.checked_locations.begin(), e.checked_locations.end());
                 valid_locations_.insert(e.missing_locations.begin(), e.missing_locations.end());

@@ -13,6 +13,7 @@
 #include "mth/core/data/ability_ids.hpp"
 #include "mth/core/session_policy.hpp"
 #include "mth/core/upgrade_state.hpp"
+#include "mth/core/wallet_cap_state.hpp"
 
 #ifdef MTHAP_HAS_OVERLAY
 namespace pal
@@ -76,6 +77,7 @@ class App : public ICommandSink
     // once inbound is ready. Never re-sends; persists once per pass. Called each drive_tick.
     void reconcile_server_checked();
     void apply_vial_capacity(); // push the AP vial count through the offset-free mod-API accessors
+    void enforce_wallet_cap();  // clamp live bones to the AP wallet cap (#112); no-op unless authed + wallet_cap
     // Destruction order: overlay first, then hooks_ (game hooks stop first inside the manager),
     // grants_, tracker_/room_tracker_, events_ (AppTickSink, after hooks_), net_ (stops net thread last).
     ApState state_;
@@ -95,6 +97,7 @@ class App : public ICommandSink
     bool first_tick_logged_{false};
     SessionPolicy policy_;
     UpgradeState upgrades_;
+    WalletCapState wallet_;
     ConnectResendGate resend_gate_; // fires flush() once per (re)connection
 #ifdef MTHAP_HAS_OVERLAY
     std::unique_ptr<pal::IOverlay> overlay_;

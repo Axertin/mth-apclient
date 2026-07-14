@@ -199,6 +199,15 @@ inline constexpr bool is_fishing_rod_item(std::int64_t ap_item_id_)
     return ap_item_id_ == kProgFishingRodId;
 }
 
+// Wallet (bone-wallet) capacity: count-based derived state (see WalletCapState), never granted as an
+// item. Each receipt raises the enforced bone cap; the game itself is not told, the mod clamps bones.
+inline constexpr std::int64_t kProgWalletId = kProgressiveItemBase + 11; // 1011
+
+inline constexpr bool is_wallet_item(std::int64_t ap_item_id_)
+{
+    return ap_item_id_ == kProgWalletId;
+}
+
 // Engine itemType for a 1-based tier, -1 if out of range.
 inline constexpr int fishing_rod_itemtype(int tier)
 {

@@ -41,6 +41,7 @@ struct ApConnected
     int goal_config{0};      // slot_data "goal_config": 0=finish, 1=generators, 2=bosses
     int goal_generators{99}; // slot_data "goal_generators": generators needed (default unreachable)
     int goal_bosses{99};     // slot_data "goal_bosses": bosses needed (default unreachable)
+    bool wallet_cap{false};  // slot_data "wallet_cap": cap the bone wallet by received wallet items
 };
 struct ApItemReceived
 {
