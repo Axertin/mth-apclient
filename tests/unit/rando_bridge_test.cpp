@@ -1,4 +1,5 @@
 #include <filesystem>
+#include <set>
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -231,4 +232,25 @@ TEST_CASE("rando_bridge: reconcile_server_checked is a no-op without a save", "[
     REQUIRE_FALSE(bridge.reconcile_server_checked(5)); // ids stay pending in ApState until inbound-ready
     REQUIRE_FALSE(bridge.is_checked(5));
     REQUIRE(link.sent_locations.empty());
+}
+
+TEST_CASE("rando_bridge: checked_slots exposes the persisted set (nullptr without a save)", "[mth][rando]")
+{
+    mth::test::FakeApLink link;
+    link.connected = true;
+    mth::ApState state;
+    connect_with(state, {ap_loc_id(5), ap_loc_id(9)});
+    mth::RandoBridge bridge(link, state);
+    REQUIRE(bridge.checked_slots() == nullptr); // no save attached yet
+
+    const auto path = std::filesystem::temp_directory_path() / "mthap_bridge_checkedslots.state";
+    std::filesystem::remove(path);
+    mth::ApSaveState save(path);
+    bridge.attach_save_state(save);
+    REQUIRE(bridge.checked_slots() != nullptr);
+    REQUIRE(bridge.checked_slots()->empty());
+
+    REQUIRE(bridge.reconcile_server_checked(5)); // server-collected (Collect/coop)
+    bridge.on_location_collected(9);             // live player collect
+    REQUIRE(*bridge.checked_slots() == std::set<int>{5, 9});
 }

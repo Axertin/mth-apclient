@@ -27,6 +27,15 @@ class LocationHooks
     // popcount so AP-collected kears stop reading as usable keys after a save load. Game-thread, per-tick.
     void reconcile_kear_keys();
 
+    // Write the native durable collected-bit for server-collected (Collect/coop) durable-bit locations, so
+    // their chests spawn opened like a live collect (reconcile alone only marks our .state). Game-thread,
+    // per-tick; self-guards on an active save, so it no-ops at the title screen.
+    void enforce_native_bits();
+
+    // Re-arm enforce_native_bits after a world teardown (a save reload clears the game's collection of our
+    // in-memory writes, so they must be re-applied on the next load).
+    void reset_native_bits();
+
   private:
     ScopedHook pickup_init_;
     ScopedHook pickup_on_pickup_;

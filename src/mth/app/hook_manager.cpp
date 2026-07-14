@@ -72,6 +72,7 @@ void HookManager::tick(ApState &state, SessionPolicy &policy, int save_game_slot
 
     location_hooks_->set_kear_rando(state.kear_rando()); // slot_data flag: neutralize the world-kear key grant
     location_hooks_->reconcile_kear_keys();              // re-cancel AP kears that a reload restored as usable keys
+    location_hooks_->enforce_native_bits();              // native collected-bit for server-collected durable-bit chests (Collect/coop)
 
     if (authed)
         goal_tracker_->evaluate(state); // poll SaveSlot; fires the AP goal when the slot_data condition is met
@@ -117,6 +118,11 @@ void HookManager::drain()
 {
     lock_hooks_->seed_removed_locks();
     ability_hooks_->enforce_train_tick();
+}
+
+void HookManager::on_world_destroy()
+{
+    location_hooks_->reset_native_bits(); // a save reload clears s_rItemCollection; re-apply on the next load
 }
 
 void HookManager::kill_player()

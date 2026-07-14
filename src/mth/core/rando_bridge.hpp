@@ -40,6 +40,10 @@ class RandoBridge
     [[nodiscard]] bool is_ap_location(int collection_slot) const;
     [[nodiscard]] bool is_checked(int collection_slot) const; // false for negative/non-location slots
 
+    // The persisted checked-location slots, or nullptr before a save attaches. Game-thread; used by the
+    // native collected-bit enforcement to render server-collected (Collect/coop) chests opened on reload.
+    [[nodiscard]] const std::set<int> *checked_slots() const;
+
   private:
     IApLink &link_;
     ApState &state_;

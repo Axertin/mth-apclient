@@ -221,6 +221,10 @@ void App::on_world_destroy()
     // re-apply (armed by the newfile-kit suppressor on reload) can't write through a dead Player.
     if (tracker_)
         tracker_->invalidate_player();
+    // A save reload clears s_rItemCollection of our in-memory collected-bit writes; re-arm so the next
+    // in-game tick re-applies them for server-collected durable-bit locations.
+    if (hooks_)
+        hooks_->on_world_destroy();
 }
 
 void App::ensure_inbound_ready()
