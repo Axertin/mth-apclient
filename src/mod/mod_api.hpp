@@ -73,6 +73,11 @@ bool player_die();
 bool health_api_available();
 float player_health();
 
+// Native current Spark (the sub-weapon meter); deathlink broadcasts only a sparkless demise. available() is
+// false when the build's API lacks the getter, and player_spark() returns 0 then.
+bool spark_api_available();
+int player_spark();
+
 // modHookCtx for "IsItemCollected"; the layout MUST mirror the game's struct exactly. The game calls
 // RunHooks("IsItemCollected", &ctx) at the top of Items::IsItemCollected.
 struct IsItemCollectedCtx

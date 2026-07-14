@@ -43,6 +43,7 @@ add_executable(mthap_unit_tests
     unit/mod_api_test.cpp
     unit/connect_resend_gate_test.cpp
     unit/death_broadcast_gate_test.cpp
+    unit/death_hooks_test.cpp
 )
 
 target_include_directories(mthap_unit_tests PRIVATE
@@ -61,7 +62,10 @@ target_compile_features(mthap_unit_tests PRIVATE cxx_std_23)
 # set_default_log, logf) without Frida or the module.
 target_sources(mthap_unit_tests PRIVATE
     "${CMAKE_SOURCE_DIR}/src/pal/linux/log_linux.cpp"
-    "${CMAKE_SOURCE_DIR}/src/pal/linux/cert_linux.cpp")
+    "${CMAKE_SOURCE_DIR}/src/pal/linux/cert_linux.cpp"
+    # DeathHooks lives in the mthap module (not linked by tests); compile it in directly so its
+    # sparkless-demise gating can be unit-tested against mthap_mod (mod::) + mthap_core (the gate).
+    "${CMAKE_SOURCE_DIR}/src/mth/features/death_hooks.cpp")
 
 enable_strict_warnings(mthap_unit_tests)
 

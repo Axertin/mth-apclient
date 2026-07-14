@@ -26,6 +26,7 @@ class DeathHooks
     DeathBroadcastGate gate_;
     std::function<void()> on_local_death_;
     std::function<void *()> get_player_;
+    int last_alive_spark_{0}; // spark sampled on the last alive tick; the death drop zeroes the live value before the edge
 };
 
 } // namespace mth
