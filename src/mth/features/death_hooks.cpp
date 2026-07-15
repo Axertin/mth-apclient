@@ -32,7 +32,10 @@ void DeathHooks::poll()
 {
     void *p = get_player_ ? get_player_() : nullptr;
     if (p == nullptr)
-        return; // no player -> no signal; keep the edge state frozen across world transitions
+    {
+        gate_.observe(false, false); // no player (world/screen transition): reset the settled-respawn debounce
+        return;                      // so an inbound PlayerDie is not applied the instant the player reappears
+    }
     const bool dying = is_dying(p);
     // Re-arm only on a true respawn: the guard byte pulses through the death sequence, so use health > 0 as
     // the stable "alive" signal. Fall back to the guard byte if the health API is unavailable.
@@ -59,23 +62,28 @@ void DeathHooks::poll()
 
 void DeathHooks::kill()
 {
+    // Every received inbound death suppresses our own outbound until we settle, even if we defer applying it
+    // below: this is what breaks the multiworld echo storm (#125).
+    gate_.note_inbound_death();
     void *p = get_player_ ? get_player_() : nullptr;
     if (p == nullptr)
     {
         pal::logf(pal::LogLevel::Warn, "deathlink: inbound death not applied (player not captured yet)");
         return;
     }
-    if (is_dying(p))
+    // Only apply PlayerDie from a settled state (stably alive, not mid-death/mid-transition). Applying it
+    // during the Underlab->overworld transition softlocks, and applying it while already dying just no-ops;
+    // a death that arrives before we settle is dropped (deathlink is best-effort). #125.
+    if (!gate_.stably_alive())
     {
-        pal::logf(pal::LogLevel::Debug, "deathlink: inbound death ignored (already dying)");
-        return; // applying would no-op and leave a stale suppress latch
+        pal::logf(pal::LogLevel::Info, "deathlink: inbound death deferred (player not settled: mid-death/transition)");
+        return;
     }
     if (!mod::player_die())
     {
         pal::logf(pal::LogLevel::Warn, "deathlink: inbound death not applied (PlayerDie API unavailable)");
         return;
     }
-    gate_.arm_suppress(); // the resulting death edge (seen by a later poll) must not re-broadcast
     pal::logf(pal::LogLevel::Info, "deathlink: applying inbound death (PlayerDie)");
 }
 
