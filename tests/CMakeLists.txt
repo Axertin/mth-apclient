@@ -27,6 +27,7 @@ add_executable(mthap_unit_tests
     unit/ap_ids_test.cpp
     unit/ap_save_state_test.cpp
     unit/inbound_granter_test.cpp
+    unit/inbound_key_test.cpp
     unit/sig_scan_test.cpp
     unit/riprel_test.cpp
     unit/lock_registry_test.cpp

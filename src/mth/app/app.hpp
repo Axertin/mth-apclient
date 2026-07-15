@@ -95,6 +95,7 @@ class App : public ICommandSink
     std::unique_ptr<RoomTracker> room_tracker_;
     std::unique_ptr<HookManager> hooks_;
     std::optional<ApSaveState> save_state_;
+    std::string inbound_key_; // (seed, slot) key save_state_ was built for; rebuild on change (#124)
     std::unique_ptr<GrantPipeline> grants_;
     std::atomic<bool> pending_inbound_death_{false};
     // Gates the tick entry points until construction finishes. The game-thread tick hooks go live mid-ctor

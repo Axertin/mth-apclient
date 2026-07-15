@@ -12,6 +12,7 @@
 #include "mth/app/hook_manager.hpp"
 #include "mth/core/ap/ap_ids.hpp"
 #include "mth/core/ap/ap_link.hpp"
+#include "mth/core/ap/inbound_key.hpp"
 #include "mth/core/data/ability_ids.hpp"
 #include "mth/core/game_events.hpp"
 #include "mth/core/rando_bridge.hpp"
@@ -259,11 +260,17 @@ void App::on_world_destroy()
 
 void App::ensure_inbound_ready()
 {
-    if (grants_->inbound_ready() || !state_.authenticated())
+    if (!state_.authenticated())
         return;
-    const std::string key = "ap_" + state_.seed() + "_" + std::to_string(state_.player_slot()) + ".state";
+    const std::string key = inbound_state_key(state_.seed(), state_.player_slot());
+    // Rebuild when the connected seed/slot differs from what's loaded, not just on first connect:
+    // reconnecting to a different server in the same process must re-key the save-state, else the
+    // resend flushes the previous seed's checked-set to the new server (#124).
+    if (!inbound_needs_rebuild(grants_->inbound_ready(), inbound_key_, key))
+        return;
     save_state_.emplace(pal::log_dir() / key);
     grants_->build_inbound(state_, *save_state_);
+    inbound_key_ = key;
     pal::logf(pal::LogLevel::Info, "inbound: state loaded (%s); granter live", key.c_str());
     hooks_->set_ap_slot(save_state_->game_slot()); // restore the AP-game slot (skip capture if known)
     net_->rando().attach_save_state(*save_state_);

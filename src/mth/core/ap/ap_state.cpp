@@ -39,6 +39,15 @@ void ApState::apply(const ApEvent &ev)
             using T = std::decay_t<decltype(e)>;
             if constexpr (std::is_same_v<T, ApConnected>)
             {
+                // A connect to a different server/slot is a new AP session: drop the prior stream so
+                // inbound doesn't re-grant the old seed's items and reconcile doesn't flush its checks
+                // into the new save-state (#124). A same-server reconnect keeps the dedup cursor.
+                if (e.seed != seed_ || e.player_slot != player_slot_)
+                {
+                    received_items_.clear();
+                    server_checked_pending_.clear();
+                    last_item_index_ = -1;
+                }
                 seed_ = e.seed;
                 slot_data_ = e.slot_data;
                 player_slot_ = e.player_slot;

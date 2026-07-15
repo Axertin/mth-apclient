@@ -135,3 +135,35 @@ TEST_CASE("ApState exposes lit_generator_lamp_mask from ApConnected", "[ap_state
     state.apply(mth::ApEvent{ev});
     REQUIRE(state.lit_generator_lamp_mask() == 0x2Au);
 }
+
+TEST_CASE("ap_state: connecting to a different seed/slot resets the session stream (#124)", "[mth][ap_state]")
+{
+    mth::ApState s;
+    s.apply(mth::ApConnected{"SEEDA", "{}", 1, {}, {}});
+    s.apply(mth::ApItemReceived{{1001, 0, 1, 0}});
+    s.apply(mth::ApItemReceived{{1002, 1, 1, 0}});
+    s.apply(mth::ApLocationsChecked{{10, 11}});
+    REQUIRE(s.received_items().size() == 2);
+    REQUIRE(s.last_item_index() == 1);
+
+    // Fresh connect to a different server: the previous server's item stream and pending checks must
+    // not carry over, or inbound would re-grant SEEDA's items and reconcile would flush SEEDA's checks
+    // into SEEDB's save-state.
+    s.apply(mth::ApConnected{"SEEDB", "{}", 2, {}, {}});
+    REQUIRE(s.received_items().empty());
+    REQUIRE(s.last_item_index() == -1);
+    REQUIRE(s.take_server_checked_pending().empty());
+}
+
+TEST_CASE("ap_state: reconnecting to the same seed/slot preserves the received-item stream", "[mth][ap_state]")
+{
+    mth::ApState s;
+    s.apply(mth::ApConnected{"SEEDA", "{}", 1, {}, {}});
+    s.apply(mth::ApItemReceived{{1001, 0, 1, 0}});
+    REQUIRE(s.received_items().size() == 1);
+
+    // Same-server reconnect keeps the dedup cursor so replayed items are not re-appended.
+    s.apply(mth::ApConnected{"SEEDA", "{}", 1, {}, {}});
+    REQUIRE(s.received_items().size() == 1);
+    REQUIRE(s.last_item_index() == 0);
+}
