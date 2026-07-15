@@ -13,7 +13,9 @@
 #include "mth/core/ap/ap_ids.hpp"
 #include "mth/core/ap/ap_link.hpp"
 #include "mth/core/ap/inbound_key.hpp"
+#include "mth/core/ap/save_slot_gate.hpp"
 #include "mth/core/data/ability_ids.hpp"
+#include "mth/core/data/game_symbols.hpp"
 #include "mth/core/game_events.hpp"
 #include "mth/core/rando_bridge.hpp"
 #include "mth/features/player_tracker.hpp"
@@ -24,7 +26,6 @@
 #include "pal/pal_log.hpp"
 #include "pal/pal_module.hpp"
 #ifdef MTHAP_HAS_OVERLAY
-#include "mth/core/data/game_symbols.hpp"
 #include "mth/ui/overlay_root.hpp"
 #include "pal/pal_overlay.hpp"
 #endif
@@ -103,7 +104,12 @@ App::App()
     room_tracker_ = std::make_unique<RoomTracker>();
     events_ = std::make_unique<AppTickSink>(*this);
     grants_ = std::make_unique<GrantPipeline>(
-        *tracker_, [this](int loc) { return net_->rando().is_ap_location(loc); }, [this](int loc) { net_->rando().on_location_collected(loc); });
+        *tracker_, [this](int loc) { return net_->rando().is_ap_location(loc); },
+        [this](int loc)
+        {
+            if (pal::ap_save_gate())
+                net_->rando().on_location_collected(loc);
+        });
     // Suppress the game's default new-file starting kit while AP-authenticated (AP supplies it instead).
     // SaveSlot::Clear also fires on profile-menu / save-load, so the zero can hit an existing save's upgrade
     // fields; re-arm the upgrade re-apply each time we suppress so drive_tick refills them from AP state.
@@ -120,6 +126,9 @@ App::App()
     hooks_ = std::make_unique<HookManager>(
         *events_, net_->rando(), scout_registry_, state_, [this] { net_->link().send_death("Mina the Hollower"); },
         [this]() -> void * { return tracker_->player(); });
+
+    save_manager_ = pal::resolve_game_symbol(sym::save_manager);
+    pal::set_new_game_hook([this] { new_game_pending_.store(true, std::memory_order_relaxed); });
 #ifdef MTHAP_HAS_OVERLAY
     {
         const pal::OverlayConfig ocfg{pal::resolve_game_symbol(sym::process_sdl_event)};
@@ -140,6 +149,7 @@ App::~App()
     overlay_root_.reset(); // then unregister the log observer
 #endif
     pal::remove_newfile_kit_suppressor();
+    pal::remove_new_game_hook();
     hooks_.reset(); // GameHooks (tick source) stops first inside the manager, then feature hooks
     grants_.reset();
     room_tracker_.reset();
@@ -167,7 +177,7 @@ void App::drive_tick()
     if (room_tracker_ && room_tracker_->current_screen(&screen_id))
         screen = screen_id;
     net_->tick(state_, screen);
-    hooks_->tick(state_, policy_, save_state_ ? save_state_->game_slot() : -1);
+    hooks_->tick(state_, policy_);
     upgrades_.recompute(state_);
     // Diagnostic (#46): apply_upgrades runs only while dirty, so if it never fires the pal-layer trace is
     // silent. Log the call-site gating on change to separate "never attempted" from "attempted and failed".
@@ -182,32 +192,54 @@ void App::drive_tick()
             pal::logf(pal::LogLevel::Debug, "upgrades: drive_tick gate -> %s counts=[%d,%d,%d,%d,%d]", w, c[0], c[1], c[2], c[3], c[4]);
         }
     }
-    if (upgrades_.dirty() && tracker_ && pal::apply_upgrades(upgrades_.counts(), tracker_->player()))
-    {
-        apply_vial_capacity();    // vials go through the offset-free mod API, not a raw SaveSlot poke
-        upgrades_.mark_applied(); // applied to the save; retry next tick if player not ready yet
-    }
-    enforce_wallet_cap();
-    if (pending_inbound_death_.exchange(false))
-        hooks_->kill_player();
     ensure_inbound_ready();
-    reconcile_server_checked();
-    if (resend_gate_.fire(net_->link().is_connected(), grants_->inbound_ready()))
+    // Binding is connect-first: a new-game edge is honored only while authenticated with an attached
+    // save; the pending flag is held across ticks only while connected+unbound+slot-not-yet-live, so it
+    // binds the new game's own slot.
+    const int live = pal::live_save_slot_index(save_manager_);
+    if (new_game_pending_.load(std::memory_order_relaxed))
     {
-        net_->rando().flush(); // (re)connect: resend the full persisted checked set; server dedups
-        pal::logf(pal::LogLevel::Info, "outbound: (re)connect -> flushed checked-set");
-    }
-    grants_->tick();
-    // Persist a freshly captured AP-game slot so it's known on the next load/session.
-    if (save_state_)
-    {
-        const int s = hooks_->captured_ap_slot();
-        if (s >= 0 && s != save_state_->game_slot())
+        if (!state_.authenticated() || !save_state_)
         {
-            save_state_->set_game_slot(s);
-            save_state_->save();
-            pal::logf(pal::LogLevel::Info, "modifiers: persisted AP-game slot %d", s);
+            new_game_pending_.store(false, std::memory_order_relaxed); // edge must occur while connected (connect-first)
         }
+        else
+        {
+            const int bind = ap_bind_on_new_game(true, grants_->inbound_ready(), save_state_->game_slot(), live);
+            if (bind >= 0)
+            {
+                save_state_->set_game_slot(bind);
+                save_state_->save();
+                hooks_->set_ap_slot(bind);
+                new_game_pending_.store(false, std::memory_order_relaxed);
+                pal::logf(pal::LogLevel::Info, "save-gate: bound AP game to new-game slot %d", bind);
+            }
+            else if (save_state_->game_slot() >= 0)
+            {
+                new_game_pending_.store(false, std::memory_order_relaxed); // already bound: drop the stale edge
+            }
+            // else: connected + unbound but the slot is not live yet; keep pending for a later tick
+        }
+    }
+    const bool gate_open = save_state_ && ap_save_gate_open(state_.authenticated(), grants_->inbound_ready(), save_state_->game_slot(), live);
+    pal::set_ap_save_gate(gate_open);
+    if (gate_open)
+    {
+        if (upgrades_.dirty() && tracker_ && pal::apply_upgrades(upgrades_.counts(), tracker_->player()))
+        {
+            apply_vial_capacity();    // vials go through the offset-free mod API, not a raw SaveSlot poke
+            upgrades_.mark_applied(); // applied to the save; retry next tick if player not ready yet
+        }
+        enforce_wallet_cap();
+        if (pending_inbound_death_.exchange(false))
+            hooks_->kill_player();
+        reconcile_server_checked();
+        if (resend_gate_.fire(net_->link().is_connected(), grants_->inbound_ready()))
+        {
+            net_->rando().flush(); // (re)connect: resend the full persisted checked set; server dedups
+            pal::logf(pal::LogLevel::Info, "outbound: (re)connect -> flushed checked-set");
+        }
+        grants_->tick();
     }
 }
 

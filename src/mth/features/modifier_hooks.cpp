@@ -64,11 +64,7 @@ void ModifierHooks::seed(int slot_index, std::uint32_t words[8])
             pal::logf(pal::LogLevel::Info, "modifiers: load slot_index=%d != AP slot %d; not enforcing", slot_index, ap_slot_);
             return;
         }
-        if (ap_slot_ < 0 && slot_index >= 0)
-        {
-            ap_slot_ = slot_index;
-            pal::logf(pal::LogLevel::Info, "modifiers: captured AP-game slot index=%d", ap_slot_);
-        }
+        // binding is App-owned (new-game only); never self-capture on load
     }
     if (armed_)
     {

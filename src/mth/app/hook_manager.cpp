@@ -21,6 +21,7 @@
 #include "mth/features/modifier_hooks.hpp"
 #include "mth/features/pawn_shop_hooks.hpp"
 #include "mth/hooks/game_hooks.hpp"
+#include "pal/pal_game.hpp"
 
 namespace mth
 {
@@ -61,7 +62,7 @@ HookManager::~HookManager()
     lock_hooks_.reset();
 }
 
-void HookManager::tick(ApState &state, SessionPolicy &policy, int save_game_slot)
+void HookManager::tick(ApState &state, SessionPolicy &policy)
 {
     const bool authed = state.authenticated();
     // Enforce (seed + lockdown) only in an AP session, offline test mode, or once the console
@@ -76,14 +77,17 @@ void HookManager::tick(ApState &state, SessionPolicy &policy, int save_game_slot
         level_cap_hooks_->recompute(state);
 
     location_hooks_->set_kear_rando(state.kear_rando()); // slot_data flag: neutralize the world-kear key grant
-    location_hooks_->reconcile_kear_keys();              // re-cancel AP kears that a reload restored as usable keys
-    location_hooks_->enforce_native_bits();              // native collected-bit for server-collected durable-bit chests (Collect/coop)
+    if (pal::ap_save_gate())
+    {
+        location_hooks_->reconcile_kear_keys(); // re-cancel AP kears that a reload restored as usable keys
+        location_hooks_->enforce_native_bits(); // native collected-bit for server-collected durable-bit chests (Collect/coop)
+    }
 
     // slot_data lamps (0 when not authed) OR'd with the sticky console override (works offline).
     fountain_lamp_hooks_->set_lit_mask((authed ? state.lit_generator_lamp_mask() : 0) | lamp_console_override_.load(std::memory_order_relaxed));
 
-    if (authed)
-        goal_tracker_->evaluate(state); // poll SaveSlot; fires the AP goal when the slot_data condition is met
+    if (authed && pal::ap_save_gate())
+        goal_tracker_->evaluate(state); // poll SaveSlot; fires the AP goal when the slot_data condition is met (never on a wrong save)
 
     if (authed)
     {
@@ -105,12 +109,12 @@ void HookManager::tick(ApState &state, SessionPolicy &policy, int save_game_slot
             train_mask |= train_ticket_bit(game_item_type(it.item_id));
     ability_hooks_->set_train_gate(authed && state.train_rando(), train_mask);
     const bool armed = policy.enforce_abilities(authed);
-    const bool slot_ok = !authed ? true : (save_game_slot >= 0 && modifier_hooks_->captured_ap_slot() == save_game_slot);
-    ability_hooks_->set_enforce(armed && slot_ok);
+    ability_hooks_->set_enforce(armed && (!authed || pal::ap_save_gate()));
 
     seed_kear_blocks(state);
 
-    death_hooks_->poll(); // edge-detect a local death for deathlink (send_death gates on deathlink enabled)
+    if (pal::ap_save_gate())
+        death_hooks_->poll(); // edge-detect a local death for deathlink; never send on a save the AP game does not own
 }
 
 void HookManager::seed_kear_blocks(ApState &state)
@@ -126,6 +130,8 @@ void HookManager::seed_kear_blocks(ApState &state)
 
 void HookManager::drain()
 {
+    if (!pal::ap_save_gate()) // never mutate a save the AP game does not own (lock removal, train-destination bits)
+        return;
     lock_hooks_->seed_removed_locks();
     ability_hooks_->enforce_train_tick();
 }

@@ -42,9 +42,9 @@ class HookManager
     HookManager(const HookManager &) = delete;
     HookManager &operator=(const HookManager &) = delete;
 
-    void tick(ApState &state, SessionPolicy &policy, int save_game_slot); // -1 when no save state
-    void drain();                                                         // World::Update pre-hook window
-    void on_world_destroy();                                              // re-arm native collected-bit enforcement (save reload clears it)
+    void tick(ApState &state, SessionPolicy &policy);
+    void drain();            // World::Update pre-hook window
+    void on_world_destroy(); // re-arm native collected-bit enforcement (save reload clears it)
     void kill_player();
 
     [[nodiscard]] int captured_ap_slot() const;

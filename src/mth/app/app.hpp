@@ -1,6 +1,7 @@
 #pragma once
 
 #include <atomic>
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -98,6 +99,8 @@ class App : public ICommandSink
     std::string inbound_key_; // (seed, slot) key save_state_ was built for; rebuild on change (#124)
     std::unique_ptr<GrantPipeline> grants_;
     std::atomic<bool> pending_inbound_death_{false};
+    std::atomic<bool> new_game_pending_{false}; // set by the game-thread new-game hook, consumed in drive_tick
+    std::uintptr_t save_manager_{0};            // resolved once; source for live_save_slot_index
     // Gates the tick entry points until construction finishes. The game-thread tick hooks go live mid-ctor
     // (GameHooks installs Game::FixedUpdate before hooks_ is even assigned), so on a fast-initializing host
     // the first tick can land on a half-built App and deref a null member. Release on the last ctor line,

@@ -20,6 +20,13 @@ using NewfileKitSuppressFn = std::function<bool()>;
 bool install_newfile_kit_suppressor(NewfileKitSuppressFn should_suppress);
 void remove_newfile_kit_suppressor();
 
+// Fires on the game thread when a NEW GAME (or NG+) starts, detected as SaveSlot::Clear(this, true)
+// (RE-verified new-game-only; the load path never calls Clear). Piggybacks on the newfile-kit Clear hook,
+// so it is inert unless install_newfile_kit_suppressor resolved that hook. Callback must be minimal.
+using NewGameFn = std::function<void()>;
+void set_new_game_hook(NewGameFn on_new_game);
+void remove_new_game_hook();
+
 // Pickup* base from the `this` passed to a Pickup::OnPickup hook.
 // MSVC: that `this` is the PickupListener MI subobject, not the Pickup base.
 void *pickup_base_from_onpickup(void *onpickup_this);
@@ -27,6 +34,10 @@ void *pickup_base_from_onpickup(void *onpickup_this);
 // Active SaveSlot* from the resolved g_saveManager global. Linux derefs +0x18; on Windows the
 // global already holds the SaveSlot* directly. Returns nullptr if the global is 0.
 void *active_save_slot(std::uintptr_t save_manager_global);
+
+// Live 0-based index (0/1/2) of the currently-active save slot, read from the save-manager global.
+// Returns -1 when no save is active. Field offset is per-platform (Linux +0x20, Windows +0x8).
+[[nodiscard]] int live_save_slot_index(std::uintptr_t save_manager_global);
 
 // Shop-purchase callback: given the bought slot, runs the AP collect logic and returns the itemType
 // the game should store (a dummy to suppress the vanilla grant where the platform redirects, else
@@ -184,5 +195,13 @@ void remove_pawn_shop_hook();
 using FountainLampFn = std::function<std::uint32_t()>;
 bool install_fountain_lamp_hook(FountainLampFn lit_mask);
 void remove_fountain_lamp_hook();
+
+// ---- AP save-slot gate. Published each tick by App; guards independent game-thread detours. ----
+
+// Published each tick by App: true when the loaded save is the AP (seed, slot)'s bound save.
+// The independent game-thread detours (collected-bit, kear, pickup-check, deathlink) read this
+// before mutating the save or sending to the server. Defaults to false (closed) until set.
+void set_ap_save_gate(bool open);
+[[nodiscard]] bool ap_save_gate();
 
 } // namespace pal

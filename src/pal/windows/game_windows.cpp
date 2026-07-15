@@ -208,10 +208,13 @@ constexpr std::ptrdiff_t kTrinketUpgOff = 0x950; // Trinket_Upgrade (itemType 0x
 pal::NewfileKitSuppressFn g_kit_suppress = nullptr;
 pal::HookId g_kit_hook = pal::kInvalidHookId;
 void (*g_orig_save_slot_clear)(void *, bool) = nullptr;
+pal::NewGameFn g_new_game_fn;
 void repl_save_slot_clear(void *self, bool arg)
 {
     if (g_orig_save_slot_clear)
         g_orig_save_slot_clear(self, arg);
+    if (arg && g_new_game_fn)
+        g_new_game_fn(); // new game / NG+ (RE: arg==true is new-game-only, never a load)
     if (self == nullptr || !g_kit_suppress || !g_kit_suppress())
         return;
     auto field = [self](std::ptrdiff_t off) -> std::uint32_t & { return *reinterpret_cast<std::uint32_t *>(static_cast<char *>(self) + off); };
@@ -415,6 +418,15 @@ void *active_save_slot(std::uintptr_t save_manager_global)
     void *slot = *reinterpret_cast<void **>(save_manager_global); // the global already holds the active SaveSlot*
     // Fail closed on an uninitialized/garbage slot; every caller null-checks.
     return pal::pointer_looks_valid(slot) ? slot : nullptr;
+}
+
+int live_save_slot_index(std::uintptr_t save_manager_global)
+{
+    constexpr std::ptrdiff_t kWinSlotIndexOff = 0x8;
+    if (save_manager_global == 0 || active_save_slot(save_manager_global) == nullptr)
+        return -1;                                                                    // no valid save loaded: the index field is not trustworthy
+    const int idx = *reinterpret_cast<int *>(save_manager_global + kWinSlotIndexOff); // +0x8
+    return idx >= 0 ? idx : -1;
 }
 
 bool install_shop_purchase_hook(ShopBuyFn on_buy)
@@ -759,6 +771,16 @@ void remove_newfile_kit_suppressor()
         hook_engine().remove_hook(g_kit_hook);
     g_kit_hook = kInvalidHookId;
     g_kit_suppress = nullptr;
+}
+
+void set_new_game_hook(NewGameFn on_new_game)
+{
+    g_new_game_fn = std::move(on_new_game);
+}
+
+void remove_new_game_hook()
+{
+    g_new_game_fn = nullptr;
 }
 
 bool modifiers_available()

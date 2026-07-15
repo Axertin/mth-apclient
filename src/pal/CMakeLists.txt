@@ -51,6 +51,9 @@ if(MINGW AND MTHAP_ENABLE_NET)
     list(APPEND _mthap_pal_sources windows/mingw_crt_shim.cpp)
 endif()
 
+# AP save-slot gate: published each tick by App to gate independent game-thread detours.
+list(APPEND _mthap_pal_sources ap_save_gate.cpp)
+
 # Native MinaModAPI entry (MinaMod_Init) - shared across platforms; the export
 # macro is the only platform divergence and lives inside the TU.
 list(APPEND _mthap_pal_sources native_mod_entry.cpp)
