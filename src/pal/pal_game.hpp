@@ -49,6 +49,14 @@ using ShopLevelFn = int (*)(int loc_idx);
 bool install_shop_stock_hook(ShopLevelFn level_state);
 void remove_shop_stock_hook();
 
+// Shop flattening: while active, OR the game's never-stack bit onto each ShopDef before OpenShop
+// builds its box list, so stacked slots show one buyable box per level. `active` is polled per
+// Shop::Get call (game thread); the bit is only ever set, never cleared, so a disconnect leaves
+// already-touched shops flat until the game restarts.
+using ShopFlattenFn = bool (*)();
+bool install_shop_flatten_hook(ShopFlattenFn active);
+void remove_shop_flatten_hook();
+
 // Per-frame "open a removed lock" hooks for KeyBlockChain / locked Chest. The platform owns the hook
 // target and the this->base normalization: Linux hooks ::Update (self == entity base); Windows hooks
 // ::UpdateState (self == the StateMachine sub-object, so base = self - 0x170) because the game's MSVC
