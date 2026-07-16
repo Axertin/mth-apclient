@@ -57,6 +57,11 @@ inline constexpr const char *shop_item_refresh = "_ZN8ShopItem7RefreshEv"; // Sh
 // query apart from the weapon-swap chest (both read the same weapon locations) (#67 follow-up).
 inline constexpr const char *shop_is_out_of_stock = "_ZN4Shop12IsOutOfStockEPK7ShopDefRNS_7OutInfoE";
 
+// Shop::Get(unsigned long nameHash): linear-searches the static ShopDef table (stride 0x460) and
+// returns the matching ShopDef*, consumed by InteractComponent::OpenShop to build the box list.
+// Detoured to OR the never-stack bit so stacked slots flatten (one box/level).
+inline constexpr const char *shop_get = "_ZN4Shop3GetEm"; // Shop::Get(unsigned long)
+
 // ycWorld::QueueDestroy: unconditional teardown (no SpawnPoint gate); writes no save/grant state.
 inline constexpr const char *queue_destroy = "_ZN7ycWorld12QueueDestroyEP8ycEntityb"; // ycWorld::QueueDestroy(ycEntity*, bool)
 
