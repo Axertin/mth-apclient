@@ -316,6 +316,13 @@ int on_shop_stock(int loc_idx)
     return g_bridge->is_checked(loc_idx) ? 2 : 1;
 }
 
+// Shop flattening is active while the AP bridge is attached (LocationHooks lifetime == connected
+// session). Polled per Shop::Get; the PAL ORs the never-stack bit when this returns true.
+bool on_shop_flatten()
+{
+    return g_bridge != nullptr;
+}
+
 // Items::IsItemCollected override for locations whose vanilla collected-state aliases item-ownership, so
 // the game reports them collected before the player ever opens the chest:
 //   - capacity-upgrade pieces (#8): the collected bit aliases the mod's AP capacity counter (apply_upgrades
@@ -406,6 +413,7 @@ LocationHooks::LocationHooks(RandoBridge &bridge)
                            "Shop::IsOutOfStock");
     pal::install_shop_purchase_hook(&on_shop_buy);
     pal::install_shop_stock_hook(&on_shop_stock);
+    pal::install_shop_flatten_hook(&on_shop_flatten);
     mod::install_item_collected_hook(&on_item_collected_query);
 }
 
@@ -432,6 +440,7 @@ void LocationHooks::reset_native_bits()
 LocationHooks::~LocationHooks()
 {
     mod::remove_item_collected_hook();
+    pal::remove_shop_flatten_hook();
     pal::remove_shop_stock_hook();
     pal::remove_shop_purchase_hook();
     // g_bridge nulled before the ScopedHook members remove the detours; the repls null-check it.
