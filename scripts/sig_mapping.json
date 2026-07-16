@@ -180,6 +180,10 @@
   {
    "name": "_ZN12CarryManager25GetClosestCarryableObjectE6ycAABBifPim",
    "kind": "Code"
+  },
+  {
+   "name": "_ZN4Shop3GetEm",
+   "kind": "Code"
   }
  ],
  "windows": {
@@ -318,6 +322,9 @@
   },
   "_ZN12CarryManager25GetClosestCarryableObjectE6ycAABBifPim": {
    "rva": 7793056
+  },
+  "_ZN4Shop3GetEm": {
+   "rva": 11019040
   }
  },
  "linux": {
@@ -419,6 +426,9 @@
   },
   "_ZN6Player11UpdateStatsEv": {
    "rva": 13637360
+  },
+  "_ZN4Shop3GetEm": {
+   "rva": 14737328
   }
  }
 }

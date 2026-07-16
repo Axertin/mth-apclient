@@ -8,6 +8,7 @@
 
 #include "mth/core/ap/ap_ids.hpp"
 #include "mth/core/data/game_symbols.hpp"
+#include "mth/core/shop_flatten.hpp"
 #include "mth/core/sig_scan.hpp"
 #include "mth/core/stat_cap_state.hpp"
 #include "pal/pal_game.hpp"
@@ -79,6 +80,12 @@ pal::ShopLevelFn g_shop_stock_cb = nullptr;
 pal::HookId g_shop_stock_hook = pal::kInvalidHookId;
 void (*g_orig_shop_refresh)(void *) = nullptr;
 
+pal::ShopFlattenFn g_shop_flatten_cb = nullptr;
+pal::HookId g_shop_flatten_hook = pal::kInvalidHookId;
+// Shop::Get takes a 64-bit name hash. Use a fixed-width type: `unsigned long` is 32-bit under Windows
+// LLP64 and would truncate the hash, so the forwarded lookup finds no shop and returns null.
+void *(*g_orig_shop_get)(std::uint64_t name_hash) = nullptr; // Shop::Get(uint64_t) -> ShopDef*
+
 // A shop slot is a chain of ShopItemDef variants (one per level; rising price), linked via +0x28, each
 // with its own loc_idx at +0x48. ShopMenu::SetupBoxes already advances the active variant (ShopItem+0xf8)
 // past bought levels (gated on ShopItemDef+0x4d) before it calls Refresh, so we must NOT advance it again:
@@ -114,6 +121,19 @@ void repl_shop_refresh(void *self)
     }
     if (g_orig_shop_refresh)
         g_orig_shop_refresh(self);
+}
+
+// Shop::Get(nameHash) is the accessor InteractComponent::OpenShop consults before building a shop's
+// box list; OR the never-stack bit onto the returned ShopDef so stacked slots flatten (one box/level).
+void *repl_shop_get(std::uint64_t name_hash)
+{
+    void *def = g_orig_shop_get != nullptr ? g_orig_shop_get(name_hash) : nullptr;
+    if (def != nullptr && g_shop_flatten_cb != nullptr && g_shop_flatten_cb())
+    {
+        auto *flags = reinterpret_cast<std::uint32_t *>(static_cast<char *>(def) + mth::kShopFlagsOff);
+        *flags = mth::apply_flatten_flag(*flags, true);
+    }
+    return def;
 }
 
 // Items::IsItemCollected override lives in native_mod_entry.cpp (native modding hook; cross-platform).
@@ -437,6 +457,37 @@ void remove_shop_stock_hook()
     g_shop_stock_hook = kInvalidHookId;
     g_shop_stock_cb = nullptr;
     g_orig_shop_refresh = nullptr;
+}
+
+bool install_shop_flatten_hook(ShopFlattenFn active)
+{
+    g_shop_flatten_cb = active;
+    const std::uintptr_t addr = resolve_game_symbol(mth::sym::shop_get);
+    if (addr == 0)
+    {
+        logf(LogLevel::Warn, "shop: Shop::Get not resolved; stacked-shop flattening disabled");
+        g_shop_flatten_cb = nullptr;
+        return false;
+    }
+    g_shop_flatten_hook =
+        hook_engine().install_hook(reinterpret_cast<void *>(addr), reinterpret_cast<void *>(&repl_shop_get), reinterpret_cast<void **>(&g_orig_shop_get));
+    if (g_shop_flatten_hook == kInvalidHookId)
+    {
+        logf(LogLevel::Error, "shop: failed to hook Shop::Get");
+        g_shop_flatten_cb = nullptr;
+        return false;
+    }
+    logf(LogLevel::Info, "shop: hooked Shop::Get for flattening (id=%llu)", static_cast<unsigned long long>(g_shop_flatten_hook));
+    return true;
+}
+
+void remove_shop_flatten_hook()
+{
+    if (g_shop_flatten_hook != kInvalidHookId)
+        hook_engine().remove_hook(g_shop_flatten_hook);
+    g_shop_flatten_hook = kInvalidHookId;
+    g_shop_flatten_cb = nullptr;
+    g_orig_shop_get = nullptr;
 }
 
 // install_item_collected_hook / remove_item_collected_hook live in mod/mod_api.cpp.
