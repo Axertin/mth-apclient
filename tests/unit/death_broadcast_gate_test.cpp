@@ -61,6 +61,29 @@ TEST_CASE("death_broadcast_gate: note_inbound_death suppresses our death until a
     REQUIRE(g.observe(true, false));        // a later genuine death broadcasts again
 }
 
+TEST_CASE("death_broadcast_gate: suppression survives the delay before the requested death registers", "[mth][death]")
+{
+    mth::DeathBroadcastGate g;
+    settle(g);
+    g.note_inbound_death(); // we apply PlayerDie from a settled state...
+    // ...but the guard byte and health keep reading alive for many ticks before the death registers (~675ms
+    // in-game). Those polls must not count as a settled respawn, or they lift the suppression we just armed.
+    for (int i = 0; i < mth::DeathBroadcastGate::kInboundDeathGraceTicks - 1; ++i)
+        REQUIRE_FALSE(g.observe(false, true));
+    REQUIRE_FALSE(g.observe(true, false)); // the death we asked for must not echo back into the multiworld
+}
+
+TEST_CASE("death_broadcast_gate: a requested death that never registers stops suppressing", "[mth][death]")
+{
+    mth::DeathBroadcastGate g;
+    settle(g);
+    g.note_inbound_death(); // PlayerDie no-ops (or the death was deferred): no death ever arrives
+    for (int i = 0; i < mth::DeathBroadcastGate::kInboundDeathGraceTicks; ++i)
+        (void)g.observe(false, true);
+    settle(g);                       // the grace lapses and a settled respawn lifts suppression again
+    REQUIRE(g.observe(true, false)); // so a later genuine death is not silently swallowed forever
+}
+
 TEST_CASE("death_broadcast_gate: a storm of deaths with brief alive blips never leaks a broadcast", "[mth][death]")
 {
     mth::DeathBroadcastGate g;

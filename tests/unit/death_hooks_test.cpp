@@ -86,6 +86,44 @@ TEST_CASE("deathlink: a genuine sparkless death is broadcast", "[deathlink][spar
     mod::set_api(nullptr);
 }
 
+// Replays the in-game echo storm (#125): an inbound death is applied via PlayerDie from a settled state, but
+// health/the guard byte keep reading alive for ~0.7s before the death registers. Those alive polls must not
+// count as a settled respawn, or they lift the suppression armed for this very death and we broadcast it back.
+TEST_CASE("deathlink: a death taken from an inbound deathlink is never echoed back", "[deathlink][echo]")
+{
+    mth::test::recorder().reset();
+    auto fake = mth::test::make_fake_api();
+    mod::set_api(&fake);
+
+    FakePlayer player;
+    int broadcasts = 0;
+    mth::DeathHooks hooks([&] { ++broadcasts; }, [&] { return player.base(); });
+
+    // Settle: stably alive, no sparks (so any death of ours would otherwise broadcast).
+    mth::test::recorder().health = 1.0f;
+    mth::test::recorder().spark = 0;
+    player.set_dying(false);
+    for (int i = 0; i < mth::DeathBroadcastGate::kStableAliveTicks; ++i)
+        hooks.poll();
+
+    hooks.kill(); // inbound deathlink -> applied from a settled state
+    REQUIRE(mth::test::recorder().deaths == 1);
+
+    // The game still reads alive while the death sequence spins up: ~0.7s, which is twice as many polls at the
+    // 120 Hz FixedUpdate rate as at 60 Hz, so drive the slower-to-register (higher tick count) case.
+    for (int i = 0; i < mth::ticks_for_seconds(0.7); ++i)
+        hooks.poll();
+
+    // Now the death actually registers.
+    mth::test::recorder().health = 0.0f;
+    player.set_dying(true);
+    hooks.poll();
+
+    REQUIRE(broadcasts == 0); // our own inbound-caused death must not re-enter the multiworld
+
+    mod::set_api(nullptr);
+}
+
 TEST_CASE("deathlink: respawn re-arms; a mid-death guard-byte pulse does not overwrite the held spark", "[deathlink][sparkless]")
 {
     mth::test::recorder().reset();
