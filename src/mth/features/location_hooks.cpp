@@ -4,13 +4,16 @@
 #include <cstdint>
 #include <functional>
 #include <set>
+#include <vector>
 
 #include "mod/mod_api.hpp"
 #include "mth/core/ap/ap_ids.hpp"
+#include "mth/core/broadcast.hpp"
 #include "mth/core/data/game_layout.hpp"
 #include "mth/core/data/game_symbols.hpp"
 #include "mth/core/data/game_tables.hpp"
 #include "mth/core/rando_bridge.hpp"
+#include "mth/core/scout_registry.hpp"
 #include "pal/pal_game.hpp"
 #include "pal/pal_log.hpp"
 #include "pal/pal_module.hpp"
@@ -19,6 +22,7 @@ namespace
 {
 
 mth::RandoBridge *g_bridge = nullptr;
+mth::ScoutRegistry *g_scout = nullptr;
 
 // ycWorld::QueueDestroy: tears down a pickup entity; used for already-checked locations not covered by the native gate.
 void (*g_queue_destroy)(void *, void *, bool) = nullptr;
@@ -323,6 +327,49 @@ bool on_shop_flatten()
     return g_bridge != nullptr;
 }
 
+// ShopMenu::SetCursor post-hook: idempotently scout any unscouted AP box location, then rewrite the
+// selected box's name+description from the registry. Leaves vanilla text for non-AP / not-yet-scouted
+// selections. The enumerate sink is a captureless lambda: g_bridge/g_scout are file-local globals, so
+// the plain C function-pointer sink stays valid.
+void on_shop_set_cursor(void *shop_menu)
+{
+    if (g_bridge == nullptr || g_scout == nullptr)
+        return;
+
+    // Scout any box location not yet in the registry. A location whose reply hasn't landed stays
+    // "unknown" and is re-requested on the next cursor move; the server dedups the scout+hint, so this
+    // retry-until-resolved is intentional and cheap.
+    std::vector<int> unknown;
+    pal::shop_enumerate_locs(
+        shop_menu,
+        [](int loc, void *ctx)
+        {
+            auto *u = static_cast<std::vector<int> *>(ctx);
+            if (loc >= 0 && g_bridge->is_ap_location(loc) && g_scout->lookup(loc) == nullptr)
+                u->push_back(loc);
+        },
+        &unknown);
+    if (!unknown.empty())
+        g_bridge->request_scouts(unknown);
+
+    const int loc = pal::shop_selected_loc(shop_menu);
+    if (loc < 0)
+        return;
+    const mth::ScoutInfo *si = g_scout->lookup(loc);
+    if (si == nullptr)
+        return; // not scouted yet / not AP -> leave vanilla text
+
+    void *name_w = pal::shop_name_widget(shop_menu);
+    void *desc_w = pal::shop_desc_widget(shop_menu);
+    if (name_w != nullptr)
+    {
+        pal::shop_set_text(name_w, si->item_name.c_str());
+        pal::shop_set_color(name_w, mth::banner_color("item_id", "", si->item_flags, 0, si->is_self));
+    }
+    if (desc_w != nullptr)
+        pal::shop_set_text(desc_w, mth::format_scout_desc(*si).c_str());
+}
+
 // Items::IsItemCollected override for locations whose vanilla collected-state aliases item-ownership, so
 // the game reports them collected before the player ever opens the chest:
 //   - capacity-upgrade pieces (#8): the collected bit aliases the mod's AP capacity counter (apply_upgrades
@@ -388,9 +435,10 @@ int on_item_collected_query(int loc_idx, bool ownership_query)
 namespace mth
 {
 
-LocationHooks::LocationHooks(RandoBridge &bridge)
+LocationHooks::LocationHooks(RandoBridge &bridge, ScoutRegistry *scout)
 {
     g_bridge = &bridge;
+    g_scout = scout;
     tables::resolve();
     tables::repurpose_dummy_item();
 
@@ -414,6 +462,7 @@ LocationHooks::LocationHooks(RandoBridge &bridge)
     pal::install_shop_purchase_hook(&on_shop_buy);
     pal::install_shop_stock_hook(&on_shop_stock);
     pal::install_shop_flatten_hook(&on_shop_flatten);
+    pal::install_shop_text_hook(&on_shop_set_cursor);
     mod::install_item_collected_hook(&on_item_collected_query);
 }
 
@@ -440,11 +489,13 @@ void LocationHooks::reset_native_bits()
 LocationHooks::~LocationHooks()
 {
     mod::remove_item_collected_hook();
+    pal::remove_shop_text_hook();
     pal::remove_shop_flatten_hook();
     pal::remove_shop_stock_hook();
     pal::remove_shop_purchase_hook();
-    // g_bridge nulled before the ScopedHook members remove the detours; the repls null-check it.
+    // g_bridge/g_scout nulled before the ScopedHook members remove the detours; the repls null-check them.
     g_bridge = nullptr;
+    g_scout = nullptr;
 }
 
 } // namespace mth

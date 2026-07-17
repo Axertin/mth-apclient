@@ -8,6 +8,7 @@ namespace mth
 {
 
 class RandoBridge;
+class ScoutRegistry;
 
 // Outbound location checks from world pickups and shop buys: Pickup::Init (AP-dummy
 // redirect + checked-location despawn), Pickup::OnPickup (collect detect), and the
@@ -15,7 +16,10 @@ class RandoBridge;
 class LocationHooks
 {
   public:
-    explicit LocationHooks(RandoBridge &bridge);
+    // `scout` is optional (nullable): when present, shop box selection is rewritten from scouted
+    // AP data (name/desc/color); when null, the shop text hook is not installed and shop text stays
+    // vanilla.
+    explicit LocationHooks(RandoBridge &bridge, ScoutRegistry *scout = nullptr);
     ~LocationHooks();
     LocationHooks(const LocationHooks &) = delete;
     LocationHooks &operator=(const LocationHooks &) = delete;
