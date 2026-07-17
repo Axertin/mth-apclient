@@ -184,6 +184,18 @@
   {
    "name": "_ZN4Shop3GetEm",
    "kind": "Code"
+  },
+  {
+   "name": "_ZN8ShopMenu9SetCursorEib",
+   "kind": "Code"
+  },
+  {
+   "name": "_ZN18ycTextRenderObject7SetTextEPKcij",
+   "kind": "Code"
+  },
+  {
+   "name": "_ZN15ycTextComponent8SetColorE7ycColor",
+   "kind": "Code"
   }
  ],
  "windows": {
@@ -325,6 +337,15 @@
   },
   "_ZN4Shop3GetEm": {
    "rva": 11019040
+  },
+  "_ZN8ShopMenu9SetCursorEib": {
+   "rva": 11065184
+  },
+  "_ZN18ycTextRenderObject7SetTextEPKcij": {
+   "rva": 1237408
+  },
+  "_ZN15ycTextComponent8SetColorE7ycColor": {
+   "rva": 7464781
   }
  },
  "linux": {
@@ -429,6 +450,15 @@
   },
   "_ZN4Shop3GetEm": {
    "rva": 14737328
+  },
+  "_ZN8ShopMenu9SetCursorEib": {
+   "rva": 14787360
+  },
+  "_ZN18ycTextRenderObject7SetTextEPKcij": {
+   "rva": 3177088
+  },
+  "_ZN15ycTextComponent8SetColorE7ycColor": {
+   "rva": 3150960
   }
  }
 }
