@@ -136,6 +136,33 @@ void *repl_shop_get(std::uint64_t name_hash)
     return def;
 }
 
+// ShopMenu::SetCursor post-hook: rewrites the selected box's name+description text from scouted AP data.
+// Standalone on Windows (not inlined), so this is a direct post-hook exactly like Linux.
+pal::ShopTextFn g_shop_text_cb = nullptr;
+pal::HookId g_shop_text_hook = pal::kInvalidHookId;
+void (*g_orig_set_cursor)(void *, int, bool) = nullptr;
+void (*g_text_set_text)(void *textobj, const char *s, int len, unsigned int flags) = nullptr; // ycTextRenderObject::SetText
+void (*g_text_set_color)(void *widget, std::uint32_t rgba) = nullptr;                         // ycTextComponent::SetColor
+
+// ShopMenu instance fields (box list + selection); distinct from the InitState frame offsets above.
+// Confirmed identical to Linux by decompiling SetCursor on the r148851 PE.
+constexpr std::ptrdiff_t kShopNameWidgetOff = 0x148;
+constexpr std::ptrdiff_t kShopDescWidgetOff = 0x150;
+constexpr std::ptrdiff_t kShopBoxArrayOff = 0x1c8;
+constexpr std::ptrdiff_t kShopBoxCountOff = 0x1d0;
+constexpr std::ptrdiff_t kShopCursorOff = 0x1d8;
+constexpr std::ptrdiff_t kShopBoxItemTypeOff = 0xcc; // ShopItem -> itemType (box's item kind)
+constexpr std::ptrdiff_t kTextObjOff = 0x40;         // text widget -> ycTextRenderObject
+constexpr int kShopSkipItemType = 0x65;
+
+void repl_set_cursor(void *self, int index, bool b)
+{
+    if (g_orig_set_cursor)
+        g_orig_set_cursor(self, index, b);
+    if (g_shop_text_cb != nullptr && self != nullptr)
+        g_shop_text_cb(self);
+}
+
 // Items::IsItemCollected override lives in native_mod_entry.cpp (native modding hook; cross-platform).
 // This also catches clang-cl's inlined copies of IsItemCollected (e.g. the Pickup-ctor self-kill), which a
 // standalone-function detour could not -- so the #93 have-bit box workaround is no longer platform-specific.
@@ -488,6 +515,113 @@ void remove_shop_flatten_hook()
     g_shop_flatten_hook = kInvalidHookId;
     g_shop_flatten_cb = nullptr;
     g_orig_shop_get = nullptr;
+}
+
+int shop_selected_loc(void *shop_menu)
+{
+    if (shop_menu == nullptr)
+        return -1;
+    void **boxes = *reinterpret_cast<void ***>(static_cast<char *>(shop_menu) + kShopBoxArrayOff);
+    const int count = *reinterpret_cast<int *>(static_cast<char *>(shop_menu) + kShopBoxCountOff);
+    const int cursor = *reinterpret_cast<int *>(static_cast<char *>(shop_menu) + kShopCursorOff);
+    if (boxes == nullptr || cursor < 0 || cursor >= count)
+        return -1;
+    void *box = boxes[cursor];
+    if (box == nullptr)
+        return -1;
+    const int item_type = *reinterpret_cast<int *>(static_cast<char *>(box) + kShopBoxItemTypeOff);
+    if (item_type == kShopSkipItemType)
+        return -1;
+    // Sold-out box: stock count 0 (same field repl_shop_refresh zeroes for a fully-bought slot).
+    if (*reinterpret_cast<int *>(static_cast<char *>(box) + kShopItemStockOff) == 0)
+        return -1;
+    void *def = *reinterpret_cast<void **>(static_cast<char *>(box) + kShopItemDefOff);
+    if (def == nullptr)
+        return -1;
+    return *reinterpret_cast<int *>(static_cast<char *>(def) + kShopDefLocOff);
+}
+
+void shop_enumerate_locs(void *shop_menu, void (*sink)(int loc, void *ctx), void *ctx)
+{
+    if (shop_menu == nullptr || sink == nullptr)
+        return;
+    void **boxes = *reinterpret_cast<void ***>(static_cast<char *>(shop_menu) + kShopBoxArrayOff);
+    const int count = *reinterpret_cast<int *>(static_cast<char *>(shop_menu) + kShopBoxCountOff);
+    if (boxes == nullptr)
+        return;
+    for (int i = 0; i < count; ++i)
+    {
+        void *box = boxes[i];
+        if (box == nullptr)
+            continue;
+        void *def = *reinterpret_cast<void **>(static_cast<char *>(box) + kShopItemDefOff);
+        if (def == nullptr)
+            continue;
+        sink(*reinterpret_cast<int *>(static_cast<char *>(def) + kShopDefLocOff), ctx);
+    }
+}
+
+void *shop_name_widget(void *shop_menu)
+{
+    return shop_menu != nullptr ? *reinterpret_cast<void **>(static_cast<char *>(shop_menu) + kShopNameWidgetOff) : nullptr;
+}
+
+void *shop_desc_widget(void *shop_menu)
+{
+    return shop_menu != nullptr ? *reinterpret_cast<void **>(static_cast<char *>(shop_menu) + kShopDescWidgetOff) : nullptr;
+}
+
+void shop_set_text(void *widget, const char *utf8)
+{
+    if (widget == nullptr || utf8 == nullptr || g_text_set_text == nullptr)
+        return;
+    g_text_set_text(static_cast<char *>(widget) + kTextObjOff, utf8, 0, 0);
+}
+
+void shop_set_color(void *widget, std::uint32_t rgba)
+{
+    if (widget == nullptr || g_text_set_color == nullptr)
+        return;
+    g_text_set_color(widget, rgba);
+}
+
+bool install_shop_text_hook(ShopTextFn on_set_cursor)
+{
+    const std::uintptr_t addr = resolve_game_symbol(mth::sym::shop_set_cursor);
+    g_text_set_text = reinterpret_cast<void (*)(void *, const char *, int, unsigned int)>(resolve_game_symbol(mth::sym::text_set_text));
+    g_text_set_color = reinterpret_cast<void (*)(void *, std::uint32_t)>(resolve_game_symbol(mth::sym::text_set_color));
+    if (addr == 0 || g_text_set_text == nullptr || g_text_set_color == nullptr)
+    {
+        logf(LogLevel::Warn, "shop: SetCursor/SetText/SetColor not fully resolved (cursor=0x%llx text=%d color=%d); shop text override disabled",
+             static_cast<unsigned long long>(addr), static_cast<int>(g_text_set_text != nullptr), static_cast<int>(g_text_set_color != nullptr));
+        g_text_set_text = nullptr;
+        g_text_set_color = nullptr;
+        return false;
+    }
+    g_shop_text_cb = on_set_cursor;
+    g_shop_text_hook =
+        hook_engine().install_hook(reinterpret_cast<void *>(addr), reinterpret_cast<void *>(&repl_set_cursor), reinterpret_cast<void **>(&g_orig_set_cursor));
+    if (g_shop_text_hook == kInvalidHookId)
+    {
+        logf(LogLevel::Error, "shop: failed to hook ShopMenu::SetCursor");
+        g_shop_text_cb = nullptr;
+        g_text_set_text = nullptr;
+        g_text_set_color = nullptr;
+        return false;
+    }
+    logf(LogLevel::Info, "shop: hooked ShopMenu::SetCursor for text override (id=%llu)", static_cast<unsigned long long>(g_shop_text_hook));
+    return true;
+}
+
+void remove_shop_text_hook()
+{
+    if (g_shop_text_hook != kInvalidHookId)
+        hook_engine().remove_hook(g_shop_text_hook);
+    g_shop_text_hook = kInvalidHookId;
+    g_shop_text_cb = nullptr;
+    g_orig_set_cursor = nullptr;
+    g_text_set_text = nullptr;
+    g_text_set_color = nullptr;
 }
 
 // install_item_collected_hook / remove_item_collected_hook live in mod/mod_api.cpp.
