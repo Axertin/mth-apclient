@@ -4,6 +4,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <vector>
 
 namespace mth
 {
@@ -14,6 +15,7 @@ class AreaReporter;
 class RandoBridge;
 class BannerQueue;
 class ApState;
+struct ScoutInfo;
 
 // Owns the AP network session: link lifetime, the coordinator/area-reporter tick,
 // and the net<->hooks RandoBridge. banner_queue_ is the net->render mailbox (overlay only);
@@ -22,7 +24,8 @@ class ApState;
 class ApSession
 {
   public:
-    ApSession(ApState &state, std::function<void()> on_inbound_death);
+    ApSession(ApState &state, std::function<void()> on_inbound_death, std::function<void(const std::vector<ScoutInfo> &)> on_scout = {},
+              std::function<void()> on_session_reset = {});
     ~ApSession();
 
     ApSession(const ApSession &) = delete;

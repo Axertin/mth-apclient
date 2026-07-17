@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <set>
+#include <vector>
 
 #include "mth/core/ap/ap_ids.hpp"
 #include "mth/core/ap/ap_link.hpp"
@@ -33,6 +34,10 @@ class RandoBridge
 
     // Resend the full checked-set (server dedups). Call on (re)connect.
     void flush();
+
+    // Request scout (item/player) info for the given collection slots; non-AP-location slots are
+    // dropped. Results arrive later as an ApScoutInfo event. No-op if none of the slots are AP locations.
+    void request_scouts(const std::vector<int> &collection_slots);
 
     // Send the AP goal (final boss defeated). One-shot per session; no-op unless authenticated.
     void send_goal();

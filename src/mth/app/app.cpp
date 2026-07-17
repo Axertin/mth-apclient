@@ -84,7 +84,20 @@ App::App()
 
     pal::init_hook_engine();
 
-    net_ = std::make_unique<ApSession>(state_, [this] { pending_inbound_death_.store(true); });
+    net_ = std::make_unique<ApSession>(
+        state_, [this] { pending_inbound_death_.store(true); },
+        // on_scout: fill the registry on the game thread (coordinator tick runs there).
+        [this](const std::vector<mth::ScoutInfo> &locs)
+        {
+            for (const auto &s : locs)
+                scout_registry_.record(s);
+        },
+        // on_session_reset: fires on the game thread (coordinator tick) for a fresh ApConnected or
+        // ApDisconnected. The registry is lock-free game-thread-only data; disconnect() itself runs on
+        // the overlay render thread (ICommandSink), so clearing it there would race a concurrent
+        // lookup()/record() here. Also covers connect-to-a-new-server-without-disconnecting, which would
+        // otherwise leave stale entries under reused slot numbers.
+        [this] { scout_registry_.clear(); });
     tracker_ = std::make_unique<PlayerTracker>();
     room_tracker_ = std::make_unique<RoomTracker>();
     events_ = std::make_unique<AppTickSink>(*this);
@@ -104,7 +117,8 @@ App::App()
 
     // Built last: GameHooks needs *events_, and the manager's hooks tick into all managers.
     hooks_ = std::make_unique<HookManager>(
-        *events_, net_->rando(), state_, [this] { net_->link().send_death("Mina the Hollower"); }, [this]() -> void * { return tracker_->player(); });
+        *events_, net_->rando(), scout_registry_, state_, [this] { net_->link().send_death("Mina the Hollower"); },
+        [this]() -> void * { return tracker_->player(); });
 #ifdef MTHAP_HAS_OVERLAY
     {
         const pal::OverlayConfig ocfg{pal::resolve_game_symbol(sym::process_sdl_event)};
@@ -276,6 +290,9 @@ void App::connect(const std::string &server, const std::string &slot, const std:
 
 void App::disconnect()
 {
+    // Runs on the overlay render thread (ICommandSink caller), not the game thread. The registry is
+    // cleared from the coordinator's on_session_reset callback instead (game thread; see ctor), since
+    // clearing the lock-free map here would race a concurrent game-thread lookup()/record().
     net_->link().disconnect();
 }
 

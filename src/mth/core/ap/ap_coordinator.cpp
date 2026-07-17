@@ -11,8 +11,10 @@ namespace mth
 {
 
 ApCoordinator::ApCoordinator(IApLink &link, ApState &state, std::function<void()> on_death,
-                             std::function<void(const std::vector<BannerSegment> &)> on_broadcast)
-    : link_(link), state_(state), on_death_(std::move(on_death)), on_broadcast_(std::move(on_broadcast))
+                             std::function<void(const std::vector<BannerSegment> &)> on_broadcast, std::function<void(const std::vector<ScoutInfo> &)> on_scout,
+                             std::function<void()> on_session_reset)
+    : link_(link), state_(state), on_death_(std::move(on_death)), on_broadcast_(std::move(on_broadcast)), on_scout_(std::move(on_scout)),
+      on_session_reset_(std::move(on_session_reset))
 {
 }
 
@@ -28,6 +30,13 @@ void ApCoordinator::tick()
             on_death_();
         if (const auto *b = std::get_if<ApPrintBroadcast>(&ev); b && on_broadcast_)
             on_broadcast_(b->segments);
+        if (const auto *s = std::get_if<ApScoutInfo>(&ev); s && on_scout_)
+            on_scout_(s->locations);
+        // Session boundary: a fresh connect or a disconnect both invalidate per-session caches keyed
+        // off the prior connection (e.g. scouted shop info keyed by slot number, which is reused
+        // across servers/seeds).
+        if ((std::get_if<ApConnected>(&ev) || std::get_if<ApDisconnected>(&ev)) && on_session_reset_)
+            on_session_reset_();
     }
 }
 

@@ -19,7 +19,8 @@
 namespace mth
 {
 
-ApSession::ApSession(ApState &state, std::function<void()> on_inbound_death)
+ApSession::ApSession(ApState &state, std::function<void()> on_inbound_death, std::function<void(const std::vector<ScoutInfo> &)> on_scout,
+                     std::function<void()> on_session_reset)
 {
 #ifdef MTHAP_HAS_NET
     link_ = std::make_unique<mth::net::ApLink>();
@@ -32,7 +33,8 @@ ApSession::ApSession(ApState &state, std::function<void()> on_inbound_death)
     banner_queue_ = std::make_unique<BannerQueue>();
     on_broadcast = [this](const std::vector<mth::BannerSegment> &segs) { banner_queue_->push(segs); };
 #endif
-    coordinator_ = std::make_unique<ApCoordinator>(*link_, state, std::move(on_inbound_death), std::move(on_broadcast));
+    coordinator_ =
+        std::make_unique<ApCoordinator>(*link_, state, std::move(on_inbound_death), std::move(on_broadcast), std::move(on_scout), std::move(on_session_reset));
     area_reporter_ = std::make_unique<AreaReporter>(*link_);
     rando_ = std::make_unique<RandoBridge>(*link_, state);
 }

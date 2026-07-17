@@ -102,6 +102,16 @@ void RandoBridge::flush()
         link_.send_locations(ids);
 }
 
+void RandoBridge::request_scouts(const std::vector<int> &collection_slots)
+{
+    std::vector<std::int64_t> ids;
+    for (int slot : collection_slots)
+        if (is_ap_location(slot))
+            ids.push_back(ap_loc_id(slot));
+    if (!ids.empty())
+        link_.scout_locations(ids);
+}
+
 void RandoBridge::send_goal()
 {
     if (goal_sent_)
