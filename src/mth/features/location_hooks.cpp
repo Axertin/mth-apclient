@@ -335,6 +335,11 @@ void on_shop_set_cursor(void *shop_menu)
 {
     if (g_bridge == nullptr || g_scout == nullptr)
         return;
+    // The registry outlives a save load (it is cleared per session, not per save), so a save this AP game
+    // does not own would still render the names scouted while the right one was loaded. The bridge denies
+    // the scout request below on its own; this is for the display path, which reads the registry directly.
+    if (!pal::ap_save_gate())
+        return;
 
     // Scout any box location not yet in the registry. A location whose reply hasn't landed stays
     // "unknown" and is re-requested on the next cursor move; the server dedups the scout+hint, so this
