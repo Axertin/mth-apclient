@@ -62,6 +62,13 @@ inline constexpr const char *shop_is_out_of_stock = "_ZN4Shop12IsOutOfStockEPK7S
 // Detoured to OR the never-stack bit so stacked slots flatten (one box/level).
 inline constexpr const char *shop_get = "_ZN4Shop3GetEm"; // Shop::Get(unsigned long)
 
+// ShopMenu::SetCursor(int index, bool): fires on box selection change; hooked to rewrite the selected
+// item's name+description widgets from scouted AP data. SetText/SetColor are the generic text-widget
+// mutators it drives (ycTextRenderObject/ycTextComponent), not shop-specific.
+inline constexpr const char *shop_set_cursor = "_ZN8ShopMenu9SetCursorEib";             // ShopMenu::SetCursor(int,bool)
+inline constexpr const char *text_set_text = "_ZN18ycTextRenderObject7SetTextEPKcij";   // ycTextRenderObject::SetText(char const*,int,uint)
+inline constexpr const char *text_set_color = "_ZN15ycTextComponent8SetColorE7ycColor"; // ycTextComponent::SetColor(ycColor)
+
 // ycWorld::QueueDestroy: unconditional teardown (no SpawnPoint gate); writes no save/grant state.
 inline constexpr const char *queue_destroy = "_ZN7ycWorld12QueueDestroyEP8ycEntityb"; // ycWorld::QueueDestroy(ycEntity*, bool)
 

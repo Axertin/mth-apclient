@@ -57,6 +57,20 @@ using ShopFlattenFn = bool (*)();
 bool install_shop_flatten_hook(ShopFlattenFn active);
 void remove_shop_flatten_hook();
 
+// Shop item text: post-hook ShopMenu::SetCursor; the callback receives the ShopMenu and uses the
+// helpers below to read the selected location / enumerate boxes / rewrite the name+desc widgets.
+using ShopTextFn = void (*)(void *shop_menu);
+bool install_shop_text_hook(ShopTextFn on_set_cursor);
+void remove_shop_text_hook();
+
+// ShopMenu accessors + text mutators (offsets live in the PAL, not in src/mth/).
+[[nodiscard]] int shop_selected_loc(void *shop_menu); // -1 if sold-out / itemType 0x65 / invalid
+void shop_enumerate_locs(void *shop_menu, void (*sink)(int loc, void *ctx), void *ctx);
+[[nodiscard]] void *shop_name_widget(void *shop_menu);
+[[nodiscard]] void *shop_desc_widget(void *shop_menu);
+void shop_set_text(void *widget, const char *utf8);
+void shop_set_color(void *widget, std::uint32_t rgba);
+
 // Per-frame "open a removed lock" hooks for KeyBlockChain / locked Chest. The platform owns the hook
 // target and the this->base normalization: Linux hooks ::Update (self == entity base); Windows hooks
 // ::UpdateState (self == the StateMachine sub-object, so base = self - 0x170) because the game's MSVC
