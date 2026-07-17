@@ -25,7 +25,8 @@ class GrantPipeline
     GrantPipeline &operator=(const GrantPipeline &) = delete;
 
     bool grant(int item_type);
-    void build_inbound(ApState &state, ApSaveState &save_state); // once, after inbound_ready() is false
+    // once, after inbound_ready() is false. credit_kear_key: vanilla-kear-mode key grant effect (#130).
+    void build_inbound(ApState &state, ApSaveState &save_state, std::function<bool()> credit_kear_key = {});
     [[nodiscard]] bool inbound_ready() const;
     void tick();  // drives InboundGranter
     void drain(); // drives ItemGranter (World::Update pre-hook window)

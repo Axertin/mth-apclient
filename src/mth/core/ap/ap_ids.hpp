@@ -231,6 +231,15 @@ inline constexpr bool is_vanilla_game_item(std::int64_t ap_item_id_)
     return ap_item_id_ >= kItemBase && ap_item_id_ < kProgressiveItemBase;
 }
 
+// Universal Kear (vanilla kear mode): the pool carries this item and each receipt must grant one usable
+// key. Its AP id is the kear itemType 0x3f (63) in the vanilla item segment.
+inline constexpr std::int64_t kUniversalKearItemType = 0x3f;
+
+inline constexpr bool is_vanilla_kear_item(std::int64_t ap_item_id_)
+{
+    return ap_item_id_ == ap_item_id(kUniversalKearItemType);
+}
+
 // Kear blocks
 // id = kKearBlockItemBase + engine id
 inline constexpr bool is_kear_block_item(std::int64_t ap_item_id_)

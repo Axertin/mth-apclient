@@ -344,7 +344,9 @@ void ApLink::setup_handlers(const std::string &slot, const std::string &password
             auto missing = client_->get_missing_locations();
             auto checked = client_->get_checked_locations();
             const bool ossex_start = data.is_object() && data.value("ossex_start", 0) != 0;
-            const bool kear_rando = data.is_object(); // && data.value("kear_rando", 0) != 0; // always suppress kears until there's a setting that needs them
+            // "kear_rando" is a mode, not a flag: 0 = vanilla (Universal Kear items grant real keys),
+            // 1/2 = per-lock / per-area AP items. Absent (older seeds) -> the apworld's own default.
+            const mth::KearMode kear_mode = mth::kear_mode_from_slot_data(data.is_object() ? data.value("kear_rando", 1) : 1);
             const bool burrow_rando = data.is_object() && data.value("burrow_rando", 0) != 0;
             const bool swim_rando = data.is_object() && data.value("swim_rando", 0) != 0;
             const bool rope_rando = data.is_object() && data.value("rope_rando", 0) != 0;
@@ -375,7 +377,7 @@ void ApLink::setup_handlers(const std::string &slot, const std::string &password
                                         std::vector<std::int64_t>(checked.begin(), checked.end()),
                                         std::vector<std::int64_t>(missing.begin(), missing.end()),
                                         ossex_start,
-                                        kear_rando,
+                                        kear_mode,
                                         burrow_rando,
                                         swim_rando,
                                         rope_rando,

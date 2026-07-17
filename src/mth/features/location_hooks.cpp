@@ -33,9 +33,16 @@ void (*g_set_item_collected)(int, bool, void *, void *) = nullptr;
 // g_saveManager global (resolves the active SaveSlot); needed to neutralize the kear grant under kear_rando.
 std::uintptr_t g_save_manager = 0;
 
-// slot_data "kear_rando": kears are AP-randomized, so the SaveSlot+0x1f0 bit a kear collect sets must not
-// count as a usable key. Game-thread only (set from drive_tick, read from the pickup/shop collect path).
-bool g_kear_rando = false;
+// Kear key gating (slot_data "kear_rando" mode), game-thread only. Neutralize runs in every AP mode: a
+// kear pickup is an AP location, so the free key its collect would grant is always cancelled (the server
+// owns the reward). Suppress (pin usable keys to 0 via reconcile) runs only in the AP-item modes, where
+// usable keys are meaningless; vanilla mode instead credits received Universal Kears (see credit_kear_key).
+bool g_kear_neutralize = false;
+bool g_kear_suppress = false;
+
+// Live Player* accessor (set by App via HookManager). Kear key edits must move the Player+0x11b0 spent
+// mirror alongside SaveSlot+0x1f8, or the spend gate discards the SaveSlot-only write on the next lock.
+std::function<void *()> g_kear_player_getter;
 
 constexpr int kKearStorageKind = 8; // s_rItems kind 8: kear/key items; their collected-bit IS the usable-key bit (+0x1f0).
 
@@ -50,7 +57,10 @@ bool g_kear_offsets_ok = true;
 
 [[nodiscard]] bool kear_fields_plausible(int spent)
 {
-    return spent >= 0 && spent <= 64; // u64 bitfield holds <=64 keys; catches garbage without hugging the spent==popcount steady state
+    // The vanilla credit ledger intentionally drives spent negative (usable = popcount - spent, and a
+    // received kear lowers spent below the 0 collected-bits floor), bounded by the 50 kears in the game.
+    // A real garbage read (a pointer/float landing on the field) lands far outside this window.
+    return spent >= -64 && spent <= 64;
 }
 
 [[nodiscard]] int &pickup_loc_idx(void *self)
@@ -63,11 +73,11 @@ bool g_kear_offsets_ok = true;
 }
 
 // A kear collect records its bit in the SaveSlot+0x1f0 bitfield, which doubles as the usable-key count
-// (usable = popcount(+0x1f0) - spent(+0x1f8)). Under kear_rando the key is AP-controlled, so for each bit
-// the just-run SetItemCollected actually NEWLY set (`new_bits`, vs `before`), bump the spent-counter in
-// lockstep to cancel the free key. The game reads usable keys from the SaveSlot (KeyBlock::Update,
-// PlayerGetKeysSpent); there is no Player-side key mirror to update (see game_layout.hpp). Delta-based so a
-// re-collected (already-set) bit is a no-op and can't drive usable keys negative.
+// (usable = popcount(Player+0x11a8) - spent(+0x1f8)). A kear pickup is an AP location, so the key it grants
+// is the server's to award: for each bit the just-run SetItemCollected NEWLY set (`new_bits`, vs `before`),
+// bump the spent-counter in lockstep to cancel the free key. The spend gate snaps SaveSlot+0x1f8 =
+// Player+0x11b0 + 1 on the next lock, so the Player mirror MUST move too or this cancel is discarded (a
+// leaked key). Delta-based so a re-collected (already-set) bit is a no-op and can't corrupt the count.
 void neutralize_kear_grant(int loc_idx, void *slot, std::uint64_t before)
 {
     if (!g_kear_offsets_ok)
@@ -78,18 +88,23 @@ void neutralize_kear_grant(int loc_idx, void *slot, std::uint64_t before)
         return; // bit already collected; no key was granted, nothing to neutralize
 
     int &spent = *reinterpret_cast<int *>(static_cast<char *>(slot) + mth::layout::kSaveKearSpentOff);
-    if (!kear_fields_plausible(spent))
+    void *player = g_kear_player_getter ? g_kear_player_getter() : nullptr;
+    int *player_spent = player != nullptr ? reinterpret_cast<int *>(static_cast<char *>(player) + mth::layout::kPlayerKearSpentOff) : nullptr;
+    if (!kear_fields_plausible(spent) || (player_spent != nullptr && !kear_fields_plausible(*player_spent)))
     {
         g_kear_offsets_ok = false;
         pal::logf(pal::LogLevel::Error,
-                  "kear_rando: SaveSlot+0x1f0/+0x1f8 read implausible (popcount=%d spent=%d); offset may have shifted, kear writes DISABLED",
-                  std::popcount(bits), spent);
+                  "kear_rando: SaveSlot/Player spent read implausible (popcount=%d save=%d player=%d); offset may have shifted, kear writes DISABLED",
+                  std::popcount(bits), spent, player_spent != nullptr ? *player_spent : 0);
         return;
     }
 
     const int n = std::popcount(new_bits);
     spent += n;
-    pal::logf(pal::LogLevel::Info, "kear_rando: neutralized kear grant locIdx=%d new_bits=%d spent+=%d", loc_idx, n, n);
+    if (player_spent != nullptr)
+        *player_spent += n; // keep the Player mirror in lockstep so the spend gate can't discard the cancel
+    pal::logf(pal::LogLevel::Info, "kear_rando: neutralized kear grant locIdx=%d new_bits=%d spent+=%d (player_mirror=%d)", loc_idx, n, n,
+              player_spent != nullptr);
 }
 
 // Reload-durable counterpart to neutralize_kear_grant: the collect-time spent bump above is not rebuilt on
@@ -99,7 +114,7 @@ void neutralize_kear_grant(int loc_idx, void *slot, std::uint64_t before)
 // authoritative usable-key source (no Player mirror exists -- see neutralize_kear_grant).
 void reconcile_kear_keys()
 {
-    if (!g_kear_rando || g_save_manager == 0)
+    if (!g_kear_suppress || g_save_manager == 0)
         return;
     void *slot = pal::active_save_slot(g_save_manager);
     if (slot == nullptr)
@@ -123,6 +138,35 @@ void reconcile_kear_keys()
     spent = reconciled;
 }
 
+// Vanilla kear mode (#130): a received Universal Kear must grant one usable key. usable =
+// popcount(Player+0x11a8) - spent, and no collected-bit corresponds to an AP receipt (the bitfield is
+// per-location), so instead lower the spent-counter by one. The spend gate snaps SaveSlot+0x1f8 =
+// Player+0x11b0 + 1 on the next lock, so BOTH mirrors must move together or the credit is discarded on the
+// first spend. Returns false (caller retries, does not mark) until a save slot + player are live; the
+// once-per-receipt guard is the InboundGranter's ApSaveState marker.
+bool credit_kear_key(void *player)
+{
+    if (!g_kear_offsets_ok || g_save_manager == 0 || player == nullptr)
+        return false;
+    void *slot = pal::active_save_slot(g_save_manager);
+    if (slot == nullptr)
+        return false;
+
+    int &save_spent = *reinterpret_cast<int *>(static_cast<char *>(slot) + mth::layout::kSaveKearSpentOff);
+    int &player_spent = *reinterpret_cast<int *>(static_cast<char *>(player) + mth::layout::kPlayerKearSpentOff);
+    if (!kear_fields_plausible(save_spent) || !kear_fields_plausible(player_spent))
+    {
+        g_kear_offsets_ok = false;
+        pal::logf(pal::LogLevel::Error, "kear credit: spent read implausible (save=%d player=%d); offset may have shifted, kear writes DISABLED", save_spent,
+                  player_spent);
+        return false;
+    }
+    save_spent -= 1;
+    player_spent -= 1;
+    pal::logf(pal::LogLevel::Info, "kear credit: granted usable key (spent now save=%d player=%d)", save_spent, player_spent);
+    return true;
+}
+
 // Write the native durable collected-bit for a location where SetItemCollected is side-effect-free
 // (is_durable_bit_kind: 8=key/kear, 12=bonestone, 19=fish), so the game's own reload gate treats it as
 // collected -- the chest spawns opened, pickup respawn is suppressed -- exactly as a live player collect
@@ -136,7 +180,7 @@ bool apply_native_collected(int loc_idx)
         return false;
 
     // Kear (kind 8): capture the bitfield before the write so neutralization targets exactly the new bit.
-    const bool neutralize = g_kear_rando && kind == kKearStorageKind && g_save_manager != 0;
+    const bool neutralize = g_kear_neutralize && kind == kKearStorageKind && g_save_manager != 0;
     void *slot = neutralize ? pal::active_save_slot(g_save_manager) : nullptr;
     const std::uint64_t before = slot != nullptr ? *reinterpret_cast<std::uint64_t *>(static_cast<char *>(slot) + mth::layout::kSaveKearBitsOff) : 0;
 
@@ -466,9 +510,20 @@ LocationHooks::LocationHooks(RandoBridge &bridge, ScoutRegistry *scout)
     mod::install_item_collected_hook(&on_item_collected_query);
 }
 
-void LocationHooks::set_kear_rando(bool on)
+void LocationHooks::set_kear_gating(bool neutralize, bool suppress)
 {
-    g_kear_rando = on;
+    g_kear_neutralize = neutralize;
+    g_kear_suppress = suppress;
+}
+
+void LocationHooks::set_player_getter(std::function<void *()> get_player)
+{
+    g_kear_player_getter = std::move(get_player);
+}
+
+bool LocationHooks::credit_kear_key(void *player)
+{
+    return ::credit_kear_key(player);
 }
 
 void LocationHooks::reconcile_kear_keys()

@@ -46,6 +46,7 @@ class HookManager
     void drain();                                                         // World::Update pre-hook window
     void on_world_destroy();                                              // re-arm native collected-bit enforcement (save reload clears it)
     void kill_player();
+    bool credit_kear_key(); // vanilla kear mode: grant one usable key to the live player (#130); false if not ready
 
     [[nodiscard]] int captured_ap_slot() const;
     void set_ap_slot(int slot);
@@ -64,6 +65,7 @@ class HookManager
 
     std::atomic<std::uint32_t> lamp_console_override_{0}; // sticky console-forced lamp mask (render thread) OR'd over slot_data in tick (game thread)
 
+    std::function<void *()> get_player_; // live Player* accessor (shared with DeathHooks + kear credit)
     std::unique_ptr<GameHooks> game_hooks_;
     std::unique_ptr<LocationHooks> location_hooks_;
     std::unique_ptr<BossHooks> boss_hooks_;

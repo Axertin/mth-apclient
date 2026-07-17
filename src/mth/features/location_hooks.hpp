@@ -24,8 +24,18 @@ class LocationHooks
     LocationHooks(const LocationHooks &) = delete;
     LocationHooks &operator=(const LocationHooks &) = delete;
 
-    // slot_data "kear_rando": when on, neutralize the usable key a kear-location collect would otherwise grant.
-    void set_kear_rando(bool on);
+    // Kear key gating per slot_data "kear_rando" mode. `neutralize` (all AP modes): cancel the free key a
+    // kear-location collect would grant. `suppress` (AP-item modes only): pin usable keys to 0 via reconcile.
+    void set_kear_gating(bool neutralize, bool suppress);
+
+    // Live Player* accessor for the kear key edits (neutralize/credit must move the Player+0x11b0 spent
+    // mirror alongside SaveSlot+0x1f8). Wired once by App via HookManager.
+    void set_player_getter(std::function<void *()> get_player);
+
+    // Vanilla kear mode (#130): grant one usable key for a received Universal Kear by lowering both the
+    // SaveSlot and Player spent-counters. Returns false (retry) until a save + player are live. `player` is
+    // the live Player* (from the tracker). Game-thread; idempotency is the caller's (per-receipt marker).
+    bool credit_kear_key(void *player);
 
     // Reload-durable re-assertion of the kear key cancel: raise the SaveSlot spent-counter back up to
     // popcount so AP-collected kears stop reading as usable keys after a save load. Game-thread, per-tick.
