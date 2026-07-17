@@ -21,9 +21,9 @@ TEST_CASE("ap_state: ApConnected populates slot/locations and authenticates", "[
     REQUIRE(s.is_valid_location(10));
     REQUIRE(s.is_valid_location(12));
     REQUIRE_FALSE(s.is_valid_location(99));
-    REQUIRE_FALSE(s.ossex_start()); // defaults off
-    REQUIRE_FALSE(s.kear_rando());  // defaults off
-    REQUIRE_FALSE(s.deathlink());   // defaults off
+    REQUIRE_FALSE(s.ossex_start());                   // defaults off
+    REQUIRE(s.kear_mode() == mth::KearMode::ApItems); // defaults to the apworld's default mode
+    REQUIRE_FALSE(s.deathlink());                     // defaults off
 }
 
 TEST_CASE("ap_state: ossex_start flows from ApConnected", "[mth][ap_state]")
@@ -36,15 +36,38 @@ TEST_CASE("ap_state: ossex_start flows from ApConnected", "[mth][ap_state]")
 TEST_CASE("ap_state: deathlink flows from ApConnected", "[mth][ap_state]")
 {
     mth::ApState s;
-    s.apply(mth::ApConnected{{}, "{}", 1, {}, {}, false, false, false, false, false, false, false, false, false, true});
+    s.apply(mth::ApConnected{{}, "{}", 1, {}, {}, false, mth::KearMode::ApItems, false, false, false, false, false, false, false, true});
     REQUIRE(s.deathlink());
 }
 
 TEST_CASE("ap_state: kear_rando flows from ApConnected", "[mth][ap_state]")
 {
     mth::ApState s;
-    s.apply(mth::ApConnected{{}, "{}", 1, {}, {}, false, true});
-    REQUIRE(s.kear_rando());
+    s.apply(mth::ApConnected{{}, "{}", 1, {}, {}, false, mth::KearMode::ApItems});
+    REQUIRE(s.kear_mode() == mth::KearMode::ApItems);
+}
+
+// slot_data "kear_rando" is an int mode, not a flag: 0 = vanilla (the pool carries Universal Kear items,
+// id 63, which must grant real keys), 1/2 = per-lock / per-area AP items (usable keys are meaningless and
+// stay pinned at zero). The client used to force suppression on for every session, so a received vanilla
+// kear never raised the count (issue #130).
+TEST_CASE("ap_state: vanilla kear mode does not suppress usable keys", "[mth][ap_state]")
+{
+    mth::ApState s;
+    s.apply(mth::ApConnected{{}, "{}", 1, {}, {}, false, mth::KearMode::Vanilla});
+    REQUIRE(s.kear_mode() == mth::KearMode::Vanilla);
+    REQUIRE_FALSE(s.kear_keys_suppressed());
+}
+
+TEST_CASE("ap_state: AP-item kear modes suppress usable keys", "[mth][ap_state]")
+{
+    mth::ApState s;
+    s.apply(mth::ApConnected{{}, "{}", 1, {}, {}, false, mth::KearMode::ApItems});
+    REQUIRE(s.kear_keys_suppressed());
+
+    mth::ApState area;
+    area.apply(mth::ApConnected{{}, "{}", 1, {}, {}, false, mth::KearMode::AreaApItems});
+    REQUIRE(area.kear_keys_suppressed());
 }
 
 TEST_CASE("ap_state: items dedup by index", "[mth][ap_state]")

@@ -80,6 +80,100 @@ TEST_CASE("InboundGranter does not mark on failure and retries", "[inbound]")
     std::filesystem::remove(path);
 }
 
+// #130: in vanilla kear mode a received Universal Kear (id 63) must grant a real usable key. It does NOT
+// go through the itemType-grant path (OnPickupDone with slot=-1 aliases every kear onto bit 63); instead
+// each new receipt fires the injected key-credit effect once, marked durable per index like any grant.
+TEST_CASE("InboundGranter credits vanilla kears instead of granting itemType 63", "[inbound]")
+{
+    const auto path = std::filesystem::temp_directory_path() / "mthap_inbound_kear_vanilla.txt";
+    std::filesystem::remove(path);
+
+    mth::ApState state;
+    state.apply(mth::ApConnected{{}, "{}", 1, {}, {}, false, mth::KearMode::Vanilla});
+    mth::ApSaveState save(path);
+    FakeGranter granter;
+    int credits = 0;
+    mth::InboundGranter inbound(granter, state, save,
+                                [&credits]
+                                {
+                                    ++credits;
+                                    return true;
+                                });
+
+    state.apply(recv(mth::ap_item_id(63), 0));
+    state.apply(recv(mth::ap_item_id(63), 1));
+    inbound.tick();
+    REQUIRE(credits == 2);
+    REQUIRE(granter.granted.empty()); // never routed through the itemType-63 grant
+    REQUIRE(save.is_granted(0));
+    REQUIRE(save.is_granted(1));
+
+    inbound.tick(); // resend/next tick: already credited, no double
+    REQUIRE(credits == 2);
+
+    std::filesystem::remove(path);
+}
+
+TEST_CASE("InboundGranter retries a vanilla kear credit that is not ready", "[inbound]")
+{
+    const auto path = std::filesystem::temp_directory_path() / "mthap_inbound_kear_retry.txt";
+    std::filesystem::remove(path);
+
+    mth::ApState state;
+    state.apply(mth::ApConnected{{}, "{}", 1, {}, {}, false, mth::KearMode::Vanilla});
+    mth::ApSaveState save(path);
+    FakeGranter granter;
+    bool ready = false;
+    int credits = 0;
+    mth::InboundGranter inbound(granter, state, save,
+                                [&]
+                                {
+                                    if (!ready)
+                                        return false;
+                                    ++credits;
+                                    return true;
+                                });
+
+    state.apply(recv(mth::ap_item_id(63), 0));
+    inbound.tick();
+    REQUIRE(credits == 0);
+    REQUIRE_FALSE(save.is_granted(0)); // not marked while unavailable
+
+    ready = true;
+    inbound.tick();
+    REQUIRE(credits == 1);
+    REQUIRE(save.is_granted(0));
+
+    std::filesystem::remove(path);
+}
+
+// In the AP-item kear modes the pool never carries id 63; the credit effect must stay dormant so those
+// modes keep their existing behavior (this fix is vanilla-only).
+TEST_CASE("InboundGranter does not credit kears outside vanilla mode", "[inbound]")
+{
+    const auto path = std::filesystem::temp_directory_path() / "mthap_inbound_kear_apitems.txt";
+    std::filesystem::remove(path);
+
+    mth::ApState state;
+    state.apply(mth::ApConnected{{}, "{}", 1, {}, {}, false, mth::KearMode::ApItems});
+    mth::ApSaveState save(path);
+    FakeGranter granter;
+    int credits = 0;
+    mth::InboundGranter inbound(granter, state, save,
+                                [&credits]
+                                {
+                                    ++credits;
+                                    return true;
+                                });
+
+    state.apply(recv(mth::ap_item_id(63), 0));
+    inbound.tick();
+    REQUIRE(credits == 0);
+    REQUIRE(granter.granted == std::vector<int>{63}); // falls through to the normal vanilla-grant path
+
+    std::filesystem::remove(path);
+}
+
 TEST_CASE("InboundGranter skips stat-cap items", "[inbound]")
 {
     const auto path = std::filesystem::temp_directory_path() / "mthap_inbound_caps.txt";

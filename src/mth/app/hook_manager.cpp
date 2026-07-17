@@ -34,6 +34,8 @@ HookManager::HookManager(IGameEvents &events, RandoBridge &rando, ScoutRegistry 
     goal_tracker_ = std::make_unique<GoalTracker>(rando);
     lock_hooks_ = std::make_unique<LockHooks>();
     chest_hooks_ = std::make_unique<ChestHooks>(lock_hooks_->locks()); // shares the lock registry + seed
+    get_player_ = get_player;                                          // shared with the vanilla-kear credit (credit_kear_key)
+    location_hooks_->set_player_getter(get_player);                    // kear key edits mirror Player+0x11b0 (#130)
     death_hooks_ = std::make_unique<DeathHooks>(std::move(send_death), std::move(get_player));
     ability_hooks_ = std::make_unique<AbilityHooks>([&state](std::int64_t id) { return state.has_received(id); });
     pawn_shop_hooks_ = std::make_unique<PawnShopHooks>([&state] { return state.phase() == ConnectionPhase::Connected; });
@@ -75,9 +77,11 @@ void HookManager::tick(ApState &state, SessionPolicy &policy, int save_game_slot
     if (!policy.caps_fixed())
         level_cap_hooks_->recompute(state);
 
-    location_hooks_->set_kear_rando(state.kear_rando()); // slot_data flag: neutralize the world-kear key grant
-    location_hooks_->reconcile_kear_keys();              // re-cancel AP kears that a reload restored as usable keys
-    location_hooks_->enforce_native_bits();              // native collected-bit for server-collected durable-bit chests (Collect/coop)
+    // Neutralize the world-kear collect grant in every AP mode; pin usable keys to 0 only in the AP-item
+    // modes (vanilla mode credits received Universal Kears instead -- see App/InboundGranter).
+    location_hooks_->set_kear_gating(authed, authed && state.kear_keys_suppressed());
+    location_hooks_->reconcile_kear_keys(); // re-cancel AP kears that a reload restored as usable keys (suppress modes)
+    location_hooks_->enforce_native_bits(); // native collected-bit for server-collected durable-bit chests (Collect/coop)
 
     // slot_data lamps (0 when not authed) OR'd with the sticky console override (works offline).
     fountain_lamp_hooks_->set_lit_mask((authed ? state.lit_generator_lamp_mask() : 0) | lamp_console_override_.load(std::memory_order_relaxed));
@@ -111,6 +115,11 @@ void HookManager::tick(ApState &state, SessionPolicy &policy, int save_game_slot
     seed_kear_blocks(state);
 
     death_hooks_->poll(); // edge-detect a local death for deathlink (send_death gates on deathlink enabled)
+}
+
+bool HookManager::credit_kear_key()
+{
+    return location_hooks_->credit_kear_key(get_player_ ? get_player_() : nullptr);
 }
 
 void HookManager::seed_kear_blocks(ApState &state)

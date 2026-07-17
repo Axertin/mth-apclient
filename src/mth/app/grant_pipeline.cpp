@@ -25,9 +25,9 @@ bool GrantPipeline::grant(int item_type)
     return granter_->grant(item_type);
 }
 
-void GrantPipeline::build_inbound(ApState &state, ApSaveState &save_state)
+void GrantPipeline::build_inbound(ApState &state, ApSaveState &save_state, std::function<bool()> credit_kear_key)
 {
-    inbound_ = std::make_unique<InboundGranter>(*granter_, state, save_state);
+    inbound_ = std::make_unique<InboundGranter>(*granter_, state, save_state, std::move(credit_kear_key));
 }
 
 bool GrantPipeline::inbound_ready() const

@@ -64,9 +64,16 @@ class ApState
     {
         return ossex_start_;
     }
-    [[nodiscard]] bool kear_rando() const // slot_data flag: suppress the vanilla world-kear grant
+    [[nodiscard]] KearMode kear_mode() const // slot_data "kear_rando": how kears are randomized
     {
-        return kear_rando_;
+        return kear_mode_;
+    }
+    // Usable keys are meaningless unless the pool carries Universal Kear items, so every mode but Vanilla
+    // pins them to zero. The world-kear collect grant is neutralized in ALL modes (the spot is an AP
+    // location, so the server owns its reward).
+    [[nodiscard]] bool kear_keys_suppressed() const
+    {
+        return kear_mode_ != KearMode::Vanilla;
     }
     // slot_data flags: the named ability is AP-randomized; gate it until its AP item is granted.
     [[nodiscard]] bool burrow_rando() const
@@ -167,7 +174,7 @@ class ApState
     std::string slot_data_{};
     int player_slot_{-1};
     bool ossex_start_{false};
-    bool kear_rando_{false};
+    KearMode kear_mode_{KearMode::ApItems};
     bool burrow_rando_{false};
     bool swim_rando_{false};
     bool rope_rando_{false};

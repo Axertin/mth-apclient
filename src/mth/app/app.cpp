@@ -263,7 +263,7 @@ void App::ensure_inbound_ready()
         return;
     const std::string key = "ap_" + state_.seed() + "_" + std::to_string(state_.player_slot()) + ".state";
     save_state_.emplace(pal::log_dir() / key);
-    grants_->build_inbound(state_, *save_state_);
+    grants_->build_inbound(state_, *save_state_, [this] { return hooks_->credit_kear_key(); }); // vanilla-kear key grant (#130)
     pal::logf(pal::LogLevel::Info, "inbound: state loaded (%s); granter live", key.c_str());
     hooks_->set_ap_slot(save_state_->game_slot()); // restore the AP-game slot (skip capture if known)
     net_->rando().attach_save_state(*save_state_);

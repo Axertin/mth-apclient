@@ -9,7 +9,8 @@
 namespace mth
 {
 
-InboundGranter::InboundGranter(IItemGranter &granter, ApState &state, ApSaveState &save) : granter_(granter), state_(state), save_(save)
+InboundGranter::InboundGranter(IItemGranter &granter, ApState &state, ApSaveState &save, std::function<bool()> credit_kear_key)
+    : granter_(granter), state_(state), save_(save), credit_kear_key_(std::move(credit_kear_key))
 {
 }
 
@@ -19,8 +20,25 @@ void InboundGranter::tick()
     int fishing_tier = 0;                      // running fishing-rod receipt count -> progressive tier
     int map_tier = 0;
 
+    const bool vanilla_kear = state_.kear_mode() == KearMode::Vanilla;
+
     for (const auto &it : state_.received_items())
     {
+        // Vanilla kear mode (#130): a Universal Kear must raise the usable-key count. The itemType-grant
+        // path can't do it (an inbound replay uses slot=-1, which aliases every kear onto bit 63), so lower
+        // the spent-counter by one via the injected effect instead -- once per receipt, marked like a grant.
+        if (vanilla_kear && is_vanilla_kear_item(it.item_id))
+        {
+            if (save_.is_granted(it.index))
+                continue;
+            if (!credit_kear_key_ || !credit_kear_key_())
+                break; // no live save/player yet; retry next tick (do not mark)
+            save_.mark_granted(it.index);
+            save_.save();
+            pal::logf(pal::LogLevel::Info, "inbound_granter: credited vanilla kear key (index=%d)", it.index);
+            continue;
+        }
+
         // Progressive fishing rod: the Nth receipt grants the Nth upgrade itemType (87/88/89). Count every
         // receipt (already-granted too) so the tier survives reloads; grant only the new ones. Mirrors weapons.
         if (is_fishing_rod_item(it.item_id))

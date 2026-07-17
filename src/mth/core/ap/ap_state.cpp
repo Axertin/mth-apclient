@@ -43,7 +43,7 @@ void ApState::apply(const ApEvent &ev)
                 slot_data_ = e.slot_data;
                 player_slot_ = e.player_slot;
                 ossex_start_ = e.ossex_start;
-                kear_rando_ = e.kear_rando;
+                kear_mode_ = e.kear_mode;
                 burrow_rando_ = e.burrow_rando;
                 swim_rando_ = e.swim_rando;
                 rope_rando_ = e.rope_rando;
@@ -72,8 +72,9 @@ void ApState::apply(const ApEvent &ev)
                 pal::logf(pal::LogLevel::Info,
                           "ap_state: CONNECTED slot=%d seed=%s slot_data=%zuB ossex_start=%d kear_rando=%d train_rando=%d max_stat_level=%d; "
                           "valid_locations=%zu (checked=%zu missing=%zu) id_range=[%lld..%lld]",
-                          player_slot_, seed_.c_str(), slot_data_.size(), ossex_start_, kear_rando_, train_rando_, max_stat_level_, valid_locations_.size(),
-                          e.checked_locations.size(), e.missing_locations.size(), static_cast<long long>(lo), static_cast<long long>(hi));
+                          player_slot_, seed_.c_str(), slot_data_.size(), ossex_start_, static_cast<int>(kear_mode_), train_rando_, max_stat_level_,
+                          valid_locations_.size(), e.checked_locations.size(), e.missing_locations.size(), static_cast<long long>(lo),
+                          static_cast<long long>(hi));
             }
             else if constexpr (std::is_same_v<T, ApConnecting>)
             {

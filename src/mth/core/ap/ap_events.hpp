@@ -11,6 +11,21 @@
 namespace mth
 {
 
+// slot_data "kear_rando". Vanilla puts Universal Kear items (itemType 63) in the pool and they must grant
+// real usable keys; the AP-item modes remove each lock (or each area's locks) with a dedicated AP item, so
+// usable keys carry no meaning and stay pinned at zero. Kear pickup spots are AP locations in every mode.
+enum class KearMode : int
+{
+    Vanilla = 0,
+    ApItems = 1,
+    AreaApItems = 2,
+};
+
+[[nodiscard]] constexpr KearMode kear_mode_from_slot_data(int value) noexcept
+{
+    return value == 0 ? KearMode::Vanilla : (value == 2 ? KearMode::AreaApItems : KearMode::ApItems);
+}
+
 struct ReceivedItem
 {
     std::int64_t item_id{};
@@ -27,8 +42,8 @@ struct ApConnected
     int player_slot{-1};
     std::vector<std::int64_t> checked_locations;
     std::vector<std::int64_t> missing_locations;
-    bool ossex_start{false}; // slot_data "ossex_start": force the Landing Done modifier (start at Ossex hub)
-    bool kear_rando{false};  // slot_data "kear_rando": kears are AP-randomized; suppress the vanilla world-kear grant
+    bool ossex_start{false};               // slot_data "ossex_start": force the Landing Done modifier (start at Ossex hub)
+    KearMode kear_mode{KearMode::ApItems}; // slot_data "kear_rando": how kears are randomized (apworld default = ApItems)
     // slot_data "*_rando": the named ability is AP-randomized; gate it until its AP item is granted.
     bool burrow_rando{false};
     bool swim_rando{false};

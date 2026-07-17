@@ -48,9 +48,14 @@ inline constexpr std::ptrdiff_t kKeyBlockSlotOff = 0x2d0;     // int: cached slo
 inline constexpr std::ptrdiff_t kKeyBlockEntityRefOff = 0xa8; // start of the +0xa8 -> +0x40 -> +0xd0 name-key chain
 inline constexpr std::ptrdiff_t kSaveBlockUnlockOff = 0x200;  // u64 lock-unlocked bitfield in SaveSlot
 inline constexpr std::ptrdiff_t kSaveKearBitsOff = 0x1f0;     // u64 kear-collected bitfield in SaveSlot
-inline constexpr std::ptrdiff_t kSaveKearSpentOff = 0x1f8;    // int spent-counter; usable keys = popcount(SaveSlot+0x1f0) - this
-// NOTE: no Player-side key mirror exists. Player+0x1190/+0x1198 are the money current/cap fields
-// (see Player::AddMoney); the game reads usable keys from the SaveSlot above, never from the Player.
+inline constexpr std::ptrdiff_t kSaveKearSpentOff = 0x1f8;    // int spent-counter (see kPlayerKearSpentOff for the mirror)
+// The Player DOES mirror the kear counters: Player+0x11a8 (u64 bits) / Player+0x11b0 (int spent), synced
+// by Player::RestoreSave/WriteSave. Gameplay (KeyBlock/Chest gate, HUD) reads usable = popcount(Player+0x11a8)
+// - SaveSlot+0x1f8; the spend gate then SNAPS SaveSlot+0x1f8 = Player+0x11b0+1, so any edit to the key count
+// must move BOTH SaveSlot+0x1f8 and Player+0x11b0 together. (Player+0x1190/+0x1198 are the unrelated money
+// current/cap fields -- see Player::AddMoney; do NOT confuse them with the key mirror.)
+inline constexpr std::ptrdiff_t kPlayerKearBitsOff = 0x11a8;  // u64 kear-collected bitfield mirror in Player
+inline constexpr std::ptrdiff_t kPlayerKearSpentOff = 0x11b0; // int spent-counter mirror in Player (runtime source of truth)
 
 // Goal-completion SaveSlot state (polled; the bitfields are popcounted for the count goals).
 inline constexpr std::ptrdiff_t kSaveBossDefeatedBitsOff = 0x280; // u64 boss-defeated bitfield (BossComponent::GetDefeatedCount popcounts this)

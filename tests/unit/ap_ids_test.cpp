@@ -10,6 +10,14 @@ TEST_CASE("ap_item_id and game_item_type round-trip", "[ap_ids]")
     REQUIRE(mth::game_item_type(mth::kItemBase) == 0);
 }
 
+TEST_CASE("vanilla kear item id is the Universal Kear itemType", "[ap_ids]")
+{
+    REQUIRE(mth::is_vanilla_kear_item(mth::ap_item_id(63))); // Universal Kear = game itemType 0x3f
+    REQUIRE(mth::is_vanilla_kear_item(63));
+    REQUIRE_FALSE(mth::is_vanilla_kear_item(mth::ap_item_id(62)));
+    REQUIRE_FALSE(mth::is_vanilla_kear_item(mth::kKearBlockItemBase)); // a kear-lock AP item, not the Universal Kear
+}
+
 TEST_CASE("stat-cap item ids: per-stat and all-stat flavours", "[ap_ids]")
 {
     REQUIRE(mth::is_stat_cap_item(mth::kProgStatCapBase) == true);
