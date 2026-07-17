@@ -32,6 +32,7 @@ class ApLink final : public mth::IApLink
     void disconnect() override;
     [[nodiscard]] bool is_connected() const override;
     void send_locations(const std::vector<std::int64_t> &location_ids) override;
+    void scout_locations(const std::vector<std::int64_t> &location_ids) override;
     void set_goal() override;
     void enable_deathlink(bool on) override;
     void send_death(const std::string &cause) override;

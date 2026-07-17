@@ -22,6 +22,9 @@ class NullApLink final : public IApLink
     void send_locations(const std::vector<std::int64_t> &) override
     {
     }
+    void scout_locations(const std::vector<std::int64_t> &) override
+    {
+    }
     void set_goal() override
     {
     }

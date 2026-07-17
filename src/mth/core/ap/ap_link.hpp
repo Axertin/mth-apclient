@@ -20,6 +20,8 @@ class IApLink
     [[nodiscard]] virtual bool is_connected() const = 0;
 
     virtual void send_locations(const std::vector<std::int64_t> &location_ids) = 0;
+    // Request scout (item/player) info for locations; results arrive as an ApScoutInfo event.
+    virtual void scout_locations(const std::vector<std::int64_t> &location_ids) = 0;
     virtual void set_goal() = 0;
 
     virtual void enable_deathlink(bool on) = 0; // tag the connection; call before connect()

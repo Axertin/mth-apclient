@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "mth/core/broadcast.hpp"
+#include "mth/core/scout_registry.hpp"
 
 namespace mth
 {
@@ -77,8 +78,14 @@ struct ApPrintBroadcast
 {
     std::vector<BannerSegment> segments;
 };
+// Scouted shop locations, resolved to display strings on the net thread (apclientpp resolution is
+// net-thread-only), carried to the game thread to fill the ScoutRegistry.
+struct ApScoutInfo
+{
+    std::vector<ScoutInfo> locations;
+};
 
 using ApEvent = std::variant<ApConnected, ApConnecting, ApItemReceived, ApLocationsChecked, ApDisconnected, ApConnectionRefused, ApStatusChanged,
-                             ApDeathReceived, ApPrintBroadcast>;
+                             ApDeathReceived, ApPrintBroadcast, ApScoutInfo>;
 
 } // namespace mth
