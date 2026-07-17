@@ -68,6 +68,9 @@ target_compile_features(mthap_unit_tests PRIVATE cxx_std_23)
 target_sources(mthap_unit_tests PRIVATE
     "${CMAKE_SOURCE_DIR}/src/pal/linux/log_linux.cpp"
     "${CMAKE_SOURCE_DIR}/src/pal/linux/cert_linux.cpp"
+    # RandoBridge denies every AP effect unless the save-slot gate is open; it is a platform-neutral
+    # PAL global, so compile it in to give the bridge tests the real seam to open and close.
+    "${CMAKE_SOURCE_DIR}/src/pal/ap_save_gate.cpp"
     # DeathHooks lives in the mthap module (not linked by tests); compile it in directly so its
     # sparkless-demise gating can be unit-tested against mthap_mod (mod::) + mthap_core (the gate).
     "${CMAKE_SOURCE_DIR}/src/mth/features/death_hooks.cpp")

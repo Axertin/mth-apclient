@@ -14,16 +14,18 @@ bool read_player_position(const void *trackable, float out[3]);
 // Field offset is per-platform/per-build (Linux 0x1b4, Windows 0x1bc).
 bool current_room_index(void *room_manager, std::uint32_t *out);
 
-// Hook SaveSlot::Clear (called only at new-file creation); when should_suppress() returns true, zero the
-// default region-18 upgrade fields so AP supplies the starting inventory instead. false if unresolved.
+// Hook the new-game edge (SaveSlot::InitGamestate, plus SaveSlot::Clear to discount the platform
+// re-entry; see the impl). When should_suppress() returns true, zero the new game's default upgrade
+// fields so AP supplies the starting inventory instead. false if unresolved.
 using NewfileKitSuppressFn = std::function<bool()>;
 bool install_newfile_kit_suppressor(NewfileKitSuppressFn should_suppress);
 void remove_newfile_kit_suppressor();
 
-// Fires on the game thread when a NEW GAME (or NG+) starts, detected as SaveSlot::Clear(this, true)
-// (RE-verified new-game-only; the load path never calls Clear). Piggybacks on the newfile-kit Clear hook,
-// so it is inert unless install_newfile_kit_suppressor resolved that hook. Callback must be minimal.
-using NewGameFn = std::function<void()>;
+// Fires on the game thread when a NEW GAME (or NG+) starts, with the SaveSlot* the new game is being
+// created in. The caller binds that slot rather than guessing from whatever save is live, which is not
+// the new one yet at this point. Shares the hooks installed by install_newfile_kit_suppressor, so it is
+// inert unless those resolved. Callback runs mid-menu-transition: keep it minimal (set a flag).
+using NewGameFn = std::function<void(void *save_slot)>;
 void set_new_game_hook(NewGameFn on_new_game);
 void remove_new_game_hook();
 

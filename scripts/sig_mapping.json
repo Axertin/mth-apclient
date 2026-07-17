@@ -200,6 +200,10 @@
   {
    "name": "_ZN11HubFountain4Bulb6UpdateEfb",
    "kind": "Code"
+  },
+  {
+   "name": "_ZN8SaveSlot13InitGamestateEv",
+   "kind": "Code"
   }
  ],
  "windows": {
@@ -353,6 +357,9 @@
   },
   "_ZN11HubFountain4Bulb6UpdateEfb": {
    "rva": 7447936
+  },
+  "_ZN8SaveSlot13InitGamestateEv": {
+   "rva": 10845072
   }
  },
  "linux": {
@@ -469,6 +476,9 @@
   },
   "_ZN11HubFountain4Bulb6UpdateEfb": {
    "rva": 10642720
+  },
+  "_ZN8SaveSlot13InitGamestateEv": {
+   "rva": 15558992
   }
  }
 }

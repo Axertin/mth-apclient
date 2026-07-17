@@ -105,6 +105,11 @@ inline constexpr const char *save_manager = "g_saveManager";
 // SaveSlot::Clear(bool): new-file reset; writes the default starting-upgrade fields (region-18 kit).
 // Called only at new-file creation, so a post-hook field zero never touches a progressed save.
 inline constexpr const char *save_slot_clear = "_ZN8SaveSlot5ClearEb"; // SaveSlot::Clear(bool)
+// SaveSlot::InitGamestate(): seeds a new game's initial gamestate + starting area. Called from exactly
+// two sites, the profile menu's fresh-new-game and NG+ paths, so it IS the new-game edge. Note Clear's
+// bool is not: arg==true is the NG+ cycle only, and a fresh new game clears with arg==false, same as a
+// profile delete.
+inline constexpr const char *save_slot_init_gamestate = "_ZN8SaveSlot13InitGamestateEv";
 
 // Deathlink no longer resolves game symbols: detection polls the Player+0x1380 death-guard byte edge each
 // tick (DeathBroadcastGate) and apply goes through the native MinaModAPI PlayerDie. The old

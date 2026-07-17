@@ -103,16 +103,12 @@ App::App()
     tracker_ = std::make_unique<PlayerTracker>();
     room_tracker_ = std::make_unique<RoomTracker>();
     events_ = std::make_unique<AppTickSink>(*this);
+    // Both hand-offs are save-gated inside RandoBridge, so the granter needs no gate of its own.
     grants_ = std::make_unique<GrantPipeline>(
-        *tracker_, [this](int loc) { return net_->rando().is_ap_location(loc); },
-        [this](int loc)
-        {
-            if (pal::ap_save_gate())
-                net_->rando().on_location_collected(loc);
-        });
+        *tracker_, [this](int loc) { return net_->rando().is_ap_location(loc); }, [this](int loc) { net_->rando().on_location_collected(loc); });
     // Suppress the game's default new-file starting kit while AP-authenticated (AP supplies it instead).
-    // SaveSlot::Clear also fires on profile-menu / save-load, so the zero can hit an existing save's upgrade
-    // fields; re-arm the upgrade re-apply each time we suppress so drive_tick refills them from AP state.
+    // Fires on the new-game edge only, so it zeroes the new game's own slot and never an existing save's
+    // upgrade fields; re-arm the upgrade re-apply each time we suppress so drive_tick refills from AP state.
     pal::install_newfile_kit_suppressor(
         [this]
         {
@@ -128,7 +124,7 @@ App::App()
         [this]() -> void * { return tracker_->player(); });
 
     save_manager_ = pal::resolve_game_symbol(sym::save_manager);
-    pal::set_new_game_hook([this] { new_game_pending_.store(true, std::memory_order_relaxed); });
+    pal::set_new_game_hook([this](void *slot) { new_game_slot_.store(slot, std::memory_order_relaxed); });
 #ifdef MTHAP_HAS_OVERLAY
     {
         const pal::OverlayConfig ocfg{pal::resolve_game_symbol(sym::process_sdl_event)};
@@ -165,6 +161,68 @@ void App::run()
     pal::logf(pal::LogLevel::Info, "App::run: tick hooks installed, idling");
 }
 
+void App::bind_ap_slot(int slot, const char *why)
+{
+    save_state_->set_game_slot(slot);
+    save_state_->save();
+    hooks_->set_ap_slot(slot);
+    pal::logf(pal::LogLevel::Info, "save-gate: bound AP game to save slot %d (%s)", slot, why);
+}
+
+// Resolve "is the live save the one this AP game owns?" and publish it for every consumer: the App
+// effects below, HookManager, and the independent game-thread detours (which reach it through
+// RandoBridge). Also consumes the new-game edge that establishes the binding in the first place.
+void App::update_save_gate()
+{
+    ensure_inbound_ready(); // binding and the gate both need the attached save state
+    const int live = pal::live_save_slot_index(save_manager_);
+    void *const new_game = new_game_slot_.exchange(nullptr, std::memory_order_relaxed);
+    if (new_game != nullptr)
+        pending_new_game_slot_ = new_game; // held across ticks: the new game's slot is not live yet at the edge
+
+    // Binding is connect-first and new-game-only: the edge must land while authenticated with an
+    // attached save, and we wait until the slot the new game was created in is the one actually loaded
+    // before reading its index. The live index still points at the previous save during the menu
+    // transition, and binding that would hand the AP game to the wrong save.
+    if (pending_new_game_slot_ != nullptr)
+    {
+        if (!state_.authenticated() || !save_state_)
+        {
+            pending_new_game_slot_ = nullptr; // edge must occur while connected (connect-first)
+        }
+        else if (save_state_->game_slot() >= 0)
+        {
+            pending_new_game_slot_ = nullptr; // already bound: drop the stale edge
+        }
+        else if (pal::active_save_slot(save_manager_) == pending_new_game_slot_)
+        {
+            const int bind = ap_bind_on_new_game(true, grants_->inbound_ready(), save_state_->game_slot(), live);
+            if (bind >= 0)
+            {
+                bind_ap_slot(bind, "new game");
+                pending_new_game_slot_ = nullptr;
+            }
+        }
+    }
+    // tracker_->player() is the "gameplay is live" test: the save-slot index reads 0 at the title screen,
+    // so without it a connect from the menu would bind this AP game to slot 0.
+    else if (save_state_ && ap_bind_legacy_unbound(state_.authenticated(), grants_->inbound_ready(), save_state_->game_slot(), live,
+                                                   save_state_->has_progress(), tracker_ && tracker_->player() != nullptr))
+    {
+        bind_ap_slot(live, "existing progress, no recorded slot");
+    }
+    const bool open = save_state_ && ap_save_gate_open(state_.authenticated(), grants_->inbound_ready(), save_state_->game_slot(), live);
+    // Log the reason on every change: a wedged-closed gate silently disables the entire mod, and the
+    // inputs (bind edge, live slot) are otherwise invisible from the log.
+    if (open != gate_logged_)
+    {
+        gate_logged_ = open;
+        pal::logf(pal::LogLevel::Info, "save-gate: %s (authed=%d inbound=%d bound_slot=%d live_slot=%d)", open ? "OPEN" : "CLOSED",
+                  static_cast<int>(state_.authenticated()), static_cast<int>(grants_->inbound_ready()), save_state_ ? save_state_->game_slot() : -1, live);
+    }
+    pal::set_ap_save_gate(open);
+}
+
 void App::drive_tick()
 {
     if (!first_tick_logged_)
@@ -177,6 +235,10 @@ void App::drive_tick()
     if (room_tracker_ && room_tracker_->current_screen(&screen_id))
         screen = screen_id;
     net_->tick(state_, screen);
+    // Resolve and publish the save gate before anything reads it: hooks_->tick() and the game-thread
+    // detours consult pal::ap_save_gate(), so computing it later would run a whole tick of AP effects
+    // against the previous frame's answer.
+    update_save_gate();
     hooks_->tick(state_, policy_);
     upgrades_.recompute(state_);
     // Diagnostic (#46): apply_upgrades runs only while dirty, so if it never fires the pal-layer trace is
@@ -192,38 +254,7 @@ void App::drive_tick()
             pal::logf(pal::LogLevel::Debug, "upgrades: drive_tick gate -> %s counts=[%d,%d,%d,%d,%d]", w, c[0], c[1], c[2], c[3], c[4]);
         }
     }
-    ensure_inbound_ready();
-    // Binding is connect-first: a new-game edge is honored only while authenticated with an attached
-    // save; the pending flag is held across ticks only while connected+unbound+slot-not-yet-live, so it
-    // binds the new game's own slot.
-    const int live = pal::live_save_slot_index(save_manager_);
-    if (new_game_pending_.load(std::memory_order_relaxed))
-    {
-        if (!state_.authenticated() || !save_state_)
-        {
-            new_game_pending_.store(false, std::memory_order_relaxed); // edge must occur while connected (connect-first)
-        }
-        else
-        {
-            const int bind = ap_bind_on_new_game(true, grants_->inbound_ready(), save_state_->game_slot(), live);
-            if (bind >= 0)
-            {
-                save_state_->set_game_slot(bind);
-                save_state_->save();
-                hooks_->set_ap_slot(bind);
-                new_game_pending_.store(false, std::memory_order_relaxed);
-                pal::logf(pal::LogLevel::Info, "save-gate: bound AP game to new-game slot %d", bind);
-            }
-            else if (save_state_->game_slot() >= 0)
-            {
-                new_game_pending_.store(false, std::memory_order_relaxed); // already bound: drop the stale edge
-            }
-            // else: connected + unbound but the slot is not live yet; keep pending for a later tick
-        }
-    }
-    const bool gate_open = save_state_ && ap_save_gate_open(state_.authenticated(), grants_->inbound_ready(), save_state_->game_slot(), live);
-    pal::set_ap_save_gate(gate_open);
-    if (gate_open)
+    if (pal::ap_save_gate())
     {
         if (upgrades_.dirty() && tracker_ && pal::apply_upgrades(upgrades_.counts(), tracker_->player()))
         {

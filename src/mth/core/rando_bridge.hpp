@@ -15,6 +15,13 @@ class ApSaveState; // defined in ap_save_state.hpp (same core lib)
 
 // twin: mth/features/{location,boss,goal_tracker}_hooks.hpp drive outbound checks through this.
 // Outbound: maps a collected slot to a deduplicated server check. Game-thread-only.
+//
+// Every entry point is gated on pal::ap_save_gate(): AP effects apply only to the save this
+// (seed, slot) bound at new-game start. With the gate closed the bridge behaves as if no session
+// had ever connected: no location is an AP location, nothing reads as checked, and nothing is
+// sent or persisted. This is the chokepoint for the whole feature set, because the independent
+// game-thread detours (pickup/shop/chest/boss/granter) all decide what to do by asking
+// is_ap_location()/is_checked() here rather than by testing the gate themselves.
 class RandoBridge
 {
   public:

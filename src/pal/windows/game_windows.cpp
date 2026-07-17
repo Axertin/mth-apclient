@@ -207,14 +207,40 @@ constexpr std::ptrdiff_t kTrinketUpgOff = 0x950; // Trinket_Upgrade (itemType 0x
 
 pal::NewfileKitSuppressFn g_kit_suppress = nullptr;
 pal::HookId g_kit_hook = pal::kInvalidHookId;
+pal::HookId g_newgame_hook = pal::kInvalidHookId;
 void (*g_orig_save_slot_clear)(void *, bool) = nullptr;
+void (*g_orig_init_gamestate)(void *) = nullptr;
 pal::NewGameFn g_new_game_fn;
+
+// SaveSlot::Clear ends by seeding the initial gamestate. On Windows it reaches that seed by tail-jumping
+// into the standalone SaveSlot::InitGamestate; on Linux the compiler inlined the body into Clear instead.
+// So on Windows the InitGamestate detour below also fires from every Clear call site (profile delete,
+// title screen, ClearSlots, ...), none of which is a new game. Track Clear depth (game thread only, and
+// the tail-jmp returns straight through our frame) so the detour can discount exactly those re-entries
+// and act only on the game's two real new-game call sites. Inert on Linux, where Clear never calls it.
+int g_clear_depth = 0;
+
 void repl_save_slot_clear(void *self, bool arg)
 {
+    ++g_clear_depth;
     if (g_orig_save_slot_clear)
         g_orig_save_slot_clear(self, arg);
-    if (arg && g_new_game_fn)
-        g_new_game_fn(); // new game / NG+ (RE: arg==true is new-game-only, never a load)
+    --g_clear_depth;
+}
+
+// SaveSlot::InitGamestate(this) == "a new game is starting in this slot": the game calls it from its
+// fresh-new-game and NG+ paths and nowhere else: never on load, never on profile delete. Clear's bool
+// arg does NOT mean that (arg==true is the NG+ cycle; a fresh new game clears with arg==false, exactly
+// like a delete), which is why the edge is taken here instead. Runs after Clear has written the default
+// kit, so this is also the right place to zero it.
+void repl_init_gamestate(void *self)
+{
+    if (g_orig_init_gamestate)
+        g_orig_init_gamestate(self);
+    if (g_clear_depth > 0)
+        return; // reached from inside Clear (Windows tail-jmp), not a new game
+    if (g_new_game_fn)
+        g_new_game_fn(self);
     if (self == nullptr || !g_kit_suppress || !g_kit_suppress())
         return;
     auto field = [self](std::ptrdiff_t off) -> std::uint32_t & { return *reinterpret_cast<std::uint32_t *>(static_cast<char *>(self) + off); };
@@ -746,30 +772,51 @@ void remove_chest_unlock_hook()
 
 bool install_newfile_kit_suppressor(NewfileKitSuppressFn should_suppress)
 {
-    const std::uintptr_t addr = resolve_game_symbol(mth::sym::save_slot_clear);
-    if (addr == 0)
+    const std::uintptr_t init_addr = resolve_game_symbol(mth::sym::save_slot_init_gamestate);
+    if (init_addr == 0)
     {
-        logf(LogLevel::Warn, "newfile-kit: SaveSlot::Clear not resolved; starting-kit suppression disabled");
+        logf(LogLevel::Warn, "newfile-kit: SaveSlot::InitGamestate not resolved; new-game detection + kit suppression disabled");
         return false;
     }
     g_kit_suppress = std::move(should_suppress);
-    g_kit_hook = hook_engine().install_hook(reinterpret_cast<void *>(addr), reinterpret_cast<void *>(&repl_save_slot_clear),
-                                            reinterpret_cast<void **>(&g_orig_save_slot_clear));
+
+    // Clear first: it only maintains the re-entry guard, and on this platform Clear tail-jumps into
+    // InitGamestate, so the guard must be live before the edge hook can fire.
+    const std::uintptr_t clear_addr = resolve_game_symbol(mth::sym::save_slot_clear);
+    if (clear_addr != 0)
+        g_kit_hook = hook_engine().install_hook(reinterpret_cast<void *>(clear_addr), reinterpret_cast<void *>(&repl_save_slot_clear),
+                                                reinterpret_cast<void **>(&g_orig_save_slot_clear));
     if (g_kit_hook == kInvalidHookId)
     {
-        logf(LogLevel::Error, "newfile-kit: failed to hook SaveSlot::Clear");
+        logf(LogLevel::Error, "newfile-kit: SaveSlot::Clear not hooked; every Clear would read as a new game here, so refusing to install");
         g_kit_suppress = nullptr;
         return false;
     }
-    logf(LogLevel::Info, "newfile-kit: hooked SaveSlot::Clear (id=%llu)", static_cast<unsigned long long>(g_kit_hook));
+
+    g_newgame_hook = hook_engine().install_hook(reinterpret_cast<void *>(init_addr), reinterpret_cast<void *>(&repl_init_gamestate),
+                                                reinterpret_cast<void **>(&g_orig_init_gamestate));
+    if (g_newgame_hook == kInvalidHookId)
+    {
+        logf(LogLevel::Error, "newfile-kit: failed to hook SaveSlot::InitGamestate");
+        hook_engine().remove_hook(g_kit_hook);
+        g_kit_hook = kInvalidHookId;
+        g_kit_suppress = nullptr;
+        return false;
+    }
+    logf(LogLevel::Info, "newfile-kit: hooked SaveSlot::InitGamestate (id=%llu) + Clear guard (id=%llu)", static_cast<unsigned long long>(g_newgame_hook),
+         static_cast<unsigned long long>(g_kit_hook));
     return true;
 }
 
 void remove_newfile_kit_suppressor()
 {
+    if (g_newgame_hook != kInvalidHookId)
+        hook_engine().remove_hook(g_newgame_hook);
+    g_newgame_hook = kInvalidHookId;
     if (g_kit_hook != kInvalidHookId)
         hook_engine().remove_hook(g_kit_hook);
     g_kit_hook = kInvalidHookId;
+    g_clear_depth = 0;
     g_kit_suppress = nullptr;
 }
 

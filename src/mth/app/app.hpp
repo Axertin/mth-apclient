@@ -81,7 +81,9 @@ class App : public ICommandSink
     void set_lit_lamps(std::uint32_t lamp_mask) override;
 
   private:
-    void ensure_inbound_ready(); // lazily builds save_state_ + the grant pipeline's inbound granter once connected
+    void ensure_inbound_ready();                  // lazily builds save_state_ + the grant pipeline's inbound granter once connected
+    void update_save_gate();                      // consumes the new-game bind edge and publishes pal::set_ap_save_gate for the tick
+    void bind_ap_slot(int slot, const char *why); // records the AP game's save slot (persisted + published)
     // Drain ApState's server-reported checked locations into the save-state checked set (Collect / coop),
     // once inbound is ready. Never re-sends; persists once per pass. Called each drive_tick.
     void reconcile_server_checked();
@@ -99,8 +101,10 @@ class App : public ICommandSink
     std::string inbound_key_; // (seed, slot) key save_state_ was built for; rebuild on change (#124)
     std::unique_ptr<GrantPipeline> grants_;
     std::atomic<bool> pending_inbound_death_{false};
-    std::atomic<bool> new_game_pending_{false}; // set by the game-thread new-game hook, consumed in drive_tick
-    std::uintptr_t save_manager_{0};            // resolved once; source for live_save_slot_index
+    std::atomic<void *> new_game_slot_{nullptr}; // SaveSlot* published by the game-thread new-game hook
+    void *pending_new_game_slot_{nullptr};       // tick-owned copy, held until that slot is the live one
+    std::uintptr_t save_manager_{0};             // resolved once; source for live_save_slot_index
+    bool gate_logged_{false};                    // last published save-gate state; drives the on-change log
     // Gates the tick entry points until construction finishes. The game-thread tick hooks go live mid-ctor
     // (GameHooks installs Game::FixedUpdate before hooks_ is even assigned), so on a fast-initializing host
     // the first tick can land on a half-built App and deref a null member. Release on the last ctor line,

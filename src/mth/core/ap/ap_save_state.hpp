@@ -35,6 +35,14 @@ class ApSaveState
         game_slot_ = slot;
     }
 
+    // True once this AP game has recorded anything. An unbound state file with progress was played
+    // before the save-slot binding existed; an unbound one without progress is simply a fresh seed
+    // that has not started its game yet. See ap_bind_legacy_unbound().
+    [[nodiscard]] bool has_progress() const
+    {
+        return !checked_.empty() || !granted_.empty();
+    }
+
     void save() const; // write-tmp-then-rename
 
   private:
