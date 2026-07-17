@@ -7,6 +7,7 @@
 #include "mth/core/game_events.hpp"
 #include "mth/core/modifier_config.hpp"
 #include "mth/core/rando_bridge.hpp"
+#include "mth/core/scout_registry.hpp"
 #include "mth/core/session_policy.hpp"
 #include "mth/features/ability_hooks.hpp"
 #include "mth/features/boss_hooks.hpp"
@@ -23,10 +24,11 @@
 namespace mth
 {
 
-HookManager::HookManager(IGameEvents &events, RandoBridge &rando, ApState &state, std::function<void()> send_death, std::function<void *()> get_player)
+HookManager::HookManager(IGameEvents &events, RandoBridge &rando, ScoutRegistry &scout, ApState &state, std::function<void()> send_death,
+                         std::function<void *()> get_player)
 {
     game_hooks_ = std::make_unique<GameHooks>(events);
-    location_hooks_ = std::make_unique<LocationHooks>(rando);
+    location_hooks_ = std::make_unique<LocationHooks>(rando, &scout);
     boss_hooks_ = std::make_unique<BossHooks>(rando);
     goal_tracker_ = std::make_unique<GoalTracker>(rando);
     lock_hooks_ = std::make_unique<LockHooks>();

@@ -11,6 +11,7 @@
 #include "mth/core/command_sink.hpp"
 #include "mth/core/connect_resend_gate.hpp"
 #include "mth/core/data/ability_ids.hpp"
+#include "mth/core/scout_registry.hpp"
 #include "mth/core/session_policy.hpp"
 #include "mth/core/upgrade_state.hpp"
 #include "mth/core/wallet_cap_state.hpp"
@@ -52,6 +53,12 @@ class App : public ICommandSink
     [[nodiscard]] bool ready() const noexcept
     {
         return ready_.load();
+    }
+
+    // Scouted shop-location info (item/player), filled from ApScoutInfo events on the game thread.
+    [[nodiscard]] mth::ScoutRegistry &scout_registry()
+    {
+        return scout_registry_;
     }
 
     void drive_tick();       // called by tick sink each fixed update (only once ready())
@@ -99,6 +106,7 @@ class App : public ICommandSink
     UpgradeState upgrades_;
     WalletCapState wallet_;
     ConnectResendGate resend_gate_; // fires flush() once per (re)connection
+    mth::ScoutRegistry scout_registry_;
 #ifdef MTHAP_HAS_OVERLAY
     std::unique_ptr<pal::IOverlay> overlay_;
     std::unique_ptr<OverlayRoot> overlay_root_;

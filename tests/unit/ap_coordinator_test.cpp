@@ -63,3 +63,46 @@ TEST_CASE("ap_coordinator: on_broadcast forwards segments from ApPrintBroadcast"
     REQUIRE(got[0].text == "you got the thing");
     REQUIRE(link.pending.empty());
 }
+
+TEST_CASE("ap_coordinator: on_session_reset fires on ApConnected", "[mth][ap_coordinator]")
+{
+    mth::test::FakeApLink link;
+    mth::ApState state;
+    int reset_calls = 0;
+    mth::ApCoordinator coord(link, state, {}, {}, {}, [&reset_calls] { ++reset_calls; });
+
+    link.pending.push_back(mth::ApConnected{{}, "{}", 2, {5}, {6}});
+
+    coord.tick();
+
+    REQUIRE(reset_calls == 1);
+}
+
+TEST_CASE("ap_coordinator: on_session_reset fires on ApDisconnected", "[mth][ap_coordinator]")
+{
+    mth::test::FakeApLink link;
+    mth::ApState state;
+    int reset_calls = 0;
+    mth::ApCoordinator coord(link, state, {}, {}, {}, [&reset_calls] { ++reset_calls; });
+
+    link.pending.push_back(mth::ApDisconnected{});
+
+    coord.tick();
+
+    REQUIRE(reset_calls == 1);
+}
+
+TEST_CASE("ap_coordinator: on_session_reset does not fire on unrelated events", "[mth][ap_coordinator]")
+{
+    mth::test::FakeApLink link;
+    mth::ApState state;
+    int reset_calls = 0;
+    mth::ApCoordinator coord(link, state, {}, {}, {}, [&reset_calls] { ++reset_calls; });
+
+    link.pending.push_back(mth::ApItemReceived{{777, 0, 2, 1}});
+    link.pending.push_back(mth::ApStatusChanged{"hi"});
+
+    coord.tick();
+
+    REQUIRE(reset_calls == 0);
+}

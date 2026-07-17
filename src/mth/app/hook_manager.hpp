@@ -14,6 +14,7 @@ namespace mth
 struct IGameEvents;
 class GameHooks;
 class RandoBridge;
+class ScoutRegistry;
 class ApState;
 class SessionPolicy;
 class LocationHooks;
@@ -32,7 +33,8 @@ class LevelCapHooks;
 class HookManager
 {
   public:
-    HookManager(IGameEvents &events, RandoBridge &rando, ApState &state, std::function<void()> send_death, std::function<void *()> get_player);
+    HookManager(IGameEvents &events, RandoBridge &rando, ScoutRegistry &scout, ApState &state, std::function<void()> send_death,
+                std::function<void *()> get_player);
     ~HookManager();
 
     HookManager(const HookManager &) = delete;
