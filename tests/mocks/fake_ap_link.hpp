@@ -18,6 +18,7 @@ class FakeApLink final : public mth::IApLink
     int connect_calls = 0;
     std::string last_server, last_slot, last_password;
     std::vector<std::int64_t> sent_locations;
+    std::vector<std::int64_t> scouted_locations;
     int goal_calls = 0;
     int disconnect_calls = 0;
     bool deathlink_enabled = false;
@@ -44,6 +45,11 @@ class FakeApLink final : public mth::IApLink
     {
         for (auto id : ids)
             sent_locations.push_back(id);
+    }
+    void scout_locations(const std::vector<std::int64_t> &ids) override
+    {
+        for (auto id : ids)
+            scouted_locations.push_back(id);
     }
     void set_goal() override
     {

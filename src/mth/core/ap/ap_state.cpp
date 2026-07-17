@@ -140,6 +140,10 @@ void ApState::apply(const ApEvent &ev)
             {
                 // State-free: the ApCoordinator on_broadcast callback forwards it to the banner.
             }
+            else if constexpr (std::is_same_v<T, ApScoutInfo>)
+            {
+                // handled by the coordinator's on_scout callback; ApState holds no scout data
+            }
         },
         ev);
 }

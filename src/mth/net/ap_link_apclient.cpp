@@ -11,6 +11,7 @@
 #include <apclient.hpp>
 #include <apuuid.hpp>
 
+#include "mth/core/ap/ap_ids.hpp" // kLocBase
 #include "mth/core/broadcast.hpp"
 #include "mth/core/stat_cap_state.hpp" // clamp_max_stat_level
 #include "mth/net/deathlink.hpp"
@@ -95,6 +96,27 @@ void ApLink::send_locations(const std::vector<std::int64_t> &location_ids)
             catch (const std::exception &e)
             {
                 pal::logf(pal::LogLevel::Warn, "ApLink: LocationChecks failed: %s", e.what());
+            }
+        });
+}
+
+void ApLink::scout_locations(const std::vector<std::int64_t> &location_ids)
+{
+    enqueue(
+        [this, location_ids]
+        {
+            if (!client_ || location_ids.empty())
+                return;
+            std::list<int64_t> ids(location_ids.begin(), location_ids.end());
+            try
+            {
+                // create_as_hint=2: hint the scouted shop contents for free (no hint-point cost); the
+                // server dedups so re-scouting an in-flight location does not create duplicate hints.
+                client_->LocationScouts(ids, 2);
+            }
+            catch (const std::exception &e)
+            {
+                pal::logf(pal::LogLevel::Warn, "ApLink: LocationScouts failed: %s", e.what());
             }
         });
 }
@@ -382,6 +404,28 @@ void ApLink::setup_handlers(const std::string &slot, const std::string &password
     // connect-time self-heal. Reconciled locally (no re-send); see App::reconcile_server_checked.
     client_->set_location_checked_handler([this](const std::list<std::int64_t> &locations)
                                           { push_event(mth::ApLocationsChecked{std::vector<std::int64_t>(locations.begin(), locations.end())}); });
+
+    // LocationScouts replies: resolve item/player names here (apclientpp resolution is net-thread-only),
+    // then ship plain-data ScoutInfo over the event queue for the ScoutRegistry.
+    client_->set_location_info_handler(
+        [this](const std::list<APClient::NetworkItem> &items)
+        {
+            std::vector<mth::ScoutInfo> out;
+            out.reserve(items.size());
+            const int our_slot = client_->get_player_number();
+            for (const auto &it : items)
+            {
+                mth::ScoutInfo si;
+                si.collection_slot = static_cast<int>(it.location - mth::kLocBase);
+                si.player_game = client_->get_player_game(it.player);
+                si.item_name = client_->get_item_name(it.item, si.player_game);
+                si.player_alias = client_->get_player_alias(it.player);
+                si.item_flags = it.flags;
+                si.is_self = (it.player == our_slot);
+                out.push_back(std::move(si));
+            }
+            push_event(mth::ApScoutInfo{std::move(out)});
+        });
 
     client_->set_bounced_handler(
         [this](const nlohmann::json &cmd)
