@@ -81,3 +81,11 @@ TEST_CASE("parse_command recognizes ability with name and on/off", "[dev_command
     REQUIRE(cmd.args == std::vector<std::string>{"burrow", "on"});
     REQUIRE(mth::parse_command("ABILITY swim off").kind == mth::CommandKind::Ability);
 }
+
+TEST_CASE("parse_command recognizes deathlink with on/off", "[dev_commands]")
+{
+    const auto cmd = mth::parse_command("deathlink off");
+    REQUIRE(cmd.kind == mth::CommandKind::Deathlink);
+    REQUIRE(cmd.args == std::vector<std::string>{"off"});
+    REQUIRE(mth::parse_command("DEATHLINK on").kind == mth::CommandKind::Deathlink);
+}
