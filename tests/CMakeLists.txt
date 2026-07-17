@@ -36,6 +36,7 @@ add_executable(mthap_unit_tests
     unit/upgrade_state_test.cpp
     unit/wallet_cap_state_test.cpp
     unit/shop_flatten_test.cpp
+    unit/scout_registry_test.cpp
     unit/session_policy_test.cpp
     unit/area_reporter_test.cpp
     unit/ability_gate_test.cpp
