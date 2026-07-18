@@ -22,7 +22,8 @@ enum class CommandKind
     Ability,      // args: [name, on|off]
     Connect,      // args: [server, slot, (optional) password]
     Disconnect,
-    Deathlink // args: [on|off]
+    Deathlink, // args: [on|off]
+    LitLamps   // args: [lamp indices 0..5 | off] (force Ossex fountain lamps lit; offline test)
 };
 
 struct ParsedCommand

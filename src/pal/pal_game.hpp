@@ -177,4 +177,12 @@ using PawnShopBlockFn = std::function<bool()>;
 bool install_pawn_shop_hook(PawnShopBlockFn disable);
 void remove_pawn_shop_hook();
 
+// ---- Ossex fountain lamp pre-light. Symbol/offset divergence lives in the PAL impl. ----
+
+// Returns the current "force lit" lamp bitmask (bit i => force lamp index i lit). Called per bulb
+// per frame from the HubFountain::Bulb::Update detour.
+using FountainLampFn = std::function<std::uint32_t()>;
+bool install_fountain_lamp_hook(FountainLampFn lit_mask);
+void remove_fountain_lamp_hook();
+
 } // namespace pal

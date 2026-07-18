@@ -44,6 +44,8 @@ CommandKind verb_to_kind(const std::string &lower)
         return CommandKind::Disconnect;
     if (lower == "deathlink")
         return CommandKind::Deathlink;
+    if (lower == "litlamps")
+        return CommandKind::LitLamps;
     return CommandKind::Unknown;
 }
 

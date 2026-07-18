@@ -149,4 +149,7 @@ inline constexpr const char *train_authority_on_npc_event = "_ZN14TrainAuthority
 // shared NPCBehavior_*), so suppressing it to disable Pawnty cannot affect any other shop.
 inline constexpr const char *pawn_shop_on_npc_event = "_ZN11PawnShopNPC10OnNPCEventEjP17InteractEventInfo";
 
+// HubFountain::Bulb::Update(float,bool): per-lamp visual; detoured to force lit (bulb index at this+0x10)
+inline constexpr const char *hub_fountain_bulb_update = "_ZN11HubFountain4Bulb6UpdateEfb";
+
 } // namespace mth::sym

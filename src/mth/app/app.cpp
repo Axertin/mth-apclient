@@ -381,4 +381,10 @@ void App::enable_deathlink(bool on)
     net_->link().enable_deathlink(on);
     pal::logf(pal::LogLevel::Info, "console: deathlink %s", on ? "enabled" : "disabled");
 }
+
+void App::set_lit_lamps(std::uint32_t lamp_mask)
+{
+    hooks_->set_lamp_console_override(lamp_mask);
+    pal::logf(pal::LogLevel::Info, "console: fountain lamp override mask=0x%x", lamp_mask);
+}
 } // namespace mth

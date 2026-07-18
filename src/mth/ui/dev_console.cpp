@@ -9,6 +9,7 @@
 #include "mth/core/command_sink.hpp"
 #include "mth/core/data/ability_ids.hpp"
 #include "mth/core/dev_commands.hpp"
+#include "mth/core/fountain_lamps.hpp"
 #include "mth_version.h"
 #include "pal/pal_log.hpp"
 
@@ -135,6 +136,7 @@ void DevConsole::run_input()
         println("          caps <attack> <defense> <sidearm>  (per-stat level cap-ups; 0 = frozen)");
         println("          ability <name> on|off  (names: burrow swim rope puff spring carry train)");
         println("          deathlink on|off  (enable/disable deathlink, must also be enabled in yaml)");
+        println("          litlamps <0..5 ...>|off  (force Ossex fountain lamps lit; offline test)");
         break;
     case CommandKind::Clear:
         log_.clear();
@@ -241,6 +243,36 @@ void DevConsole::run_input()
             println("deathlink " + std::string(on ? "enabled" : "disabled"));
         }
         break;
+    case CommandKind::LitLamps:
+    {
+        std::vector<int> indices;
+        for (const auto &a : cmd.args)
+        {
+            if (a == "off" || a == "clear")
+                continue; // clears (empty index list -> mask 0)
+            try
+            {
+                indices.push_back(std::stoi(a));
+            }
+            catch (...)
+            {
+                println("litlamps: ignoring non-numeric arg '" + a + "'");
+            }
+        }
+        const std::uint32_t mask = mth::lit_mask_from_indices(indices);
+        sink_.set_lit_lamps(mask);
+        if (mask == 0)
+            println("litlamps cleared");
+        else
+        {
+            std::string lit;
+            for (int i = 0; i < mth::kGeneratorLampCount; ++i)
+                if ((mask >> static_cast<unsigned>(i)) & 1u)
+                    lit += (lit.empty() ? "" : ",") + std::to_string(i);
+            println("litlamps lit: " + lit);
+        }
+        break;
+    }
     case CommandKind::Unknown:
         println("unknown command: " + cmd.verb + " (try 'help')");
         break;

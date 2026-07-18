@@ -79,4 +79,7 @@ inline constexpr std::ptrdiff_t kPlayerDeathGuardOff = 0x1380; // once-per-death
 // Player (ability gating).
 inline constexpr std::ptrdiff_t kPlayerLowRoofFlagOff = 0x12f0; // carry-disabled "low roof" pose flag (#37)
 
+// HubFountain::Bulb (Ossex fountain lamp pre-light).
+inline constexpr std::ptrdiff_t kBulbIndexOff = 0x10; // HubFountain::Bulb+0x10: u32 lamp index (0..6)
+
 } // namespace mth::layout

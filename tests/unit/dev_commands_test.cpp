@@ -89,3 +89,13 @@ TEST_CASE("parse_command recognizes deathlink with on/off", "[dev_commands]")
     REQUIRE(cmd.args == std::vector<std::string>{"off"});
     REQUIRE(mth::parse_command("DEATHLINK on").kind == mth::CommandKind::Deathlink);
 }
+
+TEST_CASE("parse_command recognizes litlamps with index args", "[dev_commands]")
+{
+    const auto cmd = mth::parse_command("litlamps 0 4 5");
+    REQUIRE(cmd.kind == mth::CommandKind::LitLamps);
+    REQUIRE(cmd.args == std::vector<std::string>{"0", "4", "5"});
+    REQUIRE(mth::parse_command("LITLAMPS off").kind == mth::CommandKind::LitLamps);
+    REQUIRE(mth::parse_command("litlamps").kind == mth::CommandKind::LitLamps);
+    REQUIRE(mth::parse_command("litlamps").args.empty());
+}

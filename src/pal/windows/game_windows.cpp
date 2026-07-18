@@ -7,7 +7,9 @@
 #include <utility>
 
 #include "mth/core/ap/ap_ids.hpp"
+#include "mth/core/data/game_layout.hpp"
 #include "mth/core/data/game_symbols.hpp"
+#include "mth/core/fountain_lamps.hpp"
 #include "mth/core/shop_flatten.hpp"
 #include "mth/core/sig_scan.hpp"
 #include "mth/core/stat_cap_state.hpp"
@@ -342,6 +344,24 @@ void repl_pawn_npc(void *self, unsigned event, void *info)
     if (g_orig_pawn_npc)
         g_orig_pawn_npc(self, event, info);
 }
+
+// HubFountain::Bulb::Update(float dt, bool lit): forces lit=true for AP-granted generator lamps.
+// Prototype order (self, dt, lit) matches the mangled Update(float,bool) on both ABIs; never reorder.
+pal::FountainLampFn g_fountain_mask_fn;
+pal::HookId g_fountain_hook = pal::kInvalidHookId;
+void (*g_orig_bulb_update)(void *, float, bool) = nullptr;
+
+void repl_bulb_update(void *self, float dt, bool lit)
+{
+    if (g_fountain_mask_fn && self != nullptr)
+    {
+        const std::uint32_t idx = *reinterpret_cast<std::uint32_t *>(static_cast<char *>(self) + mth::layout::kBulbIndexOff);
+        if (idx < static_cast<std::uint32_t>(mth::kGeneratorLampCount) && ((g_fountain_mask_fn() >> idx) & 1u))
+            lit = true; // force this generator lamp lit; never writes SaveSlot+0x290
+    }
+    if (g_orig_bulb_update)
+        g_orig_bulb_update(self, dt, lit);
+}
 } // namespace
 
 namespace pal
@@ -453,6 +473,36 @@ void remove_pawn_shop_hook()
         hook_engine().remove_hook(g_pawn_hook);
     g_pawn_hook = kInvalidHookId;
     g_pawn_disable = nullptr;
+}
+
+bool install_fountain_lamp_hook(FountainLampFn lit_mask)
+{
+    g_fountain_mask_fn = std::move(lit_mask);
+    const std::uintptr_t addr = resolve_game_symbol(mth::sym::hub_fountain_bulb_update);
+    if (addr == 0)
+    {
+        logf(LogLevel::Warn, "fountain: HubFountain::Bulb::Update not resolved; lamp pre-light off");
+        g_fountain_mask_fn = nullptr;
+        return false;
+    }
+    g_fountain_hook =
+        hook_engine().install_hook(reinterpret_cast<void *>(addr), reinterpret_cast<void *>(&repl_bulb_update), reinterpret_cast<void **>(&g_orig_bulb_update));
+    if (g_fountain_hook == kInvalidHookId)
+    {
+        logf(LogLevel::Error, "fountain: failed to hook HubFountain::Bulb::Update");
+        g_fountain_mask_fn = nullptr;
+        return false;
+    }
+    logf(LogLevel::Info, "fountain: hooked HubFountain::Bulb::Update (id=%llu)", static_cast<unsigned long long>(g_fountain_hook));
+    return true;
+}
+
+void remove_fountain_lamp_hook()
+{
+    if (g_fountain_hook != kInvalidHookId)
+        hook_engine().remove_hook(g_fountain_hook);
+    g_fountain_hook = kInvalidHookId;
+    g_fountain_mask_fn = nullptr;
 }
 
 bool install_shop_stock_hook(ShopLevelFn level_state)

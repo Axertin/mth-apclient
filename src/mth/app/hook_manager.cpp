@@ -13,6 +13,7 @@
 #include "mth/features/boss_hooks.hpp"
 #include "mth/features/chest_hooks.hpp"
 #include "mth/features/death_hooks.hpp"
+#include "mth/features/fountain_lamp_hooks.hpp"
 #include "mth/features/goal_tracker.hpp"
 #include "mth/features/levelcap_hooks.hpp"
 #include "mth/features/location_hooks.hpp"
@@ -38,6 +39,7 @@ HookManager::HookManager(IGameEvents &events, RandoBridge &rando, ScoutRegistry 
     pawn_shop_hooks_ = std::make_unique<PawnShopHooks>([&state] { return state.phase() == ConnectionPhase::Connected; });
     modifier_hooks_ = std::make_unique<ModifierHooks>(ModifierRequest{});
     level_cap_hooks_ = std::make_unique<LevelCapHooks>();
+    fountain_lamp_hooks_ = std::make_unique<FountainLampHooks>();
 }
 
 HookManager::~HookManager()
@@ -51,6 +53,7 @@ HookManager::~HookManager()
     death_hooks_.reset();
     modifier_hooks_.reset();
     level_cap_hooks_.reset();
+    fountain_lamp_hooks_.reset();
     goal_tracker_.reset();
     location_hooks_.reset();
     boss_hooks_.reset();
@@ -75,6 +78,9 @@ void HookManager::tick(ApState &state, SessionPolicy &policy, int save_game_slot
     location_hooks_->set_kear_rando(state.kear_rando()); // slot_data flag: neutralize the world-kear key grant
     location_hooks_->reconcile_kear_keys();              // re-cancel AP kears that a reload restored as usable keys
     location_hooks_->enforce_native_bits();              // native collected-bit for server-collected durable-bit chests (Collect/coop)
+
+    // slot_data lamps (0 when not authed) OR'd with the sticky console override (works offline).
+    fountain_lamp_hooks_->set_lit_mask((authed ? state.lit_generator_lamp_mask() : 0) | lamp_console_override_.load(std::memory_order_relaxed));
 
     if (authed)
         goal_tracker_->evaluate(state); // poll SaveSlot; fires the AP goal when the slot_data condition is met
@@ -167,6 +173,11 @@ void HookManager::set_stat_caps(int attack, int defense, int sidearm)
 void HookManager::set_ability_randomized(Ability a, bool on)
 {
     ability_hooks_->set_randomized(a, on);
+}
+
+void HookManager::set_lamp_console_override(std::uint32_t mask)
+{
+    lamp_console_override_.store(mask, std::memory_order_relaxed); // render thread; applied next game-thread tick
 }
 
 void HookManager::append_status_lines(std::vector<std::string> &out) const
