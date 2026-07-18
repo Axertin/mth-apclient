@@ -843,11 +843,12 @@ void remove_modifier_hooks()
 
 } // namespace pal
 
-// ---- per-stat level cap (Windows). The cap is inlined into the menu's state machine (no cap fn to
-// detour like Linux) and the standalone UpdateState is dead code, so we wrap the per-frame entry
-// LevelUpMenu::Update and, before it runs the inlined buy-gate, overwrite the stored level of every
-// at-cap stat so the game's own cap gate trips (native "max level", no buy, no spend); restored after.
-// Safe: the only stat-array writer is the purchase-commit, which a maxed stat never reaches.
+// ---- per-stat level cap (Windows). The cap is inlined into the menu's state machine (no cap fn to detour
+// like Linux), so we wrap LevelUpMenu::Update and, before its inlined buy-gate runs, fake the cursor-
+// selected at-cap stat's stored level to trip the game's own cap gate (native "max level", no buy, no
+// spend); restored after. Only the selected stat is faked: the commit handler re-applies the defense level
+// (SaveSlot+0x178) to combat and the bank/level rows commit without the buy-gate, so faking an unselected
+// stat would leave combat defense pinned to the sentinel for the screen.
 namespace
 {
 constexpr std::ptrdiff_t kSaveStatArrOff = 0x174; // *(saveSlot + 0x174 + stat*4) = int stat level
@@ -860,6 +861,8 @@ constexpr int kMaxedLevel = 1000;                 // present an at-cap stat as t
 // a fake level.
 constexpr std::ptrdiff_t kLevelUpMenuStateOff = 0x64;
 constexpr int kLevelUpMenuInteractiveState = 3;
+// menu cursor row (int): 0..2 real stats, 3/4 level/bank. Same offset as Linux; the fake is scoped to it.
+constexpr std::ptrdiff_t kLevelUpMenuStatOff = 0xb8;
 
 std::uintptr_t g_lc_save_manager = 0; // g_saveManager; *(g_lc_save_manager) = the active SaveSlot the menu reads
 std::uintptr_t g_lc_addr_update = 0;
@@ -877,26 +880,23 @@ void *lc_active_slot()
     return pal::pointer_looks_valid(slot) ? slot : nullptr;
 }
 
-// LevelUpMenu::Update wrapper. Before the original runs the inlined buy-gate, overwrite the stored level
-// of every real stat that has reached our cap so the inlined cap gate sees it as maxed; restore after.
-// provide(stat, sentinel) returns the granted count while enforcing and the sentinel otherwise, so
-// vanilla play never inflates (level < sentinel) and is untouched.
+// LevelUpMenu::Update wrapper: fake the cursor-selected at-cap stat's level so the inlined cap gate reads it
+// as maxed, then restore. provide(stat, sentinel) returns the granted count while enforcing and the sentinel
+// otherwise, so vanilla play (level < sentinel) is untouched.
 void repl_lvlup_update(void *self, void *ctx)
 {
     void *slot = lc_active_slot();
     int saved[3] = {-1, -1, -1};
-    // Only present capped stats as maxed while the menu is in its interactive selection state. Faking during
-    // the entry state (0) would trip the open gate (menu never opens -> the uncapped bank row is unreachable
-    // and the vanilla "level-up available" pulse never resolves); commit (4)/reopen (6) must see the real
-    // level so the stat recompute is never fed a fake value.
+    // Interactive state only: faking at the entry state (0) would trip the open gate (menu never opens).
     const int menu_state = self != nullptr ? *reinterpret_cast<int *>(static_cast<char *>(self) + kLevelUpMenuStateOff) : -1;
+    const int cursor_stat = self != nullptr ? *reinterpret_cast<int *>(static_cast<char *>(self) + kLevelUpMenuStatOff) : -1;
     const bool interactive = menu_state == kLevelUpMenuInteractiveState;
     if (slot != nullptr && g_lc_cap_fn)
     {
         for (int s = 0; s <= kLvlMaxRealStat; ++s)
         {
             int *lvl = reinterpret_cast<int *>(static_cast<char *>(slot) + kSaveStatArrOff + static_cast<std::ptrdiff_t>(s) * 4);
-            if (mth::boneup_fake_capped_stat(interactive, *lvl, g_lc_cap_fn(s, 0x7fffffff)))
+            if (mth::boneup_fake_capped_stat(interactive, s == cursor_stat, *lvl, g_lc_cap_fn(s, 0x7fffffff)))
             {
                 saved[s] = *lvl;
                 *lvl = kMaxedLevel;

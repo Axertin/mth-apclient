@@ -20,13 +20,14 @@ class ApState;
     return (stat >= 0 && stat < kStatCount) ? max_stat_level : vanilla_cap;
 }
 
-// Windows bone-up gate: present a real stat as maxed to the inlined LevelUpMenu buy-gate ONLY while the menu
-// is in its interactive selection state AND the stat has reached its cap. Gating on the interactive state
-// keeps the entry gate (hence menu-open, the uncapped bank row, and the vanilla "level-up available" pulse)
-// reading the real level, so the menu still opens when every stat is capped. Pure so it is unit-testable.
-[[nodiscard]] constexpr bool boneup_fake_capped_stat(bool menu_interactive, int real_level, int cap) noexcept
+// Windows bone-up gate: present the cursor-selected at-cap real stat as maxed to the inlined LevelUpMenu
+// buy-gate, only in the interactive state. Interactive-only keeps the entry gate on the real level so the
+// menu still opens when every stat is capped. Selected-only is required: the commit handler re-applies the
+// defense level (SaveSlot+0x178) to combat and the bank/level rows commit without the buy-gate, so faking
+// an unselected stat pins combat defense to the sentinel. Pure so it is unit-testable.
+[[nodiscard]] constexpr bool boneup_fake_capped_stat(bool menu_interactive, bool stat_is_selected, int real_level, int cap) noexcept
 {
-    return menu_interactive && real_level >= cap;
+    return menu_interactive && stat_is_selected && real_level >= cap;
 }
 
 // twin: mth/features/levelcap_hooks.hpp enforces this in-game.

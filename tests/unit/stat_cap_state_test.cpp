@@ -133,17 +133,20 @@ TEST_CASE("stat_cap_ceiling: real stats use the slot_data max, others pass vanil
     REQUIRE(mth::stat_cap_ceiling(-1, 30, 14) == 14);
 }
 
-TEST_CASE("boneup_fake_capped_stat gates the fake to the interactive state and the cap", "[boneup]")
+TEST_CASE("boneup_fake_capped_stat gates the fake to the interactive state, the selected stat, and the cap", "[boneup]")
 {
-    // Outside the interactive state: never present as maxed, even at/over cap (keeps the entry gate,
-    // menu-open, banking, and the #64 pulse on the real level).
-    REQUIRE_FALSE(mth::boneup_fake_capped_stat(false, 5, 5));
-    REQUIRE_FALSE(mth::boneup_fake_capped_stat(false, 9, 3));
+    // Not interactive: never maxed, even selected at/over cap.
+    REQUIRE_FALSE(mth::boneup_fake_capped_stat(false, true, 5, 5));
+    REQUIRE_FALSE(mth::boneup_fake_capped_stat(false, true, 9, 3));
 
-    // Interactive AND at/over cap: present as maxed.
-    REQUIRE(mth::boneup_fake_capped_stat(true, 5, 5)); // real == cap
-    REQUIRE(mth::boneup_fake_capped_stat(true, 6, 5)); // real >  cap
+    // Interactive, selected, at/over cap: maxed.
+    REQUIRE(mth::boneup_fake_capped_stat(true, true, 5, 5));
+    REQUIRE(mth::boneup_fake_capped_stat(true, true, 6, 5));
 
-    // Interactive but still below cap: leave real (stat is genuinely buyable).
-    REQUIRE_FALSE(mth::boneup_fake_capped_stat(true, 4, 5));
+    // Not the selected stat: leave real (else the sentinel leaks into the commit's defense re-apply).
+    REQUIRE_FALSE(mth::boneup_fake_capped_stat(true, false, 5, 5));
+    REQUIRE_FALSE(mth::boneup_fake_capped_stat(true, false, 9, 3));
+
+    // Selected but below cap: leave real (genuinely buyable).
+    REQUIRE_FALSE(mth::boneup_fake_capped_stat(true, true, 4, 5));
 }
