@@ -16,6 +16,14 @@ struct ConnectionStatus
     std::string detail; // error/status text for display
 };
 
+// Last connection target that authenticated successfully; empty if there is none.
+// Password is never persisted.
+struct SavedLogin
+{
+    std::string server;
+    std::string slot;
+};
+
 // Console effect interface. Implemented by App; called on the render thread; must not block.
 class ICommandSink
 {
@@ -25,6 +33,7 @@ class ICommandSink
     virtual void connect(const std::string &server, const std::string &slot, const std::string &password) = 0;
     virtual void disconnect() = 0;
     [[nodiscard]] virtual ConnectionStatus connection_status() const = 0;
+    [[nodiscard]] virtual SavedLogin saved_login() const = 0;
 
     [[nodiscard]] virtual std::vector<std::string> status_lines() const = 0;
     [[nodiscard]] virtual std::vector<std::string> item_lines() const = 0;

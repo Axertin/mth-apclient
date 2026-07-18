@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <vector>
@@ -11,6 +12,7 @@
 #include "mth/core/command_sink.hpp"
 #include "mth/core/connect_resend_gate.hpp"
 #include "mth/core/data/ability_ids.hpp"
+#include "mth/core/login_prefs.hpp"
 #include "mth/core/scout_registry.hpp"
 #include "mth/core/session_policy.hpp"
 #include "mth/core/upgrade_state.hpp"
@@ -68,6 +70,7 @@ class App : public ICommandSink
     void connect(const std::string &server, const std::string &slot, const std::string &password) override;
     void disconnect() override;
     [[nodiscard]] ConnectionStatus connection_status() const override;
+    [[nodiscard]] SavedLogin saved_login() const override;
     [[nodiscard]] std::vector<std::string> status_lines() const override;
     [[nodiscard]] std::vector<std::string> item_lines() const override;
     void give_item(std::int64_t ap_item_id) override;
@@ -80,7 +83,8 @@ class App : public ICommandSink
     void set_lit_lamps(std::uint32_t lamp_mask) override;
 
   private:
-    void ensure_inbound_ready(); // lazily builds save_state_ + the grant pipeline's inbound granter once connected
+    void remember_successful_login(); // persist the attempted target once the server authenticates
+    void ensure_inbound_ready();      // lazily builds save_state_ + the grant pipeline's inbound granter once connected
     // Drain ApState's server-reported checked locations into the save-state checked set (Collect / coop),
     // once inbound is ready. Never re-sends; persists once per pass. Called each drive_tick.
     void reconcile_server_checked();
@@ -107,6 +111,13 @@ class App : public ICommandSink
     UpgradeState upgrades_;
     WalletCapState wallet_;
     ConnectResendGate resend_gate_; // fires flush() once per (re)connection
+    // Last-used connect target, auto-filled into the login window next launch. connect() runs on the
+    // overlay render thread and only stashes what was attempted; the commit happens on the game thread
+    // once the server authenticates, so the mutex covers both the prefs and the pending pair.
+    mutable std::mutex login_mutex_;
+    LoginPrefs login_prefs_;
+    std::string pending_server_;
+    std::string pending_slot_;
     mth::ScoutRegistry scout_registry_;
 #ifdef MTHAP_HAS_OVERLAY
     std::unique_ptr<pal::IOverlay> overlay_;
