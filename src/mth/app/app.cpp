@@ -67,7 +67,7 @@ class AppTickSink final : public mth::IGameEvents
 namespace mth
 {
 
-App::App()
+App::App() : login_prefs_(pal::log_dir() / "login.prefs")
 {
     pal::logf(pal::LogLevel::Info, "mth-apclient %.*s loaded", static_cast<int>(version::string.size()), version::string.data());
 
@@ -261,6 +261,7 @@ void App::ensure_inbound_ready()
 {
     if (grants_->inbound_ready() || !state_.authenticated())
         return;
+    remember_successful_login(); // first tick after authentication: this target worked
     const std::string key = "ap_" + state_.seed() + "_" + std::to_string(state_.player_slot()) + ".state";
     save_state_.emplace(pal::log_dir() / key);
     grants_->build_inbound(state_, *save_state_, [this] { return hooks_->credit_kear_key(); }); // vanilla-kear key grant (#130)
@@ -285,7 +286,32 @@ void App::reconcile_server_checked()
 
 void App::connect(const std::string &server, const std::string &slot, const std::string &password)
 {
+    {
+        std::lock_guard<std::mutex> lk(login_mutex_);
+        pending_server_ = server;
+        pending_slot_ = slot;
+    }
     net_->link().connect(server, slot, password);
+}
+
+SavedLogin App::saved_login() const
+{
+    std::lock_guard<std::mutex> lk(login_mutex_);
+    return SavedLogin{login_prefs_.server(), login_prefs_.slot()};
+}
+
+// Commit the attempted target only once the server has authenticated, so a typo or a dead
+// host never overwrites a known-good one.
+void App::remember_successful_login()
+{
+    std::lock_guard<std::mutex> lk(login_mutex_);
+    if (pending_server_.empty())
+        return;
+    if (pending_server_ == login_prefs_.server() && pending_slot_ == login_prefs_.slot())
+        return;
+    login_prefs_.set(pending_server_, pending_slot_);
+    login_prefs_.save();
+    pal::logf(pal::LogLevel::Info, "login: remembered %s / %s", pending_server_.c_str(), pending_slot_.c_str());
 }
 
 void App::disconnect()

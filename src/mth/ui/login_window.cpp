@@ -1,5 +1,7 @@
 #include "mth/ui/login_window.hpp"
 
+#include <cstdio>
+
 #include <imgui.h>
 
 #include "mth/core/ap/ap_state.hpp" // ConnectionPhase
@@ -12,10 +14,27 @@ LoginWindow::LoginWindow(ICommandSink &sink) : sink_(sink)
 {
 }
 
+// Deferred rather than done in the ctor: the overlay is built during App construction, before the
+// sink can answer. Only fills empty fields, so it can never clobber what the player typed.
+void LoginWindow::prefill_once()
+{
+    if (prefilled_)
+        return;
+    prefilled_ = true;
+
+    const SavedLogin saved = sink_.saved_login();
+    if (server_[0] == '\0')
+        std::snprintf(server_.data(), server_.size(), "%s", saved.server.c_str());
+    if (slot_[0] == '\0')
+        std::snprintf(slot_.data(), slot_.size(), "%s", saved.slot.c_str());
+}
+
 void LoginWindow::draw(bool login_open)
 {
     if (!login_open)
         return;
+
+    prefill_once();
 
     ImGui::SetNextWindowSize(ImVec2(380, 0), ImGuiCond_FirstUseEver);
     if (!ImGui::Begin("Archipelago Connection"))
