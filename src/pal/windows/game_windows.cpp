@@ -1167,6 +1167,9 @@ void (*g_orig_spring)(void *, void *) = nullptr;
 unsigned long (*g_orig_pickup)(void *, bool, bool, bool) = nullptr;
 void (*g_orig_train_npc)(void *, unsigned, void *) = nullptr;
 void (*g_orig_burrow_jump)(void *) = nullptr; // #56
+// True only across Mina::OnBurrowJump, whose emerge auto-grabs via PickUpAnyNearbyCarryableObject: without
+// it, repl_pickup would set the duck-pose on every carry-disabled emerge (a spurious hop).
+bool g_in_burrow_emerge = false;
 
 // #56 helpers (called, not hooked); see game_linux.cpp. The MSVC x64 ABI differs from Linux:
 struct ycAABB
@@ -1251,13 +1254,14 @@ void repl_spring(void *self, void *contact_pair)
         g_orig_spring(self, contact_pair);
 }
 
-// Blocked: set the low-roof pose flag so the engine's ducked-under-roof rendering presents instead
-// of popping up.
+// Blocked: set the low-roof pose flag so the engine presents the ducked-under-roof render instead of popping
+// up; skip it during a burrow emerge (g_in_burrow_emerge), where no roof is overhead.
 unsigned long repl_pickup(void *self, bool a, bool b, bool c)
 {
     if (self != nullptr && ability_blocked(kAbCarry))
     {
-        *reinterpret_cast<char *>(static_cast<char *>(self) + kPlayerLowRoofFlagOff) = 1;
+        if (!g_in_burrow_emerge)
+            *reinterpret_cast<char *>(static_cast<char *>(self) + kPlayerLowRoofFlagOff) = 1;
         return 0;
     }
     return g_orig_pickup ? g_orig_pickup(self, a, b, c) : 0;
@@ -1303,7 +1307,11 @@ void repl_burrow_jump(void *self)
         return;
     }
     if (g_orig_burrow_jump)
+    {
+        g_in_burrow_emerge = true; // keep repl_pickup's duck-pose out of the emerge auto-grab
         g_orig_burrow_jump(self);
+        g_in_burrow_emerge = false;
+    }
 }
 
 // TrainAuthority::OnNPCEvent case 0x15 picks a destination by ticket itemType. Forcing the selected
