@@ -1,136 +1,56 @@
 # mth-apclient
 
-An [Archipelago](https://archipelago.gg/) randomizer client for **Mina the Hollower**, delivered
-as an in-process mod that injects into the running game on Linux and Windows.
+An [Archipelago](https://archipelago.gg/) randomizer client for **Mina the Hollower**,
+delivered as an in-process mod that loads into the running game on Linux and Windows.
 
-This project is **not affiliated with or endorsed by** Yacht Club Games. Efforts are made to not
-interfere with saves more than necessary, but use at your own risk.
+This project is **not affiliated with or endorsed by** Yacht Club Games. Efforts are made
+to not interfere with saves more than necessary, but use at your own risk.
 
-## Known Issues
+## Install & run
 
-- Sometimes, if you die (or more likely, receive a deathlink) while in the process of sending a location check, you will be given the vanilla item and the check will not send.
-- Make sure to look at the [reported bugs](https://github.com/Axertin/mth-apclient/issues?q=is%3Aissue%20state%3Aopen%20label%3Abug)
+You need Mina the Hollower on Steam, switched to the modding beta, plus the mod files for
+your platform. Build them yourself (see [CONTRIBUTING.md](CONTRIBUTING.md)) or download a
+release archive.
 
-## Features
+1. **Opt into the modding beta.** In Steam, right-click the game -> **Properties** ->
+   **Betas**, and select the **experimental-modding** branch.
 
-### Locations
+2. **Set the launch options** (Properties -> General):
 
-- Chests
-- Trinket Boxes
-- Kears
-- Legovitch's Arms
-- Trinket Bazaar
-- Panino's Trinket Stand
-- The Emporium
-- Kear Institute Kears
-- Knitts's Atelier
-- Poppit's Shops
-- Belvedere's Shop
-- Pinky's Parlor
-- Swamp Shack
-- Madd House
-- Crow Town Shop
-- Tent Vendor
-- Rupert
-- Tupert
-- Health Upgrade Roses
-- Weapons (Except the starting weapon chest in the ship's hold)
-- Starting Item Set
+   ```
+   -mod -mod-allow-code
+   ```
 
-### Items
+3. **Drop in the mod files.** Copy the release's `apclient/` folder into the game's `mods`
+   directory, which lives under its **save** directory (the SDL prefs path), not the install
+   folder:
 
-- Abilities (Burrow, Carry, Swim, Climb, Spring, Bounce)
-- Weapons (Progressive upgrades)
-- Trinkets
-- Trinket Bags
-- Health Upgrades
-- Spark Upgrades
-- Magic (Sidearm) Upgrades
-- Vial Upgrades
-- Underlab Upgrades
-- Kear Locks (Unlock a specific lock with each item)
-- Bone-Up Stat Caps
-- Bonestone (Of various quantities)
-- Bones (Of various quantities)
-- Magic Refills
-- Health Refills
-- Plasma Refills
-- Vial Refills
+   - **Linux**: `~/.local/share/Yacht Club Games/Mina the Hollower/mods/apclient/`
+     (contains `mod.so` and `mod.yc`)
+   - **Windows**: `%APPDATA%\Yacht Club Games\Mina the Hollower\mods\apclient\`
+     (contains `mod.dll` and `mod.yc`)
 
-### Goals
+4. **Launch and connect.** Start the game through Steam. When the mod loads, a login window
+   appears. Enter your server, slot, and password, then connect. Toggle the window any time
+   with **F2**. The **F1** dev console offers the same via `connect <server> <slot> [pw]`.
 
-- N Generators Completed (configurable)
-- Roll Credits
+The full walkthrough, the dev-console commands, the complete feature list, and troubleshooting
+are in the **[player guide](docs/user-guide.md)**. If the mod does not load or a connection
+fails, start with [Troubleshooting](docs/user-guide.md#troubleshooting).
 
-### Other Features
+## What it does
 
-- Deathlink (currently all deaths, will only be sparkless in the future)
+The mod hooks the game's item/location system and bridges it to an Archipelago server:
+locations (chests, trinket boxes, kears, shops, health roses, weapons, and more) report as
+checks, and received items are granted in-game. It supports configurable goals and deathlink.
+See the [player guide](docs/user-guide.md#features) for the full feature list.
 
 ## How it works
 
-The mod is a native game mod that loads into the game process via Mina the Hollower's built-in
-mod loader and hooks game functions:
-
-- **Linux**: `mod.so`, loaded by the game's native mod loader.
-- **Windows**: `mod.dll`, loaded by the game's native mod loader.
-
-Both platforms also require `mod.yc` (the mod manifest) alongside the library.
-
-See [docs/architecture.md](docs/architecture.md) for the full design.
-
-## Installing & running
-
-You need the files for your platform - build them yourself (see [CONTRIBUTING.md](CONTRIBUTING.md))
-or download a release artifact. The mod requires Mina the Hollower on the **experimental-modding** (password `modsmodsmods`)
-with the `mod-allow-code` launch option set (this enables loading a mod's code library).
-
-### Linux
-
-Extract the release `.zip` (containing `apclient/mod.so` and `apclient/mod.yc`) into the game's mods
-folder, which lives under its save directory (the SDL prefix path), not the install dir:
-
-```
-~/.local/share/Yacht Club Games/Mina the Hollower/mods/
-```
-
-Set Steam launch options for Mina the Hollower:
-
-```
--mod -mod-allow-code
-```
-
-The game's mod loader writes `~/.local/share/Yacht Club Games/Mina the Hollower/mod.log` each
-run (whether a mod loaded, version-check or load failures) - check it first if the mod doesn't
-appear. The mod's own runtime log is `~/.local/share/mth-apclient/mthap_*.log` (one file per run).
-
-### Windows
-
-Extract the release `.zip` (containing `apclient/mod.so` and `apclient/mod.yc`) into:
-
-```
-%APPDATA%\Yacht Club Games\Mina the Hollower\mods\
-```
-
-Set Steam launch options for Mina the Hollower:
-
-```
--mod -mod-allow-code
-```
-
-The game's mod loader writes `%APPDATA%\Yacht Club Games\Mina the Hollower\mod.log` each run;
-the mod's own runtime log is `%LOCALAPPDATA%\mth-apclient\mthap_*.log`.
-
-## Connecting to a server
-
-An ImGui overlay window should appear allowing connection and disconnection to an AP server. If it
-doesn't appear or you want to hide it once connected, it can be toggled by pressing `F2`.
-
-### Other settings
-
-| Environment Variable | Meaning                                                       |
-| -------------------- | ------------------------------------------------------------- |
-| `MTHAP_CONSOLE_KEY`  | console toggle key (`F1`..`F12` or `BACKQUOTE`); default `F1` |
-| `MTHAP_AP_CERT`      | path to a CA certificate bundle for TLS (`wss://`) servers    |
+The mod is a native game mod loaded by Mina the Hollower's built-in mod loader. The library is
+`mod.so` on Linux and `mod.dll` on Windows, and both need `mod.yc` alongside. It hooks a handful
+of game functions and bridges them to Archipelago. See [docs/architecture.md](docs/architecture.md)
+for the full design and [docs/](docs/) for all documentation.
 
 ## Building
 
@@ -152,8 +72,7 @@ cmake --preset clang-cl-x64-debug
 cmake --build --preset clang-cl-x64-debug
 ```
 
-Full instructions are in
-[CONTRIBUTING.md](CONTRIBUTING.md).
+Full instructions are in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 

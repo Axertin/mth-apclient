@@ -7,8 +7,8 @@ conventions the project follows.
 
 - CMake >= 3.25, Ninja, and a C++23 compiler (the presets use `clang`/`clang++` (`clang-cl` / `clang++-cl` on Windows)).
 - Dependencies are pulled automatically:
-  - **vcpkg** - the only git submodule (`external/vcpkg`); provides the networking deps (asio,
-    OpenSSL, zlib, nlohmann-json) and the overlay deps (Vulkan headers, SDL2).
+  - **vcpkg**: the only git submodule (`external/vcpkg`). It provides the networking deps
+    (asio, OpenSSL, zlib, nlohmann-json) and the overlay deps (Vulkan headers, SDL2).
   - **Frida-Gum** (Linux hook backend), **MinHook** (Windows hook backend), **Catch2** (tests),
     and the Archipelago client headers (apclientpp / wswrap / websocketpp) are fetched at configure
     time via CMake `FetchContent`.
@@ -24,8 +24,8 @@ git submodule update --init --recursive
 
 ## Building
 
-The project is preset-driven. Presets are compiler-led; `cmake --list-presets` shows only the ones
-valid for your host.
+The project is preset-driven. Presets are compiler-led, so `cmake --list-presets` shows only the
+ones valid for your host.
 
 ### Linux mod (`mod.so`)
 
@@ -55,15 +55,15 @@ cmake --build --preset clang-cl-x64-release
 ```
 
 A LLVM-MinGW cross preset (`mingw-x64-debug`) is available for a fast Windows compile-check from a
-Linux box. It is a development aid only; it produces a MinGW-ABI binary, not a shippable artifact.
+Linux box. It is a development aid only. It produces a MinGW-ABI binary, not a shippable artifact.
 
 ## Testing the Linux build
 
-Copy `build/clang-x64-debug/mods/apclient/` (`mod.so` + `mod.yc`) into the game's mods
-directory - `~/.local/share/Yacht Club Games/Mina the Hollower/mods/apclient/` (the SDL pref
-path, not the install dir) - and launch via Steam with the `mod-allow-code` option. The game
-loader writes `~/.local/share/Yacht Club Games/Mina the Hollower/mod.log` (load diagnostics);
-the mod's own runtime log is `~/.local/share/mth-apclient/mthap_*.log`.
+Copy `build/clang-x64-debug/mods/apclient/` (`mod.so` and `mod.yc`) into the game's mods
+directory at `~/.local/share/Yacht Club Games/Mina the Hollower/mods/apclient/` (the SDL pref
+path, not the install dir). Launch via Steam with the `mod-allow-code` option. The game loader
+writes `~/.local/share/Yacht Club Games/Mina the Hollower/mod.log` with load diagnostics. The
+mod's own runtime log is `~/.local/share/mth-apclient/mthap_*.log`.
 
 ## Formatting
 
@@ -85,19 +85,23 @@ CI gates merges on formatting with a pinned clang-format version.
 
 The codebase is split into three targets (see [docs/architecture.md](docs/architecture.md)):
 
-- `mthap_core` - pure, cross-platform logic. **It must not include platform, OS, or hook-backend
+- `mthap_core`: pure, cross-platform logic. **It must not include platform, OS, or hook-backend
   headers that require linking**, because the unit tests link only this target.
-- `mthap_pal` - the platform abstraction layer (process entry points + hook backend) under
+- `mthap_pal`: the platform abstraction layer (process entry points and hook backend) under
   `src/pal/{linux,windows}/`.
-- `mthap` - the final module that composes the two.
+- `mthap`: the final module that composes the two.
 
 When you add platform-specific behavior, put it behind a PAL interface rather than `#ifdef`-ing it
 into the core or the higher-level logic.
 
+See [docs/reverse-engineering.md](docs/reverse-engineering.md) for how game functions are
+hooked and resolved on each platform. It covers the native mod hooks, the Frida/MinHook detour
+seam, and the Windows signature-table workflow.
+
 ## Continuous integration
 
-Pull requests run a formatting check, the Linux unit tests, and the Linux and Windows mod builds -
-keep them green. Tagged releases (`v*` on `master`) build and publish artifacts automatically.
+Pull requests run a formatting check, the Linux unit tests, and the Linux and Windows mod builds.
+Keep them green. Tagged releases (`v*` on `master`) build and publish artifacts automatically.
 
 ## Commit conventions
 

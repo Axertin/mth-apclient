@@ -14,7 +14,7 @@ The build produces three layers with a strict dependency direction (`core` <- `p
 | ------------ | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `mthap_core` | static lib | Pure, cross-platform logic: AP state/coordinator, the location/item bridge, inbound granter, save state, ID mapping, startup config, enforcement policy, and the signature matcher. No OS/backend headers that require linking. **The unit tests link only this.** |
 | `mthap_pal`  | object lib | The Platform Abstraction Layer: process entry points and the hook backend, under `src/pal/{linux,windows}/`. Built as an OBJECT library so loader-injected entry points are never dropped by the linker.                       |
-| `mthap`      | module     | The final shared object (`mod.so` / `mod.dll`) - the composition root (`mth::App`) that wires `core` to `pal`.                                                                                                        |
+| `mthap`      | module     | The final shared object (`mod.so` / `mod.dll`). The composition root (`mth::App`) wires `core` to `pal`.                                                                                                        |
 
 `mth::App` owns the runtime. The logger and the hook engine are PAL globals exposed through
 interfaces with injectable seams, so the core can be unit-tested without a real platform.
@@ -30,12 +30,12 @@ interfaces with injectable seams, so the core can be unit-tested without a real 
 | Hook backend | Frida-Gum                                 | MinHook                                                 |
 
 Both files (`mod.so`/`mod.dll` and `mod.yc`) belong in a per-mod folder under the game's mods
-directory, which lives in its save dir (the SDL pref path) - on Linux
-`~/.local/share/Yacht Club Games/Mina the Hollower/mods/apclient/`, on Windows
+directory, which lives in its save dir (the SDL pref path). On Linux that is
+`~/.local/share/Yacht Club Games/Mina the Hollower/mods/apclient/`. On Windows it is
 `%APPDATA%\Yacht Club Games\Mina the Hollower\mods\apclient\`. Loading the code library requires
-the `mod-allow-code` Steam launch option on the modding beta branch (matched as a case-insensitive
-substring of the launch command line; there is no separate `-mod` switch - the loader always runs
-and writes `mod.log` in that save dir).
+the `mod-allow-code` Steam launch option on the modding beta branch. The loader matches it as a
+case-insensitive substring of the launch command line. There is no separate `-mod` switch. The
+loader always runs and writes `mod.log` in that save dir.
 
 ## Resolving game functions
 
@@ -44,9 +44,12 @@ Hooks target specific game functions, resolved differently per platform behind a
 
 - **Linux**: As of Mina v1.0.6, the game binary is not stripped (it ships DWARF), so functions are
   resolved by their mangled symbol name via Frida's symbol table.
-- **Windows** - the shipping PE is stripped, so functions are located by scanning the `.text`
-  section for masked byte signatures. The pure matcher lives in `core` and is unit-tested; the
+- **Windows**: the shipping PE is stripped, so functions are located by scanning the `.text`
+  section for masked byte signatures. The pure matcher lives in `core` and is unit-tested. The
   signature table is produced by standalone tooling and validated against the shipping build.
+
+The hook mechanisms and the signature-table workflow are documented in
+[reverse-engineering.md](reverse-engineering.md).
 
 ## The Archipelago data flow
 
@@ -84,8 +87,8 @@ flowchart TB
   game's own item-grant path, in a window where spawning is safe.
 - **Persistence**: checked locations and granted items are persisted per `(seed, slot)` so
   reconnects and reloads don't double-send or double-grant.
-- The network stack (apclientpp / wswrap / websocketpp + OpenSSL) is an optional build feature; when
-  it is not compiled in, a null link stands in.
+- The network stack (apclientpp / wswrap / websocketpp with OpenSSL) is an optional build feature.
+  When it is not compiled in, a null link stands in.
 
 Randomizer item/location data lives in [randomizer/](randomizer/).
 
@@ -105,8 +108,8 @@ The mod is injected into the game's runtime, which may use an older glibc than t
 the binary required glibc symbol versions newer than the runtime provides, the dynamic loader would
 reject it before any of our code runs: no log, no game window. A post-build check
 (`scripts/check-glibc-max.sh`) fails the build if any required glibc symbol exceeds the supported
-floor; a small compatibility shim (`src/pal/linux/glibc_compat_linux.cpp`) pins or provides the few
-symbols that would otherwise raise it.
+floor. A small compatibility shim (`src/pal/linux/glibc_compat_linux.cpp`) pins or provides the
+few symbols that would otherwise raise it.
 
 ## Repository layout
 
