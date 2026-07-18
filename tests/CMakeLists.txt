@@ -46,6 +46,7 @@ add_executable(mthap_unit_tests
     unit/connect_resend_gate_test.cpp
     unit/death_broadcast_gate_test.cpp
     unit/death_hooks_test.cpp
+    unit/fountain_lamps_test.cpp
 )
 
 target_include_directories(mthap_unit_tests PRIVATE

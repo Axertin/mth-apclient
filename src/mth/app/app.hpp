@@ -77,6 +77,7 @@ class App : public ICommandSink
     void set_stat_caps(int attack, int defense, int sidearm) override;
     void set_ability_randomized(Ability ability, bool randomized) override;
     void enable_deathlink(bool on) override;
+    void set_lit_lamps(std::uint32_t lamp_mask) override;
 
   private:
     void ensure_inbound_ready(); // lazily builds save_state_ + the grant pipeline's inbound granter once connected

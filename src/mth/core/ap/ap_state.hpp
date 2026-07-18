@@ -121,6 +121,10 @@ class ApState
     {
         return wallet_cap_;
     }
+    [[nodiscard]] std::uint32_t lit_generator_lamp_mask() const // slot_data "lit_generators": Ossex fountain lamps to force lit (visual only)
+    {
+        return lit_generator_lamp_mask_;
+    }
     [[nodiscard]] bool is_valid_location(std::int64_t id) const
     {
         return valid_locations_.contains(id);
@@ -177,6 +181,7 @@ class ApState
     int goal_generators_{99};
     int goal_bosses_{99};
     bool wallet_cap_{false};
+    std::uint32_t lit_generator_lamp_mask_{0};
     std::set<std::int64_t> valid_locations_{};
     std::vector<ReceivedItem> received_items_{};
     std::vector<std::int64_t> server_checked_pending_{}; // server-reported checks awaiting reconcile (game-thread)

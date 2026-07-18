@@ -91,6 +91,7 @@ if(NOT MTHAP_BUILD_TESTS_ONLY)
         features/pawn_shop_hooks.cpp
         features/modifier_hooks.cpp
         features/levelcap_hooks.cpp
+        features/fountain_lamp_hooks.cpp
     )
 
     target_link_libraries(mthap PRIVATE

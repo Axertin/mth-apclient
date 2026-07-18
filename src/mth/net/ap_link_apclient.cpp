@@ -13,6 +13,7 @@
 
 #include "mth/core/ap/ap_ids.hpp" // kLocBase
 #include "mth/core/broadcast.hpp"
+#include "mth/core/fountain_lamps.hpp"
 #include "mth/core/stat_cap_state.hpp" // clamp_max_stat_level
 #include "mth/net/deathlink.hpp"
 #include "pal/pal_cert.hpp"
@@ -358,6 +359,16 @@ void ApLink::setup_handlers(const std::string &slot, const std::string &password
             const int goal_generators = data.is_object() ? data.value("goal_generators", 99) : 99;
             const int goal_bosses = data.is_object() ? data.value("goal_bosses", 99) : 99;
             const bool wallet_cap = data.is_object() && data.value("wallet_cap", 0) != 0;
+            std::vector<int> lit_gen_indices;
+            if (data.is_object())
+                if (auto lg = data.find("lit_generators"); lg != data.end() && lg->is_array())
+                    for (const auto &v : *lg)
+                        if (v.is_number_integer())
+                            lit_gen_indices.push_back(v.get<int>());
+            for (int i : lit_gen_indices)
+                if (i < 0 || i >= mth::kGeneratorLampCount)
+                    pal::logf(pal::LogLevel::Warn, "lit_generators: ignoring out-of-range lamp index %d (valid 0..%d)", i, mth::kGeneratorLampCount - 1);
+            const std::uint32_t lit_generator_lamp_mask = mth::lit_mask_from_indices(lit_gen_indices);
             push_event(mth::ApConnected{client_->get_seed(),
                                         data.is_null() ? std::string{} : data.dump(),
                                         client_->get_player_number(),
@@ -377,7 +388,8 @@ void ApLink::setup_handlers(const std::string &slot, const std::string &password
                                         goal_config,
                                         goal_generators,
                                         goal_bosses,
-                                        wallet_cap});
+                                        wallet_cap,
+                                        lit_generator_lamp_mask});
         });
 
     client_->set_slot_refused_handler(

@@ -125,3 +125,13 @@ TEST_CASE("ap_state: ApLocationsChecked accumulates and drains once", "[mth][ap_
     REQUIRE(s.take_server_checked_pending() == std::vector<std::int64_t>{10, 11, 12});
     REQUIRE(s.take_server_checked_pending().empty()); // drained
 }
+
+TEST_CASE("ApState exposes lit_generator_lamp_mask from ApConnected", "[ap_state][fountain]")
+{
+    mth::ApState state;
+    mth::ApConnected ev;
+    ev.player_slot = 1;
+    ev.lit_generator_lamp_mask = 0x2A;
+    state.apply(mth::ApEvent{ev});
+    REQUIRE(state.lit_generator_lamp_mask() == 0x2Au);
+}
