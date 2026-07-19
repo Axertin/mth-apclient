@@ -28,6 +28,9 @@ class GrantPipeline
     // once, after inbound_ready() is false. credit_kear_key: vanilla-kear-mode key grant effect (#130).
     void build_inbound(ApState &state, ApSaveState &save_state, std::function<bool()> credit_kear_key = {});
     [[nodiscard]] bool inbound_ready() const;
+    // Drop the inbound granter; it holds a reference to the ApSaveState, so this must run before that is
+    // destroyed. inbound_ready() goes false, so the next session rebuilds it.
+    void release_inbound();
     void tick();  // drives InboundGranter
     void drain(); // drives ItemGranter (World::Update pre-hook window)
 
