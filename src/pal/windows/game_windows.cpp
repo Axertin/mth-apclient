@@ -1113,7 +1113,6 @@ constexpr int kAbTrain = 6;
 
 // Player-object offsets used by the detours; mirror the Linux struct layout (same Player struct).
 constexpr std::ptrdiff_t kPlayerWaterListenerOff = 0x2c0; // WaterListener* (swim-vs-land discriminator)
-constexpr std::ptrdiff_t kPlayerLowRoofFlagOff = 0x12f0;  // carry-disabled "low roof" pose flag
 // PhysicsContactPair -> colliding-entity component-kind chain (shared by both CollideWith detours).
 constexpr std::ptrdiff_t kContactEntityOff = 0x110;     // *(contactPair) + 0x110 -> entity
 constexpr std::ptrdiff_t kEntityInteractCompOff = 0xa8; // entity + 0xa8 -> InteractComponent
@@ -1180,9 +1179,6 @@ void (*g_orig_spring)(void *, void *) = nullptr;
 unsigned long (*g_orig_pickup)(void *, bool, bool, bool) = nullptr;
 void (*g_orig_train_npc)(void *, unsigned, void *) = nullptr;
 void (*g_orig_burrow_jump)(void *) = nullptr; // #56
-// True only across Mina::OnBurrowJump, whose emerge auto-grabs via PickUpAnyNearbyCarryableObject: without
-// it, repl_pickup would set the duck-pose on every carry-disabled emerge (a spurious hop).
-bool g_in_burrow_emerge = false;
 
 // #56 helpers (called, not hooked); see game_linux.cpp. The MSVC x64 ABI differs from Linux:
 struct ycAABB
@@ -1267,16 +1263,14 @@ void repl_spring(void *self, void *contact_pair)
         g_orig_spring(self, contact_pair);
 }
 
-// Blocked: set the low-roof pose flag so the engine presents the ducked-under-roof render instead of popping
-// up; skip it during a burrow emerge (g_in_burrow_emerge), where no roof is overhead.
+// Blocked: just refuse the grab. This used to also set Player+0x12f0, mislabelled a "low roof pose" flag:
+// it actually arms the burrow-landing shockwave and delays the hop-out. The game probes for carryables on
+// ledge jumps and landings too, so every probe armed a spurious shockwave. Holding Mina under an overhead
+// carryable is repl_burrow_jump's emerge-suppress, not a flag poke.
 unsigned long repl_pickup(void *self, bool a, bool b, bool c)
 {
     if (self != nullptr && ability_blocked(kAbCarry))
-    {
-        if (!g_in_burrow_emerge)
-            *reinterpret_cast<char *>(static_cast<char *>(self) + kPlayerLowRoofFlagOff) = 1;
         return 0;
-    }
     return g_orig_pickup ? g_orig_pickup(self, a, b, c) : 0;
 }
 
@@ -1320,11 +1314,7 @@ void repl_burrow_jump(void *self)
         return;
     }
     if (g_orig_burrow_jump)
-    {
-        g_in_burrow_emerge = true; // keep repl_pickup's duck-pose out of the emerge auto-grab
         g_orig_burrow_jump(self);
-        g_in_burrow_emerge = false;
-    }
 }
 
 // TrainAuthority::OnNPCEvent case 0x15 picks a destination by ticket itemType. Forcing the selected
