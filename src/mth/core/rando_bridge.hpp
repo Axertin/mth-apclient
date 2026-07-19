@@ -23,6 +23,14 @@ class RandoBridge
     // Attach durable per-(seed,slot) state on connect; before this, checks are session-only.
     void attach_save_state(ApSaveState &save);
 
+    // Session boundary: detach the save and drop the one-shot goal latch, so a new server is treated
+    // like the first connection since launch (without this the goal is never sent to the second server).
+    void reset_session();
+
+    // Release the attached state. The caller owns the ApSaveState and may destroy it right after, so this
+    // must run first. Checks fall back to session-only dedup until the next attach.
+    void detach_save_state();
+
     // Record a collected slot (persisted if attached); send check if connected, else wait for flush().
     void on_location_collected(int collection_slot);
 

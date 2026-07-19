@@ -283,6 +283,10 @@ void ApLink::do_connect(const std::string &server, const std::string &slot, cons
     {
         const std::string uuid = ap_get_uuid((pal::log_dir() / "ap_uuid").string(), server);
         client_ = std::make_unique<APClient>(uuid, kGameName, uri, cert);
+        // A brand-new client means a new session: clear the re-delivery dedup cursor so the next server's
+        // items (indices restarting at 0) are not filtered as already-seen. A transient socket drop reuses
+        // the existing client instead of calling connect(), so its re-delivered items stay correctly deduped.
+        last_item_index_ = -1;
         setup_handlers(slot, password);
         push_event(mth::ApConnecting{});
         connect_deadline_ = std::chrono::steady_clock::now() + kConnectTimeout;

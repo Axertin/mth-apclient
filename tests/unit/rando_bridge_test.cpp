@@ -254,3 +254,47 @@ TEST_CASE("rando_bridge: checked_slots exposes the persisted set (nullptr withou
     bridge.on_location_collected(9);             // live player collect
     REQUIRE(*bridge.checked_slots() == std::set<int>{5, 9});
 }
+
+TEST_CASE("rando_bridge: detach stops writing the unloaded save and clears its dedup", "[mth][rando]")
+{
+    const auto path_a = std::filesystem::temp_directory_path() / "mthap_test_bridge_detach_a.state";
+    const auto path_b = std::filesystem::temp_directory_path() / "mthap_test_bridge_detach_b.state";
+    std::filesystem::remove(path_a);
+    std::filesystem::remove(path_b);
+
+    mth::test::FakeApLink link;
+    link.connected = true;
+    mth::ApState state;
+    connect_with(state, {ap_loc_id(5), ap_loc_id(6)});
+    mth::RandoBridge bridge(link, state);
+
+    mth::ApSaveState save_a(path_a);
+    bridge.attach_save_state(save_a);
+    bridge.on_location_collected(5);
+    REQUIRE(save_a.is_checked(5));
+
+    bridge.detach_save_state();
+    bridge.on_location_collected(6);
+    REQUIRE_FALSE(save_a.is_checked(6)); // the unloaded save must not keep receiving checks
+
+    // A different save attaching next must not inherit the old one's checked-set.
+    mth::ApSaveState save_b(path_b);
+    bridge.attach_save_state(save_b);
+    REQUIRE_FALSE(save_b.is_checked(5));
+    bridge.on_location_collected(5);
+    REQUIRE(save_b.is_checked(5));
+
+    std::filesystem::remove(path_a);
+    std::filesystem::remove(path_b);
+}
+
+TEST_CASE("rando_bridge: detach with no save attached is a no-op", "[mth][rando]")
+{
+    mth::test::FakeApLink link;
+    mth::ApState state;
+    connect_with(state, {ap_loc_id(5)});
+    mth::RandoBridge bridge(link, state);
+
+    bridge.detach_save_state();
+    REQUIRE(bridge.checked_slots() == nullptr);
+}

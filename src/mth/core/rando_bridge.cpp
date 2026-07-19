@@ -17,6 +17,21 @@ void RandoBridge::attach_save_state(ApSaveState &save)
     pal::logf(pal::LogLevel::Info, "bridge: save state attached (%zu already-checked); session fallback cleared", save.checked().size());
 }
 
+void RandoBridge::reset_session()
+{
+    detach_save_state();
+    goal_sent_ = false;
+}
+
+void RandoBridge::detach_save_state()
+{
+    if (save_ == nullptr)
+        return;
+    save_ = nullptr;
+    sent_.clear(); // the previous session's checks must not dedup the next one's
+    pal::logf(pal::LogLevel::Info, "bridge: save state detached");
+}
+
 bool RandoBridge::is_ap_location(int collection_slot) const
 {
     // No per-call logging here: this is queried for every location every frame (it floods the log).
