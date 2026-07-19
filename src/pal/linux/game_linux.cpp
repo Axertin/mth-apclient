@@ -1223,10 +1223,14 @@ constexpr std::ptrdiff_t kUpgradeFieldOff[5] = {0x170, 0x130, 0x54, 0x18c, 0x950
 constexpr std::ptrdiff_t kCombatCoreOff = 0x130; // Player -> CombatCore*
 constexpr std::ptrdiff_t kHpCurOff = 0x1e0;      // CombatCore, float
 constexpr std::ptrdiff_t kHpMaxOff = 0x1e8;      // CombatCore, float
-constexpr std::ptrdiff_t kMagicCurOff = 0x1174;  // Player, int (sidearm ammo)
-constexpr std::ptrdiff_t kMagicMaxOff = 0x1178;  // Player, int
-constexpr std::ptrdiff_t kSparkCurOff = 0x50;    // SaveSlot, int
-constexpr std::ptrdiff_t kSparkMaxOff = 0x230;   // CombatCore, int
+// Joules (magic), pinned by the game's own accessors: PlayerGetJoules/PlayerSetJoules use Player+0x117c,
+// and UpdateStats writes the max at Player+0x1180. These read 0x1174/0x1178 until r148851; those are the
+// backup-sidearm and latched in-flight sidearm itemTypes, so every grant clamped one sidearm itemType
+// against the other and the backup slot emptied on the next WriteSave.
+constexpr std::ptrdiff_t kMagicCurOff = 0x117c; // Player, int
+constexpr std::ptrdiff_t kMagicMaxOff = 0x1180; // Player, int
+constexpr std::ptrdiff_t kSparkCurOff = 0x50;   // SaveSlot, int
+constexpr std::ptrdiff_t kSparkMaxOff = 0x230;  // CombatCore, int
 // Vials are NOT written here: their SaveSlot bitfield offset drifts between builds (#97), so App drives
 // them through the offset-free mod-API accessors (mod::set_player_max_vials) instead.
 
