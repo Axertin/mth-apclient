@@ -65,6 +65,7 @@ void ApState::apply(const ApEvent &ev)
                 goal_config_ = e.goal_config;
                 goal_generators_ = e.goal_generators;
                 goal_bosses_ = e.goal_bosses;
+                broken_generator_mask_ = e.broken_generator_mask;
                 wallet_cap_ = e.wallet_cap;
                 lit_generator_lamp_mask_ = e.lit_generator_lamp_mask;
                 valid_locations_.clear();

@@ -29,6 +29,7 @@ class GoalTracker
     int config_{0};
     int gens_done_{0};
     int gens_needed_{99};
+    std::uint64_t broken_mask_{0};
     int bosses_done_{0};
     int bosses_needed_{99};
     bool game_cleared_{false};

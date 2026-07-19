@@ -1,6 +1,6 @@
 #include "mth/features/goal_tracker.hpp"
 
-#include <bit>
+#include <cstdio>
 
 #include "mth/core/ap/ap_state.hpp"
 #include "mth/core/data/game_layout.hpp"
@@ -33,7 +33,8 @@ void GoalTracker::evaluate(const ApState &state)
     gens_needed_ = state.goal_generators();
     bosses_needed_ = state.goal_bosses();
     game_cleared_ = *reinterpret_cast<unsigned char *>(static_cast<char *>(slot) + layout::kSaveGameClearOff) != 0;
-    gens_done_ = std::popcount(*reinterpret_cast<std::uint64_t *>(static_cast<char *>(slot) + layout::kSaveGeneratorBitsOff));
+    broken_mask_ = state.broken_generator_mask();
+    gens_done_ = generators_done(*reinterpret_cast<std::uint64_t *>(static_cast<char *>(slot) + layout::kSaveGeneratorBitsOff), broken_mask_);
     bosses_done_ = std::popcount(*reinterpret_cast<std::uint64_t *>(static_cast<char *>(slot) + layout::kSaveBossDefeatedBitsOff));
 
     if (goal_met(config_, gens_needed_, bosses_needed_, game_cleared_, gens_done_, bosses_done_))
@@ -42,8 +43,10 @@ void GoalTracker::evaluate(const ApState &state)
 
 std::vector<std::string> GoalTracker::status_lines() const
 {
+    char mask[24] = {};
+    std::snprintf(mask, sizeof(mask), "0x%llx", static_cast<unsigned long long>(broken_mask_));
     return {"goal: config=" + std::to_string(config_) + " cleared=" + std::to_string(game_cleared_) + " generators=" + std::to_string(gens_done_) + "/" +
-            std::to_string(gens_needed_) + " bosses=" + std::to_string(bosses_done_) + "/" + std::to_string(bosses_needed_)};
+            std::to_string(gens_needed_) + " (broken=" + mask + ") bosses=" + std::to_string(bosses_done_) + "/" + std::to_string(bosses_needed_)};
 }
 
 } // namespace mth

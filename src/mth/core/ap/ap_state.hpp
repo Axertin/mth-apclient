@@ -124,6 +124,10 @@ class ApState
     {
         return goal_bosses_;
     }
+    [[nodiscard]] std::uint64_t broken_generator_mask() const // slot_data "broken_generators": these count toward the goal
+    {
+        return broken_generator_mask_;
+    }
     [[nodiscard]] bool wallet_cap() const // slot_data "wallet_cap": cap the bone wallet by received wallet items
     {
         return wallet_cap_;
@@ -192,6 +196,7 @@ class ApState
     int goal_config_{0};
     int goal_generators_{99};
     int goal_bosses_{99};
+    std::uint64_t broken_generator_mask_{kAllGeneratorsMask};
     bool wallet_cap_{false};
     std::uint32_t lit_generator_lamp_mask_{0};
     std::set<std::int64_t> valid_locations_{};

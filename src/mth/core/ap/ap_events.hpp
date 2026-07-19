@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "mth/core/broadcast.hpp"
+#include "mth/core/goal_state.hpp" // kAllGeneratorsMask
 #include "mth/core/scout_registry.hpp"
 
 namespace mth
@@ -52,13 +53,14 @@ struct ApConnected
     bool spring_rando{false};
     bool carry_rando{false};
     bool train_rando{true};
-    bool deathlink{false};                    // slot_data "death_link": bounce/receive deaths over the AP link
-    int max_stat_level{99};                   // slot_data "max_stat_level": per-stat level ceiling (clamped 10..99; 99 = game's absolute max)
-    int goal_config{0};                       // slot_data "goal_config": 0=finish, 1=generators, 2=bosses
-    int goal_generators{99};                  // slot_data "goal_generators": generators needed (default unreachable)
-    int goal_bosses{99};                      // slot_data "goal_bosses": bosses needed (default unreachable)
-    bool wallet_cap{false};                   // slot_data "wallet_cap": cap the bone wallet by received wallet items
-    std::uint32_t lit_generator_lamp_mask{0}; // slot_data "lit_generators": force these Ossex fountain lamps lit (visual only)
+    bool deathlink{false};                                   // slot_data "death_link": bounce/receive deaths over the AP link
+    int max_stat_level{99};                                  // slot_data "max_stat_level": per-stat level ceiling (clamped 10..99; 99 = game's absolute max)
+    int goal_config{0};                                      // slot_data "goal_config": 0=finish, 1=generators, 2=bosses
+    int goal_generators{99};                                 // slot_data "goal_generators": generators needed (default unreachable)
+    std::uint64_t broken_generator_mask{kAllGeneratorsMask}; // slot_data "broken_generators": these count toward the goal
+    int goal_bosses{99};                                     // slot_data "goal_bosses": bosses needed (default unreachable)
+    bool wallet_cap{false};                                  // slot_data "wallet_cap": cap the bone wallet by received wallet items
+    std::uint32_t lit_generator_lamp_mask{0};                // slot_data "lit_generators": force these Ossex fountain lamps lit (visual only)
 };
 struct ApItemReceived
 {
