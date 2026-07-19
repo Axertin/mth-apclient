@@ -375,6 +375,21 @@ void ApLink::setup_handlers(const std::string &slot, const std::string &password
                 if (i < 0 || i >= mth::kGeneratorLampCount)
                     pal::logf(pal::LogLevel::Warn, "lit_generators: ignoring out-of-range lamp index %d (valid 0..%d)", i, mth::kGeneratorLampCount - 1);
             const std::uint32_t lit_generator_lamp_mask = mth::lit_mask_from_indices(lit_gen_indices);
+            // Absent means every generator counts, so a missing key must not collapse to an empty array.
+            std::uint64_t broken_generator_mask = mth::kAllGeneratorsMask;
+            if (data.is_object())
+                if (auto bg = data.find("broken_generators"); bg != data.end() && bg->is_array())
+                {
+                    std::vector<int> broken_indices;
+                    for (const auto &v : *bg)
+                        if (v.is_number_integer())
+                            broken_indices.push_back(v.get<int>());
+                    for (int i : broken_indices)
+                        if (i < 0 || i >= mth::kGeneratorLampCount)
+                            pal::logf(pal::LogLevel::Warn, "broken_generators: generator index %d is outside the expected 0..%d", i,
+                                      mth::kGeneratorLampCount - 1);
+                    broken_generator_mask = mth::broken_generator_mask(broken_indices);
+                }
             push_event(mth::ApConnected{client_->get_seed(),
                                         data.is_null() ? std::string{} : data.dump(),
                                         client_->get_player_number(),
@@ -393,6 +408,7 @@ void ApLink::setup_handlers(const std::string &slot, const std::string &password
                                         max_stat_level,
                                         goal_config,
                                         goal_generators,
+                                        broken_generator_mask,
                                         goal_bosses,
                                         wallet_cap,
                                         lit_generator_lamp_mask});

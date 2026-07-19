@@ -1,7 +1,32 @@
 #pragma once
 
+#include <bit>
+#include <cstdint>
+#include <vector>
+
 namespace mth
 {
+
+// Older seeds carry no slot_data "broken_generators"; every generator counts for them.
+inline constexpr std::uint64_t kAllGeneratorsMask = ~std::uint64_t{0};
+
+// Fold slot_data generator indices into a mask over the SaveSlot generator-fixed bitfield. Indices outside
+// its 64 bits are ignored; the caller warns.
+[[nodiscard]] inline std::uint64_t broken_generator_mask(const std::vector<int> &indices) noexcept
+{
+    std::uint64_t mask = 0;
+    for (int i : indices)
+        if (i >= 0 && i < 64)
+            mask |= (std::uint64_t{1} << static_cast<unsigned>(i));
+    return mask;
+}
+
+// Only generators the seed started broken count (#141): the rest are already flagged fixed in the same
+// bitfield, so an unmasked popcount meets the threshold on a fresh save.
+[[nodiscard]] inline int generators_done(std::uint64_t generator_bits, std::uint64_t broken_mask) noexcept
+{
+    return std::popcount(generator_bits & broken_mask);
+}
 
 // twin: mth/features/goal_tracker.hpp polls the save against this.
 // slot_data "goal_config": which condition completes the AP goal. Unknown/absent -> finish.
