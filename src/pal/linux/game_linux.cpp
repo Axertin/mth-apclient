@@ -81,6 +81,15 @@ constexpr std::ptrdiff_t kShopCursorOff = 0x1d8;
 constexpr std::ptrdiff_t kShopBoxItemTypeOff = 0xcc; // ShopItem -> itemType (box's item kind)
 constexpr std::ptrdiff_t kTextObjOff = 0x40;         // text widget -> ycTextRenderObject
 constexpr int kShopSkipItemType = 0x65;
+constexpr int kMaxShopBoxes = 64; // real shops hold well under this; a larger count means these are not box fields
+
+// SetCursor also fires for menus that are not a stocked shop (the custom fitting menu crashed here), where
+// +0x1c8/+0x1d0 hold unrelated data. Those values are non-null, so a null check passes and the walk
+// dereferences non-canonical garbage. Require a canonical array pointer and a sane count instead.
+[[nodiscard]] bool shop_box_list_plausible(void *const *boxes, int count) noexcept
+{
+    return pal::pointer_looks_valid(boxes) && count > 0 && count <= kMaxShopBoxes;
+}
 
 void repl_set_cursor(void *self, int index, bool b)
 {
@@ -880,15 +889,15 @@ void remove_shop_flatten_hook()
 
 int shop_selected_loc(void *shop_menu)
 {
-    if (shop_menu == nullptr)
+    if (!pal::pointer_looks_valid(shop_menu))
         return -1;
     void **boxes = *reinterpret_cast<void ***>(static_cast<char *>(shop_menu) + kShopBoxArrayOff);
     const int count = *reinterpret_cast<int *>(static_cast<char *>(shop_menu) + kShopBoxCountOff);
     const int cursor = *reinterpret_cast<int *>(static_cast<char *>(shop_menu) + kShopCursorOff);
-    if (boxes == nullptr || cursor < 0 || cursor >= count)
+    if (!shop_box_list_plausible(boxes, count) || cursor < 0 || cursor >= count)
         return -1;
     void *box = boxes[cursor];
-    if (box == nullptr)
+    if (!pal::pointer_looks_valid(box))
         return -1;
     const int item_type = *reinterpret_cast<int *>(static_cast<char *>(box) + kShopBoxItemTypeOff);
     if (item_type == kShopSkipItemType)
@@ -897,26 +906,26 @@ int shop_selected_loc(void *shop_menu)
     if (*reinterpret_cast<int *>(static_cast<char *>(box) + kShopItemStockOff) == 0)
         return -1;
     void *def = *reinterpret_cast<void **>(static_cast<char *>(box) + kShopItemDefOff);
-    if (def == nullptr)
+    if (!pal::pointer_looks_valid(def))
         return -1;
     return *reinterpret_cast<int *>(static_cast<char *>(def) + kShopDefLocOff);
 }
 
 void shop_enumerate_locs(void *shop_menu, void (*sink)(int loc, void *ctx), void *ctx)
 {
-    if (shop_menu == nullptr || sink == nullptr)
+    if (!pal::pointer_looks_valid(shop_menu) || sink == nullptr)
         return;
     void **boxes = *reinterpret_cast<void ***>(static_cast<char *>(shop_menu) + kShopBoxArrayOff);
     const int count = *reinterpret_cast<int *>(static_cast<char *>(shop_menu) + kShopBoxCountOff);
-    if (boxes == nullptr)
+    if (!shop_box_list_plausible(boxes, count))
         return;
     for (int i = 0; i < count; ++i)
     {
         void *box = boxes[i];
-        if (box == nullptr)
+        if (!pal::pointer_looks_valid(box))
             continue;
         void *def = *reinterpret_cast<void **>(static_cast<char *>(box) + kShopItemDefOff);
-        if (def == nullptr)
+        if (!pal::pointer_looks_valid(def))
             continue;
         sink(*reinterpret_cast<int *>(static_cast<char *>(def) + kShopDefLocOff), ctx);
     }
