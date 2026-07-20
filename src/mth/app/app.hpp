@@ -83,8 +83,6 @@ class App : public ICommandSink
     void set_lit_lamps(std::uint32_t lamp_mask) override;
 
   private:
-    void on_ap_session_event();       // coordinator connect/disconnect: reset only on a genuinely new seed/slot
-    void reset_session();             // clear everything the previous connection accumulated
     void remember_successful_login(); // persist the attempted target once the server authenticates
     void ensure_inbound_ready();      // lazily builds save_state_ + the grant pipeline's inbound granter once connected
     // Drain ApState's server-reported checked locations into the save-state checked set (Collect / coop),
@@ -113,9 +111,6 @@ class App : public ICommandSink
     UpgradeState upgrades_;
     WalletCapState wallet_;
     ConnectResendGate resend_gate_; // fires flush() once per (re)connection
-    // The "ap_<seed>_<slot>.state" key of the live AP session. Empty until the first connect. A fresh
-    // ApConnected whose key matches is a transient reconnect (no reset); a differing key is a new session.
-    std::string session_key_;
     // Last-used connect target, auto-filled into the login window next launch. connect() runs on the
     // overlay render thread and only stashes what was attempted; the commit happens on the game thread
     // once the server authenticates, so the mutex covers both the prefs and the pending pair.

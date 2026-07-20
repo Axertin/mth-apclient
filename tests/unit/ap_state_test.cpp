@@ -158,35 +158,3 @@ TEST_CASE("ApState exposes lit_generator_lamp_mask from ApConnected", "[ap_state
     state.apply(mth::ApEvent{ev});
     REQUIRE(state.lit_generator_lamp_mask() == 0x2Au);
 }
-
-TEST_CASE("ap_state: reset_session drops the session stream but keeps the new connection identity", "[mth][ap_state]")
-{
-    mth::ApState s;
-    s.apply(mth::ApConnected{{}, "{\"a\":1}", 7, {}, {mth::ap_loc_id(5)}});
-    s.apply(mth::ApItemReceived{mth::ReceivedItem{42, 0, 1, 0}});
-    REQUIRE(s.received_items().size() == 1);
-    REQUIRE(s.last_item_index() == 0);
-
-    s.reset_session();
-
-    REQUIRE(s.received_items().empty());
-    REQUIRE(s.last_item_index() == -1);
-    REQUIRE(s.take_server_checked_pending().empty());
-    // Identity survives: reset runs right after apply(ApConnected) stored the new connection.
-    REQUIRE(s.player_slot() == 7);
-    REQUIRE(s.slot_data() == "{\"a\":1}");
-    REQUIRE(s.authenticated());
-}
-
-TEST_CASE("ap_state: an item index reused by the next server is not swallowed as a duplicate", "[mth][ap_state]")
-{
-    mth::ApState s;
-    s.apply(mth::ApConnected{{}, "{}", 1, {}, {mth::ap_loc_id(5)}});
-    s.apply(mth::ApItemReceived{mth::ReceivedItem{42, 3, 1, 0}});
-    REQUIRE(s.received_items().size() == 1);
-
-    s.reset_session();
-    s.apply(mth::ApItemReceived{mth::ReceivedItem{99, 3, 1, 0}}); // same index, new server
-    REQUIRE(s.received_items().size() == 1);
-    REQUIRE(s.received_items()[0].item_id == 99);
-}

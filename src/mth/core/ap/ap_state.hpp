@@ -144,11 +144,6 @@ class ApState
     {
         return received_items_;
     }
-    // Clear everything a session accumulates, so the next connection starts as it would have at launch.
-    // Runs on the game thread at a session boundary, AFTER apply(ApConnected) has stored the new
-    // connection's identity, so the identity/slot_data fields are deliberately left alone.
-    void reset_session();
-
     // Drain the server-reported checked location ids accumulated since the last call (Collect / coop).
     // Game-thread only; App reconciles these into the save-state checked set, then this returns empty.
     [[nodiscard]] std::vector<std::int64_t> take_server_checked_pending()

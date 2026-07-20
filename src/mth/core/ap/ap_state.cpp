@@ -25,15 +25,6 @@ void ApState::set_phase(ConnectionPhase p)
     detail_.clear();
 }
 
-void ApState::reset_session()
-{
-    received_items_.clear();
-    server_checked_pending_.clear();
-    last_item_index_ = -1;
-    console_index_ = -1000000;
-    pal::logf(pal::LogLevel::Info, "ap_state: session reset (received stream and pending checks dropped)");
-}
-
 void ApState::inject_received_item(std::int64_t item_id)
 {
     push_received(ReceivedItem{item_id, console_index_--, player_slot_, 0});

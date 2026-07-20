@@ -25,7 +25,6 @@ add_executable(mthap_unit_tests
     unit/dev_commands_test.cpp
     unit/log_ring_test.cpp
     unit/login_prefs_test.cpp
-    unit/inbound_key_test.cpp
     unit/ap_ids_test.cpp
     unit/ap_save_state_test.cpp
     unit/inbound_granter_test.cpp

@@ -12,7 +12,6 @@
 #include "mth/app/hook_manager.hpp"
 #include "mth/core/ap/ap_ids.hpp"
 #include "mth/core/ap/ap_link.hpp"
-#include "mth/core/ap/inbound_key.hpp"
 #include "mth/core/data/ability_ids.hpp"
 #include "mth/core/game_events.hpp"
 #include "mth/core/rando_bridge.hpp"
@@ -94,9 +93,11 @@ App::App() : login_prefs_(pal::log_dir() / "login.prefs")
                 scout_registry_.record(s);
         },
         // on_session_reset: fires on the game thread (coordinator tick) for a fresh ApConnected or
-        // ApDisconnected. Everything it touches is game-thread-only; connect()/disconnect() themselves
-        // run on the overlay render thread (ICommandSink), so acting there would race this thread.
-        [this] { on_ap_session_event(); });
+        // ApDisconnected. The registry is lock-free game-thread-only data; disconnect() itself runs on
+        // the overlay render thread (ICommandSink), so clearing it there would race a concurrent
+        // lookup()/record() here. Also covers connect-to-a-new-server-without-disconnecting, which would
+        // otherwise leave stale entries under reused slot numbers.
+        [this] { scout_registry_.clear(); });
     tracker_ = std::make_unique<PlayerTracker>();
     room_tracker_ = std::make_unique<RoomTracker>();
     events_ = std::make_unique<AppTickSink>(*this);
@@ -244,42 +245,6 @@ void App::enforce_wallet_cap()
         mod::set_player_bones(*cap);
 }
 
-// Coordinator session event (a fresh ApConnected or ApDisconnected). Decides whether this is a genuinely
-// new AP session (reset) or a transient websocket reconnect to the same seed/slot (keep everything and let
-// the resend gate resync onto the established save). Runs on the game thread after state_.apply(ev).
-void App::on_ap_session_event()
-{
-    // A disconnect is NOT a session end: an unstable socket drops and reconnects mid-play. Keep the save
-    // binding and the received stream so checks keep persisting and the resend gate flushes them on
-    // reconnect. apply(ApDisconnected) only clears authenticated_; seed_/player_slot_ survive.
-    if (!state_.authenticated())
-        return;
-    const std::string key = mth::inbound_state_key(state_.seed(), state_.player_slot());
-    if (key == session_key_)
-        return; // reconnect to the same seed/slot: the ConnectResendGate resyncs the bound save, no reset
-    reset_session();
-    session_key_ = key; // bind this seed/slot as the live session; a later different key resets again
-}
-
-// Genuinely new AP session: drop everything the previous connection accumulated so this one behaves like
-// the first since launch. Connecting to a different server is only expected from the main menu, so no save
-// is loaded here. state_ keeps the identity apply(ApConnected) just stored; only the accumulations go.
-// policy_ is deliberately kept: its flags record that the dev console drove modifiers/caps/abilities in
-// this process, which is not per-server.
-void App::reset_session()
-{
-    scout_registry_.clear();
-    state_.reset_session();
-    net_->rando().reset_session(); // detaches the save; must precede save_state_.reset()
-    grants_->release_inbound();    // holds an ApSaveState reference; same ordering constraint
-    save_state_.reset();
-    upgrades_ = UpgradeState{};
-    wallet_ = WalletCapState{};
-    resend_gate_ = ConnectResendGate{}; // re-arm so the new connection flushes its own checked-set
-    pending_inbound_death_.store(false);
-    pal::logf(pal::LogLevel::Info, "session: reset for a new AP connection");
-}
-
 void App::on_world_destroy()
 {
     // The Player is freed with the world; drop our cached pointer so the next drive_tick's upgrade
@@ -290,9 +255,6 @@ void App::on_world_destroy()
     // in-game tick re-applies them for server-collected durable-bit locations.
     if (hooks_)
         hooks_->on_world_destroy();
-    // NOTE: the native "WorldDestroy" hook fires on every ROOM transition (each room is a World), not only
-    // on a real save unload, so it must NOT drop the AP save binding here. The clean-slate-per-connection
-    // requirement is handled at the AP session boundary in reset_session() instead.
 }
 
 void App::ensure_inbound_ready()
@@ -300,7 +262,7 @@ void App::ensure_inbound_ready()
     if (grants_->inbound_ready() || !state_.authenticated())
         return;
     remember_successful_login(); // first tick after authentication: this target worked
-    const std::string key = mth::inbound_state_key(state_.seed(), state_.player_slot());
+    const std::string key = "ap_" + state_.seed() + "_" + std::to_string(state_.player_slot()) + ".state";
     save_state_.emplace(pal::log_dir() / key);
     grants_->build_inbound(state_, *save_state_, [this] { return hooks_->credit_kear_key(); }); // vanilla-kear key grant (#130)
     pal::logf(pal::LogLevel::Info, "inbound: state loaded (%s); granter live", key.c_str());
