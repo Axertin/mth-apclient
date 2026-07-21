@@ -10,14 +10,22 @@ namespace mth
 // Older seeds carry no slot_data "broken_generators"; every generator counts for them.
 inline constexpr std::uint64_t kAllGeneratorsMask = ~std::uint64_t{0};
 
-// Fold slot_data generator indices into a mask over the SaveSlot generator-fixed bitfield. Indices outside
-// its 64 bits are ignored; the caller warns.
+// slot_data / lamp generator index -> SaveSlot 0x290 generator-fixed bit. These are NOT equal: the game's
+// BossComponent::SetGeneratorFixed(bit) decodes the area name from the bit position directly, so the bit is
+// {crypt=1, bayou=2, septemburg=3, boneBeach=4, coltranePeak=5, astralOrrery=6}. Indexed by apworld generator
+// index (bayou/Noxs=0, crypt/Queensbury=1, septemburg=2, boneBeach=3, coltranePeak=4, astralOrrery=5). Bit 0
+// is unused by the game (#146). See docs re-notes 2026-07-17-ossex-fountain-lamps.
+inline constexpr int kGeneratorSaveBit[] = {2, 1, 3, 4, 5, 6};
+inline constexpr int kGeneratorCount = static_cast<int>(sizeof(kGeneratorSaveBit) / sizeof(kGeneratorSaveBit[0]));
+
+// Fold slot_data generator indices into a mask over the SaveSlot generator-fixed bitfield, translating each
+// apworld index to its 0x290 bit. Unknown indices (no such generator) are ignored; the caller warns.
 [[nodiscard]] inline std::uint64_t broken_generator_mask(const std::vector<int> &indices) noexcept
 {
     std::uint64_t mask = 0;
     for (int i : indices)
-        if (i >= 0 && i < 64)
-            mask |= (std::uint64_t{1} << static_cast<unsigned>(i));
+        if (i >= 0 && i < kGeneratorCount)
+            mask |= (std::uint64_t{1} << static_cast<unsigned>(kGeneratorSaveBit[i]));
     return mask;
 }
 
