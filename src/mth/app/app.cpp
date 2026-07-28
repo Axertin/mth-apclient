@@ -97,7 +97,18 @@ App::App() : login_prefs_(pal::log_dir() / "login.prefs")
         // the overlay render thread (ICommandSink), so clearing it there would race a concurrent
         // lookup()/record() here. Also covers connect-to-a-new-server-without-disconnecting, which would
         // otherwise leave stale entries under reused slot numbers.
-        [this] { scout_registry_.clear(); });
+        [this]
+        {
+            // Must precede anything that writes the live SaveSlot this tick (lock seeding, the upgrade
+            // re-apply, the takeover), which the coordinator drain does. The game's save path is also
+            // what uploads to Steam Cloud (ycUserProfile::WriteSaveFile makes the RemoteStorage call),
+            // so a leaked write reaches the player's cloud save. Off on disconnect too, so no stale
+            // mod-written slot can persist.
+            mod::set_save_write_enabled(false);
+            pal::logf(pal::LogLevel::Info, "save: vanilla save writes suppressed (save api=%s, enabled=%d)", mod::save_api_available() ? "ok" : "MISSING",
+                      mod::save_write_enabled() ? 1 : 0);
+            scout_registry_.clear();
+        });
     tracker_ = std::make_unique<PlayerTracker>();
     room_tracker_ = std::make_unique<RoomTracker>();
     events_ = std::make_unique<AppTickSink>(*this);
