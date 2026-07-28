@@ -1,6 +1,8 @@
 #pragma once
 
 #include <cstdint>
+#include <cstdlib>
+#include <cstring>
 #include <string>
 #include <unordered_map>
 
@@ -9,11 +11,30 @@
 namespace mth::test
 {
 
+// Save-slot state backing the fake save API.
+struct FakeSaveState
+{
+    int active_slot{0};
+    std::string contents;
+    bool write_enabled{true};
+    int start_calls{0};
+    int restore_calls{0};
+    int staged_slot{-1}; // last slot written without activating it
+    std::string staged_contents;
+};
+
+inline FakeSaveState &fake_save_state()
+{
+    static FakeSaveState s;
+    return s;
+}
+
 // Records InstallHook registrations and serves a canned revision. One active per test; call reset().
 struct ModApiRecorder
 {
     std::unordered_map<std::string, MM_HookCallback> hooks;
     std::uint32_t revision = 148716; // a plausible real r-number
+    int game_state = 0;              // served by GetCurrentGameState
     bool install_returns_null = false;
     float health = 0.0f; // served by PlayerGetHealth
     int spark = 0;       // served by PlayerGetSpark
@@ -29,10 +50,12 @@ struct ModApiRecorder
     {
         hooks.clear();
         revision = 148716;
+        game_state = 0;
         install_returns_null = false;
         health = 0.0f;
         spark = 0;
         deaths = 0;
+        fake_save_state() = FakeSaveState{};
     }
 };
 
@@ -55,6 +78,10 @@ inline void fake_remove_hook(void * /*handle*/)
 inline std::uint32_t fake_get_revision()
 {
     return recorder().revision;
+}
+inline std::int32_t fake_get_game_state()
+{
+    return recorder().game_state;
 }
 inline float fake_get_health()
 {
@@ -79,9 +106,39 @@ inline MinaModAPI make_fake_api()
     mm.InstallHook = &fake_install_hook;
     mm.RemoveHook = &fake_remove_hook;
     mm.GetGameRevision = &fake_get_revision;
+    mm.GetCurrentGameState = &fake_get_game_state;
     mm.PlayerGetHealth = &fake_get_health;
     mm.PlayerGetSpark = &fake_get_spark;
     mm.PlayerDie = &fake_player_die;
+    mm.GetActiveSaveSlot = [] { return fake_save_state().active_slot; };
+    mm.SetActiveSaveSlot = [](std::uint32_t slot) { fake_save_state().active_slot = static_cast<int>(slot); };
+    mm.SetActiveSaveSlotContents = [](const char *d) -> bool
+    {
+        if (d == nullptr)
+            return false;
+        fake_save_state().contents = d;
+        return true;
+    };
+    mm.SetSaveSlotContents = [](std::uint32_t slot, const char *d) -> bool
+    {
+        if (d == nullptr)
+            return false;
+        fake_save_state().staged_slot = static_cast<int>(slot);
+        fake_save_state().staged_contents = d;
+        return true;
+    };
+    mm.GetActiveSaveSlotContents = []() -> char *
+    {
+        const std::string &s = fake_save_state().contents;
+        char *buf = static_cast<char *>(std::malloc(s.size() + 1));
+        std::memcpy(buf, s.c_str(), s.size() + 1);
+        return buf;
+    };
+    mm.Free = [](void *p) { std::free(p); };
+    mm.StartActiveSaveSlot = [] { ++fake_save_state().start_calls; };
+    mm.PlayerRestoreFromSave = [] { ++fake_save_state().restore_calls; };
+    mm.SetSaveWriteEnabled = [](bool on) { fake_save_state().write_enabled = on; };
+    mm.IsSaveWriteEnabled = [] { return fake_save_state().write_enabled; };
     return mm;
 }
 

@@ -105,6 +105,14 @@ inline constexpr const char *save_manager = "g_saveManager";
 // SaveSlot::Clear(bool): new-file reset; writes the default starting-upgrade fields (region-18 kit).
 // Called only at new-file creation, so a post-hook field zero never touches a progressed save.
 inline constexpr const char *save_slot_clear = "_ZN8SaveSlot5ClearEb"; // SaveSlot::Clear(bool)
+// SaveSlot::InitGamestate(): finishes new-file setup after Clear. Both are called on the same slot
+// address; see mth::layout::kSaveSlotArrayOff and the per-platform master-table offset.
+inline constexpr const char *save_slot_init_gamestate = "_ZN8SaveSlot13InitGamestateEv"; // SaveSlot::InitGamestate()
+
+// SaveManager::WriteSaveData(bool): the "persist a slot" chokepoint, hooked observe-only as the
+// flush trigger for mod-owned saves. Stands in for RequestWriteSaveData, which GCC fully inlined
+// (absent from both the symbol table and DWARF); same cadence.
+inline constexpr const char *save_manager_write_save_data = "_ZN11SaveManager13WriteSaveDataEb"; // SaveManager::WriteSaveData(bool)
 
 // Deathlink no longer resolves game symbols: detection polls the Player+0x1380 death-guard byte edge each
 // tick (DeathBroadcastGate) and apply goes through the native MinaModAPI PlayerDie. The old
@@ -151,5 +159,18 @@ inline constexpr const char *pawn_shop_on_npc_event = "_ZN11PawnShopNPC10OnNPCEv
 
 // HubFountain::Bulb::Update(float,bool): per-lamp visual; detoured to force lit (bulb index at this+0x10)
 inline constexpr const char *hub_fountain_bulb_update = "_ZN11HubFountain4Bulb6UpdateEfb";
+
+// TitleScreen::UpdateState(): owns the menu cursor wrap and the option dispatch. Hooked to keep
+// the cursor off "Start Game" while disconnected.
+inline constexpr const char *title_screen_update_state = "_ZN11TitleScreen11UpdateStateEv";
+// TitleScreen::StartGame(): retail sets the next substate rather than transitioning. Suppressed
+// while disconnected; allowed through while connected, because the substate it requests is what
+// builds the profile-select menu the takeover drives.
+inline constexpr const char *title_screen_start_game = "_ZN11TitleScreen9StartGameEv";
+
+// ProfileSelectMenu::UpdateState(): hooked observe-only to reach the live menu object. The takeover
+// stages its save and pushes the menu into its launch state from here, so the game performs the
+// activation, the StartActiveSaveSlot call and the intro-cinematic handshake itself.
+inline constexpr const char *profile_select_menu_update_state = "_ZN17ProfileSelectMenu11UpdateStateEv";
 
 } // namespace mth::sym

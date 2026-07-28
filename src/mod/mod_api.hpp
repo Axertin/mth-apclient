@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
 
 struct MinaModAPI; // forward decl; MinaModAPI.h is included only in mod_api.cpp
 
@@ -12,6 +13,9 @@ void set_api(MinaModAPI *api);
 
 // Game revision ("r-number") via MinaModAPI::GetGameRevision; 0 if unavailable.
 std::uint32_t game_revision();
+
+// Current game-state enum value via MinaModAPI::GetCurrentGameState; -1 if unavailable.
+int current_game_state();
 
 // Items::IsItemCollected override via the native "IsItemCollected" mod hook. Capacity-upgrade locations
 // (itemTypes 0x44..0x48) read the same SaveSlot bitfield apply_upgrades repurposes as a capacity counter,
@@ -61,6 +65,18 @@ void set_player_vials(int n);
 bool bones_api_available();
 int player_bones();
 void set_player_bones(int n);
+
+// ---- Save slots. All no-op / return a failure sentinel when the modding API is absent. ----
+
+// True when every entry the save takeover depends on is present.
+bool save_api_available();
+int active_save_slot(); // -1 when unavailable
+bool set_active_save_slot_contents(const char *ycdata);
+bool set_save_slot_contents(unsigned int slot, const char *ycdata); // writes a slot without activating it
+std::string active_save_slot_contents();                            // "" on failure
+void player_restore_from_save();
+void set_save_write_enabled(bool on);
+bool save_write_enabled();
 
 // Kill the player via the native MinaModAPI PlayerDie (deathlink apply). Offset-free and cross-platform,
 // replacing the old Player::TriggerDeath sig detour. Returns false (no-op) if the modding API or PlayerDie

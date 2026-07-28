@@ -2,8 +2,11 @@
 #include <bit>
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
 #include <functional>
+#include <mutex>
 #include <span>
+#include <string>
 #include <utility>
 
 #include "mth/core/ap/ap_ids.hpp"
@@ -12,6 +15,7 @@
 #include "mth/core/fountain_lamps.hpp"
 #include "mth/core/shop_flatten.hpp"
 #include "mth/core/sig_scan.hpp"
+#include "mth/core/title_menu.hpp"
 #include "pal/pal_game.hpp"
 #include "pal/pal_hook.hpp"
 #include "pal/pal_log.hpp"
@@ -206,6 +210,7 @@ constexpr std::ptrdiff_t kCheatMaskOff = 0xcb0; // 8 u32 words: per-save enable 
 constexpr std::ptrdiff_t kApplySlotOff = 0x08;  // g_saveManager+0x08 = apply-path slot (garbage on build 9cd1468c)
 constexpr std::ptrdiff_t kLiveSlotOff = 0x18;   // g_saveManager+0x18 = live-gameplay slot (the real one)
 constexpr std::ptrdiff_t kSlotIndexOff = 0x20;  // g_saveManager+0x20 = active 0-based slot index (confirmed in-game 9cd1468c)
+constexpr std::ptrdiff_t kSaveMasterOff = 0x28; // g_saveManager+0x28 = SaveMasterData, holding the vanilla slot array
 
 std::uintptr_t g_mod_save_manager = 0; // resolved g_saveManager
 std::uintptr_t g_addr_activate_slot = 0;
@@ -683,6 +688,162 @@ void repl_bulb_update(void *self, float dt, bool lit)
     if (g_orig_bulb_update)
         g_orig_bulb_update(self, dt, lit);
 }
+
+// TitleScreen::UpdateState(): while disconnected, keep the menu cursor off index 0 ("Start Game")
+// so the wrap behaves as a two-option menu. The game has no disabled-option concept to set.
+pal::TitleGateFn g_title_gate_fn;
+pal::HookId g_title_gate_hook = pal::kInvalidHookId;
+void (*g_orig_title_update)(void *) = nullptr;
+
+// Desired "Start Game" label, re-applied every UpdateState so the localization refresh cannot
+// leave a stale string behind. Empty means "restore the cached original" (never an English literal).
+std::string g_title_start_text;
+std::mutex g_title_start_text_mutex;
+// ycTextRenderObject::SetText(this, text, len, flags); resolved separately from the shop feature's
+// copy of the same symbol so this hook stays independently install/removable.
+void (*g_orig_set_text)(void *, const char *, int, unsigned int) = nullptr;
+
+// First sight of the option holds the localized "Start Game"; cache it so restoring the label
+// after a reconnect does not force English.
+std::string g_title_start_original;
+bool g_title_start_original_warned = false;
+// Last label WE wrote via SetText while disconnected; lets the restore path (below) tell "undo our
+// own substitution" apart from "the game changed the string for a real reason" (e.g. language change).
+std::string g_title_start_last_substituted;
+
+// ycTextRenderObject's live string-buffer pointer (see ycTextRenderObject::SetText, which writes a
+// fresh allocation here and NUL-terminates it every call); reading it back is safe once non-null.
+constexpr std::ptrdiff_t kTitleTextBufferOff = 0x108;
+
+// Re-applies the desired Start Game text (or the cached original once connected), but only when the
+// option's current text does not already match, so this cannot fight a live language change: a
+// language switch while connected replaces the widget text with a new localized string that equals
+// neither our cache nor our own substitution, and is therefore left alone.
+void apply_title_start_text(void *self)
+{
+    if (self == nullptr || g_orig_set_text == nullptr)
+        return;
+
+    void *block = *reinterpret_cast<void **>(static_cast<char *>(self) + mth::layout::kTitleOptionBlockOff);
+    if (!pal::pointer_looks_valid(block))
+        return;
+    void *widget = static_cast<char *>(block) + mth::layout::kTitleOptionStartGame * mth::layout::kTitleOptionStride;
+    void *textobj = static_cast<char *>(widget) + kTextObjOff;
+
+    const char *cur = *reinterpret_cast<const char *const *>(static_cast<char *>(textobj) + kTitleTextBufferOff);
+    const bool cur_valid = pal::pointer_looks_valid(cur);
+    const std::string current = cur_valid ? std::string(cur) : std::string();
+
+    if (g_title_start_original.empty())
+    {
+        if (cur_valid)
+            g_title_start_original = current;
+        else if (!g_title_start_original_warned)
+        {
+            g_title_start_original_warned = true;
+            pal::logf(pal::LogLevel::Warn, "title: could not read the Start Game option's original text; label will not be restored");
+        }
+    }
+
+    std::string want;
+    {
+        std::lock_guard<std::mutex> lk(g_title_start_text_mutex);
+        want = g_title_start_text;
+    }
+
+    if (!want.empty())
+    {
+        if (current != want)
+        {
+            g_orig_set_text(textobj, want.c_str(), 0, 0);
+            g_title_start_last_substituted = want;
+        }
+    }
+    else if (!g_title_start_original.empty() && current != g_title_start_original && current == g_title_start_last_substituted)
+    {
+        g_orig_set_text(textobj, g_title_start_original.c_str(), 0, 0);
+    }
+}
+
+// Latches on an implausible selected index: a bad read can still look plausible on a later call, so
+// the decision must not be re-derived per call once it has failed.
+bool g_title_base_disabled = false;
+
+void repl_title_update_state(void *self)
+{
+    int *idx = self != nullptr ? reinterpret_cast<int *>(static_cast<char *>(self) + mth::layout::kTitleSelectedIndexOff) : nullptr;
+    const bool base_ok = idx != nullptr && *idx >= 0 && *idx < mth::layout::kTitleOptionCount;
+    if (idx != nullptr && !base_ok && !g_title_base_disabled)
+    {
+        g_title_base_disabled = true;
+        pal::logf(pal::LogLevel::Warn, "title: selected-index=%d out of [0,%d); cursor gate/label disabled", *idx, mth::layout::kTitleOptionCount);
+    }
+    const int previous = base_ok ? *idx : 0;
+
+    if (g_orig_title_update)
+        g_orig_title_update(self);
+
+    if (!base_ok || g_title_base_disabled)
+        return; // guard tripped, this call or a prior one: never write through an unverified index
+
+    if (g_title_gate_fn && !g_title_gate_fn())
+    {
+        // After the game's own wrap, and direction-aware: see mth::skip_gated_option.
+        *idx = mth::skip_gated_option(previous, *idx);
+    }
+
+    apply_title_start_text(self);
+}
+
+// TitleScreen::StartGame(): backstop to the cursor gate above. UpdateState performs the cursor write
+// AND the confirm dispatch in the same call, so correcting the cursor after the original returns is
+// too late once StartGame has already run; suppress it outright while disconnected instead.
+pal::StartGameSuppressFn g_start_game_suppress_fn;
+pal::HookId g_start_game_hook = pal::kInvalidHookId;
+void (*g_orig_title_start_game)(void *) = nullptr;
+
+void repl_title_start_game(void *self)
+{
+    if (g_start_game_suppress_fn && g_start_game_suppress_fn())
+        return; // disconnected: the option is not selectable, so the vanilla path must not run
+    if (g_orig_title_start_game)
+        g_orig_title_start_game(self);
+}
+
+// SaveManager::WriteSaveData(bool): the flush trigger for mod-owned saves. Observed only, never
+// suppressed; the mod's own SetSaveWriteEnabled(false) (via the native MinaModAPI) is what
+// actually keeps saveData.yc untouched during a takeover.
+pal::SaveRequestedFn g_save_request_fn;
+pal::HookId g_save_request_hook = pal::kInvalidHookId;
+void (*g_orig_write_save_data)(void *, bool) = nullptr;
+
+void repl_write_save_data(void *self, bool flag)
+{
+    if (g_save_request_fn)
+        g_save_request_fn();
+    if (g_orig_write_save_data)
+        g_orig_write_save_data(self, flag);
+}
+
+// ProfileSelectMenu::UpdateState: observed, never suppressed. The takeover needs the live menu to
+// drive it into its launch state; the menu itself is created and destroyed by the intro cinematic.
+pal::ProfileMenuFn g_profile_menu_fn;
+pal::HookId g_profile_menu_hook = pal::kInvalidHookId;
+void (*g_orig_profile_menu_update)(void *) = nullptr;
+
+// Resolved once at install time: on Windows each resolve is a full .text signature scan, and the
+// staging path runs on a game frame.
+std::uintptr_t g_takeover_save_manager = 0;
+std::uintptr_t g_takeover_slot_clear = 0;
+std::uintptr_t g_takeover_init_gamestate = 0;
+
+void repl_profile_menu_update(void *self)
+{
+    if (g_profile_menu_fn && pal::pointer_looks_valid(self))
+        g_profile_menu_fn(self);
+    if (g_orig_profile_menu_update)
+        g_orig_profile_menu_update(self);
+}
 } // namespace
 
 namespace pal
@@ -813,6 +974,79 @@ void remove_fountain_lamp_hook()
         hook_engine().remove_hook(g_fountain_hook);
     g_fountain_hook = kInvalidHookId;
     g_fountain_mask_fn = nullptr;
+}
+
+bool install_title_gate_hook(TitleGateFn connected)
+{
+    g_title_gate_fn = std::move(connected);
+    const std::uintptr_t addr = resolve_game_symbol(mth::sym::title_screen_update_state);
+    if (addr == 0)
+    {
+        logf(LogLevel::Warn, "title: TitleScreen::UpdateState not resolved; menu gating off");
+        g_title_gate_fn = nullptr;
+        return false;
+    }
+    g_title_gate_hook = hook_engine().install_hook(reinterpret_cast<void *>(addr), reinterpret_cast<void *>(&repl_title_update_state),
+                                                   reinterpret_cast<void **>(&g_orig_title_update));
+    if (g_title_gate_hook == kInvalidHookId)
+    {
+        logf(LogLevel::Error, "title: failed to hook TitleScreen::UpdateState");
+        g_title_gate_fn = nullptr;
+        return false;
+    }
+    logf(LogLevel::Info, "title: hooked TitleScreen::UpdateState (id=%llu)", static_cast<unsigned long long>(g_title_gate_hook));
+
+    const std::uintptr_t text_addr = resolve_game_symbol(mth::sym::text_set_text);
+    if (text_addr == 0)
+        logf(LogLevel::Warn, "title: ycTextRenderObject::SetText not resolved; Start Game label substitution off");
+    else
+        g_orig_set_text = reinterpret_cast<void (*)(void *, const char *, int, unsigned int)>(text_addr);
+    return true;
+}
+
+void remove_title_gate_hook()
+{
+    if (g_title_gate_hook != kInvalidHookId)
+        hook_engine().remove_hook(g_title_gate_hook);
+    g_title_gate_hook = kInvalidHookId;
+    g_title_gate_fn = nullptr;
+    g_orig_set_text = nullptr;
+}
+
+void set_title_start_option_text(const char *text)
+{
+    std::lock_guard<std::mutex> lk(g_title_start_text_mutex);
+    g_title_start_text = (text != nullptr) ? text : "";
+}
+
+bool install_start_game_suppress_hook(StartGameSuppressFn suppress)
+{
+    g_start_game_suppress_fn = std::move(suppress);
+    const std::uintptr_t addr = resolve_game_symbol(mth::sym::title_screen_start_game);
+    if (addr == 0)
+    {
+        logf(LogLevel::Warn, "title: TitleScreen::StartGame not resolved; start-game backstop off");
+        g_start_game_suppress_fn = nullptr;
+        return false;
+    }
+    g_start_game_hook = hook_engine().install_hook(reinterpret_cast<void *>(addr), reinterpret_cast<void *>(&repl_title_start_game),
+                                                   reinterpret_cast<void **>(&g_orig_title_start_game));
+    if (g_start_game_hook == kInvalidHookId)
+    {
+        logf(LogLevel::Error, "title: failed to hook TitleScreen::StartGame");
+        g_start_game_suppress_fn = nullptr;
+        return false;
+    }
+    logf(LogLevel::Info, "title: hooked TitleScreen::StartGame (id=%llu)", static_cast<unsigned long long>(g_start_game_hook));
+    return true;
+}
+
+void remove_start_game_suppress_hook()
+{
+    if (g_start_game_hook != kInvalidHookId)
+        hook_engine().remove_hook(g_start_game_hook);
+    g_start_game_hook = kInvalidHookId;
+    g_start_game_suppress_fn = nullptr;
 }
 
 bool install_shop_stock_hook(ShopLevelFn level_state)
@@ -1504,6 +1738,105 @@ void set_train_destination_gate(std::uint32_t granted_mask, bool rando_active)
 {
     g_train_granted_mask = granted_mask;
     g_train_rando_gate = rando_active;
+}
+
+bool install_save_request_hook(SaveRequestedFn on_save)
+{
+    g_save_request_fn = std::move(on_save);
+    const std::uintptr_t addr = resolve_game_symbol(mth::sym::save_manager_write_save_data);
+    if (addr == 0)
+    {
+        logf(LogLevel::Warn, "takeover: SaveManager::WriteSaveData not resolved; mod saves will not flush");
+        g_save_request_fn = nullptr;
+        return false;
+    }
+    g_save_request_hook = hook_engine().install_hook(reinterpret_cast<void *>(addr), reinterpret_cast<void *>(&repl_write_save_data),
+                                                     reinterpret_cast<void **>(&g_orig_write_save_data));
+    if (g_save_request_hook == kInvalidHookId)
+    {
+        logf(LogLevel::Error, "takeover: failed to hook SaveManager::WriteSaveData");
+        g_save_request_fn = nullptr;
+        return false;
+    }
+    logf(LogLevel::Info, "takeover: hooked SaveManager::WriteSaveData (id=%llu)", static_cast<unsigned long long>(g_save_request_hook));
+    return true;
+}
+
+void remove_save_request_hook()
+{
+    if (g_save_request_hook != kInvalidHookId)
+        hook_engine().remove_hook(g_save_request_hook);
+    g_save_request_hook = kInvalidHookId;
+    g_save_request_fn = nullptr;
+}
+
+bool install_profile_menu_hook(ProfileMenuFn on_update)
+{
+    g_profile_menu_fn = std::move(on_update);
+    const std::uintptr_t addr = resolve_game_symbol(mth::sym::profile_select_menu_update_state);
+    if (addr == 0)
+    {
+        logf(LogLevel::Warn, "takeover: ProfileSelectMenu::UpdateState not resolved; the save takeover cannot launch");
+        g_profile_menu_fn = nullptr;
+        return false;
+    }
+    g_profile_menu_hook = hook_engine().install_hook(reinterpret_cast<void *>(addr), reinterpret_cast<void *>(&repl_profile_menu_update),
+                                                     reinterpret_cast<void **>(&g_orig_profile_menu_update));
+    if (g_profile_menu_hook == kInvalidHookId)
+    {
+        logf(LogLevel::Error, "takeover: failed to hook ProfileSelectMenu::UpdateState");
+        g_profile_menu_fn = nullptr;
+        return false;
+    }
+    logf(LogLevel::Info, "takeover: hooked ProfileSelectMenu::UpdateState (id=%llu)", static_cast<unsigned long long>(g_profile_menu_hook));
+    g_takeover_save_manager = resolve_game_symbol(mth::sym::save_manager);
+    g_takeover_slot_clear = resolve_game_symbol(mth::sym::save_slot_clear);
+    g_takeover_init_gamestate = resolve_game_symbol(mth::sym::save_slot_init_gamestate);
+    if (g_takeover_save_manager == 0 || g_takeover_slot_clear == 0 || g_takeover_init_gamestate == 0)
+        logf(LogLevel::Warn, "takeover: g_saveManager/SaveSlot::Clear/InitGamestate not all resolved; a new save cannot be staged");
+    return true;
+}
+
+void remove_profile_menu_hook()
+{
+    if (g_profile_menu_hook != kInvalidHookId)
+        hook_engine().remove_hook(g_profile_menu_hook);
+    g_profile_menu_hook = kInvalidHookId;
+    g_profile_menu_fn = nullptr;
+}
+
+bool init_new_save_file(unsigned int slot)
+{
+    if (g_takeover_save_manager == 0 || g_takeover_slot_clear == 0 || g_takeover_init_gamestate == 0)
+    {
+        logf(LogLevel::Warn, "takeover: SaveSlot::Clear/InitGamestate or g_saveManager not resolved; cannot init a new save");
+        return false;
+    }
+    const std::uintptr_t master = *reinterpret_cast<std::uintptr_t *>(g_takeover_save_manager + kSaveMasterOff);
+    if (master == 0)
+    {
+        logf(LogLevel::Warn, "takeover: save master table not resolved; cannot init a new save");
+        return false;
+    }
+    void *file_slot = reinterpret_cast<void *>(master + mth::layout::kSaveSlotArrayOff + static_cast<std::uintptr_t>(slot) * mth::layout::kSaveSlotStride);
+    if (!pal::pointer_looks_valid(file_slot))
+    {
+        logf(LogLevel::Warn, "takeover: save slot %u address looks invalid; cannot init a new save", slot);
+        return false;
+    }
+    auto clear_fn = reinterpret_cast<void (*)(void *, bool)>(g_takeover_slot_clear);
+    auto init_fn = reinterpret_cast<void (*)(void *)>(g_takeover_init_gamestate);
+    logf(LogLevel::Info, "takeover: initializing new save file (array slot %u at %p)", slot, file_slot);
+    // false = fresh file, what the vanilla profile-select new-file sites pass; true is the NG+ cycle.
+    // Going through the real address re-triggers the newfile-kit suppressor, so AP's starting kit wins.
+    clear_fn(file_slot, false);
+    init_fn(file_slot);
+    return true;
+}
+
+std::filesystem::path mod_save_dir()
+{
+    return pal::log_dir() / "saves";
 }
 
 } // namespace pal

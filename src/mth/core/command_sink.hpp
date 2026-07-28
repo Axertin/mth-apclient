@@ -46,6 +46,7 @@ class ICommandSink
     virtual void set_ability_randomized(Ability ability, bool randomized) = 0; // offline test: mark randomized + arm enforcement
     virtual void enable_deathlink(bool on) = 0;                                // enable/disable deathlink
     virtual void set_lit_lamps(std::uint32_t lamp_mask) = 0;                   // offline test: force Ossex fountain lamps lit (bit i = lamp i)
+    virtual void save_test(const std::string &op) = 0;                         // save-takeover validation; dev only
 };
 
 } // namespace mth

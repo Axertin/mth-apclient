@@ -82,6 +82,14 @@
    "kind": "Code"
   },
   {
+   "name": "_ZN8SaveSlot13InitGamestateEv",
+   "kind": "Code"
+  },
+  {
+   "name": "_ZN11SaveManager13WriteSaveDataEb",
+   "kind": "Code"
+  },
+  {
    "name": "_ZN12CheatManager18ActivateSaveCheatsEv",
    "kind": "Code"
   },
@@ -200,6 +208,18 @@
   {
    "name": "_ZN11HubFountain4Bulb6UpdateEfb",
    "kind": "Code"
+  },
+  {
+   "name": "_ZN11TitleScreen11UpdateStateEv",
+   "kind": "Code"
+  },
+  {
+   "name": "_ZN11TitleScreen9StartGameEv",
+   "kind": "Code"
+  },
+  {
+   "name": "_ZN17ProfileSelectMenu11UpdateStateEv",
+   "kind": "Code"
   }
  ],
  "windows": {
@@ -260,6 +280,12 @@
   },
   "_ZN8SaveSlot5ClearEb": {
    "rva": 10737824
+  },
+  "_ZN8SaveSlot13InitGamestateEv": {
+   "rva": 10858880
+  },
+  "_ZN11SaveManager13WriteSaveDataEb": {
+   "rva": 10883968
   },
   "_ZN12CheatManager18ActivateSaveCheatsEv": {
    "rva": 1526256
@@ -353,6 +379,15 @@
   },
   "_ZN11HubFountain4Bulb6UpdateEfb": {
    "rva": 7447936
+  },
+  "_ZN11TitleScreen11UpdateStateEv": {
+   "rva": 11576464
+  },
+  "_ZN11TitleScreen9StartGameEv": {
+   "rva": 11582032
+  },
+  "_ZN17ProfileSelectMenu11UpdateStateEv": {
+   "rva": 7536176
   }
  },
  "linux": {

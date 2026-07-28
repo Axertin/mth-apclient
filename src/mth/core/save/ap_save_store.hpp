@@ -1,0 +1,47 @@
+#pragma once
+
+#include <filesystem>
+#include <optional>
+#include <string>
+#include <string_view>
+
+namespace mth
+{
+
+// Replaces anything outside [A-Za-z0-9_-] with '_' so an AP seed or slot name is usable in a
+// filename; '.' is replaced too, so no key part can produce a path traversal. Empty input yields
+// "unnamed" rather than an empty component.
+std::string sanitize_save_key_part(std::string_view raw);
+
+// "ap_<seed>_<slot>_<hash>.ycsave", seed/slot sanitized. Sanitization is lossy (distinct raw keys
+// can collide once unsafe characters fold to '_'), so a hash of the raw parts is appended to keep
+// distinct sessions from resolving to the same file.
+std::string ap_save_filename(std::string_view seed, std::string_view slot);
+
+// A serialized single slot starts with the ycData header and carries a SaveSlot body. Cheap
+// structural check only; the blob is otherwise opaque to us.
+bool looks_like_save_blob(std::string_view blob);
+
+// Mod-owned save files, one per (seed, slot). Deliberately knows nothing about the game: the blob
+// is produced and consumed by the native save API.
+class ApSaveStore
+{
+  public:
+    explicit ApSaveStore(std::filesystem::path dir);
+
+    [[nodiscard]] std::filesystem::path path_for(std::string_view seed, std::string_view slot) const;
+
+    // nullopt when absent, unreadable, or structurally invalid, so a corrupt file reads as "no
+    // save" and the caller starts a new game rather than launching into garbage.
+    [[nodiscard]] std::optional<std::string> load(std::string_view seed, std::string_view slot) const;
+
+    // Refuses malformed blobs. Writes to a temp file and renames, so an interrupted write cannot
+    // truncate a good save.
+    bool store(std::string_view seed, std::string_view slot, std::string_view blob);
+
+  private:
+    std::filesystem::path dir_;
+    bool dir_ready_{false};
+};
+
+} // namespace mth

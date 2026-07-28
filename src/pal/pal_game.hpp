@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <filesystem>
 #include <functional>
 
 namespace pal
@@ -184,5 +185,49 @@ void remove_pawn_shop_hook();
 using FountainLampFn = std::function<std::uint32_t()>;
 bool install_fountain_lamp_hook(FountainLampFn lit_mask);
 void remove_fountain_lamp_hook();
+
+// ---- Title-screen gating. Offsets are shared (see mth::layout); only symbol resolution diverges. ----
+
+// Returns true when AP is connected, i.e. when "Start Game" is selectable. Called once per
+// TitleScreen::UpdateState.
+using TitleGateFn = std::function<bool()>;
+bool install_title_gate_hook(TitleGateFn connected);
+void remove_title_gate_hook();
+
+// Backstop for the cursor gate above: TitleScreen::UpdateState performs the confirm dispatch in the
+// same call it writes the cursor, so a cursor correction can lose the race with StartGame already
+// having run. Suppresses the vanilla StartGame when the callback returns true.
+using StartGameSuppressFn = std::function<bool()>;
+bool install_start_game_suppress_hook(StartGameSuppressFn suppress);
+void remove_start_game_suppress_hook();
+
+// Sets the "Start Game" option's label. Applied from the UpdateState detour rather than once at
+// init, because the game's localization refresh unconditionally re-sets all three option strings.
+// An empty/null text restores the original (cached on first sight, never an English literal).
+void set_title_start_option_text(const char *text);
+
+// ---- Save takeover. Symbol/offset divergence lives in the PAL impl. ----
+
+// SaveManager's "persist a slot" chokepoint: observed, never suppressed. Fires on the game's own
+// save cadence, which is the flush trigger for mod-owned saves.
+using SaveRequestedFn = std::function<void()>;
+bool install_save_request_hook(SaveRequestedFn on_save);
+void remove_save_request_hook();
+
+// Fires at the top of ProfileSelectMenu::UpdateState with the live menu, every frame it updates.
+// The pointer is normalized to the primary `this` (Windows detours receive a base subobject), and
+// the menu only exists while the game is in profile-select, so callbacks must not cache it.
+using ProfileMenuFn = std::function<void(void *menu)>;
+[[nodiscard]] bool install_profile_menu_hook(ProfileMenuFn on_update);
+void remove_profile_menu_hook();
+
+// Runs the game's own new-file init on the vanilla SaveSlot ARRAY element for `slot`, not the live
+// working slot: the launch copies array over working, so a working-slot write here is discarded.
+// Clear(false) then InitGamestate(); true would be the NG+ cycle. Deliberately does not persist;
+// WriteSaveData is not on the launch path. False if the symbols or the slot address do not resolve.
+bool init_new_save_file(unsigned int slot);
+
+// The mod's own save directory: a "saves" subdirectory of the same base pal::log_dir() resolves to.
+std::filesystem::path mod_save_dir();
 
 } // namespace pal

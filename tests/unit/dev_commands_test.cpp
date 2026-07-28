@@ -99,3 +99,10 @@ TEST_CASE("parse_command recognizes litlamps with index args", "[dev_commands]")
     REQUIRE(mth::parse_command("litlamps").kind == mth::CommandKind::LitLamps);
     REQUIRE(mth::parse_command("litlamps").args.empty());
 }
+
+TEST_CASE("savetest verb parses case-insensitively", "[commands]")
+{
+    REQUIRE(mth::parse_command("savetest dump").kind == mth::CommandKind::SaveTest);
+    REQUIRE(mth::parse_command("SAVETEST launch").kind == mth::CommandKind::SaveTest);
+    REQUIRE(mth::parse_command("savetest dump").args.at(0) == "dump");
+}

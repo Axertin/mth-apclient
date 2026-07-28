@@ -23,7 +23,8 @@ enum class CommandKind
     Connect,      // args: [server, slot, (optional) password]
     Disconnect,
     Deathlink, // args: [on|off]
-    LitLamps   // args: [lamp indices 0..5 | off] (force Ossex fountain lamps lit; offline test)
+    LitLamps,  // args: [lamp indices 0..5 | off] (force Ossex fountain lamps lit; offline test)
+    SaveTest   // args: dump|write|noflush|flush|launch|activate (save-takeover validation; dev only)
 };
 
 struct ParsedCommand
