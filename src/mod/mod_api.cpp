@@ -57,6 +57,11 @@ std::uint32_t game_revision()
     return (g_mod_api != nullptr && g_mod_api->GetGameRevision != nullptr) ? g_mod_api->GetGameRevision() : 0;
 }
 
+int current_game_state()
+{
+    return (g_mod_api != nullptr && g_mod_api->GetCurrentGameState != nullptr) ? g_mod_api->GetCurrentGameState() : -1;
+}
+
 bool install_item_collected_hook(ItemCollectedFn query)
 {
     if (g_mod_api == nullptr || g_mod_api->InstallHook == nullptr)
@@ -208,6 +213,62 @@ bool spark_api_available()
 int player_spark()
 {
     return spark_api_available() ? g_mod_api->PlayerGetSpark() : 0;
+}
+
+bool save_api_available()
+{
+    // Only what the takeover actually calls: gating on more would fail a launch that would work.
+    return g_mod_api != nullptr && g_mod_api->SetSaveSlotContents != nullptr && g_mod_api->GetActiveSaveSlotContents != nullptr && g_mod_api->Free != nullptr &&
+           g_mod_api->SetSaveWriteEnabled != nullptr && g_mod_api->IsSaveWriteEnabled != nullptr;
+}
+
+int active_save_slot()
+{
+    return (g_mod_api != nullptr && g_mod_api->GetActiveSaveSlot != nullptr) ? g_mod_api->GetActiveSaveSlot() : -1;
+}
+
+bool set_active_save_slot_contents(const char *ycdata)
+{
+    if (ycdata == nullptr || g_mod_api == nullptr || g_mod_api->SetActiveSaveSlotContents == nullptr)
+        return false;
+    return g_mod_api->SetActiveSaveSlotContents(ycdata);
+}
+
+bool set_save_slot_contents(unsigned int slot, const char *ycdata)
+{
+    if (ycdata == nullptr || g_mod_api == nullptr || g_mod_api->SetSaveSlotContents == nullptr)
+        return false;
+    return g_mod_api->SetSaveSlotContents(slot, ycdata);
+}
+
+std::string active_save_slot_contents()
+{
+    if (g_mod_api == nullptr || g_mod_api->GetActiveSaveSlotContents == nullptr)
+        return {};
+    char *raw = g_mod_api->GetActiveSaveSlotContents();
+    if (raw == nullptr)
+        return {};
+    std::string out(raw);
+    if (g_mod_api->Free != nullptr)
+        g_mod_api->Free(raw); // the API contract requires freeing through the game's allocator
+    return out;
+}
+
+void player_restore_from_save()
+{
+    if (g_mod_api != nullptr && g_mod_api->PlayerRestoreFromSave != nullptr)
+        g_mod_api->PlayerRestoreFromSave();
+}
+
+void set_save_write_enabled(bool on)
+{
+    if (g_mod_api != nullptr && g_mod_api->SetSaveWriteEnabled != nullptr)
+        g_mod_api->SetSaveWriteEnabled(on);
+}
+
+bool save_write_enabled()
+{
+    return (g_mod_api != nullptr && g_mod_api->IsSaveWriteEnabled != nullptr) ? g_mod_api->IsSaveWriteEnabled() : false;
 }
 
 } // namespace mod

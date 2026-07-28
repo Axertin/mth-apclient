@@ -35,6 +35,19 @@ TEST_CASE("mod: game_revision reflects the API, 0 when unset", "[mod]")
     mod::set_api(nullptr);
 }
 
+TEST_CASE("mod: current_game_state reflects the API, -1 when unset", "[mod]")
+{
+    mth::test::recorder().reset();
+    mod::set_api(nullptr);
+    REQUIRE(mod::current_game_state() == -1);
+
+    auto fake = mth::test::make_fake_api();
+    mth::test::recorder().game_state = 7;
+    mod::set_api(&fake);
+    REQUIRE(mod::current_game_state() == 7);
+    mod::set_api(nullptr);
+}
+
 TEST_CASE("mod: IsItemCollected trampoline marshals the query result", "[mod]")
 {
     mth::test::recorder().reset();
@@ -130,5 +143,47 @@ TEST_CASE("mod: install fails when the API is absent or InstallHook returns null
     REQUIRE_FALSE(mod::install_item_collected_hook(&forced_query));
     REQUIRE_FALSE(mod::install_world_update_hook(&world_cb));
     REQUIRE_FALSE(mod::install_world_destroy_hook(&destroy_cb));
+    mod::set_api(nullptr);
+}
+
+TEST_CASE("save api reports unavailable without an api pointer", "[mod][save]")
+{
+    mod::set_api(nullptr);
+    REQUIRE_FALSE(mod::save_api_available());
+    REQUIRE(mod::active_save_slot() == -1);
+    REQUIRE(mod::active_save_slot_contents().empty());
+}
+
+TEST_CASE("save api passthroughs reach the fake api", "[mod][save]")
+{
+    mth::test::recorder().reset();
+    auto fake = mth::test::make_fake_api();
+    mod::set_api(&fake);
+
+    REQUIRE(mod::save_api_available());
+
+    mth::test::fake_save_state().active_slot = 3;
+    REQUIRE(mod::active_save_slot() == 3);
+
+    REQUIRE(mod::set_active_save_slot_contents("[YCD Version: 1]\nSaveSlot\n{}"));
+    REQUIRE(mod::active_save_slot_contents() == "[YCD Version: 1]\nSaveSlot\n{}");
+    REQUIRE_FALSE(mod::set_active_save_slot_contents(nullptr));
+
+    // Staging writes the named slot without activating it, so the active slot must not move.
+    REQUIRE(mod::set_save_slot_contents(1, "[YCD Version: 1]\nSaveSlot\n{staged}"));
+    REQUIRE(mth::test::fake_save_state().staged_slot == 1);
+    REQUIRE(mth::test::fake_save_state().staged_contents == "[YCD Version: 1]\nSaveSlot\n{staged}");
+    REQUIRE(mod::active_save_slot() == 3);
+    REQUIRE_FALSE(mod::set_save_slot_contents(1, nullptr));
+
+    REQUIRE(mth::test::fake_save_state().restore_calls == 0);
+    mod::player_restore_from_save();
+    REQUIRE(mth::test::fake_save_state().restore_calls == 1);
+
+    mod::set_save_write_enabled(false);
+    REQUIRE_FALSE(mod::save_write_enabled());
+    mod::set_save_write_enabled(true);
+    REQUIRE(mod::save_write_enabled());
+
     mod::set_api(nullptr);
 }
