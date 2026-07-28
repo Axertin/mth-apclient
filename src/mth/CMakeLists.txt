@@ -21,9 +21,12 @@ add_library(mthap_core STATIC
     core/modifier_config.cpp
     core/data/modifier_table.cpp
     core/stat_cap_state.cpp
+    core/title_menu.cpp
     core/upgrade_state.cpp
     core/wallet_cap_state.cpp
     core/area_reporter.cpp
+    core/save/ap_save_store.cpp
+    core/save/takeover_state.cpp
 )
 
 target_include_directories(mthap_core PUBLIC "${CMAKE_SOURCE_DIR}/src")
@@ -93,6 +96,8 @@ if(NOT MTHAP_BUILD_TESTS_ONLY)
         features/modifier_hooks.cpp
         features/levelcap_hooks.cpp
         features/fountain_lamp_hooks.cpp
+        features/title_gate.cpp
+        features/save_takeover.cpp
     )
 
     target_link_libraries(mthap PRIVATE

@@ -20,7 +20,10 @@
 #include "mth/features/lock_hooks.hpp"
 #include "mth/features/modifier_hooks.hpp"
 #include "mth/features/pawn_shop_hooks.hpp"
+#include "mth/features/save_takeover.hpp"
+#include "mth/features/title_gate.hpp"
 #include "mth/hooks/game_hooks.hpp"
+#include "pal/pal_game.hpp"
 
 namespace mth
 {
@@ -38,10 +41,16 @@ HookManager::HookManager(IGameEvents &events, RandoBridge &rando, ScoutRegistry 
     location_hooks_->set_player_getter(get_player);                    // kear key edits mirror Player+0x11b0 (#130)
     death_hooks_ = std::make_unique<DeathHooks>(std::move(send_death), std::move(get_player));
     ability_hooks_ = std::make_unique<AbilityHooks>([&state](std::int64_t id) { return state.has_received(id); });
-    pawn_shop_hooks_ = std::make_unique<PawnShopHooks>([&state] { return state.phase() == ConnectionPhase::Connected; });
+    auto connected = [&state] { return state.phase() == ConnectionPhase::Connected; };
+    pawn_shop_hooks_ = std::make_unique<PawnShopHooks>(connected);
     modifier_hooks_ = std::make_unique<ModifierHooks>(ModifierRequest{});
     level_cap_hooks_ = std::make_unique<LevelCapHooks>();
     fountain_lamp_hooks_ = std::make_unique<FountainLampHooks>();
+    // Before TitleGate, which takes the claim callback: TitleGate owns the only StartGame detour, and
+    // reverse-order destruction then tears that detour down before the takeover it calls into.
+    save_takeover_ = std::make_unique<SaveTakeover>(ApSaveStore(pal::mod_save_dir()),
+                                                    [&state] { return std::make_pair(state.seed(), std::to_string(state.player_slot())); });
+    title_gate_ = std::make_unique<TitleGate>(connected, [this] { return save_takeover_->begin(); });
 }
 
 HookManager::~HookManager()
@@ -55,6 +64,8 @@ HookManager::~HookManager()
     death_hooks_.reset();
     modifier_hooks_.reset();
     level_cap_hooks_.reset();
+    title_gate_.reset(); // owns the StartGame detour that calls into the takeover, so it goes first
+    save_takeover_.reset();
     fountain_lamp_hooks_.reset();
     goal_tracker_.reset();
     location_hooks_.reset();
@@ -115,6 +126,8 @@ void HookManager::tick(ApState &state, SessionPolicy &policy, int save_game_slot
     seed_kear_blocks(state);
 
     death_hooks_->poll(); // edge-detect a local death for deathlink (send_death gates on deathlink enabled)
+
+    save_takeover_->tick(); // self-gates on its own step; no-ops in the terminal ones
 }
 
 bool HookManager::credit_kear_key()
@@ -189,6 +202,11 @@ void HookManager::set_lamp_console_override(std::uint32_t mask)
     lamp_console_override_.store(mask, std::memory_order_relaxed); // render thread; applied next game-thread tick
 }
 
+bool HookManager::takeover_active() const
+{
+    return save_takeover_->takeover_active();
+}
+
 void HookManager::append_status_lines(std::vector<std::string> &out) const
 {
     for (const auto &l : modifier_hooks_->status_lines())
@@ -196,6 +214,8 @@ void HookManager::append_status_lines(std::vector<std::string> &out) const
     for (const auto &l : level_cap_hooks_->status_lines())
         out.push_back(l);
     for (const auto &l : goal_tracker_->status_lines())
+        out.push_back(l);
+    for (const auto &l : save_takeover_->status_lines())
         out.push_back(l);
 }
 

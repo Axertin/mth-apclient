@@ -413,4 +413,57 @@ void App::set_lit_lamps(std::uint32_t lamp_mask)
     hooks_->set_lamp_console_override(lamp_mask);
     pal::logf(pal::LogLevel::Info, "console: fountain lamp override mask=0x%x", lamp_mask);
 }
+
+void App::save_test(const std::string &op)
+{
+    if (!mod::save_api_available())
+    {
+        pal::logf(pal::LogLevel::Warn, "savetest: modding save API unavailable (revision=%u)", mod::game_revision());
+        return;
+    }
+
+    if (op == "dump")
+    {
+        const std::string blob = mod::active_save_slot_contents();
+        pal::logf(pal::LogLevel::Info, "savetest: slot=%d bytes=%zu head=%.32s", mod::active_save_slot(), blob.size(), blob.c_str());
+    }
+    else if (op == "write")
+    {
+        // Capture then restore the identical blob: a session that survives this proves the
+        // serialize/deserialize pair is lossless enough to build save handling on.
+        const std::string blob = mod::active_save_slot_contents();
+        if (blob.empty())
+        {
+            // active_save_slot_contents() returns "" on every failure path; forwarding that as a payload
+            // would overwrite the live save slot with nothing, so bail before touching it.
+            pal::logf(pal::LogLevel::Warn, "savetest: capture returned empty blob; skipping write to avoid clobbering the active save slot");
+            return;
+        }
+        const bool ok = mod::set_active_save_slot_contents(blob.c_str());
+        mod::player_restore_from_save();
+        pal::logf(pal::LogLevel::Info, "savetest: round-trip set=%s bytes=%zu", ok ? "ok" : "FAILED", blob.size());
+    }
+    else if (op == "noflush")
+    {
+        // With writes suppressed the game must stop touching saveData.yc; confirm via its mtime.
+        mod::set_save_write_enabled(false);
+        pal::logf(pal::LogLevel::Info, "savetest: save writes disabled (enabled=%d)", mod::save_write_enabled() ? 1 : 0);
+    }
+    else if (op == "flush")
+    {
+        // Re-opens the one path by which mod state can reach vanilla saveData.yc (and Steam Cloud);
+        // refused during a takeover.
+        if (hooks_->takeover_active())
+        {
+            pal::logf(pal::LogLevel::Warn, "savetest: refusing to enable save writes; a save takeover is active");
+            return;
+        }
+        mod::set_save_write_enabled(true);
+        pal::logf(pal::LogLevel::Info, "savetest: save writes enabled (enabled=%d)", mod::save_write_enabled() ? 1 : 0);
+    }
+    else
+    {
+        pal::logf(pal::LogLevel::Warn, "savetest: unknown op '%s'", op.c_str());
+    }
+}
 } // namespace mth

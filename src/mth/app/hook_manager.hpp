@@ -29,8 +29,10 @@ class PawnShopHooks;
 class ModifierHooks;
 class LevelCapHooks;
 class FountainLampHooks;
+class TitleGate;
+class SaveTakeover;
 
-// Owns the game-hook plumbing (GameHooks) + the 11 feature hooks, and drives their slice
+// Owns the game-hook plumbing (GameHooks) + the 12 feature hooks, and drives their slice
 // of the per-frame tick. Thin: wiring + lifetime + enforcement dispatch, no new logic.
 class HookManager
 {
@@ -58,6 +60,9 @@ class HookManager
     void set_ability_randomized(Ability a, bool on);
     void set_lamp_console_override(std::uint32_t mask); // offline test: OR extra Ossex fountain lamps lit each frame
 
+    // True while a save-takeover session is live; gates the dev console's save-write toggle.
+    [[nodiscard]] bool takeover_active() const;
+
     void append_status_lines(std::vector<std::string> &out) const;
 
   private:
@@ -78,6 +83,8 @@ class HookManager
     std::unique_ptr<ModifierHooks> modifier_hooks_;
     std::unique_ptr<LevelCapHooks> level_cap_hooks_;
     std::unique_ptr<FountainLampHooks> fountain_lamp_hooks_;
+    std::unique_ptr<SaveTakeover> save_takeover_; // before TitleGate: it holds the detour that calls in
+    std::unique_ptr<TitleGate> title_gate_;
 };
 
 } // namespace mth

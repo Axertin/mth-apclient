@@ -137,6 +137,7 @@ void DevConsole::run_input()
         println("          ability <name> on|off  (names: burrow swim rope puff spring carry train)");
         println("          deathlink on|off  (enable/disable deathlink, must also be enabled in yaml)");
         println("          litlamps <0..5 ...>|off  (force Ossex fountain lamps lit; offline test)");
+        println("          savetest dump|write|noflush|flush|launch|activate  (save-takeover validation; dev only)");
         break;
     case CommandKind::Clear:
         log_.clear();
@@ -273,6 +274,15 @@ void DevConsole::run_input()
         }
         break;
     }
+    case CommandKind::SaveTest:
+        if (cmd.args.empty())
+            println("usage: savetest dump|write|noflush|flush|launch|activate");
+        else
+        {
+            sink_.save_test(cmd.args[0]);
+            println("savetest " + cmd.args[0] + " issued; see log");
+        }
+        break;
     case CommandKind::Unknown:
         println("unknown command: " + cmd.verb + " (try 'help')");
         break;

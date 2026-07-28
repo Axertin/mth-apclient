@@ -46,6 +46,8 @@ CommandKind verb_to_kind(const std::string &lower)
         return CommandKind::Deathlink;
     if (lower == "litlamps")
         return CommandKind::LitLamps;
+    if (lower == "savetest")
+        return CommandKind::SaveTest;
     return CommandKind::Unknown;
 }
 

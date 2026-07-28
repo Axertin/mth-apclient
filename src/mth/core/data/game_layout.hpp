@@ -86,4 +86,40 @@ inline constexpr std::ptrdiff_t kPlayerDeathGuardOff = 0x1380; // once-per-death
 // HubFountain::Bulb (Ossex fountain lamp pre-light).
 inline constexpr std::ptrdiff_t kBulbIndexOff = 0x10; // HubFountain::Bulb+0x10: u32 lamp index (0..6)
 
+// TitleScreen menu. Verified identical on Linux r148821 and Windows r148905, so no PAL split.
+// The three options are fixed sub-objects in one block, not an array of entries; per-option state
+// is visibility only, so a disabled option has no game-side representation to reuse.
+inline constexpr std::ptrdiff_t kTitleOptionBlockOff = 0x120;   // TitleScreen -> option block ptr
+inline constexpr std::ptrdiff_t kTitleSelectedIndexOff = 0x160; // int, wrapped 0..2 unconditionally
+inline constexpr std::ptrdiff_t kTitleOptionStride = 0x8a0;
+inline constexpr int kTitleOptionStartGame = 0;
+inline constexpr int kTitleOptionCount = 3;
+
+// ProfileSelectMenu. Verified identical on Linux r148821 and Windows r148905 (Ghidra decompiles the
+// Windows one against this+0x38, so add 0x38 to the offsets it reports). Its launch state is the
+// only code in the game that sets the launched flag the intro cinematic polls, so a launch that
+// bypasses this menu leaves the title screen up and the cutscene parked.
+inline constexpr std::ptrdiff_t kProfileMenuStateOff = 0x5c;     // int: current state
+inline constexpr std::ptrdiff_t kProfileMenuNextStateOff = 0x64; // int: requested state
+inline constexpr std::ptrdiff_t kProfileMenuStateReqOff = 0x68;  // u8: transition-pending flag
+inline constexpr std::ptrdiff_t kProfileMenuSlotOff = 0x3fc;     // int: save slot the launch reads
+inline constexpr int kProfileMenuLaunchState = 8;                // activates and starts the slot
+inline constexpr int kProfileMenuBackState = 2;                  // returns to the title
+// Browse state; the only one safe to launch from. The earlier states run while the intro cinematic
+// is still in its own scroll state (0x1a) parallaxing backdrop layers out of the resident region.
+inline constexpr int kProfileMenuBrowseState = 3;
+// Bounds both dispatch tables accept (UpdateState state-1 <= 9, InitState state-2 <= 8).
+inline constexpr int kProfileMenuStateMin = 1;
+inline constexpr int kProfileMenuStateMax = 10;
+
+// Gamestate ids. Profile-select is a real gamestate the cinematic sets on the way in, so "gameplay
+// started" must exclude it as well as the title screen.
+inline constexpr int kTitleGameState = 0x54;
+inline constexpr int kProfileSelectGameState = 0x69;
+
+// Vanilla SaveSlot array: the files profile-select lists, and what its launch copies into the live
+// working slot. The base pointer offset diverges per platform; these two do not.
+inline constexpr std::ptrdiff_t kSaveSlotArrayOff = 0x680;
+inline constexpr std::ptrdiff_t kSaveSlotStride = 0x11c8;
+
 } // namespace mth::layout
