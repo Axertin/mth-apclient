@@ -6,6 +6,17 @@
 namespace mth::tables
 {
 
+// Vanilla Pickup::Init legitimately clears the loc_idx the mod's offset self-check reads back: on a spawn
+// point carrying the "ForceSmallTreasureCollect" property whose location already reads collected, it pays
+// out small bones instead of the item via one 8-byte store, Pickup+0x380 = 0x28ffffffff (loc_idx -1,
+// itemType 40 = kItemType_Treasure_Smallest). An AP location hits that on the first room reload after its
+// check is sent, so scoring it as drift disabled the redirect for the rest of the session (issue #148).
+// Pure so it is unit-testable.
+[[nodiscard]] constexpr bool is_small_treasure_collect_rewrite(int stored_loc_idx, int stored_item_type) noexcept
+{
+    return stored_loc_idx == -1 && stored_item_type == 40;
+}
+
 // Reload-durable kear key cancel. usable keys = popcount(SaveSlot+0x1f0) - SaveSlot+0x1f8; under kear_rando
 // all kears are AP-controlled, so usable must stay 0. The collect-time spent bump (neutralize_kear_grant) is
 // not rebuilt on reload while the collected bitfield is, so spent lags and a free key leaks ("one kear on
