@@ -90,3 +90,16 @@ TEST_CASE("kear_reconciled_spent: never lowers spent and no-ops when balanced", 
     CHECK(mth::tables::kear_reconciled_spent(0b1u, 3) == 3);   // over-spent (would-be negative usable): unchanged
     CHECK(mth::tables::kear_reconciled_spent(0u, 2) == 2);     // no collected bits: spent preserved
 }
+
+// is_small_treasure_collect_rewrite pins the exact loc_idx/itemType pair vanilla Pickup::Init stores over an
+// already-collected small treasure, so the Pickup offset self-check does not score it as layout drift (#148).
+TEST_CASE("is_small_treasure_collect_rewrite: the vanilla collected-treasure pair is not drift", "[game_tables]")
+{
+    CHECK(mth::tables::is_small_treasure_collect_rewrite(-1, 40)); // Pickup+0x380 = 0x28ffffffff
+}
+
+TEST_CASE("is_small_treasure_collect_rewrite: anything else is real drift", "[game_tables]")
+{
+    CHECK_FALSE(mth::tables::is_small_treasure_collect_rewrite(-1, 51));  // loc cleared, but not the bones payout
+    CHECK_FALSE(mth::tables::is_small_treasure_collect_rewrite(172, 40)); // bones itemType, but loc not cleared
+}

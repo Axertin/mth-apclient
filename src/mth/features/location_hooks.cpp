@@ -50,6 +50,9 @@ constexpr int kKearStorageKind = 8; // s_rItems kind 8: kear/key items; their co
 bool g_pickup_offsets_ok = true;
 bool g_shop_offsets_ok = true;
 
+// Latched by the first vanilla small-treasure payout, to keep the rest at Debug (#148).
+bool g_small_treasure_seen = false;
+
 // Kear offset self-check: the usable-key count lives in a u64 bitfield (+0x1f0) and its spent counter
 // (+0x1f8). A real spent count is non-negative and never exceeds the keys collected (popcount of the
 // bitfield). An implausible read means +0x1f0/+0x1f8 drifted; disable the kear writes rather than corrupt.
@@ -246,10 +249,21 @@ void repl_pickup_init(void *self, int item_type, int loc_idx, bool flag)
         g_orig_pickup_init(self, item_type, loc_idx, flag);
 
     // Offset self-check: if the entity doesn't store loc_idx at our offset, layout shifted; disable redirect.
+    // A vanilla small-treasure payout is not drift; the pickup is no longer this AP location (#148).
     if (g_pickup_offsets_ok && pickup_loc_idx(self) != loc_idx)
     {
+        const int stored_loc = pickup_loc_idx(self);
+        if (mth::tables::is_small_treasure_collect_rewrite(stored_loc, pickup_item_type(self)))
+        {
+            // Once per session at Info: a layout drift that happened to read as this pair would take the
+            // same early return on every pickup, and Debug alone would leave that silent in a user's log.
+            pal::logf(g_small_treasure_seen ? pal::LogLevel::Debug : pal::LogLevel::Info,
+                      "Pickup::Init locIdx=%d -> vanilla collected-treasure payout (small bones)", loc_idx);
+            g_small_treasure_seen = true;
+            return;
+        }
         g_pickup_offsets_ok = false;
-        pal::logf(pal::LogLevel::Error, "Pickup offset check FAILED (stored=%d arg=%d); outbound redirect disabled", pickup_loc_idx(self), loc_idx);
+        pal::logf(pal::LogLevel::Error, "Pickup offset check FAILED (stored=%d arg=%d); outbound redirect disabled", stored_loc, loc_idx);
         return;
     }
     if (!g_pickup_offsets_ok || g_bridge == nullptr)
