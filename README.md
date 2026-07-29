@@ -6,6 +6,8 @@ delivered as an in-process mod that loads into the running game on Linux and Win
 This project is **not affiliated with or endorsed by** Yacht Club Games. Efforts are made
 to not interfere with saves more than necessary, but use at your own risk.
 
+Please read the [FAQ](docs/faq.md)!
+
 ## Install & run
 
 You need Mina the Hollower on Steam, switched to the modding beta, plus the mod files for
