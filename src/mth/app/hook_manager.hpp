@@ -45,8 +45,11 @@ class HookManager
     HookManager &operator=(const HookManager &) = delete;
 
     void tick(ApState &state, SessionPolicy &policy, int save_game_slot); // -1 when no save state
-    void drain();                                                         // World::Update pre-hook window
-    void on_world_destroy();                                              // re-arm native collected-bit enforcement (save reload clears it)
+    // Session boundary: drop the feature state seeded from one connection's received items (lock removals)
+    // and the captured AP-game slot, so none of it carries into the next connection's save.
+    void clear_session_state();
+    void drain();            // World::Update pre-hook window
+    void on_world_destroy(); // re-arm native collected-bit enforcement (save reload clears it)
     void kill_player();
     bool credit_kear_key(); // vanilla kear mode: grant one usable key to the live player (#130); false if not ready
 

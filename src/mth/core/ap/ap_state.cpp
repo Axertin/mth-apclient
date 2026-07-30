@@ -25,6 +25,21 @@ void ApState::set_phase(ConnectionPhase p)
     detail_.clear();
 }
 
+void ApState::reset_session()
+{
+    received_items_.clear();
+    server_checked_pending_.clear();
+    last_item_index_ = -1; // the next server's indices restart at 0 and must not read as duplicates
+    console_index_ = -1000000;
+    // Load-bearing, not cosmetic: everything that consumes the identity (App::ensure_inbound_ready, which
+    // keys the save file off seed(), and the whole hook tick) gates on this. Connecting straight to another
+    // server while the previous one is still authenticated would otherwise rebuild the save state against
+    // the OLD seed before the new ApConnected lands. status_/phase_ are left to the event stream, which
+    // delivers ApConnecting immediately after this.
+    authenticated_ = false;
+    pal::logf(pal::LogLevel::Info, "ap_state: session reset (received stream and pending checks dropped)");
+}
+
 void ApState::inject_received_item(std::int64_t item_id)
 {
     push_received(ReceivedItem{item_id, console_index_--, player_slot_, 0});

@@ -35,6 +35,11 @@ bool GrantPipeline::inbound_ready() const
     return inbound_ != nullptr;
 }
 
+void GrantPipeline::release_inbound()
+{
+    inbound_.reset();
+}
+
 void GrantPipeline::tick()
 {
     if (inbound_)

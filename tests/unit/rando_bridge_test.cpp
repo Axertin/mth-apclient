@@ -254,3 +254,69 @@ TEST_CASE("rando_bridge: checked_slots exposes the persisted set (nullptr withou
     bridge.on_location_collected(9);             // live player collect
     REQUIRE(*bridge.checked_slots() == std::set<int>{5, 9});
 }
+
+TEST_CASE("rando_bridge: detach stops writing the released save and clears its dedup", "[mth][rando]")
+{
+    const auto path = std::filesystem::temp_directory_path() / "mthap_test_bridge_detach.state";
+    std::filesystem::remove(path);
+
+    mth::test::FakeApLink link;
+    link.connected = true;
+    mth::ApState state;
+    connect_with(state, {ap_loc_id(5), ap_loc_id(6)});
+    mth::RandoBridge bridge(link, state);
+
+    mth::ApSaveState save(path);
+    bridge.attach_save_state(save);
+    bridge.on_location_collected(5);
+    REQUIRE(save.is_checked(5));
+
+    bridge.detach_save_state();
+    bridge.on_location_collected(6);
+    REQUIRE_FALSE(save.is_checked(6)); // the released save must not keep receiving checks
+    REQUIRE(bridge.checked_slots() == nullptr);
+}
+
+TEST_CASE("rando_bridge: a new server's flush never resends the previous save's checks (#124)", "[mth][rando]")
+{
+    const auto path_a = std::filesystem::temp_directory_path() / "mthap_test_bridge_server_a.state";
+    const auto path_b = std::filesystem::temp_directory_path() / "mthap_test_bridge_server_b.state";
+    std::filesystem::remove(path_a);
+    std::filesystem::remove(path_b);
+
+    mth::test::FakeApLink link;
+    link.connected = true;
+    mth::ApState state;
+    connect_with(state, {ap_loc_id(165), ap_loc_id(186)});
+    mth::RandoBridge bridge(link, state);
+
+    mth::ApSaveState save_a(path_a);
+    bridge.attach_save_state(save_a);
+    bridge.on_location_collected(165);
+    bridge.on_location_collected(186);
+    link.sent_locations.clear();
+
+    // Explicit connect to a different server: the session clear releases A's save before B's attaches.
+    bridge.reset_session();
+    mth::ApSaveState save_b(path_b);
+    bridge.attach_save_state(save_b);
+    bridge.flush();
+    REQUIRE(link.sent_locations.empty()); // A's checked-set must never reach B
+}
+
+TEST_CASE("rando_bridge: reset_session re-arms the one-shot goal for the next server", "[mth][rando]")
+{
+    mth::test::FakeApLink link;
+    link.connected = true;
+    mth::ApState state;
+    connect_with(state, {ap_loc_id(5)});
+    mth::RandoBridge bridge(link, state);
+
+    bridge.send_goal();
+    bridge.send_goal();
+    REQUIRE(link.goal_calls == 1); // one-shot within a session
+
+    bridge.reset_session();
+    bridge.send_goal();
+    REQUIRE(link.goal_calls == 2); // a new session must be able to send its own goal
+}

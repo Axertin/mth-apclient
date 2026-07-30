@@ -2,6 +2,7 @@
 
 An [Archipelago](https://archipelago.gg/) randomizer client for **Mina the Hollower**,
 delivered as an in-process mod that loads into the running game on Linux and Windows.
+For use with the [Mina The Hollower AP World](https://github.com/FyreDay/Archipelago-MinaTheHollower/releases)
 
 This project is **not affiliated with or endorsed by** Yacht Club Games. Efforts are made
 to not interfere with saves more than necessary, but use at your own risk.
@@ -24,8 +25,7 @@ release archive.
    ```
 
 3. **Drop in the mod files.** Copy the release's `apclient/` folder into the game's `mods`
-   directory, which lives under its **save** directory (the SDL prefs path), not the install
-   folder:
+   directory, which lives under its **save** directory, not the install folder:
 
    - **Linux**: `~/.local/share/Yacht Club Games/Mina the Hollower/mods/apclient/`
      (contains `mod.so` and `mod.yc`)

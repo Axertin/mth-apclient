@@ -172,6 +172,9 @@ void App::drive_tick()
         first_tick_logged_ = true;
         pal::logf(pal::LogLevel::Info, "tick: Game::FixedUpdate live; AP coordinator pumping");
     }
+    // Before net_->tick() drains: a pending clear must never run after the new connection's events land.
+    if (session_clear_pending_.exchange(false))
+        clear_session_state();
     std::optional<std::uint32_t> screen;
     std::uint32_t screen_id = 0;
     if (room_tracker_ && room_tracker_->current_screen(&screen_id))
@@ -268,6 +271,29 @@ void App::on_world_destroy()
         hooks_->on_world_destroy();
 }
 
+// A connect is the only place a different AP server can appear, and the mod owns one save per (seed, slot),
+// so the correct behaviour is a clean slate rather than any attempt to reconcile two servers' state. Not
+// keyed on seed/slot: it runs before the new seed is even known, which is also what keeps the new server's
+// own ApConnected / checked-location report intact. A transient socket drop does NOT come through here
+// (apclientpp reconnects the existing client), so it keeps its save binding and resyncs as before.
+void App::clear_session_state()
+{
+    net_->rando().reset_session(); // releases the save; must precede save_state_.reset()
+    grants_->release_inbound();    // holds an ApSaveState reference; same ordering constraint
+    save_state_.reset();
+    state_.reset_session();
+    scout_registry_.clear();
+    hooks_->clear_session_state();
+    // Resetting these two together with the received stream is what keeps the clear non-destructive:
+    // UpgradeState's applied_ counts go back to zero alongside the now-empty stream, so the recompute
+    // that follows is not dirty and never writes a downgrade into the live save.
+    upgrades_ = UpgradeState{};
+    wallet_ = WalletCapState{};
+    resend_gate_ = ConnectResendGate{}; // re-arm so the next connection flushes its own checked-set
+    pending_inbound_death_.store(false);
+    pal::logf(pal::LogLevel::Info, "session: cleared previous AP connection state");
+}
+
 void App::ensure_inbound_ready()
 {
     if (grants_->inbound_ready() || !state_.authenticated())
@@ -302,6 +328,9 @@ void App::connect(const std::string &server, const std::string &slot, const std:
         pending_server_ = server;
         pending_slot_ = slot;
     }
+    // Arm the clear before the link is told to connect, so no event of the new connection can be applied
+    // ahead of it. Covers connecting straight to another server without disconnecting first, too.
+    session_clear_pending_.store(true);
     net_->link().connect(server, slot, password);
 }
 

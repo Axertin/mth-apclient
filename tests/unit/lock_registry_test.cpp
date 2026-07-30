@@ -39,3 +39,14 @@ TEST_CASE("LockRegistry::removed_slots returns all inserted slots", "[locks]")
     std::sort(v.begin(), v.end());
     REQUIRE(v == std::vector<int>{3, 7});
 }
+
+TEST_CASE("LockRegistry::clear drops every removal", "[locks]")
+{
+    mth::LockRegistry reg;
+    reg.add_from_list("3,7,20");
+    reg.clear();
+    REQUIRE_FALSE(reg.is_removed(3));
+    REQUIRE_FALSE(reg.is_removed(7));
+    REQUIRE_FALSE(reg.is_removed(20));
+    REQUIRE(reg.removed_slots().empty());
+}

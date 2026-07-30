@@ -30,6 +30,12 @@ void LockRegistry::add_from_list(const std::string &csv)
     }
 }
 
+void LockRegistry::clear()
+{
+    std::lock_guard<std::mutex> lk(mtx_);
+    removed_.clear();
+}
+
 bool LockRegistry::is_removed(int slot) const
 {
     if (slot < 0)

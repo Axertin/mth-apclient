@@ -17,6 +17,7 @@ class LockRegistry
   public:
     void set_removed(int slot);                 // no-op for slot < 0
     void add_from_list(const std::string &csv); // "3,7,20"
+    void clear();                               // session boundary: removals are seeded from the received items of one connection
     [[nodiscard]] bool is_removed(int slot) const;
     [[nodiscard]] std::vector<int> removed_slots() const; // copy under lock, for the seed pass
 

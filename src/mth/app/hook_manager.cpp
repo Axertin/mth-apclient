@@ -130,6 +130,14 @@ void HookManager::tick(ApState &state, SessionPolicy &policy, int save_game_slot
     save_takeover_->tick(); // self-gates on its own step; no-ops in the terminal ones
 }
 
+void HookManager::clear_session_state()
+{
+    // seed_kear_blocks() only ever adds, so the previous connection's kear-block removals would otherwise
+    // keep being written into the next AP game's unlock bitfield.
+    lock_hooks_->locks().clear();
+    modifier_hooks_->set_ap_slot(-1); // unknown again: the next AP game captures its own slot
+}
+
 bool HookManager::credit_kear_key()
 {
     return location_hooks_->credit_kear_key(get_player_ ? get_player_() : nullptr);
