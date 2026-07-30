@@ -28,13 +28,33 @@ DeathHooks::DeathHooks(std::function<void()> on_local_death, std::function<void 
 
 DeathHooks::~DeathHooks() = default;
 
+// PlayerDie only queues damage for the world's gameplay queues, so a requested death cannot land on a tick
+// where those did not run. Two freezes stop them and neither is visible to the other: a paused world (any
+// menu; World::Update then runs only its pause queue), and a paused game (the whole world queue is skipped,
+// which stalls the room clock). A build whose API lacks both accessors falls back to wall ticks rather than
+// freezing the gate.
+bool DeathHooks::gameplay_advanced()
+{
+    if (mod::pause_api_available() && mod::world_is_paused())
+        return false;
+    if (!mod::room_time_api_available())
+        return true;
+    const float now = mod::room_time();
+    const bool moved = now != last_room_time_;
+    last_room_time_ = now;
+    return moved;
+}
+
 void DeathHooks::poll()
 {
+    const bool advanced = gameplay_advanced(); // sampled every tick: last_room_time_ must not go stale
     void *p = get_player_ ? get_player_() : nullptr;
     if (p == nullptr)
     {
-        gate_.observe(false, false); // no player (world/screen transition): reset the settled-respawn debounce
-        return;                      // so an inbound PlayerDie is not applied the instant the player reappears
+        // No player (world/screen transition): reset the settled-respawn debounce, so an inbound PlayerDie is
+        // not applied the instant the player reappears.
+        gate_.observe(false, false, advanced);
+        return;
     }
     const bool dying = is_dying(p);
     // Re-arm only on a true respawn: the guard byte pulses through the death sequence, so use health > 0 as
@@ -47,7 +67,10 @@ void DeathHooks::poll()
     if (alive)
         last_alive_spark_ = mod::spark_api_available() ? mod::player_spark() : 0;
 
-    if (gate_.observe(dying, alive) && on_local_death_)
+    const bool fresh_local_death = gate_.observe(dying, alive, advanced);
+    if (gate_.take_suppressed_death())
+        pal::logf(pal::LogLevel::Info, "deathlink: local death suppressed (echo of a received deathlink)");
+    if (fresh_local_death && on_local_death_)
     {
         // Only broadcast a sparkless demise (0 sparks at death, per the pre-death snapshot).
         if (last_alive_spark_ > 0)

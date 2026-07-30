@@ -215,6 +215,29 @@ int player_spark()
     return spark_api_available() ? g_mod_api->PlayerGetSpark() : 0;
 }
 
+bool pause_api_available()
+{
+    return g_mod_api != nullptr && g_mod_api->PlayerGetWorld != nullptr && g_mod_api->WorldIsPaused != nullptr;
+}
+
+bool world_is_paused()
+{
+    if (!pause_api_available())
+        return false;
+    World *w = g_mod_api->PlayerGetWorld(); // null with no live player; WorldIsPaused would dereference it
+    return w != nullptr && g_mod_api->WorldIsPaused(w);
+}
+
+bool room_time_api_available()
+{
+    return g_mod_api != nullptr && g_mod_api->GetRoomTime != nullptr;
+}
+
+float room_time()
+{
+    return room_time_api_available() ? g_mod_api->GetRoomTime() : 0.0f;
+}
+
 bool save_api_available()
 {
     // Only what the takeover actually calls: gating on more would fail a launch that would work.

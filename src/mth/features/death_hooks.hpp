@@ -23,10 +23,13 @@ class DeathHooks
     void kill(); // game-thread: apply an inbound death (no-op if no Player captured / already dying / API absent)
 
   private:
+    bool gameplay_advanced(); // did the world's gameplay queues run this tick
+
     DeathBroadcastGate gate_;
     std::function<void()> on_local_death_;
     std::function<void *()> get_player_;
-    int last_alive_spark_{0}; // spark sampled on the last alive tick; the death drop zeroes the live value before the edge
+    int last_alive_spark_{0};    // spark sampled on the last alive tick; the death drop zeroes the live value before the edge
+    float last_room_time_{0.0f}; // previous room clock; unchanged means the world did not update this tick
 };
 
 } // namespace mth

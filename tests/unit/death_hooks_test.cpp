@@ -155,3 +155,113 @@ TEST_CASE("deathlink: respawn re-arms; a mid-death guard-byte pulse does not ove
 
     mod::set_api(nullptr);
 }
+
+// An inbound death received while a menu is open: PlayerDie is applied from a settled state, but the game
+// holds the death until the menu closes, which can be minutes. Every poll in between reads alive && !dying,
+// and none of them may lift the suppression armed for that still-pending death.
+TEST_CASE("deathlink: a death queued behind a menu is not echoed when the menu closes", "[deathlink][echo]")
+{
+    mth::test::recorder().reset();
+    auto fake = mth::test::make_fake_api();
+    mod::set_api(&fake);
+
+    FakePlayer player;
+    int broadcasts = 0;
+    mth::DeathHooks hooks([&] { ++broadcasts; }, [&] { return player.base(); });
+
+    // Settle: stably alive, no sparks (so any death of ours would otherwise broadcast).
+    mth::test::recorder().health = 1.0f;
+    mth::test::recorder().spark = 0;
+    player.set_dying(false);
+    for (int i = 0; i < mth::DeathBroadcastGate::kStableAliveTicks; ++i)
+        hooks.poll();
+
+    hooks.kill(); // inbound deathlink -> PlayerDie applied, the game queues it behind the menu
+    REQUIRE(mth::test::recorder().deaths == 1);
+
+    // Menu open for a minute of ticks: the player reads alive and not dying throughout, and the gameplay
+    // queues the queued death needs do not run.
+    mth::test::recorder().paused = true;
+    for (int i = 0; i < mth::ticks_for_seconds(60.0); ++i)
+        hooks.poll();
+    mth::test::recorder().paused = false;
+
+    // Menu closes and the queued death finally registers.
+    mth::test::recorder().health = 0.0f;
+    player.set_dying(true);
+    hooks.poll();
+
+    REQUIRE(broadcasts == 0); // the deathlink we took must not bounce back into the multiworld
+
+    mod::set_api(nullptr);
+}
+
+// The world pause flag only covers menus that pause the WORLD. A game-level pause skips the whole world
+// update queue instead, which that flag cannot see, but it stalls the room clock.
+TEST_CASE("deathlink: a death queued behind a game-level pause is not echoed either", "[deathlink][echo]")
+{
+    mth::test::recorder().reset();
+    auto fake = mth::test::make_fake_api();
+    mod::set_api(&fake);
+
+    FakePlayer player;
+    int broadcasts = 0;
+    mth::DeathHooks hooks([&] { ++broadcasts; }, [&] { return player.base(); });
+
+    mth::test::recorder().health = 1.0f;
+    mth::test::recorder().spark = 0;
+    player.set_dying(false);
+    for (int i = 0; i < mth::DeathBroadcastGate::kStableAliveTicks; ++i)
+        hooks.poll();
+
+    hooks.kill();
+    REQUIRE(mth::test::recorder().deaths == 1);
+
+    mth::test::recorder().game_paused = true; // world never learns it is paused; the room clock stops
+    for (int i = 0; i < mth::ticks_for_seconds(60.0); ++i)
+        hooks.poll();
+    mth::test::recorder().game_paused = false;
+
+    mth::test::recorder().health = 0.0f;
+    player.set_dying(true);
+    hooks.poll();
+
+    REQUIRE(broadcasts == 0);
+
+    mod::set_api(nullptr);
+}
+
+// The flip side of the two tests above: ordinary gameplay must not read as frozen. A requested death the game
+// rejected outright has to stop suppressing, or the next genuine death is swallowed.
+TEST_CASE("deathlink: a rejected inbound death heals and the next genuine death broadcasts", "[deathlink][echo]")
+{
+    mth::test::recorder().reset();
+    auto fake = mth::test::make_fake_api();
+    mod::set_api(&fake);
+
+    FakePlayer player;
+    int broadcasts = 0;
+    mth::DeathHooks hooks([&] { ++broadcasts; }, [&] { return player.base(); });
+
+    mth::test::recorder().health = 1.0f;
+    mth::test::recorder().spark = 0;
+    player.set_dying(false);
+    for (int i = 0; i < mth::DeathBroadcastGate::kStableAliveTicks; ++i)
+        hooks.poll();
+
+    hooks.kill(); // applied, but the game drops it (invulnerable): no death ever arrives
+    REQUIRE(mth::test::recorder().deaths == 1);
+
+    // Ordinary gameplay ticks, so the grace does age out.
+    for (int i = 0; i < mth::DeathBroadcastGate::kInboundDeathGraceTicks + mth::DeathBroadcastGate::kStableAliveTicks; ++i)
+        hooks.poll();
+
+    // A genuine, unrelated death much later.
+    mth::test::recorder().health = 0.0f;
+    player.set_dying(true);
+    hooks.poll();
+
+    REQUIRE(broadcasts == 1); // not swallowed by the stale suppression
+
+    mod::set_api(nullptr);
+}

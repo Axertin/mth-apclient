@@ -94,6 +94,18 @@ float player_health();
 bool spark_api_available();
 int player_spark();
 
+// True while the live world is paused, which is any menu that pauses gameplay. World::Update then runs only
+// the pause queue, so nothing the game has already queued can progress. false when there is no live world or
+// the build's API lacks the accessors.
+bool pause_api_available();
+bool world_is_paused();
+
+// Seconds the current room has been running: a time-scaled accumulator driven from the world's update queues,
+// so it stalls whenever those stop. Catches the game-level pause, which world_is_paused() cannot see.
+// available() is false when the build's API lacks the getter.
+bool room_time_api_available();
+float room_time();
+
 // modHookCtx for "IsItemCollected"; the layout MUST mirror the game's struct exactly. The game calls
 // RunHooks("IsItemCollected", &ctx) at the top of Items::IsItemCollected.
 struct IsItemCollectedCtx

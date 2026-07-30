@@ -36,9 +36,12 @@ struct ModApiRecorder
     std::uint32_t revision = 148716; // a plausible real r-number
     int game_state = 0;              // served by GetCurrentGameState
     bool install_returns_null = false;
-    float health = 0.0f; // served by PlayerGetHealth
-    int spark = 0;       // served by PlayerGetSpark
-    int deaths = 0;      // counts PlayerDie calls
+    float health = 0.0f;      // served by PlayerGetHealth
+    int spark = 0;            // served by PlayerGetSpark
+    int deaths = 0;           // counts PlayerDie calls
+    bool paused = false;      // served by WorldIsPaused: a menu that pauses the world
+    bool game_paused = false; // the whole world update queue is skipped; invisible to WorldIsPaused
+    float room_time = 0.0f;
 
     void fire(const char *name, void *ctx)
     {
@@ -55,6 +58,9 @@ struct ModApiRecorder
         health = 0.0f;
         spark = 0;
         deaths = 0;
+        paused = false;
+        game_paused = false;
+        room_time = 0.0f;
         fake_save_state() = FakeSaveState{};
     }
 };
@@ -97,6 +103,23 @@ inline void fake_player_die()
 {
     ++recorder().deaths;
 }
+// The room clock runs off the world's gameplay queues: advance it per read, but not while either pause holds
+// it. A caller polling once per tick then sees what a real menu or game-level pause looks like.
+inline float fake_get_room_time()
+{
+    if (!recorder().paused && !recorder().game_paused)
+        recorder().room_time += 1.0f / 120.0f;
+    return recorder().room_time;
+}
+inline bool fake_world_is_paused(World * /*world*/)
+{
+    return recorder().paused;
+}
+inline World *fake_player_get_world()
+{
+    static int world; // opaque non-null handle; the fake pause getter ignores it
+    return reinterpret_cast<World *>(&world);
+}
 
 // A MinaModAPI wired to the recorder stubs. reset() the recorder before use.
 inline MinaModAPI make_fake_api()
@@ -110,6 +133,9 @@ inline MinaModAPI make_fake_api()
     mm.PlayerGetHealth = &fake_get_health;
     mm.PlayerGetSpark = &fake_get_spark;
     mm.PlayerDie = &fake_player_die;
+    mm.GetRoomTime = &fake_get_room_time;
+    mm.WorldIsPaused = &fake_world_is_paused;
+    mm.PlayerGetWorld = &fake_player_get_world;
     mm.GetActiveSaveSlot = [] { return fake_save_state().active_slot; };
     mm.SetActiveSaveSlot = [](std::uint32_t slot) { fake_save_state().active_slot = static_cast<int>(slot); };
     mm.SetActiveSaveSlotContents = [](const char *d) -> bool
