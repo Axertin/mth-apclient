@@ -48,8 +48,13 @@ class ApLink final : public mth::IApLink
     void do_disconnect();
     void setup_handlers(const std::string &slot, const std::string &password);
 
-    std::unique_ptr<APClient> client_;                                      // net thread only
-    int last_item_index_{-1};                                               // net thread only
+    std::unique_ptr<APClient> client_; // net thread only
+    int last_item_index_{-1};          // net thread only
+    // Identity of the AP session this process is on, as reported by the server. Survives disconnects on
+    // purpose: only a server authenticating a DIFFERENT seed/slot ends the session. Empty until the first
+    // connect authenticates, so that one always counts as a new session.
+    std::string session_seed_;                                              // net thread only
+    int session_slot_{-1};                                                  // net thread only
     std::string slot_name_;                                                 // net thread only; captured on connect for bounce source
     std::optional<std::chrono::steady_clock::time_point> connect_deadline_; // net thread only; set while a connect is in flight
 

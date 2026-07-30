@@ -2,6 +2,7 @@
 
 #include "mocks/fake_ap_link.hpp"
 #include "mth/core/ap/ap_coordinator.hpp"
+#include "mth/core/ap/ap_ids.hpp"
 #include "mth/core/ap/ap_state.hpp"
 
 TEST_CASE("ap_coordinator: tick drains link events into state", "[mth][ap_coordinator]")
@@ -105,4 +106,59 @@ TEST_CASE("ap_coordinator: on_session_reset does not fire on unrelated events", 
     coord.tick();
 
     REQUIRE(reset_calls == 0);
+}
+
+TEST_CASE("ap_coordinator: ApSessionEnded fires on_session_end before the new ApConnected is applied", "[mth][ap_coordinator]")
+{
+    mth::test::FakeApLink link;
+    mth::ApState state;
+    int slot_when_cleared = -99;
+    int end_calls = 0;
+    mth::ApCoordinator coord(link, state, {}, {}, {}, {},
+                             [&]
+                             {
+                                 ++end_calls;
+                                 slot_when_cleared = state.player_slot(); // must still be the OLD session's
+                                 state.reset_session();
+                             });
+
+    // Session A, then the link reports a different seed/slot: the marker precedes B's ApConnected.
+    link.pending.push_back(mth::ApConnected{{}, "{}", 1, {}, {mth::ap_loc_id(5)}});
+    coord.tick();
+    state.apply(mth::ApItemReceived{mth::ReceivedItem{42, 0, 1, 0}});
+    REQUIRE(state.received_items().size() == 1);
+
+    link.pending.push_back(mth::ApSessionEnded{});
+    link.pending.push_back(mth::ApConnected{{}, "{}", 9, {}, {mth::ap_loc_id(6)}});
+    link.pending.push_back(mth::ApItemReceived{mth::ReceivedItem{99, 0, 9, 0}});
+    coord.tick();
+
+    REQUIRE(end_calls == 1);
+    REQUIRE(slot_when_cleared == 1); // cleared while A was still the applied identity
+    // B's ApConnected and its items landed on TOP of the clear, not under it.
+    REQUIRE(state.player_slot() == 9);
+    REQUIRE(state.authenticated());
+    REQUIRE(state.received_items().size() == 1);
+    REQUIRE(state.received_items()[0].item_id == 99);
+}
+
+TEST_CASE("ap_coordinator: a reconnect with no ApSessionEnded keeps the session state", "[mth][ap_coordinator]")
+{
+    mth::test::FakeApLink link;
+    mth::ApState state;
+    int end_calls = 0;
+    mth::ApCoordinator coord(link, state, {}, {}, {}, {}, [&] { ++end_calls; });
+
+    link.pending.push_back(mth::ApConnected{{}, "{}", 1, {}, {mth::ap_loc_id(5)}});
+    coord.tick();
+    state.apply(mth::ApItemReceived{mth::ReceivedItem{42, 0, 1, 0}});
+
+    // Same seed+slot: the link emits no marker, so nothing is torn down (#152).
+    link.pending.push_back(mth::ApDisconnected{});
+    link.pending.push_back(mth::ApConnected{{}, "{}", 1, {}, {mth::ap_loc_id(5)}});
+    coord.tick();
+
+    REQUIRE(end_calls == 0);
+    REQUIRE(state.received_items().size() == 1);
+    REQUIRE(state.last_item_index() == 0);
 }

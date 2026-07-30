@@ -12,9 +12,9 @@ namespace mth
 
 ApCoordinator::ApCoordinator(IApLink &link, ApState &state, std::function<void()> on_death,
                              std::function<void(const std::vector<BannerSegment> &)> on_broadcast, std::function<void(const std::vector<ScoutInfo> &)> on_scout,
-                             std::function<void()> on_session_reset)
+                             std::function<void()> on_session_reset, std::function<void()> on_session_end)
     : link_(link), state_(state), on_death_(std::move(on_death)), on_broadcast_(std::move(on_broadcast)), on_scout_(std::move(on_scout)),
-      on_session_reset_(std::move(on_session_reset))
+      on_session_reset_(std::move(on_session_reset)), on_session_end_(std::move(on_session_end))
 {
 }
 
@@ -25,6 +25,10 @@ void ApCoordinator::tick()
         pal::logf(pal::LogLevel::Debug, "coordinator: applying %zu inbound event(s)", events.size());
     for (const auto &ev : events)
     {
+        // Before apply(): the marker precedes the new session's ApConnected, so the drop must happen before
+        // any of that connection's data reaches state_.
+        if (std::get_if<ApSessionEnded>(&ev) && on_session_end_)
+            on_session_end_();
         state_.apply(ev);
         if (std::get_if<ApDeathReceived>(&ev) && on_death_)
             on_death_();

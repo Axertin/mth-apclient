@@ -45,6 +45,16 @@ int menu_state(void *menu)
     return menu_drivable(menu) ? *menu_field(menu, layout::kProfileMenuStateOff) : -1;
 }
 
+// The live slot holds the player's run only while gameplay owns it. Returning to the title runs
+// SaveSlot::Clear over it and deactivates it, so anything read from there is a blank save.
+bool in_gameplay()
+{
+    const int gs = mod::current_game_state();
+    // -1 = accessor unavailable, must not read as "in gameplay". Profile-select is its own gamestate, so
+    // excluding only the title screen would read the menu opening as gameplay.
+    return gs >= 0 && gs != layout::kTitleGameState && gs != layout::kProfileSelectGameState;
+}
+
 // Requests the state rather than writing it, so the menu's own state machine still runs its
 // enter/exit. Idempotent: re-requesting a state already pending would restart it.
 bool menu_request_state(void *menu, int state)
@@ -84,12 +94,10 @@ bool SaveTakeover::begin()
         return false;
     }
 
-    // Running means the player came back to the title from a live session (flush first so progress is
-    // not dropped); Failed means the prior attempt already gave up. Both re-arm. Every other non-Idle
-    // step is mid-sequence.
-    if (step_ == TakeoverStep::Running)
-        flush();
-    else if (!takeover_settled(step_))
+    // Running means the player came back to the title from a live session; Failed means the prior attempt
+    // gave up. Both re-arm. Every other non-Idle step is mid-sequence. No flush here: begin() only runs from
+    // the title, where the slot is already cleared, so it would store a blank save over the run (#152).
+    if (step_ != TakeoverStep::Running && !takeover_settled(step_))
         return true; // already claimed, mid-flight
 
     auto [seed, slot] = identity_();
@@ -117,10 +125,7 @@ void SaveTakeover::tick()
 
     TakeoverInputs in;
     in.save_api_ready = mod::save_api_available();
-    const int gs = mod::current_game_state();
-    // -1 = accessor unavailable, must not read as "entered". Profile-select is its own gamestate, so
-    // excluding only the title screen would read the menu opening as gameplay starting.
-    in.gameplay_entered = gs >= 0 && gs != layout::kTitleGameState && gs != layout::kProfileSelectGameState;
+    in.gameplay_entered = in_gameplay();
     in.frames_in_step = frames_in_step_;
 
     const TakeoverStep next = next_takeover_step(step_, in);
@@ -208,6 +213,14 @@ void SaveTakeover::flush()
     {
         pal::logf(pal::LogLevel::Warn, "takeover: game save writes were re-enabled; suppressing");
         mod::set_save_write_enabled(false);
+    }
+
+    // #152: a capture taken outside gameplay is the cleared slot, and storing it destroys the run (which is
+    // then staged back as a fresh file, while the AP granted-set still says every item was handed out).
+    if (!in_gameplay())
+    {
+        pal::logf(pal::LogLevel::Warn, "takeover: not in gameplay; skipping flush (the live slot is not the run)");
+        return;
     }
 
     // Re-resolve identity rather than trusting seed_/slot_: a reconnect to a different AP session

@@ -31,11 +31,9 @@ void ApState::reset_session()
     server_checked_pending_.clear();
     last_item_index_ = -1; // the next server's indices restart at 0 and must not read as duplicates
     console_index_ = -1000000;
-    // Load-bearing, not cosmetic: everything that consumes the identity (App::ensure_inbound_ready, which
-    // keys the save file off seed(), and the whole hook tick) gates on this. Connecting straight to another
-    // server while the previous one is still authenticated would otherwise rebuild the save state against
-    // the OLD seed before the new ApConnected lands. status_/phase_ are left to the event stream, which
-    // delivers ApConnecting immediately after this.
+    // A no-op on the normal path (the new ApConnected re-authenticates right after). It matters when the
+    // marker arrives without one, e.g. the socket dies mid-handshake: leaving the old session authenticated
+    // would let ensure_inbound_ready rebuild against a dead seed. status_/phase_ follow the event stream.
     authenticated_ = false;
     pal::logf(pal::LogLevel::Info, "ap_state: session reset (received stream and pending checks dropped)");
 }
@@ -161,6 +159,11 @@ void ApState::apply(const ApEvent &ev)
             else if constexpr (std::is_same_v<T, ApScoutInfo>)
             {
                 // handled by the coordinator's on_scout callback; ApState holds no scout data
+            }
+            else if constexpr (std::is_same_v<T, ApSessionEnded>)
+            {
+                // State-free: the coordinator's on_session_end callback runs before apply() and is what
+                // calls reset_session(). Anything applied here would land after that clear.
             }
         },
         ev);

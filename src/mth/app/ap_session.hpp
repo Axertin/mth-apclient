@@ -25,7 +25,7 @@ class ApSession
 {
   public:
     ApSession(ApState &state, std::function<void()> on_inbound_death, std::function<void(const std::vector<ScoutInfo> &)> on_scout = {},
-              std::function<void()> on_session_reset = {});
+              std::function<void()> on_session_reset = {}, std::function<void()> on_session_end = {});
     ~ApSession();
 
     ApSession(const ApSession &) = delete;

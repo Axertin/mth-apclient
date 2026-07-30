@@ -85,8 +85,8 @@ class App : public ICommandSink
 
   private:
     void remember_successful_login(); // persist the attempted target once the server authenticates
-    // Drop everything the previous connection accumulated, so the next one behaves like the first since
-    // launch. Game thread, driven by session_clear_pending_.
+    // Drop everything the previous AP session accumulated, so the next one behaves like the first since
+    // launch. Game thread; fires only on the link's ApSessionEnded (a different seed/slot authenticated).
     void clear_session_state();
     void ensure_inbound_ready(); // lazily builds save_state_ + the grant pipeline's inbound granter once connected
     // Drain ApState's server-reported checked locations into the save-state checked set (Collect / coop),
@@ -105,11 +105,6 @@ class App : public ICommandSink
     std::optional<ApSaveState> save_state_;
     std::unique_ptr<GrantPipeline> grants_;
     std::atomic<bool> pending_inbound_death_{false};
-    // Set by connect() (overlay render thread) and consumed at the top of the next drive_tick, before the
-    // coordinator drains. Every connection state this owns is game-thread data, so it cannot be cleared in
-    // connect() itself. Ordering is what makes this safe: the flag is set before the link command is even
-    // enqueued, so the clear always lands before any event of the new connection is applied.
-    std::atomic<bool> session_clear_pending_{false};
     // Gates the tick entry points until construction finishes. The game-thread tick hooks go live mid-ctor
     // (GameHooks installs Game::FixedUpdate before hooks_ is even assigned), so on a fast-initializing host
     // the first tick can land on a half-built App and deref a null member. Release on the last ctor line,

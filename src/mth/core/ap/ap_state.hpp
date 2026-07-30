@@ -162,10 +162,10 @@ class ApState
                 return true;
         return false;
     }
-    // Drop everything a connection accumulates, so the next one starts as it would have at launch.
-    // Must run BEFORE the next connection's events are applied (App clears at the explicit connect, which
-    // the coordinator drain always trails): running it after ApConnected/ApLocationsChecked would discard
-    // the new server's own item stream and its authoritative checked-location report.
+    // Drop everything a connection accumulates, so the next starts as it would have at launch. Must run
+    // before the next connection's events are applied, which is why the ApSessionEnded marker driving it is
+    // ordered ahead of ApConnected; running it after would discard the new server's item stream and its
+    // authoritative checked-location report.
     void reset_session();
 
   private:

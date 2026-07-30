@@ -283,10 +283,6 @@ void ApLink::do_connect(const std::string &server, const std::string &slot, cons
     {
         const std::string uuid = ap_get_uuid((pal::log_dir() / "ap_uuid").string(), server);
         client_ = std::make_unique<APClient>(uuid, kGameName, uri, cert);
-        // A brand-new client is a new session: clear the re-delivery dedup cursor so the next server's
-        // items (indices restarting at 0) are not filtered as already-seen. A transient socket drop reuses
-        // the existing client instead of calling connect(), so its re-delivered items stay correctly deduped.
-        last_item_index_ = -1;
         setup_handlers(slot, password);
         push_event(mth::ApConnecting{});
         connect_deadline_ = std::chrono::steady_clock::now() + kConnectTimeout;
@@ -344,6 +340,21 @@ void ApLink::setup_handlers(const std::string &slot, const std::string &password
                 tags.push_back("DeathLink");
             client_->ConnectUpdate(false, kItemHandling, true, tags);
             client_->StatusUpdate(APClient::ClientStatus::PLAYING);
+
+            // First point the server's identity is known. A changed (seed, slot) ends the previous session:
+            // the marker must precede this connection's ApConnected so the game thread clears in stream
+            // order, and the cursor re-arms because the new session's indices restart at 0. Same seed+slot
+            // (explicit reconnect or apclientpp's own socket retry) keeps the cursor, which dedups the full
+            // item list the server re-delivers on every connect.
+            const std::string seed = client_->get_seed();
+            const int player_slot = client_->get_player_number();
+            if (seed != session_seed_ || player_slot != session_slot_)
+            {
+                session_seed_ = seed;
+                session_slot_ = player_slot;
+                last_item_index_ = -1;
+                push_event(mth::ApSessionEnded{});
+            }
 
             auto missing = client_->get_missing_locations();
             auto checked = client_->get_checked_locations();

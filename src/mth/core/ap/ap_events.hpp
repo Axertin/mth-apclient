@@ -103,7 +103,14 @@ struct ApScoutInfo
     std::vector<ScoutInfo> locations;
 };
 
+// The server authenticated a different (seed, player_slot) than this process was on. Emitted immediately
+// before that connection's ApConnected so the old session is dropped in stream order, never after the new
+// one's data lands. A reconnect to the same seed+slot does not emit this: that state is still valid.
+struct ApSessionEnded
+{
+};
+
 using ApEvent = std::variant<ApConnected, ApConnecting, ApItemReceived, ApLocationsChecked, ApDisconnected, ApConnectionRefused, ApStatusChanged,
-                             ApDeathReceived, ApPrintBroadcast, ApScoutInfo>;
+                             ApDeathReceived, ApPrintBroadcast, ApScoutInfo, ApSessionEnded>;
 
 } // namespace mth
