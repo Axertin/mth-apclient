@@ -2,8 +2,10 @@
 //
 // No libvulkan link at build time: VK_NO_PROTOTYPES, all entry points resolved at
 // runtime from the loader the game already opened via dlopen(RTLD_NOLOAD).
-// Hooks vkCreateInstance/vkCreateDevice/vkCreateSwapchainKHR/vkQueuePresentKHR
-// to capture state and composite the ImGui overlay (loadOp=LOAD) before each present.
+// Hooks vkCreateSwapchainKHR/vkQueuePresentKHR to capture state and composite the
+// ImGui overlay (loadOp=LOAD) before each present. The instance/device/queue-family
+// are read from the game's renderer globals instead: the engine inlines its
+// vkCreateInstance/vkCreateDevice calls, so hooks on those never fire.
 //
 // Input: hooks ProcessSDLEvent(SDL_Event&) from OverlayConfig. Toggle key (default F1)
 // flips g_console_open; while open, input events are queued (mutex) and drained into
@@ -1187,7 +1189,7 @@ std::uintptr_t g_process_sdl_event_addr = 0;
 std::thread g_vk_watch_thread;
 std::atomic<bool> g_vk_watch_stop{false};
 
-constexpr std::size_t kMaxOverlayHooks = 5; // 4 Vulkan + ProcessSDLEvent
+constexpr std::size_t kMaxOverlayHooks = 3; // vkCreateSwapchainKHR + vkQueuePresentKHR + ProcessSDLEvent
 HookId g_overlay_hook_ids[kMaxOverlayHooks]{};
 std::size_t g_overlay_hook_count = 0;
 
