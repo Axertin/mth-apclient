@@ -73,15 +73,20 @@ class MinHookEngine final : public pal::IHookEngine
             pal::logf(pal::LogLevel::Error, "MinHookEngine: CreateHook failed at %p (%s)", target, mh_status_name(s_create));
             return pal::kInvalidHookId;
         }
+        // Publish before enabling. EnableHook makes the replacement callable from other threads
+        // immediately, and every replacement calls through its trampoline; publishing afterwards
+        // leaves a window where the detour is live and the trampoline is still null.
+        if (trampoline)
+            *trampoline = original;
         const auto s_enable = MH_EnableHook(target);
         if (s_enable != MH_OK)
         {
+            if (trampoline)
+                *trampoline = nullptr;
             MH_RemoveHook(target);
             pal::logf(pal::LogLevel::Error, "MinHookEngine: EnableHook failed at %p (%s)", target, mh_status_name(s_enable));
             return pal::kInvalidHookId;
         }
-        if (trampoline)
-            *trampoline = original;
         const auto id = next_id_.fetch_add(1, std::memory_order_relaxed);
         std::lock_guard<std::mutex> lock(mu_);
         targets_[id] = target;

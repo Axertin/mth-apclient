@@ -19,14 +19,20 @@ class FridaHookEngine final : public pal::IHookEngine
     {
         GumInterceptor *ic = gum_interceptor_obtain();
         gpointer original = nullptr;
+        // Bracket in a transaction so the replacement is not activated until end_transaction:
+        // replace() yields the trampoline immediately, but a detour that goes live before the
+        // trampoline is published calls through a null pointer from whatever thread hits it first.
+        gum_interceptor_begin_transaction(ic);
         const auto rc = gum_interceptor_replace(ic, target, replacement, nullptr, &original);
         if (rc != GUM_REPLACE_OK)
         {
+            gum_interceptor_end_transaction(ic);
             pal::logf(pal::LogLevel::Error, "FridaHookEngine: replace failed at %p (rc=%d)", target, rc);
             return pal::kInvalidHookId;
         }
         if (trampoline)
             *trampoline = original;
+        gum_interceptor_end_transaction(ic);
         const auto id = next_id_.fetch_add(1, std::memory_order_relaxed);
         std::lock_guard<std::mutex> lock(mu_);
         targets_[id] = target;
