@@ -47,7 +47,7 @@ void AbilityHooks::set_train_gate(bool rando_active, std::uint32_t line_mask)
 void AbilityHooks::enforce_train_tick()
 {
     // train_rando: boarding requires the generic Train Pass (#98), and each destination is gated on its AP
-    // ticket -- the +0x1e0 clamp undoes the footfall auto-unlock (box UX), while the OnNPCEvent detour (fed
+    // ticket - the +0x1e0 clamp undoes the footfall auto-unlock (box UX), while the OnNPCEvent detour (fed
     // by set_train_gate) refuses the warp for un-granted lines. Otherwise fall back to the whole-train
     // ability gate (console-driven Train ability), which hides the conductor while blocked.
     if (train_rando_active_)

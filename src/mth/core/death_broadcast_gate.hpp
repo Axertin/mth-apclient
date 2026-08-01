@@ -30,7 +30,7 @@ inline constexpr int kMaxFixedUpdateHz = 120;
 //              it. A death edge still counts: one can only mean the death did land.
 // note_inbound_death() is called for every received inbound death: suppress our outbound until we settle. The
 // death it requests takes many polls to register (the game reads alive throughout), so it also holds us
-// "not settled" for kInboundDeathGraceTicks or until the death lands -- otherwise those alive polls settle us
+// "not settled" for kInboundDeathGraceTicks or until the death lands - otherwise those alive polls settle us
 // and lift the suppression before the death they were meant to suppress ever arrives. That grace counts
 // gameplay ticks because a menu holds a requested death for as long as it stays open: spent on frozen ticks it
 // lapses mid-menu, and the queued death broadcasts the moment it lands.
@@ -59,7 +59,7 @@ class DeathBroadcastGate
         else if (inbound_grace_ > 0)
         {
             // A death we requested is still landing: the game reads alive for many polls after PlayerDie
-            // returns. Those polls are not a settled respawn -- counting them would lift the suppression we
+            // returns. Those polls are not a settled respawn - counting them would lift the suppression we
             // armed for this very death and echo it straight back (#125).
             --inbound_grace_;
             alive_streak_ = 0;
@@ -96,7 +96,7 @@ class DeathBroadcastGate
     }
 
     // A received inbound death: suppress our own outbound broadcasts until we settle (stably respawn), so the
-    // death we take from it -- or any death during the exchange -- is not echoed back into the multiworld.
+    // death we take from it - or any death during the exchange - is not echoed back into the multiworld.
     void note_inbound_death()
     {
         suppress_ = true;

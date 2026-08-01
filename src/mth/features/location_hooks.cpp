@@ -114,7 +114,7 @@ void neutralize_kear_grant(int loc_idx, void *slot, std::uint64_t before)
 // reload (only the +0x1f0 collected bitfield is), so after loading a save the AP-collected kears read as
 // usable keys again ("one kear on load"). Run every tick under kear_rando to raise +0x1f8 back up to
 // popcount(+0x1f0), cancelling the leaked keys; never lowers it, so real lock-spends survive. SaveSlot is the
-// authoritative usable-key source (no Player mirror exists -- see neutralize_kear_grant).
+// authoritative usable-key source (no Player mirror exists - see neutralize_kear_grant).
 void reconcile_kear_keys()
 {
     if (!g_kear_suppress || g_save_manager == 0)
@@ -172,7 +172,7 @@ bool credit_kear_key(void *player)
 
 // Write the native durable collected-bit for a location where SetItemCollected is side-effect-free
 // (is_durable_bit_kind: 8=key/kear, 12=bonestone, 19=fish), so the game's own reload gate treats it as
-// collected -- the chest spawns opened, pickup respawn is suppressed -- exactly as a live player collect
+// collected - the chest spawns opened, pickup respawn is suppressed - exactly as a live player collect
 // does. No-op (returns false) for other kinds or if SetItemCollected is unresolved. Kear (kind 8)
 // neutralizes the usable key it would grant under kear_rando. Idempotent: re-writing an already-set bit is
 // a no-op (SetItemCollected sees the bit set; the delta-based kear neutralize acts only on newly-set bits).
@@ -272,7 +272,7 @@ void repl_pickup_init(void *self, int item_type, int loc_idx, bool flag)
     // #67: the WeaponMerchant (Legovich) forge spawns the forged-weapon Pickup with loc_idx == the pending
     // weapon index SaveSlot+0xc70. The mod suppresses that grant, so the vanilla OnPickupDone `if(c70==loc)
     // c70=-1` reset never runs and c70 sticks on the checked AP weapon location, leaving the merchant
-    // uninteractable. Clear it here -- after g_orig_pickup_init built the pickup (above), so the forge asset is
+    // uninteractable. Clear it here - after g_orig_pickup_init built the pickup (above), so the forge asset is
     // resolved and the merchant can't re-spawn with itemType 0 (clearing c70 before that spawn freezes).
     void *wsave = g_save_manager != 0 ? pal::active_save_slot(g_save_manager) : nullptr;
     const int weapon_idx = wsave != nullptr ? *reinterpret_cast<int *>(static_cast<char *>(wsave) + mth::layout::kSaveWeaponIndexOff) : -1;
@@ -453,7 +453,7 @@ void on_shop_set_cursor(void *shop_menu)
 
 // Set while Shop::IsOutOfStock runs (game thread; a depth counter survives any re-entry). Lets the
 // IsItemCollected override below tell the WeaponMerchant's stock tally apart from every other reader of the
-// same weapon locations -- chiefly the weapon-swap chest, which must keep seeing the real have-item bit.
+// same weapon locations - chiefly the weapon-swap chest, which must keep seeing the real have-item bit.
 int g_shop_oos_depth = 0;
 std::uint64_t (*g_orig_shop_oos)(void *, void *) = nullptr;
 
@@ -470,7 +470,7 @@ int on_item_collected_query(int loc_idx, bool ownership_query)
     if (g_bridge == nullptr)
         return -1;
     // Legovich (#67 follow-up): the WeaponMerchant's out-of-stock tally must count AP purchases, not weapons
-    // received from the multiworld -- otherwise a received weapon inflates the count and Armand arms early.
+    // received from the multiworld - otherwise a received weapon inflates the count and Armand arms early.
     // Report AP-checked-state for his slots, but ONLY while his shop is the one tallying stock; the weapon-swap
     // chest reads these same locations and must see the real have-item bit, so it (b5 ownership query, not under
     // IsOutOfStock) falls through to the normal path below. EXCLUDE the slot currently being forged

@@ -63,7 +63,7 @@ TEST_CASE("generators_done counts only generators the seed started broken (#141)
 TEST_CASE("a goal set including Noxs Bayou completes once all its generators are fixed (#146)", "[goal]")
 {
     // #146: a 3-generator goal that includes Noxs Bayou (index 0) never completed, because the mask put its
-    // bit at position 0 -- a bit BossComponent::SetGeneratorFixed never sets (it uses bit 2 for bayou).
+    // bit at position 0 - a bit BossComponent::SetGeneratorFixed never sets (it uses bit 2 for bayou).
     const std::uint64_t broken = mth::broken_generator_mask({0, 1, 2});
     const std::uint64_t all_three_fixed = (std::uint64_t{1} << 2) | (std::uint64_t{1} << 1) | (std::uint64_t{1} << 3);
     REQUIRE(mth::generators_done(all_three_fixed, broken) == 3);

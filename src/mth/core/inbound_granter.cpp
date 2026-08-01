@@ -26,7 +26,7 @@ void InboundGranter::tick()
     {
         // Vanilla kear mode (#130): a Universal Kear must raise the usable-key count. The itemType-grant
         // path can't do it (an inbound replay uses slot=-1, which aliases every kear onto bit 63), so lower
-        // the spent-counter by one via the injected effect instead -- once per receipt, marked like a grant.
+        // the spent-counter by one via the injected effect instead - once per receipt, marked like a grant.
         if (vanilla_kear && is_vanilla_kear_item(it.item_id))
         {
             if (save_.is_granted(it.index))

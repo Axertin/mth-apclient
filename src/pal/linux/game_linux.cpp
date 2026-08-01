@@ -107,7 +107,7 @@ void repl_set_cursor(void *self, int index, bool b)
 // with its own loc_idx at +0x48. ShopMenu::SetupBoxes already advances the active variant (ShopItem+0xf8)
 // past bought levels (gated on ShopItemDef+0x4d) before it calls Refresh, so we must NOT advance it again:
 // re-advancing double-counts and skips a level per buy (#94). We only correct the stock count the suppressed
-// grant no longer maintains -- set ShopItem+0xec to the number of unchecked AP levels, and 0 (sold out) once
+// grant no longer maintains - set ShopItem+0xec to the number of unchecked AP levels, and 0 (sold out) once
 // every level is checked. A slot with no AP-location levels (normal items, consumables) is left untouched.
 void repl_shop_refresh(void *self)
 {
