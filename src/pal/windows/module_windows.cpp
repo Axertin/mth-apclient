@@ -63,19 +63,4 @@ ModuleInfo self_module()
     return module_from_handle(h);
 }
 
-std::uintptr_t rva(std::uintptr_t relative)
-{
-    return game_module().base + relative;
-}
-
-void *find_symbol(const char *module_basename, const char *symbol)
-{
-    if (!symbol)
-        return nullptr;
-    HMODULE h = module_basename ? GetModuleHandleA(module_basename) : GetModuleHandleW(nullptr);
-    if (!h)
-        return nullptr;
-    return reinterpret_cast<void *>(GetProcAddress(h, symbol));
-}
-
 } // namespace pal

@@ -18,12 +18,6 @@ struct ModuleInfo
 ModuleInfo game_module();
 ModuleInfo self_module();
 
-// game_module().base + relative (convenience).
-std::uintptr_t rva(std::uintptr_t relative);
-
-// nullptr module_basename consults the global symbol table only.
-void *find_symbol(const char *module_basename, const char *symbol);
-
 // Reads the full symbol table (incl. local symbols); requires init_hook_engine() first.
 // Returns 0 if not found.
 std::uintptr_t resolve_game_symbol(const char *mangled_name);

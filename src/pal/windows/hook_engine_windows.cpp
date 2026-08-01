@@ -93,12 +93,6 @@ class MinHookEngine final : public pal::IHookEngine
         return id;
     }
 
-    pal::HookId install_listener(void * /*target*/, pal::Listener /*l*/, void * /*user*/) override
-    {
-        pal::logf(pal::LogLevel::Warn, "MinHookEngine: install_listener not implemented");
-        return pal::kInvalidHookId;
-    }
-
     void remove_hook(pal::HookId id) override
     {
         void *target = nullptr;
