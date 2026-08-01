@@ -1,7 +1,11 @@
 # MinaModApi.cmake - the game's native mod API header via FetchContent.
 #
 # Single C header (MinaModAPI.h) consumed only by the PAL native entry TU.
-# Pinned to an exact upstream commit, mirroring cmake/ApClient.cmake.
+#
+# Deliberately tracks upstream main rather than a pinned commit, unlike every
+# other fetched dependency. This header defines the struct layout the game hands
+# to MinaMod_Init, and a stale pin would hold the mod on an old ABI with nothing
+# to signal it. Pin it once there is tooling that reports when upstream moves.
 #
 # Exposes: mthap::minamodapi (INTERFACE, system include dir only).
 
