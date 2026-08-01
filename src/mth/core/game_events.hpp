@@ -12,12 +12,6 @@ struct IGameEvents
     virtual void on_game_fixed_update()
     {
     } // Game::FixedUpdate
-    virtual void on_game_update(float /*dt*/)
-    {
-    } // Game::Update
-    virtual void on_update_queue(float /*dt*/)
-    {
-    } // ycUpdateQueue::Update
 
     // Fired BEFORE World::Update (via the native "WorldUpdate" mod hook). Spawns must happen here to
     // avoid update-queue hangs.

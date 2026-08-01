@@ -11,8 +11,6 @@ namespace
 mth::IGameEvents *g_sink = nullptr;
 
 void (*g_orig_game_fixed_update)() = nullptr;
-void (*g_orig_game_update)(float) = nullptr;
-void (*g_orig_update_queue)(void *, float) = nullptr;
 
 void repl_game_fixed_update()
 {
@@ -20,14 +18,6 @@ void repl_game_fixed_update()
         g_orig_game_fixed_update();
     if (g_sink)
         g_sink->on_game_fixed_update();
-}
-
-void repl_game_update(float dt)
-{
-    if (g_orig_game_update)
-        g_orig_game_update(dt);
-    if (g_sink)
-        g_sink->on_game_update(dt);
 }
 
 // World::Update is not detoured: its pre-update spawn window is delivered by the native "WorldUpdate"
@@ -45,14 +35,6 @@ void world_destroy_notify()
         g_sink->on_world_destroy();
 }
 
-void repl_update_queue(void *self, float dt)
-{
-    if (g_orig_update_queue)
-        g_orig_update_queue(self, dt);
-    if (g_sink)
-        g_sink->on_update_queue(dt);
-}
-
 } // namespace
 
 namespace mth
@@ -63,11 +45,8 @@ GameHooks::GameHooks(IGameEvents &sink)
     g_sink = &sink;
     fixed_update_ = ScopedHook(sym::game_fixed_update, reinterpret_cast<void *>(&repl_game_fixed_update), reinterpret_cast<void **>(&g_orig_game_fixed_update),
                                "Game::FixedUpdate");
-    update_ = ScopedHook(sym::game_update, reinterpret_cast<void *>(&repl_game_update), reinterpret_cast<void **>(&g_orig_game_update), "Game::Update");
     mod::install_world_update_hook(&world_update_notify);
     mod::install_world_destroy_hook(&world_destroy_notify);
-    update_queue_ =
-        ScopedHook(sym::update_queue, reinterpret_cast<void *>(&repl_update_queue), reinterpret_cast<void **>(&g_orig_update_queue), "ycUpdateQueue::Update");
 }
 
 GameHooks::~GameHooks()
