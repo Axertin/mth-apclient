@@ -7,7 +7,7 @@ namespace pal
 {
 
 // RW-protect [addr, addr+len); not restored. Linux page-aligns internally. Drops execute permission, so
-// this is for DATA only -- never use it on .text (the game will fault executing the de-exec'd page).
+// this is for DATA only - never use it on .text (the game will fault executing the de-exec'd page).
 bool make_writable(void *addr, std::size_t len);
 
 // Overwrite len bytes of executable code at addr: temporarily add write permission, copy, restore the

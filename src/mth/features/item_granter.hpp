@@ -20,7 +20,7 @@ class ItemGranter final : public IItemGranter
   public:
     // is_ap_location: RandoBridge predicate used to suppress vanilla grants for randomized locations.
     // report_collected: RandoBridge sink invoked when a suppressed grant IS the player collecting an AP
-    // location through Items::OnPickupDone directly (no Pickup entity / ShopMenu) -- e.g. the train-ticket
+    // location through Items::OnPickupDone directly (no Pickup entity / ShopMenu) - e.g. the train-ticket
     // machine; sends the outbound check that the pickup/shop hooks would otherwise miss (idempotent).
     ItemGranter(PlayerTracker &tracker, std::function<bool(int)> is_ap_location, std::function<void(int)> report_collected);
     ~ItemGranter() override;

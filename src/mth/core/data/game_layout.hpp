@@ -53,7 +53,7 @@ inline constexpr std::ptrdiff_t kSaveKearSpentOff = 0x1f8;    // int spent-count
 // by Player::RestoreSave/WriteSave. Gameplay (KeyBlock/Chest gate, HUD) reads usable = popcount(Player+0x11a8)
 // - SaveSlot+0x1f8; the spend gate then SNAPS SaveSlot+0x1f8 = Player+0x11b0+1, so any edit to the key count
 // must move BOTH SaveSlot+0x1f8 and Player+0x11b0 together. (Player+0x1190/+0x1198 are the unrelated money
-// current/cap fields -- see Player::AddMoney; do NOT confuse them with the key mirror.)
+// current/cap fields - see Player::AddMoney; do NOT confuse them with the key mirror.)
 inline constexpr std::ptrdiff_t kPlayerKearBitsOff = 0x11a8;  // u64 kear-collected bitfield mirror in Player
 inline constexpr std::ptrdiff_t kPlayerKearSpentOff = 0x11b0; // int spent-counter mirror in Player (runtime source of truth)
 

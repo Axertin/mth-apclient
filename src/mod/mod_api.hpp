@@ -19,11 +19,11 @@ int current_game_state();
 
 // Items::IsItemCollected override via the native "IsItemCollected" mod hook. Capacity-upgrade locations
 // (itemTypes 0x44..0x48) read the same SaveSlot bitfield apply_upgrades repurposes as a capacity counter,
-// so a vanilla collected-bit query for one reports "an upgrade was received" -- making boss rose-reward
+// so a vanilla collected-bit query for one reports "an upgrade was received" - making boss rose-reward
 // spawns (gated on !IsItemCollected(rewardLoc)) wrongly skip (issue #8). query(loc_idx, ownership_query)
 // returns -1 to pass through to the game, or 0/1 to force the result. ownership_query is IsItemCollected's
 // param5 (b5): true when the caller asks "do I persistently own this item" (the weapon-swap chest), false
-// for location-collected queries (chest-open, pickup self-kill, boss reward-rose) -- the mth-side query
+// for location-collected queries (chest-open, pickup self-kill, boss reward-rose) - the mth-side query
 // needs it to avoid hiding a received weapon from the swap chest. Fires on both platforms and from every
 // inlined copy of IsItemCollected (e.g. the MSVC-inlined Pickup-ctor self-kill on Windows), which the old
 // symbol/sig detour could not.
@@ -31,8 +31,8 @@ using ItemCollectedFn = int (*)(int loc_idx, bool ownership_query);
 bool install_item_collected_hook(ItemCollectedFn query);
 void remove_item_collected_hook();
 
-// World::Update pre-tick via the native "WorldUpdate" mod hook. Fires at the top of World::Update -- the
-// pre-update spawn window where grants/lock-seeds must happen to avoid update-queue hangs -- so it replaces
+// World::Update pre-tick via the native "WorldUpdate" mod hook. Fires at the top of World::Update - the
+// pre-update spawn window where grants/lock-seeds must happen to avoid update-queue hangs - so it replaces
 // the old sig-detour's pre-hook (the old post-hook was an unused no-op). on_pre runs on the game thread.
 // false if the modding API is unavailable.
 using WorldUpdatePreFn = void (*)();

@@ -89,7 +89,7 @@ void HookManager::tick(ApState &state, SessionPolicy &policy, int save_game_slot
         level_cap_hooks_->recompute(state);
 
     // Neutralize the world-kear collect grant in every AP mode; pin usable keys to 0 only in the AP-item
-    // modes (vanilla mode credits received Universal Kears instead -- see App/InboundGranter).
+    // modes (vanilla mode credits received Universal Kears instead - see App/InboundGranter).
     location_hooks_->set_kear_gating(authed, authed && state.kear_keys_suppressed());
     location_hooks_->reconcile_kear_keys(); // re-cancel AP kears that a reload restored as usable keys (suppress modes)
     location_hooks_->enforce_native_bits(); // native collected-bit for server-collected durable-bit chests (Collect/coop)

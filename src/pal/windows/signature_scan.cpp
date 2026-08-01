@@ -58,8 +58,8 @@ std::uintptr_t scan_resolve(const char *mangled_name)
         return it->second;
 
     // g_saveManager is too hot to carve as a DataRef (~2300 xrefs). But the game's only
-    // `cmove r9,[rip+g_saveManager]` (4c 0f 44 0d, 8-byte) -- the "default a null SaveSlot* to the
-    // active slot" idiom -- is UNIQUE in .text, so scan the whole section for it and read its RIP
+    // `cmove r9,[rip+g_saveManager]` (4c 0f 44 0d, 8-byte) - the "default a null SaveSlot* to the
+    // active slot" idiom - is UNIQUE in .text, so scan the whole section for it and read its RIP
     // target. Survives function moves across builds (no anchor symbol needed); a future build that
     // adds a second such cmov would shift this to the first match (caught by the logged address).
     if (std::strcmp(mangled_name, "g_saveManager") == 0)

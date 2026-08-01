@@ -42,8 +42,8 @@ void repl_on_pickup_done(int slot, int item_type, void *player, void *vec, int a
     if (slot >= 0 && item_type != mth::layout::kApDummyItemType && g_is_ap_location && g_is_ap_location(slot))
     {
         pal::logf(pal::LogLevel::Info, "outbound: suppressed vanilla grant for AP location %d (itemType=%d)", slot, item_type);
-        // Grants delivered straight through OnPickupDone (no Pickup entity, no ShopMenu) -- the train-ticket
-        // machine -- never reach the pickup/shop detect hooks, so send the check here. Idempotent: the bridge
+        // Grants delivered straight through OnPickupDone (no Pickup entity, no ShopMenu) - the train-ticket
+        // machine - never reach the pickup/shop detect hooks, so send the check here. Idempotent: the bridge
         // dedups, so the world-pickup (dummy itemType, excluded above) and Windows-shop paths can't double-send.
         if (g_report_collected)
             g_report_collected(slot);
@@ -55,7 +55,7 @@ void repl_on_pickup_done(int slot, int item_type, void *player, void *vec, int a
 }
 
 // Items::OnPickup runs before OnPickupDone and, for armor upgrades (Vitality Vest 0x4f, Damage armor 0x50),
-// ORs the upgrade bit into SaveSlot+0xc68 *itself* -- so suppressing only OnPickupDone leaks the vanilla
+// ORs the upgrade bit into SaveSlot+0xc68 *itself* - so suppressing only OnPickupDone leaks the vanilla
 // armor for an AP shop buy (issue #71). Suppress those armor types for AP locations here, at the real
 // chokepoint. Scoped to the two armor itemTypes so every other pickup flows through unchanged (OnPickupDone
 // still does the per-location suppression for them). Idempotent collect-report mirrors OnPickupDone.

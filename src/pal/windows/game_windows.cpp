@@ -96,7 +96,7 @@ void *(*g_orig_shop_get)(std::uint64_t name_hash) = nullptr; // Shop::Get(uint64
 // with its own loc_idx at +0x48. ShopMenu::SetupBoxes already advances the active variant (ShopItem+0xf8)
 // past bought levels (gated on ShopItemDef+0x4d) before it calls Refresh, so we must NOT advance it again:
 // re-advancing double-counts and skips a level per buy (#94). We only correct the stock count the suppressed
-// grant no longer maintains -- set ShopItem+0xec to the number of unchecked AP levels, and 0 (sold out) once
+// grant no longer maintains - set ShopItem+0xec to the number of unchecked AP levels, and 0 (sold out) once
 // every level is checked. A slot with no AP-location levels (normal items, consumables) is left untouched.
 void repl_shop_refresh(void *self)
 {
@@ -180,7 +180,7 @@ void repl_set_cursor(void *self, int index, bool b)
 
 // Items::IsItemCollected override lives in native_mod_entry.cpp (native modding hook; cross-platform).
 // This also catches clang-cl's inlined copies of IsItemCollected (e.g. the Pickup-ctor self-kill), which a
-// standalone-function detour could not -- so the #93 have-bit box workaround is no longer platform-specific.
+// standalone-function detour could not - so the #93 have-bit box workaround is no longer platform-specific.
 
 // ---- chain-open / chest-unlock per-frame hooks. Hook ::UpdateState (self == the StateMachine
 // sub-object; recover base = self - 0x170): the game's MSVC linker ICF-folds the per-class ::Update
