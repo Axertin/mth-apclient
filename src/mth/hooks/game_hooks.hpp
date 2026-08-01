@@ -18,9 +18,7 @@ class GameHooks
     GameHooks &operator=(const GameHooks &) = delete;
 
   private:
-    ScopedHook fixed_update_;
-    ScopedHook update_;
-    ScopedHook update_queue_; // World::Update is not here: it uses the native "WorldUpdate" mod hook (see .cpp)
+    ScopedHook fixed_update_; // World::Update is not here: it uses the native "WorldUpdate" mod hook (see .cpp)
 };
 
 } // namespace mth
