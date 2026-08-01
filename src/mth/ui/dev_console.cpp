@@ -1,8 +1,10 @@
 #include "mth/ui/dev_console.hpp"
 
 #include <cfloat>
+#include <charconv>
 #include <cstdint>
 #include <cstdio>
+#include <string>
 
 #include <imgui.h>
 
@@ -15,6 +17,17 @@
 
 namespace
 {
+
+// Console args are arbitrary user text parsed on the render thread, inside the present
+// hook. A throwing conversion would unwind into the game's render loop through the
+// trampoline, so these report failure by value and the caller prints usage instead.
+// The whole argument must be consumed: "5x" is a typo, not 5.
+template <typename T> bool parse_num(const std::string &s, T &out)
+{
+    const char *end = s.data() + s.size();
+    const auto r = std::from_chars(s.data(), end, out);
+    return r.ec == std::errc{} && r.ptr == end;
+}
 
 void textOutlined(const char *text, ImU32 textCol = IM_COL32_WHITE, ImU32 outlineCol = IM_COL32_BLACK)
 {
@@ -95,7 +108,6 @@ void DevConsole::draw_console()
     if (ImGui::BeginChild("output", ImVec2(0, -footer), ImGuiChildFlags_None, ImGuiWindowFlags_HorizontalScrollbar))
     {
         for (const auto &line : lines)
-            // ImGui::TextUnformatted(line.c_str());
             textOutlined(line.c_str());
         if (scroll_to_bottom_)
         {
@@ -155,8 +167,14 @@ void DevConsole::run_input()
             println("usage: giveapitem <ap_item_id>");
         else
         {
-            sink_.give_item(static_cast<std::int64_t>(std::stoll(cmd.args[0])));
-            println("granting item id " + cmd.args[0]);
+            std::int64_t id = 0;
+            if (!parse_num(cmd.args[0], id))
+                println("giveapitem: '" + cmd.args[0] + "' is not a number");
+            else
+            {
+                sink_.give_item(id);
+                println("granting item id " + cmd.args[0]);
+            }
         }
         break;
     case CommandKind::RemoveLock:
@@ -164,8 +182,14 @@ void DevConsole::run_input()
             println("usage: removelock <slot>");
         else
         {
-            sink_.remove_lock(static_cast<int>(std::stoi(cmd.args[0])));
-            println("removing lock slot " + cmd.args[0]);
+            int slot = 0;
+            if (!parse_num(cmd.args[0], slot))
+                println("removelock: '" + cmd.args[0] + "' is not a number");
+            else
+            {
+                sink_.remove_lock(slot);
+                println("removing lock slot " + cmd.args[0]);
+            }
         }
         break;
     case CommandKind::Modifier:
@@ -173,9 +197,15 @@ void DevConsole::run_input()
             println("usage: modifier <idx> on|off");
         else
         {
-            const bool on = cmd.args[1] == "on" || cmd.args[1] == "1" || cmd.args[1] == "true";
-            sink_.set_modifier(static_cast<int>(std::stoi(cmd.args[0])), on);
-            println("modifier " + cmd.args[0] + " " + (on ? "on" : "off"));
+            int idx = 0;
+            if (!parse_num(cmd.args[0], idx))
+                println("modifier: '" + cmd.args[0] + "' is not a number");
+            else
+            {
+                const bool on = cmd.args[1] == "on" || cmd.args[1] == "1" || cmd.args[1] == "true";
+                sink_.set_modifier(idx, on);
+                println("modifier " + cmd.args[0] + " " + (on ? "on" : "off"));
+            }
         }
         break;
     case CommandKind::ModifierLock:
@@ -207,8 +237,16 @@ void DevConsole::run_input()
             println("usage: caps <attack> <defense> <sidearm>  (per-stat cap-ups; 0 = frozen at level 1)");
         else
         {
-            sink_.set_stat_caps(std::stoi(cmd.args[0]), std::stoi(cmd.args[1]), std::stoi(cmd.args[2]));
-            println("stat caps set: attack=" + cmd.args[0] + " defense=" + cmd.args[1] + " sidearm=" + cmd.args[2]);
+            int attack = 0;
+            int defense = 0;
+            int sidearm = 0;
+            if (!parse_num(cmd.args[0], attack) || !parse_num(cmd.args[1], defense) || !parse_num(cmd.args[2], sidearm))
+                println("caps: expected three numbers");
+            else
+            {
+                sink_.set_stat_caps(attack, defense, sidearm);
+                println("stat caps set: attack=" + cmd.args[0] + " defense=" + cmd.args[1] + " sidearm=" + cmd.args[2]);
+            }
         }
         break;
     case CommandKind::Ability:
@@ -251,14 +289,11 @@ void DevConsole::run_input()
         {
             if (a == "off" || a == "clear")
                 continue; // clears (empty index list -> mask 0)
-            try
-            {
-                indices.push_back(std::stoi(a));
-            }
-            catch (...)
-            {
+            int idx = 0;
+            if (parse_num(a, idx))
+                indices.push_back(idx);
+            else
                 println("litlamps: ignoring non-numeric arg '" + a + "'");
-            }
         }
         const std::uint32_t mask = mth::lit_mask_from_indices(indices);
         sink_.set_lit_lamps(mask);
