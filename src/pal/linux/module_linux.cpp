@@ -72,26 +72,4 @@ ModuleInfo self_module()
     return info;
 }
 
-std::uintptr_t rva(std::uintptr_t relative)
-{
-    return game_module().base + relative;
-}
-
-void *find_symbol(const char *module_basename, const char *symbol)
-{
-    if (!symbol)
-        return nullptr;
-    if (module_basename)
-    {
-        if (void *h = dlopen(module_basename, RTLD_LAZY | RTLD_NOLOAD))
-        {
-            void *sym = dlsym(h, symbol);
-            dlclose(h);
-            if (sym)
-                return sym;
-        }
-    }
-    return dlsym(RTLD_DEFAULT, symbol);
-}
-
 } // namespace pal

@@ -39,12 +39,6 @@ class FridaHookEngine final : public pal::IHookEngine
         return id;
     }
 
-    pal::HookId install_listener(void * /*target*/, pal::Listener /*l*/, void * /*user*/) override
-    {
-        pal::logf(pal::LogLevel::Warn, "FridaHookEngine: install_listener not yet implemented");
-        return pal::kInvalidHookId;
-    }
-
     void remove_hook(pal::HookId id) override
     {
         void *target = nullptr;
