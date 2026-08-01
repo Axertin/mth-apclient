@@ -1104,8 +1104,6 @@ VKAPI_ATTR VkResult VKAPI_CALL repl_vkQueuePresentKHR(VkQueue queue, const VkPre
 
     if (IOverlayUi *ui = g_ui.load(std::memory_order_acquire))
         ui->draw(pal::OverlayVisibility{console_open, login_open});
-    else if (any_open)
-        ImGui::ShowDemoWindow();
 
     ImGui::Render();
 
