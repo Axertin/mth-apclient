@@ -329,7 +329,6 @@ void ApLink::setup_handlers(const std::string &slot, const std::string &password
     client_->set_slot_connected_handler(
         [this](const nlohmann::json &data)
         {
-            connected_.store(true);
             connect_deadline_.reset();
             // slot_data "death_link" sets the default; a sticky client-side force-off (console) still wins.
             slot_deathlink_.store(data.is_object() && data.value("death_link", 0) != 0);
@@ -423,6 +422,11 @@ void ApLink::setup_handlers(const std::string &slot, const std::string &password
                                         goal_bosses,
                                         wallet_cap,
                                         lit_generator_lamp_mask});
+
+            // Publish last. The game thread's resend gate keys on is_connected(), so flipping it
+            // before ApConnected is drained lets a tick flush the previous seed's checked set to
+            // this server.
+            connected_.store(true);
         });
 
     client_->set_slot_refused_handler(
