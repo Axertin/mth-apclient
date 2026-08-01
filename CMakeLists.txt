@@ -13,6 +13,14 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# The mod is loaded into the game's process, so it must export only its entry point:
+# anything else is interposition surface against the host and any other loaded mod.
+# MinaMod_Init carries an explicit default-visibility attribute and is unaffected.
+# --exclude-libs,ALL localizes static archives only, not the OBJECT libraries.
+set(CMAKE_C_VISIBILITY_PRESET hidden)
+set(CMAKE_CXX_VISIBILITY_PRESET hidden)
+set(CMAKE_VISIBILITY_INLINES_HIDDEN ON)
+
 option(MTHAP_BUILD_TESTS "Build unit tests (Catch2)" ON)
 option(MTHAP_BUILD_TESTS_ONLY "Build only tests, skip mod build" OFF)
 option(MTHAP_ENABLE_NET "Build the Archipelago network lane (apclientpp + TLS)" ON)
