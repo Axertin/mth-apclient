@@ -22,7 +22,6 @@ if(WIN32)
         "${dearimgui_SOURCE_DIR}/imgui_draw.cpp"
         "${dearimgui_SOURCE_DIR}/imgui_tables.cpp"
         "${dearimgui_SOURCE_DIR}/imgui_widgets.cpp"
-        "${dearimgui_SOURCE_DIR}/imgui_demo.cpp"
         "${dearimgui_SOURCE_DIR}/backends/imgui_impl_dx12.cpp"
         "${dearimgui_SOURCE_DIR}/backends/imgui_impl_win32.cpp"
     )
@@ -48,7 +47,6 @@ else()
         "${dearimgui_SOURCE_DIR}/imgui_draw.cpp"
         "${dearimgui_SOURCE_DIR}/imgui_tables.cpp"
         "${dearimgui_SOURCE_DIR}/imgui_widgets.cpp"
-        "${dearimgui_SOURCE_DIR}/imgui_demo.cpp"
         "${dearimgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp"
     )
 
