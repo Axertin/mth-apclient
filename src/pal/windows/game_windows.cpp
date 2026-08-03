@@ -1315,7 +1315,16 @@ bool apply_upgrades(const int *counts, void *player)
         trace(4, "skip: active SaveSlot* invalid", slot);
         return false;
     }
+    // CombatCore is reached through the Player, so a non-canonical read means the Player is not one (#157
+    // faulted on exactly this load, walking a freed Player). Bail rather than treat it as absent: UpdateStats
+    // and the magic-pool writes below still go through that same pointer. Leaves the counts dirty, so the
+    // next tick retries. A genuinely null CombatCore is the separate case the pool restores already handle.
     void *cc = *reinterpret_cast<void **>(static_cast<char *>(player) + kCombatCoreOff);
+    if (cc != nullptr && !pal::pointer_looks_valid(cc))
+    {
+        trace(5, "skip: CombatCore* invalid", slot);
+        return false;
+    }
 
     // Keep each pool's missing amount constant across the grant (current = new_max - old_missing);
     // a no-op on a resend (max unchanged) and full on a fresh file. Mirrors the Linux impl.

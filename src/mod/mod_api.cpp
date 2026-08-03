@@ -200,6 +200,16 @@ bool player_die()
     return true;
 }
 
+bool player_component_available()
+{
+    return g_mod_api != nullptr && g_mod_api->PlayerGetComponent != nullptr;
+}
+
+void *player_component()
+{
+    return player_component_available() ? static_cast<void *>(g_mod_api->PlayerGetComponent()) : nullptr;
+}
+
 bool health_api_available()
 {
     return g_mod_api != nullptr && g_mod_api->PlayerGetHealth != nullptr;

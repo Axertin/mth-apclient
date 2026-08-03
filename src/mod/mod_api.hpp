@@ -87,6 +87,13 @@ bool save_write_enabled();
 // is unavailable.
 bool player_die();
 
+// The game's own live-Player pointer. It is set when the Player is built and nulled inside Player::~Player,
+// so it is the only signal that survives a player teardown the mod is not otherwise told about: a Player*
+// captured in the ctor detour stays non-null past the free and faults the next time a write path walks it
+// (#157). Returns null whenever there is no live player, which every caller must treat as "skip this tick".
+bool player_component_available();
+void *player_component();
+
 // Native Player health, used by deathlink to re-arm the broadcast only on a true respawn (health > 0) --
 // the death-guard byte pulses during the death sequence, health does not. available() is false when the
 // build's API lacks the getter; player_health() returns 0 then.
