@@ -103,3 +103,28 @@ TEST_CASE("is_small_treasure_collect_rewrite: anything else is real drift", "[ga
     CHECK_FALSE(mth::tables::is_small_treasure_collect_rewrite(-1, 51));  // loc cleared, but not the bones payout
     CHECK_FALSE(mth::tables::is_small_treasure_collect_rewrite(172, 40)); // bones itemType, but loc not cleared
 }
+
+TEST_CASE("collection bit index: 0xff is the table's no-bit sentinel, not drift", "[tables][gate]")
+{
+    // Measured against the shipping table: rows 24 and 25 carry 0xff, meaning "this location has
+    // no unlock bit". Treating that as corruption made the AP gate refuse a known-good build.
+    REQUIRE(mth::tables::collection_bit_plausible(0));
+    REQUIRE(mth::tables::collection_bit_plausible(1));
+    REQUIRE(mth::tables::collection_bit_plausible(63));
+    REQUIRE(mth::tables::collection_bit_plausible(mth::tables::kNoCollectionBit));
+
+    // Anything else at or above 64 cannot be a bit position in a u64 field.
+    REQUIRE_FALSE(mth::tables::collection_bit_plausible(64));
+    REQUIRE_FALSE(mth::tables::collection_bit_plausible(100));
+    REQUIRE_FALSE(mth::tables::collection_bit_plausible(254));
+}
+
+TEST_CASE("collection bit index: only < 64 may be shifted", "[tables][gate]")
+{
+    // seed_removed_locks does `1ull << bit`. On x86 a shift by 255 wraps to bit 63 and silently
+    // unlocks an unrelated lock in the player's save, so the sentinel must never reach the shift.
+    REQUIRE(mth::tables::collection_bit_usable(0));
+    REQUIRE(mth::tables::collection_bit_usable(63));
+    REQUIRE_FALSE(mth::tables::collection_bit_usable(64));
+    REQUIRE_FALSE(mth::tables::collection_bit_usable(mth::tables::kNoCollectionBit));
+}
