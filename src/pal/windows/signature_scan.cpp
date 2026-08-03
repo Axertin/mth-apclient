@@ -46,6 +46,10 @@ std::span<const std::uint8_t> text_section(std::uintptr_t module_base)
 }
 } // namespace
 
+// Only failures are logged here. The AP gate resolves every required symbol at startup and logs
+// each result itself, on both platforms, so a success line here would duplicate it 1:1. The
+// failure classification below is NOT duplicated: the gate only reports that a symbol is missing,
+// not whether it was a miss, an ambiguous pattern, or an out-of-range DataRef.
 std::uintptr_t scan_resolve(const char *mangled_name)
 {
     if (!mangled_name)
@@ -74,8 +78,6 @@ std::uintptr_t scan_resolve(const char *mangled_name)
         }
         if (addr == 0)
             logf(LogLevel::Error, "sig: g_saveManager not resolved (no `cmov r9,[rip]` in .text)");
-        else
-            logf(LogLevel::Info, "sig: resolved g_saveManager -> %p", reinterpret_cast<void *>(addr));
         cache[mangled_name] = addr;
         return addr;
     }
@@ -106,8 +108,6 @@ std::uintptr_t scan_resolve(const char *mangled_name)
                                           : "DataRef disp32 out of range";
             logf(LogLevel::Error, "sig: %s did not resolve (%s)", mangled_name, why);
         }
-        else
-            logf(LogLevel::Info, "sig: resolved %s -> %p", mangled_name, reinterpret_cast<void *>(addr));
         cache[mangled_name] = addr;
         return addr;
     }
