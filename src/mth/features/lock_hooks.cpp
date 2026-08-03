@@ -214,7 +214,15 @@ void LockHooks::seed_removed_locks()
     {
         if (slot < 0 || slot >= layout::kLocationCount)
             continue;
-        field |= (std::uint64_t{1} << tables::collection_bit_index(slot));
+        // 0xff is the table's "no unlock bit" sentinel and shipping rows do use it; shifting by it
+        // is UB and on x86 wraps to bit 63, silently unlocking an unrelated lock in the save.
+        const std::uint8_t bit = tables::collection_bit_index(slot);
+        if (!tables::collection_bit_usable(bit))
+        {
+            pal::logf(pal::LogLevel::Warn, "locks: slot %d has no usable unlock bit (idx=%u); not seeding", slot, static_cast<unsigned>(bit));
+            continue;
+        }
+        field |= (std::uint64_t{1} << bit);
     }
 
     if (!g_seed_logged)

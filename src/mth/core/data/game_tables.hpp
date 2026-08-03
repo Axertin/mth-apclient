@@ -94,6 +94,23 @@ void resolve();
 
 // Patch s_rItems[kApDummyItemType]: kind 0 (no-op grant) + sprite assets from the donor row.
 // Idempotent; best-effort (skipped + logged if s_rItems unresolved or mprotect fails).
+// s_rItemCollection's bit index is a u8 whose 0xff means "this location has no unlock bit"
+// (rows 24 and 25 of the shipping table use it). Any other value is a bit position inside a
+// SaveSlot u64, so >= 64 without being the sentinel means the field drifted.
+inline constexpr std::uint8_t kNoCollectionBit = 0xff;
+
+// Only these may be shifted into the SaveSlot u64. 1ull << 255 is UB and wraps to bit 63 on x86.
+[[nodiscard]] constexpr bool collection_bit_usable(std::uint8_t bit)
+{
+    return bit < 64;
+}
+
+// Widens the above by the sentinel: what an intact table can legitimately hold.
+[[nodiscard]] constexpr bool collection_bit_plausible(std::uint8_t bit)
+{
+    return bit < 64 || bit == kNoCollectionBit;
+}
+
 void repurpose_dummy_item();
 
 } // namespace mth::tables
