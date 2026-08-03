@@ -2,6 +2,7 @@
 
 #include <cmath>
 
+#include "mod/mod_api.hpp"
 #include "mth/core/data/game_symbols.hpp"
 #include "pal/pal_game.hpp"
 #include "pal/pal_log.hpp"
@@ -59,19 +60,26 @@ PlayerTracker::~PlayerTracker()
 
 void *PlayerTracker::player() const
 {
-    // The Player ctor hook captures a real `self`; a non-null-but-non-canonical value means the hook
-    // resolved wrong. Fail closed (return null; upgrades/deathlink/abilities all null-check) + warn once.
-    if (g_player != nullptr && !pal::pointer_looks_valid(g_player))
+    // Prefer the game's own live-Player pointer: it is nulled inside Player::~Player, so it goes away with
+    // the object. The ctor capture has no matching teardown signal - World::Destroy is the only thing that
+    // clears it, and a Player can be freed well before (or without) one, leaving a pointer that still looks
+    // canonical but whose fields are recycled heap. Walking it faulted on the Coltrane rest ride (#157).
+    // Null means no live player this tick; every caller re-tries, so deferring is lossless.
+    void *p = mod::player_component_available() ? mod::player_component() : g_player;
+
+    // A non-null-but-non-canonical value means a hook or the API resolved wrong. Fail closed (return null;
+    // upgrades/deathlink/abilities/grants all null-check) + warn once.
+    if (p != nullptr && !pal::pointer_looks_valid(p))
     {
         static bool warned = false;
         if (!warned)
         {
             warned = true;
-            pal::logf(pal::LogLevel::Warn, "player pointer looks invalid (%p); write paths (upgrades/deathlink/abilities) disabled this session", g_player);
+            pal::logf(pal::LogLevel::Warn, "player pointer looks invalid (%p); write paths (upgrades/deathlink/abilities) disabled this session", p);
         }
         return nullptr;
     }
-    return g_player;
+    return p;
 }
 
 bool PlayerTracker::position(float out[3]) const

@@ -187,3 +187,28 @@ TEST_CASE("save api passthroughs reach the fake api", "[mod][save]")
 
     mod::set_api(nullptr);
 }
+
+TEST_CASE("mod: player_component serves the game's live Player, null once it is torn down", "[mod][player]")
+{
+    mth::test::recorder().reset();
+    mod::set_api(nullptr);
+    REQUIRE_FALSE(mod::player_component_available());
+    REQUIRE(mod::player_component() == nullptr);
+
+    auto fake = mth::test::make_fake_api();
+    mod::set_api(&fake);
+    REQUIRE(mod::player_component_available());
+
+    // No live player yet: the game's global is null before the first Player is built.
+    REQUIRE(mod::player_component() == nullptr);
+
+    int live = 0;
+    mth::test::recorder().player = &live;
+    REQUIRE(mod::player_component() == &live);
+
+    // Player::~Player nulls the game's global; a ctor-captured pointer would still read &live here (#157).
+    mth::test::recorder().player = nullptr;
+    REQUIRE(mod::player_component() == nullptr);
+
+    mod::set_api(nullptr);
+}
