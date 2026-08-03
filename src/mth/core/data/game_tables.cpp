@@ -120,4 +120,55 @@ void repurpose_dummy_item()
               *reinterpret_cast<const char **>(dst + layout::kItemAtlasOff), *reinterpret_cast<const char **>(dst + layout::kItemAnimOff));
 }
 
+bool item_row_shape_ok(int item_type)
+{
+    if (g_s_r_items == 0 || item_type < 0 || item_type >= layout::kItemTypeCount)
+        return false;
+
+    const std::uintptr_t row = g_s_r_items + static_cast<std::uintptr_t>(item_type) * layout::kItemEntryStride;
+    const int kind = *reinterpret_cast<const int *>(row + layout::kItemKindOff);
+    if (kind < 0 || kind > 64) // storage kinds are small ints; a drifted read is usually a pointer half
+        return false;
+
+    // Each asset field must be a readable, NUL-terminated string of printable characters. An
+    // EMPTY string is valid and common: it is how a row says "no palette" (s_rItems[1] ships that
+    // way), so requiring a printable first byte would reject intact data.
+    constexpr std::size_t kMaxAssetNameLen = 128;
+    for (const std::ptrdiff_t off : {layout::kItemAtlasOff, layout::kItemAnimOff, layout::kItemPaletteOff})
+    {
+        const char *s = *reinterpret_cast<const char *const *>(row + off);
+        if (s == nullptr || !pal::pointer_looks_valid(s))
+            return false;
+        std::size_t i = 0;
+        for (; i < kMaxAssetNameLen && s[i] != '\0'; ++i)
+        {
+            const auto c = static_cast<unsigned char>(s[i]);
+            if (c < 0x20 || c > 0x7e)
+                return false;
+        }
+        if (i == kMaxAssetNameLen)
+            return false; // no terminator in range: not a string
+    }
+    return true;
+}
+
+bool collection_shape_ok(int sample_count)
+{
+    if (g_s_r_item_collection == 0)
+        return false;
+
+    const int n = sample_count < layout::kLocationCount ? sample_count : layout::kLocationCount;
+    for (int i = 0; i < n; ++i)
+    {
+        const std::uintptr_t row = g_s_r_item_collection + static_cast<std::uintptr_t>(i) * layout::kCollectionEntryStride;
+        const int item_type = *reinterpret_cast<const int *>(row + layout::kCollectionItemTypeOff);
+        const auto bit = *reinterpret_cast<const unsigned char *>(row + layout::kCollectionBitIdxOff);
+        if (item_type < 0 || item_type >= layout::kItemTypeCount)
+            return false;
+        if (!collection_bit_plausible(bit))
+            return false;
+    }
+    return true;
+}
+
 } // namespace mth::tables

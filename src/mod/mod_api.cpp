@@ -52,6 +52,11 @@ void set_api(MinaModAPI *api)
     g_mod_api = api;
 }
 
+bool api_available()
+{
+    return g_mod_api != nullptr && g_mod_api->InstallHook != nullptr;
+}
+
 std::uint32_t game_revision()
 {
     return (g_mod_api != nullptr && g_mod_api->GetGameRevision != nullptr) ? g_mod_api->GetGameRevision() : 0;

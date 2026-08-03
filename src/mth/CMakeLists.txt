@@ -8,6 +8,7 @@
 
 add_library(mthap_core STATIC
     core/ap/ap_state.cpp
+    core/ap_gate.cpp
     core/ap/ap_coordinator.cpp
     core/broadcast.cpp
     core/rando_bridge.cpp
@@ -78,6 +79,7 @@ if(NOT MTHAP_BUILD_TESTS_ONLY)
         app/entry.cpp
         app/app.cpp
         app/grant_pipeline.cpp
+        app/gate_probes.cpp
         app/ap_session.cpp
         app/hook_manager.cpp
         hooks/game_hooks.cpp

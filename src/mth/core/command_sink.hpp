@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "mth/core/ap/ap_state.hpp" // ConnectionPhase
+#include "mth/core/ap_gate.hpp"
 #include "mth/core/data/ability_ids.hpp"
 
 namespace mth
@@ -24,6 +25,15 @@ struct SavedLogin
     std::string slot;
 };
 
+// Snapshot of the AP safety gate, copied by value: ICommandSink is read from the render thread
+// while the gate is written on the game thread.
+struct GateStatus
+{
+    GateVerdict verdict{GateVerdict::Pending};
+    bool enforcing{false};
+    std::string reason; // empty unless refused
+};
+
 // Console effect interface. Implemented by App; called on the render thread; must not block.
 class ICommandSink
 {
@@ -37,6 +47,8 @@ class ICommandSink
 
     [[nodiscard]] virtual std::vector<std::string> status_lines() const = 0;
     [[nodiscard]] virtual std::vector<std::string> item_lines() const = 0;
+    [[nodiscard]] virtual GateStatus gate_status() const = 0;
+    virtual void set_gate_enforcing(bool on) = 0; // dev toggle: make the gate's verdict actually block AP behavior
 
     virtual void give_item(std::int64_t ap_item_id) = 0;                       // manual test path; bypasses dedup
     virtual void remove_lock(int slot) = 0;                                    // pre-open/remove a KeyBlock by slot (AP runtime path)

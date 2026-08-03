@@ -22,6 +22,8 @@ CommandKind verb_to_kind(const std::string &lower)
         return CommandKind::Help;
     if (lower == "clear")
         return CommandKind::Clear;
+    if (lower == "gate")
+        return CommandKind::Gate;
     if (lower == "status")
         return CommandKind::Status;
     if (lower == "items")

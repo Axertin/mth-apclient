@@ -13,6 +13,7 @@ enum class CommandKind
     Help,
     Clear,
     Status,
+    Gate, // args: [] (show verdict) | [enforce, on|off]
     Items,
     GiveItem,     // args: [ap_item_id]
     RemoveLock,   // args: [slot]

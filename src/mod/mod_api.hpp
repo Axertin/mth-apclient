@@ -11,6 +11,10 @@ namespace mod
 // Store the live MinaModAPI* (from MinaMod_Init) or a fake (in tests). nullptr clears it.
 void set_api(MinaModAPI *api);
 
+// Is the game's mod API usable at all? False means InstallHook is unreachable, so every named
+// mod hook (grants, the collection redirect) is inert.
+[[nodiscard]] bool api_available();
+
 // Game revision ("r-number") via MinaModAPI::GetGameRevision; 0 if unavailable.
 std::uint32_t game_revision();
 
