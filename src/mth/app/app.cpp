@@ -8,6 +8,7 @@
 
 #include "mod/mod_api.hpp"
 #include "mth/app/ap_session.hpp"
+#include "mth/app/gate_probes.hpp"
 #include "mth/app/grant_pipeline.hpp"
 #include "mth/app/hook_manager.hpp"
 #include "mth/core/ap/ap_ids.hpp"
@@ -49,8 +50,12 @@ class AppTickSink final : public mth::IGameEvents
     }
     void on_world_update_pre() override
     {
-        if (app_.ready())
-            app_.drain_grants();
+        if (!app_.ready())
+            return;
+        // Liveness first: this callback firing at all is the proof the native mod-hook path works,
+        // and the gate's verdict depends on observing it.
+        app_.gate_note_worldupdate();
+        app_.drain_grants();
     }
     void on_world_destroy() override
     {
@@ -83,6 +88,16 @@ App::App() : login_prefs_(pal::log_dir() / "login.prefs")
                                        "build, so item grants and collection redirects are DISABLED. Ensure the game is the experimental-modding build.");
 
     pal::init_hook_engine();
+
+    // AP safety gate: validate before anything touches game memory. Symbol resolution needs the
+    // hook engine; the item-table probes must precede tables::repurpose_dummy_item(), which the
+    // feature installers call later and which would otherwise have us validating our own write.
+    gate_inputs_ = run_static_gate_probes(game_rev);
+    // OBSERVE-ONLY for now: the verdict is computed, logged and shown, but does not block AP
+    // behavior until it is switched on with `gate enforce on`. A wrong probe must not brick the
+    // mod before the probes have been confirmed against real game builds.
+    gate_tick();
+    pal::logf(pal::LogLevel::Info, "gate: verdict=%s enforcing=0 (console: `gate enforce on`)", verdict_name(gate_verdict_.load()));
 
     net_ = std::make_unique<ApSession>(
         state_, [this] { pending_inbound_death_.store(true); },
@@ -170,6 +185,11 @@ void App::run()
 
 void App::drive_tick()
 {
+    if (!gate_latch_.settled())
+    {
+        ++gate_inputs_.ticks_since_probe_installed;
+        gate_tick();
+    }
     if (!first_tick_logged_)
     {
         first_tick_logged_ = true;
@@ -259,6 +279,42 @@ void App::enforce_wallet_cap()
         mod::set_player_bones(*cap);
 }
 
+void App::gate_note_worldupdate()
+{
+    if (gate_inputs_.worldupdate_observed)
+        return;
+    gate_inputs_.worldupdate_observed = true;
+    pal::logf(pal::LogLevel::Info, "gate: WorldUpdate observed after %d tick(s); native mod hooks are live", gate_inputs_.ticks_since_probe_installed);
+    gate_tick();
+}
+
+void App::gate_tick()
+{
+    const GateVerdict before = gate_latch_.verdict();
+    const GateVerdict after = gate_latch_.update(gate_inputs_);
+    if (after == before)
+        return;
+
+    gate_verdict_.store(after);
+    std::string reason = refusal_reason(gate_inputs_);
+    if (after == GateVerdict::Refused)
+    {
+        pal::logf(pal::LogLevel::Error, "gate: REFUSED - %s", reason.c_str());
+        if (!gate_enforcing_.load())
+            pal::logf(pal::LogLevel::Warn, "gate: observe-only, so AP behavior is NOT being blocked; run `gate enforce on` to enforce");
+    }
+    else if (after == GateVerdict::Clear)
+    {
+        pal::logf(pal::LogLevel::Info, "gate: CLEAR after %d tick(s); AP behavior permitted", gate_inputs_.ticks_since_probe_installed);
+        if (!gate_inputs_.revision_known)
+            pal::logf(pal::LogLevel::Warn, "gate: this game build is outside the validated revision range; proceeding because every probe passed");
+    }
+    {
+        std::lock_guard<std::mutex> lk(gate_reason_mutex_);
+        gate_reason_ = std::move(reason);
+    }
+}
+
 void App::on_world_destroy()
 {
     // The Player is freed with the world; drop our cached pointer so the next drive_tick's upgrade
@@ -322,6 +378,18 @@ void App::reconcile_server_checked()
 
 void App::connect(const std::string &server, const std::string &slot, const std::string &password)
 {
+    if (gate_enforcing_.load() && gate_verdict_.load() == GateVerdict::Refused)
+    {
+        std::string reason;
+        {
+            std::lock_guard<std::mutex> lk(gate_reason_mutex_);
+            reason = gate_reason_;
+        }
+        // Deliberately does not touch ApState: connect() runs on the overlay render thread, and
+        // ApState's status/detail are game-thread data. The UI reads the reason via gate_status().
+        pal::logf(pal::LogLevel::Error, "gate: refusing connect - %s", reason.c_str());
+        return;
+    }
     {
         std::lock_guard<std::mutex> lk(login_mutex_);
         pending_server_ = server;
@@ -372,6 +440,24 @@ std::vector<std::string> App::status_lines() const
     out.push_back("received items: " + std::to_string(state_.received_items().size()));
     hooks_->append_status_lines(out);
     return out;
+}
+
+GateStatus App::gate_status() const
+{
+    GateStatus s;
+    s.verdict = gate_verdict_.load();
+    s.enforcing = gate_enforcing_.load();
+    {
+        std::lock_guard<std::mutex> lk(gate_reason_mutex_);
+        s.reason = gate_reason_;
+    }
+    return s;
+}
+
+void App::set_gate_enforcing(bool on)
+{
+    gate_enforcing_.store(on);
+    pal::logf(pal::LogLevel::Info, "gate: enforcing=%d (verdict=%s)", on ? 1 : 0, verdict_name(gate_verdict_.load()));
 }
 
 std::vector<std::string> App::item_lines() const

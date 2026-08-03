@@ -28,6 +28,7 @@ class DevConsole final
 
   private:
     void draw_version_hud();
+    void draw_gate_banner();
     void draw_console();
     void run_input();
     void println(const std::string &line);

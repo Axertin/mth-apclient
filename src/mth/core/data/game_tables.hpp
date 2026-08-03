@@ -94,6 +94,8 @@ void resolve();
 
 // Patch s_rItems[kApDummyItemType]: kind 0 (no-op grant) + sprite assets from the donor row.
 // Idempotent; best-effort (skipped + logged if s_rItems unresolved or mprotect fails).
+void repurpose_dummy_item();
+
 // s_rItemCollection's bit index is a u8 whose 0xff means "this location has no unlock bit"
 // (rows 24 and 25 of the shipping table use it). Any other value is a bit position inside a
 // SaveSlot u64, so >= 64 without being the sentinel means the field drifted.
@@ -111,6 +113,15 @@ inline constexpr std::uint8_t kNoCollectionBit = 0xff;
     return bit < 64 || bit == kNoCollectionBit;
 }
 
-void repurpose_dummy_item();
+// Startup validation for the AP gate. Read-only, and must run before repurpose_dummy_item()
+// patches s_rItems[kApDummyItemType], or they validate our own write instead of the game's data.
+
+// Plausible storage kind, and asset pointers that are non-null and reach a NUL-terminated
+// printable string. An EMPTY string counts: that is how a row says "no palette".
+// repurpose_dummy_item already assumes this shape (it logs the pointers with %s).
+[[nodiscard]] bool item_row_shape_ok(int item_type);
+
+// itemType in range and a plausible bit index across the first `sample_count` rows.
+[[nodiscard]] bool collection_shape_ok(int sample_count);
 
 } // namespace mth::tables

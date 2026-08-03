@@ -9,6 +9,7 @@
 
 #include "mth/core/ap/ap_save_state.hpp"
 #include "mth/core/ap/ap_state.hpp"
+#include "mth/core/ap_gate.hpp"
 #include "mth/core/command_sink.hpp"
 #include "mth/core/connect_resend_gate.hpp"
 #include "mth/core/data/ability_ids.hpp"
@@ -63,9 +64,10 @@ class App : public ICommandSink
         return scout_registry_;
     }
 
-    void drive_tick();       // called by tick sink each fixed update (only once ready())
-    void drain_grants();     // called by tick sink from World::Update pre-hook (only once ready())
-    void on_world_destroy(); // called by tick sink on World teardown (only once ready()); drops the cached Player*
+    void drive_tick();            // called by tick sink each fixed update (only once ready())
+    void drain_grants();          // called by tick sink from World::Update pre-hook (only once ready())
+    void on_world_destroy();      // called by tick sink on World teardown (only once ready()); drops the cached Player*
+    void gate_note_worldupdate(); // called by tick sink on the native WorldUpdate; proves the mod-hook path is live
 
     void connect(const std::string &server, const std::string &slot, const std::string &password) override;
     void disconnect() override;
@@ -73,6 +75,8 @@ class App : public ICommandSink
     [[nodiscard]] SavedLogin saved_login() const override;
     [[nodiscard]] std::vector<std::string> status_lines() const override;
     [[nodiscard]] std::vector<std::string> item_lines() const override;
+    [[nodiscard]] GateStatus gate_status() const override;
+    void set_gate_enforcing(bool on) override;
     void give_item(std::int64_t ap_item_id) override;
     void remove_lock(int slot) override;
     void set_modifier(int idx, bool on) override;
@@ -110,6 +114,16 @@ class App : public ICommandSink
     // the first tick can land on a half-built App and deref a null member. Release on the last ctor line,
     // acquire at the top of each tick; cleared first in the dtor so teardown can't be ticked either.
     std::atomic<bool> ready_{false};
+    // AP safety gate. Static inputs are settled in the ctor; liveness arrives on the first native
+    // WorldUpdate, which fires at the title screen. verdict_ is atomic because the overlay reads it
+    // every frame on the render thread; the reason string is copied out under its own lock.
+    GateInputs gate_inputs_;
+    GateLatch gate_latch_;
+    std::atomic<GateVerdict> gate_verdict_{GateVerdict::Pending};
+    std::atomic<bool> gate_enforcing_{false};
+    mutable std::mutex gate_reason_mutex_;
+    std::string gate_reason_;
+    void gate_tick(); // game thread: advance the liveness deadline, latch, log transitions
     bool first_tick_logged_{false};
     SessionPolicy policy_;
     UpgradeState upgrades_;

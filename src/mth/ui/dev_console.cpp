@@ -8,6 +8,7 @@
 
 #include <imgui.h>
 
+#include "mth/core/ap_gate.hpp"
 #include "mth/core/command_sink.hpp"
 #include "mth/core/data/ability_ids.hpp"
 #include "mth/core/dev_commands.hpp"
@@ -69,6 +70,7 @@ void DevConsole::println(const std::string &line)
 void DevConsole::draw(bool console_open)
 {
     draw_version_hud(); // always visible
+    draw_gate_banner(); // always visible; nothing else reliably reaches the player
     banner_.draw();     // always visible; ignores console_open
     if (console_open)
         draw_console();
@@ -85,6 +87,31 @@ void DevConsole::draw_version_hud()
     ImDrawList *dl = ImGui::GetForegroundDrawList();
     dl->AddText(ImVec2(pos.x + 1.0f, pos.y + 1.0f), IM_COL32(0, 0, 0, 180), label); // drop shadow
     dl->AddText(pos, IM_COL32(255, 255, 255, 215), label);
+}
+
+// The gate's annunciator. Drawn on the foreground draw list for the same reason the overlay is
+// the right channel at all: it depends on the graphics API, not on game symbols, so it still
+// renders on exactly the builds where the game-side hooks are what failed.
+void DevConsole::draw_gate_banner()
+{
+    const GateStatus g = sink_.gate_status();
+    const GateVerdict verdict = g.verdict;
+    if (verdict == GateVerdict::Clear)
+        return;
+
+    char label[256];
+    if (verdict == GateVerdict::Refused)
+        std::snprintf(label, sizeof(label), "mth-apclient: ARCHIPELAGO DISABLED - %s%s", g.reason.c_str(), g.enforcing ? "" : " [observe-only, not enforced]");
+    else
+        std::snprintf(label, sizeof(label), "mth-apclient: checking game compatibility...");
+
+    const ImGuiViewport *vp = ImGui::GetMainViewport();
+    const ImVec2 size = ImGui::CalcTextSize(label);
+    const ImVec2 pos(vp->WorkPos.x + (vp->WorkSize.x - size.x) * 0.5f, vp->WorkPos.y + 28.0f);
+    ImDrawList *dl = ImGui::GetForegroundDrawList();
+    const ImU32 fg = verdict == GateVerdict::Refused ? IM_COL32(255, 96, 96, 255) : IM_COL32(255, 220, 128, 235);
+    dl->AddRectFilled(ImVec2(pos.x - 8.0f, pos.y - 4.0f), ImVec2(pos.x + size.x + 8.0f, pos.y + size.y + 4.0f), IM_COL32(0, 0, 0, 170), 4.0f);
+    dl->AddText(pos, fg, label);
 }
 
 void DevConsole::draw_console()
@@ -142,13 +169,14 @@ void DevConsole::run_input()
     case CommandKind::None:
         break;
     case CommandKind::Help:
-        println("commands: help, clear, status, items, connect <server> <slot> [pw], disconnect");
+        println("commands: help, clear, status, gate, items, connect <server> <slot> [pw], disconnect");
         println("          giveapitem <ap_item_id>, removelock <slot>");
         println("          modifier <idx> on|off, modifiers [lock|unlock]");
         println("          caps <attack> <defense> <sidearm>  (per-stat level cap-ups; 0 = frozen)");
         println("          ability <name> on|off  (names: burrow swim rope puff spring carry train)");
         println("          deathlink on|off  (enable/disable deathlink, must also be enabled in yaml)");
         println("          litlamps <0..5 ...>|off  (force Ossex fountain lamps lit; offline test)");
+        println("          gate [enforce on|off]  (AP safety gate verdict; enforce blocks AP when refused)");
         println("          savetest dump|write|noflush|flush|launch|activate  (save-takeover validation; dev only)");
         break;
     case CommandKind::Clear:
@@ -158,6 +186,27 @@ void DevConsole::run_input()
         for (const auto &l : sink_.status_lines())
             println(l);
         break;
+    case CommandKind::Gate:
+    {
+        if (cmd.args.size() >= 2 && cmd.args[0] == "enforce")
+        {
+            const bool on = cmd.args[1] == "on" || cmd.args[1] == "1" || cmd.args[1] == "true";
+            sink_.set_gate_enforcing(on);
+            println(std::string("gate enforcing ") + (on ? "on" : "off"));
+            break;
+        }
+        if (!cmd.args.empty())
+        {
+            println("usage: gate            (show the verdict)");
+            println("       gate enforce on|off");
+            break;
+        }
+        const GateStatus g = sink_.gate_status();
+        println(std::string("gate verdict: ") + verdict_name(g.verdict) + (g.enforcing ? " (enforcing)" : " (observe-only)"));
+        if (!g.reason.empty())
+            println("gate reason: " + g.reason);
+        break;
+    }
     case CommandKind::Items:
         for (const auto &l : sink_.item_lines())
             println(l);

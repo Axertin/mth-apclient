@@ -18,6 +18,7 @@ add_executable(mthap_unit_tests
     unit/smoke_test.cpp
     unit/log_test.cpp
     unit/ap_state_test.cpp
+    unit/ap_gate_test.cpp
     unit/ap_coordinator_test.cpp
     unit/broadcast_test.cpp
     unit/rando_bridge_test.cpp

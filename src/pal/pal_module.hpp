@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <span>
 #include <string>
 
 namespace pal
@@ -17,6 +18,11 @@ struct ModuleInfo
 
 ModuleInfo game_module();
 ModuleInfo self_module();
+
+// Symbols this platform hooks that the other platform does not: the two compilers inline
+// different functions, so each PAL has its own small set on top of the shared list. Consumed by
+// the AP gate's startup validation.
+[[nodiscard]] std::span<const char *const> required_platform_symbols();
 
 // Reads the full symbol table (incl. local symbols); requires init_hook_engine() first.
 // Returns 0 if not found.
