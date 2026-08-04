@@ -124,6 +124,14 @@ class DeathBroadcastGate
         return v;
     }
 
+    // True from a death edge until the next settled respawn. A bounce arriving in that window is served by
+    // the death already underway, so it is neither applied nor latched: dying twice for one exchange reads as
+    // a bug to the player.
+    [[nodiscard]] bool death_in_progress() const
+    {
+        return latched_;
+    }
+
     // True once the player has been stably alive (alive && !dying) for kStableAliveTicks polls: a settled
     // state where applying an inbound PlayerDie is safe (not mid-death, not mid-transition). Carries no
     // freeze reason: a menu safely holds a queued death and a stalled room clock does not, and only

@@ -139,6 +139,11 @@ void DeathHooks::kill()
     // Suppress our outbound from the moment a bounce arrives, even when applying it is deferred below: this
     // is what breaks the multiworld echo storm (#125).
     gate_.note_inbound_death_received();
+    if (gate_.death_in_progress())
+    {
+        pal::logf(pal::LogLevel::Info, "deathlink: inbound death served by the death already in progress");
+        return;
+    }
     if (try_apply_inbound_death())
     {
         pending_kill_ticks_ = 0; // a queued-but-unlanded death is the game's problem now, not ours to retry

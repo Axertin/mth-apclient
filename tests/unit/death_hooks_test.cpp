@@ -351,10 +351,9 @@ TEST_CASE("deathlink: a rejected inbound death heals and the next genuine death 
     mod::set_api(nullptr);
 }
 
-// #164: a bounce that arrived in the seconds after our own local death was logged "deferred" and then thrown
-// away - the reporter's log has one lost 3s behind a local death. An inbound death must outlive the unsettled
-// window and land once the player settles.
-TEST_CASE("deathlink: an inbound death arriving mid-death is applied once the player settles", "[deathlink][retry]")
+// A bounce that arrives while we are already dying is served by the death we are already taking. Dying a
+// second time for one exchange, after the respawn, reads as a bug to the player.
+TEST_CASE("deathlink: a bounce arriving during our own death does not kill us again", "[deathlink][retry]")
 {
     mth::test::recorder().reset();
     auto fake = mth::test::make_fake_api();
@@ -375,16 +374,16 @@ TEST_CASE("deathlink: an inbound death arriving mid-death is applied once the pl
     hooks.poll();
     REQUIRE(broadcasts == 1);
 
-    hooks.kill(); // the bounce lands mid-death: cannot be applied yet
+    hooks.kill(); // the bounce lands while we are dying
     REQUIRE(mth::test::recorder().deaths == 0);
 
-    // Respawn and play on: the grace ages out, the alive streak settles, and the latched death lands.
+    // Respawn and play well past a full grace + settle: nothing may be waiting to fire.
     mth::test::recorder().health = 1.0f;
     player.set_dying(false);
-    for (int i = 0; i < mth::DeathBroadcastGate::kInboundDeathGraceTicks + mth::DeathBroadcastGate::kStableAliveTicks + 2; ++i)
+    for (int i = 0; i < (mth::DeathBroadcastGate::kInboundDeathGraceTicks + mth::DeathBroadcastGate::kStableAliveTicks) * 2; ++i)
         hooks.poll();
 
-    REQUIRE(mth::test::recorder().deaths == 1);
+    REQUIRE(mth::test::recorder().deaths == 0);
 
     mod::set_api(nullptr);
 }
