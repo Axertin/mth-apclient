@@ -131,28 +131,30 @@ void DeathHooks::drive_pending_death(bool advanced)
         return;
     }
     if (advanced && --pending_kill_ticks_ == 0)
-        pal::logf(pal::LogLevel::Info, "deathlink: inbound death dropped (player never settled within the retry window)");
+        pal::logf(pal::LogLevel::Warn, "deathlink: inbound death dropped (player never settled within the retry window)");
 }
 
 void DeathHooks::kill()
 {
-    // Every received inbound death suppresses our own outbound until we settle, even when applying it is
-    // deferred below: this is what breaks the multiworld echo storm (#125).
+    // Suppress our outbound from the moment a bounce arrives, even when applying it is deferred below: this
+    // is what breaks the multiworld echo storm (#125).
     gate_.note_inbound_death_received();
     if (try_apply_inbound_death())
     {
         pending_kill_ticks_ = 0; // a queued-but-unlanded death is the game's problem now, not ours to retry
         return;
     }
-    // Blocked, but only for a moment: latch it and let poll() land it once the player exists and settles.
-    // Dropping it here is what lost deathlinks behind a transition or a local death (#164). One latch however
-    // many bounces arrive - a storm must not chain-kill the player through several respawns - and the window
-    // runs from the FIRST deferral, so a steady stream cannot keep pushing the deadline out forever.
-    if (pending_kill_ticks_ == 0)
+    // One latch however many bounces arrive: a storm must not chain-kill the player through several
+    // respawns. The window runs from the FIRST deferral, so a steady stream cannot push the deadline out
+    // forever (#164).
+    if (pending_kill_ticks_ > 0)
     {
-        pal::logf(pal::LogLevel::Info, "deathlink: inbound death deferred (player not settled: mid-death/transition), retrying");
-        pending_kill_ticks_ = kPendingInboundDeathTicks;
+        pal::logf(pal::LogLevel::Debug, "deathlink: inbound death arrived while one is already pending (coalesced)");
+        return;
     }
+    const bool no_player = (get_player_ ? get_player_() : nullptr) == nullptr;
+    pal::logf(pal::LogLevel::Info, "deathlink: inbound death deferred (%s), retrying", no_player ? "no player captured" : "player not settled");
+    pending_kill_ticks_ = kPendingInboundDeathTicks;
 }
 
 void DeathHooks::reset()

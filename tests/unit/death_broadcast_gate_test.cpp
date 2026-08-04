@@ -50,7 +50,7 @@ TEST_CASE("death_broadcast_gate: never re-arms while dying even if health reads 
         REQUIRE_FALSE(g.observe(true, true, true)); // dying AND health>0 together -> streak stays 0, no re-arm
 }
 
-TEST_CASE("death_broadcast_gate: note_inbound_death suppresses our death until a settled respawn", "[mth][death]")
+TEST_CASE("death_broadcast_gate: note_inbound_death_applied suppresses our death until a settled respawn", "[mth][death]")
 {
     mth::DeathBroadcastGate g;
     settle(g);

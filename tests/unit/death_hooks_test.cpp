@@ -575,3 +575,73 @@ TEST_CASE("deathlink: a steady stream of bounces still lands a death", "[deathli
 
     mod::set_api(nullptr);
 }
+
+// The window runs from the FIRST deferral. If each arriving bounce re-armed it, a steady stream would push
+// the deadline out indefinitely and the bound would never fire.
+TEST_CASE("deathlink: a stream of bounces does not extend the retry window", "[deathlink][retry]")
+{
+    mth::test::recorder().reset();
+    auto fake = mth::test::make_fake_api();
+    mod::set_api(&fake);
+
+    FakePlayer player;
+    void *live = nullptr;
+    int broadcasts = 0;
+    mth::DeathHooks hooks([&] { ++broadcasts; }, [&] { return live; });
+
+    const int window = mth::DeathHooks::kPendingInboundDeathTicks;
+    hooks.kill();
+    for (int i = 0; i < window; ++i)
+    {
+        if (i < window / 2 && i % mth::ticks_for_seconds(0.5) == 0)
+            hooks.kill(); // more bounces, but only through the first half of the window
+        hooks.poll();     // no player the whole time
+    }
+
+    mth::test::recorder().health = 1.0f;
+    mth::test::recorder().spark = 0;
+    player.set_dying(false);
+    live = player.base();
+    for (int i = 0; i < mth::DeathBroadcastGate::kInboundDeathGraceTicks + mth::DeathBroadcastGate::kStableAliveTicks + 2; ++i)
+        hooks.poll();
+
+    REQUIRE(mth::test::recorder().deaths == 0); // expired on schedule despite the stream
+
+    mod::set_api(nullptr);
+}
+
+// A bounce that applies immediately must consume the one already latched, or the latched one fires again
+// after the respawn and chain-kills.
+TEST_CASE("deathlink: a bounce that applies at once clears an already-latched death", "[deathlink][retry]")
+{
+    mth::test::recorder().reset();
+    auto fake = mth::test::make_fake_api();
+    mod::set_api(&fake);
+
+    FakePlayer player;
+    int broadcasts = 0;
+    void *live = nullptr;
+    mth::DeathHooks hooks([&] { ++broadcasts; }, [&] { return live; });
+
+    mth::test::recorder().health = 1.0f;
+    mth::test::recorder().spark = 0;
+    player.set_dying(false);
+    live = player.base();
+    for (int i = 0; i < mth::DeathBroadcastGate::kStableAliveTicks; ++i)
+        hooks.poll();
+
+    live = nullptr; // one tick of transition
+    hooks.kill();   // bounce A: latched
+    REQUIRE(mth::test::recorder().deaths == 0);
+
+    live = player.base();
+    hooks.kill(); // bounce B: still settled, so it applies right away
+    REQUIRE(mth::test::recorder().deaths == 1);
+
+    for (int i = 0; i < (mth::DeathBroadcastGate::kInboundDeathGraceTicks + mth::DeathBroadcastGate::kStableAliveTicks) * 2; ++i)
+        hooks.poll();
+
+    REQUIRE(mth::test::recorder().deaths == 1); // A did not survive to fire after the respawn
+
+    mod::set_api(nullptr);
+}

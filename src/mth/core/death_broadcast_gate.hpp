@@ -28,12 +28,11 @@ inline constexpr int kMaxFixedUpdateHz = 120;
 //   - `gameplay_advanced`  false on a tick where the world's gameplay queues did not run (a paused world or a
 //              paused game). Nothing the game has queued can progress on such a tick, so no timer here ages on
 //              it. A death edge still counts: one can only mean the death did land.
-// note_inbound_death() is called for every received inbound death: suppress our outbound until we settle. The
-// death it requests takes many polls to register (the game reads alive throughout), so it also holds us
-// "not settled" for kInboundDeathGraceTicks or until the death lands - otherwise those alive polls settle us
-// and lift the suppression before the death they were meant to suppress ever arrives. That grace counts
-// gameplay ticks because a menu holds a requested death for as long as it stays open: spent on frozen ticks it
-// lapses mid-menu, and the queued death broadcasts the moment it lands.
+// note_inbound_death_received() suppresses our outbound the moment a bounce arrives, since applying it may be
+// deferred. note_inbound_death_applied() also holds us "not settled" for kInboundDeathGraceTicks: the game
+// reads alive for many polls after PlayerDie returns, and those polls would otherwise lift the suppression
+// armed for that very death. The grace counts gameplay ticks because a menu holds a requested death open for
+// as long as it stays open; spent on frozen ticks it would lapse mid-menu.
 // stably_alive() is the settled-respawn signal DeathHooks gates an inbound PlayerDie on (never mid-death or
 // mid-transition), which also stops the storm from the receiving side. note_inbound_death() unsettles it
 // immediately, so a caller must read it before arming.
@@ -98,10 +97,8 @@ class DeathBroadcastGate
 
     // A received inbound death: suppress our own outbound broadcasts until we settle (stably respawn), so the
     // death we take from it - or any death during the exchange - is not echoed back into the multiworld.
-    // Deliberately does NOT arm the grace. Nothing is in flight yet when a death is only received (it may be
-    // latched for retry), and arming it here pins alive_streak_ at 0 for its whole length, which is exactly
-    // the settling the retry is waiting for - a stream of bounces would then hold the player permanently
-    // unsettled and no inbound death would ever land (#164).
+    // No grace here: nothing is in flight until the death is applied, and arming it would pin alive_streak_
+    // at 0, which is the settling the retry waits on (#164).
     void note_inbound_death_received()
     {
         suppress_ = true;
