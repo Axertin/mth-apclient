@@ -169,6 +169,37 @@ void enforce_train_boarding(std::uintptr_t save_manager_global);
 // Train-ability block instead. Cheap; call each tick.
 void set_train_destination_gate(std::uint32_t granted_mask, bool rando_active);
 
+// ---- Burrow/swim boundary (#163). ----
+
+// Observers for the burrow lifetime, invoked on the game thread by the burrow detours: on_commit(deep) when
+// a burrow/swim commit is allowed through (deep = it classified as a swim), on_emerge() when the burrow
+// actually ends. Together they track which mode the player is in WITHOUT reading the burrow-mode field,
+// whose offset drifts between builds. Cleared by remove_ability_hooks().
+using BurrowCommitFn = std::function<void(bool deep)>;
+using BurrowEmergeFn = std::function<void()>;
+void set_burrow_observers(BurrowCommitFn on_commit, BurrowEmergeFn on_emerge);
+
+// Live swim-vs-land reading for `player`, the same discriminator the commit classifier uses: -1 unknown
+// (null player, or it did not resolve), 0 shallow, 1 deep. Game-thread only.
+int burrow_water_state(void *player);
+
+// True only while the player is actually in the burrow state. The commit/emerge observers are not enough on
+// their own: a burrow also ends via damage, get-hit, death, the pit check and the land/idle transitions, none
+// of which reach the emerge commit. Callers confirm the arm with this every tick, because forcing an emerge on
+// a player who is NOT burrowed is destructive (it runs a carryable pickup, rewrites facing, and can teleport
+// them). Reads the state field, not the burrow-medium field whose offset drifts. Game-thread only.
+bool player_is_burrowing(void *player);
+
+// Forces the burrow-emerge commit, surfacing the player. false if unavailable. Game-thread only.
+bool force_burrow_emerge(void *player);
+
+// Hands the player to the game's OWN on-foot deep-water fall by requesting that player state: the game then
+// drives the whole recovery itself (fall animation and sound, respawn at the shore, pit damage, and whether
+// that damage is fatal). Requesting the state is the only sound way in, since the teleport and the damage
+// live in later states driven by the state machine's own timer. The drift guard is the caller's
+// player_is_burrowing() check; the range check here only covers a caller that skipped it. Game-thread only.
+bool request_deep_water_fall(void *player);
+
 // ---- Pawn shop ("Pawnty") disable. Symbol/offset divergence lives in the PAL impl. ----
 
 // PawnShopNPC::OnNPCEvent suppressor. When disable() returns true the detour no-ops every event and

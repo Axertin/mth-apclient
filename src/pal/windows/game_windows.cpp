@@ -1378,6 +1378,16 @@ constexpr int kAbTrain = 6;
 
 // Player-object offsets used by the detours; mirror the Linux struct layout (same Player struct).
 constexpr std::ptrdiff_t kPlayerWaterListenerOff = 0x2c0; // WaterListener* (swim-vs-land discriminator)
+
+// Player state machine (#163): current / requested / pending-request. Requesting kStateDeepWaterFall runs the
+// game's own on-foot deep-water fall, which chains fall -> respawn-at-shore -> pit damage on its own timer.
+// kStateMax is the InitState/UpdateState jump-table bound, used only as a sanity check on the offset.
+constexpr std::ptrdiff_t kPlayerStateCurOff = 0x254;
+constexpr std::ptrdiff_t kPlayerStateReqOff = 0x25c;
+constexpr std::ptrdiff_t kPlayerStatePendOff = 0x260;
+constexpr int kStateBurrow = 0x1c; // current state while burrowing (ground or water)
+constexpr int kStateDeepWaterFall = 0xf1;
+constexpr int kStateMax = 0xf5;
 // PhysicsContactPair -> colliding-entity component-kind chain (shared by both CollideWith detours).
 constexpr std::ptrdiff_t kContactEntityOff = 0x110;     // *(contactPair) + 0x110 -> entity
 constexpr std::ptrdiff_t kEntityInteractCompOff = 0xa8; // entity + 0xa8 -> InteractComponent
@@ -1456,24 +1466,42 @@ struct ycAABB
 void *(*g_get_aabb)(void *, ycAABB *, unsigned char, unsigned) = nullptr;                  // PhysicsComponent::GetAABB
 void *(*g_get_closest)(void *, ycAABB *, int, float, int *, unsigned long long) = nullptr; // CarryManager::GetClosestCarryableObject
 
+pal::BurrowCommitFn g_burrow_commit; // #163: burrow lifetime observers (arm/disarm the boundary watcher)
+pal::BurrowEmergeFn g_burrow_emerge;
+
 bool ability_blocked(int ordinal)
 {
     return g_ability_block && g_ability_block(ordinal);
+}
+
+// Reads the swim-vs-land discriminator off a player. Shared by the commit classifier and the per-tick
+// boundary poll so both see exactly the same signal.
+bool player_in_deep_water(void *player)
+{
+    if (player == nullptr || g_water_is_deep == nullptr)
+        return false;
+    void *wl = *reinterpret_cast<void **>(static_cast<char *>(player) + kPlayerWaterListenerOff);
+    return wl != nullptr && g_water_is_deep(wl, false) != 0;
 }
 
 // Free-roam burrow classify-and-commit: deep water => Swim, else Burrow. Scripted/underlab
 // entrances route through SetBurrowInObject (unhooked).
 unsigned long repl_burrow_ground(void *self)
 {
+    bool deep = false;
     if (self != nullptr)
     {
-        void *wl = *reinterpret_cast<void **>(static_cast<char *>(self) + kPlayerWaterListenerOff);
-        const bool deep = wl != nullptr && g_water_is_deep != nullptr && g_water_is_deep(wl, false) != 0;
+        deep = player_in_deep_water(self);
         const int ordinal = deep ? kAbSwim : kAbBurrow;
         if (ability_blocked(ordinal))
             return 0;
     }
-    return g_orig_burrow_ground ? g_orig_burrow_ground(self) : 0;
+    const unsigned long r = g_orig_burrow_ground ? g_orig_burrow_ground(self) : 0;
+    // A commit we let through: the boundary watcher now knows which mode the player is in, so it can catch
+    // the game flipping between them mid-burrow without reading the mode field (#163).
+    if (self != nullptr && g_burrow_commit)
+        g_burrow_commit(deep);
+    return r;
 }
 
 // RopeClimbStart is the attach funnel; per-frame climb movement is a separate path (unhooked).
@@ -1576,10 +1604,12 @@ void repl_burrow_jump(void *self)
     if (self != nullptr && ability_blocked(kAbCarry) && carryable_overhead(self))
     {
         pal::logf(pal::LogLevel::Debug, "carry: burrow-emerge suppressed (carryable overhead)");
-        return;
+        return; // still burrowed, so the boundary watcher keeps its arm
     }
     if (g_orig_burrow_jump)
         g_orig_burrow_jump(self);
+    if (g_burrow_emerge)
+        g_burrow_emerge();
 }
 
 // TrainAuthority::OnNPCEvent case 0x15 picks a destination by ticket itemType. Forcing the selected
@@ -1798,6 +1828,60 @@ void remove_ability_hooks()
         *id = kInvalidHookId;
     }
     g_ability_block = nullptr;
+    g_burrow_commit = nullptr;
+    g_burrow_emerge = nullptr;
+}
+
+void set_burrow_observers(BurrowCommitFn on_commit, BurrowEmergeFn on_emerge)
+{
+    g_burrow_commit = std::move(on_commit);
+    g_burrow_emerge = std::move(on_emerge);
+}
+
+int burrow_water_state(void *player)
+{
+    if (player == nullptr || g_water_is_deep == nullptr)
+        return -1;
+    void *wl = *reinterpret_cast<void **>(static_cast<char *>(player) + kPlayerWaterListenerOff);
+    if (wl == nullptr)
+        return -1;
+    return g_water_is_deep(wl, false) != 0 ? 1 : 0;
+}
+
+bool player_is_burrowing(void *player)
+{
+    if (player == nullptr)
+        return false;
+    const int cur = *reinterpret_cast<int *>(static_cast<char *>(player) + kPlayerStateCurOff);
+    return cur == kStateBurrow;
+}
+
+bool force_burrow_emerge(void *player)
+{
+    if (player == nullptr || g_orig_burrow_jump == nullptr)
+        return false;
+    g_orig_burrow_jump(player); // the original, not the detour: this emerge is forced, not player-initiated
+    return true;
+}
+
+bool request_deep_water_fall(void *player)
+{
+    if (player == nullptr)
+        return false;
+    char *p = static_cast<char *>(player);
+    const int cur = *reinterpret_cast<int *>(p + kPlayerStateCurOff);
+    // Backstop for a caller that did not confirm the burrow state first: outside the dispatch table's range
+    // this is not the state field on this build, so leave the player alone.
+    if (cur < 0 || cur > kStateMax)
+    {
+        logf(LogLevel::Warn, "abilities: player state reads %d (out of range); deep-water fall not requested", cur);
+        return false;
+    }
+    if (cur == kStateDeepWaterFall)
+        return true; // already falling
+    *reinterpret_cast<int *>(p + kPlayerStateReqOff) = kStateDeepWaterFall;
+    *reinterpret_cast<std::uint8_t *>(p + kPlayerStatePendOff) = 1; // the game writes this as a byte
+    return true;
 }
 
 void enforce_train_presence(std::uintptr_t save_manager_global, bool blocked)
