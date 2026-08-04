@@ -98,11 +98,25 @@ class DeathBroadcastGate
 
     // A received inbound death: suppress our own outbound broadcasts until we settle (stably respawn), so the
     // death we take from it - or any death during the exchange - is not echoed back into the multiworld.
-    void note_inbound_death()
+    // Deliberately does NOT arm the grace. Nothing is in flight yet when a death is only received (it may be
+    // latched for retry), and arming it here pins alive_streak_ at 0 for its whole length, which is exactly
+    // the settling the retry is waiting for - a stream of bounces would then hold the player permanently
+    // unsettled and no inbound death would ever land (#164).
+    void note_inbound_death_received()
     {
         suppress_ = true;
-        inbound_grace_ = kInboundDeathGraceTicks; // hold "not settled" until the death lands, or the grace lapses
-        alive_streak_ = 0;                        // in flight now, not from the next poll
+    }
+
+    // The PlayerDie for a received death just went out. NOW hold "not settled" until it lands or the grace
+    // lapses: the game reads alive for many polls after PlayerDie returns, and counting those as a settled
+    // respawn would lift the suppression armed for this very death and echo it back (#125). Unsettle on this
+    // tick rather than from the next poll: a frozen tick ages nothing, so the pre-freeze verdict would
+    // otherwise let a second bounce apply a second PlayerDie into this same death sequence.
+    void note_inbound_death_applied()
+    {
+        suppress_ = true;
+        inbound_grace_ = kInboundDeathGraceTicks;
+        alive_streak_ = 0;
     }
 
     // Log only: true once per death edge swallowed as an inbound echo.

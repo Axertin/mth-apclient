@@ -194,6 +194,11 @@ void HookManager::clear_session_state()
     death_hooks_->reset();            // a death latched for retry belongs to the connection being dropped
 }
 
+void HookManager::clear_pending_death()
+{
+    death_hooks_->reset();
+}
+
 bool HookManager::credit_kear_key()
 {
     return location_hooks_->credit_kear_key(get_player_ ? get_player_() : nullptr);

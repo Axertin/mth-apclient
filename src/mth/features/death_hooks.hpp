@@ -32,7 +32,7 @@ class DeathHooks
   private:
     bool gameplay_advanced();       // did the world's gameplay queues run this tick
     bool try_apply_inbound_death(); // false only when the block is transient and the death should be retried
-    void drive_pending_death(bool gameplay_advanced);
+    void drive_pending_death(bool advanced);
 
     DeathBroadcastGate gate_;
     std::function<void()> on_local_death_;

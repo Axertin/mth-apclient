@@ -112,16 +112,16 @@ bool DeathHooks::try_apply_inbound_death()
         pal::logf(pal::LogLevel::Warn, "deathlink: inbound death not applied (PlayerDie API unavailable)");
         return true;
     }
-    // Re-arm the grace on the tick the death actually goes out, not the tick it was received: the alive polls
+    // Arm the grace on the tick the death actually goes out, not the tick it was received: the alive polls
     // that follow belong to THIS request and must not settle us before it lands.
-    gate_.note_inbound_death();
+    gate_.note_inbound_death_applied();
     pal::logf(pal::LogLevel::Info, "deathlink: applying inbound death (PlayerDie)");
     return true;
 }
 
 // Retry a latched inbound death, and age the window it has to land in. Ages on gameplay ticks only: a menu
 // stops the game, and the pause must not spend a window meant for gameplay time (#164).
-void DeathHooks::drive_pending_death(bool gameplay_advanced)
+void DeathHooks::drive_pending_death(bool advanced)
 {
     if (pending_kill_ticks_ <= 0)
         return;
@@ -130,7 +130,7 @@ void DeathHooks::drive_pending_death(bool gameplay_advanced)
         pending_kill_ticks_ = 0;
         return;
     }
-    if (gameplay_advanced && --pending_kill_ticks_ == 0)
+    if (advanced && --pending_kill_ticks_ == 0)
         pal::logf(pal::LogLevel::Info, "deathlink: inbound death dropped (player never settled within the retry window)");
 }
 
@@ -138,7 +138,7 @@ void DeathHooks::kill()
 {
     // Every received inbound death suppresses our own outbound until we settle, even when applying it is
     // deferred below: this is what breaks the multiworld echo storm (#125).
-    gate_.note_inbound_death();
+    gate_.note_inbound_death_received();
     if (try_apply_inbound_death())
     {
         pending_kill_ticks_ = 0; // a queued-but-unlanded death is the game's problem now, not ours to retry
@@ -146,10 +146,13 @@ void DeathHooks::kill()
     }
     // Blocked, but only for a moment: latch it and let poll() land it once the player exists and settles.
     // Dropping it here is what lost deathlinks behind a transition or a local death (#164). One latch however
-    // many bounces arrive - a storm must not chain-kill the player through several respawns.
+    // many bounces arrive - a storm must not chain-kill the player through several respawns - and the window
+    // runs from the FIRST deferral, so a steady stream cannot keep pushing the deadline out forever.
     if (pending_kill_ticks_ == 0)
+    {
         pal::logf(pal::LogLevel::Info, "deathlink: inbound death deferred (player not settled: mid-death/transition), retrying");
-    pending_kill_ticks_ = kPendingInboundDeathTicks;
+        pending_kill_ticks_ = kPendingInboundDeathTicks;
+    }
 }
 
 void DeathHooks::reset()

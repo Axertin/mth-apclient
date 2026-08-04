@@ -6,7 +6,7 @@
 // through a death sequence); `alive` is a stable "truly alive" signal (health > 0). A settled respawn
 // (alive && !dying for kStableAliveTicks consecutive polls) re-arms the broadcast and lifts inbound-echo
 // suppression. A single alive poll no longer re-arms, so the health/guard flicker seen during a world/screen
-// transition cannot re-broadcast an ongoing death (#125). note_inbound_death() suppresses our own outbound
+// transition cannot re-broadcast an ongoing death (#125). note_inbound_death_applied() suppresses our own outbound
 // until we settle. `gameplay_advanced` is false on a tick the world spent paused: every timer here counts
 // gameplay ticks, because a death the game has queued cannot land on a tick where its queues do not run.
 
@@ -54,7 +54,7 @@ TEST_CASE("death_broadcast_gate: note_inbound_death suppresses our death until a
 {
     mth::DeathBroadcastGate g;
     settle(g);
-    g.note_inbound_death();
+    g.note_inbound_death_applied();
     REQUIRE_FALSE(g.observe(true, false, true));  // the death we take from the inbound deathlink -> not echoed
     REQUIRE_FALSE(g.observe(false, false, true)); // still dead
     REQUIRE_FALSE(g.observe(false, true, true));  // a brief alive blip (< kStableAliveTicks) does NOT lift suppress
@@ -67,7 +67,7 @@ TEST_CASE("death_broadcast_gate: suppression survives the delay before the reque
 {
     mth::DeathBroadcastGate g;
     settle(g);
-    g.note_inbound_death(); // we apply PlayerDie from a settled state...
+    g.note_inbound_death_applied(); // we apply PlayerDie from a settled state...
     // ...but the guard byte and health keep reading alive for many ticks before the death registers (~675ms
     // in-game). Those polls must not count as a settled respawn, or they lift the suppression we just armed.
     for (int i = 0; i < mth::DeathBroadcastGate::kInboundDeathGraceTicks - 1; ++i)
@@ -79,7 +79,7 @@ TEST_CASE("death_broadcast_gate: a death queued behind a menu is still suppresse
 {
     mth::DeathBroadcastGate g;
     settle(g);
-    g.note_inbound_death(); // received in a menu: PlayerDie is queued, and the game holds it there
+    g.note_inbound_death_applied(); // received in a menu: PlayerDie is queued, and the game holds it there
     // A menu can stay open indefinitely. Those ticks read alive && !dying but run no gameplay, so they must age
     // neither the grace waiting on the death nor the settled-respawn streak.
     for (int i = 0; i < mth::DeathBroadcastGate::kInboundDeathGraceTicks * 10; ++i)
@@ -91,7 +91,7 @@ TEST_CASE("death_broadcast_gate: a requested death that never registers stops su
 {
     mth::DeathBroadcastGate g;
     settle(g);
-    g.note_inbound_death(); // PlayerDie no-ops (rejected while invulnerable): no death ever arrives
+    g.note_inbound_death_applied(); // PlayerDie no-ops (rejected while invulnerable): no death ever arrives
     for (int i = 0; i < mth::DeathBroadcastGate::kInboundDeathGraceTicks; ++i)
         (void)g.observe(false, true, true);
     settle(g);                             // the grace lapses on GAMEPLAY ticks, and a settled respawn lifts suppression
@@ -102,7 +102,7 @@ TEST_CASE("death_broadcast_gate: frozen ticks never lift suppression on their ow
 {
     mth::DeathBroadcastGate g;
     settle(g);
-    g.note_inbound_death();
+    g.note_inbound_death_applied();
     // Longer than both timers put together: the pause must produce neither a lapsed grace nor a settled respawn.
     for (int i = 0; i < (mth::DeathBroadcastGate::kInboundDeathGraceTicks + mth::DeathBroadcastGate::kStableAliveTicks) * 2; ++i)
         (void)g.observe(false, true, false);
@@ -116,7 +116,7 @@ TEST_CASE("death_broadcast_gate: a storm of deaths with brief alive blips never 
     int broadcasts = 0;
     for (int round = 0; round < 30; ++round)
     {
-        g.note_inbound_death(); // an inbound death keeps arriving
+        g.note_inbound_death_applied(); // an inbound death keeps arriving
         if (g.observe(true, false, true))
             ++broadcasts; // we die
         if (g.observe(false, true, true))
