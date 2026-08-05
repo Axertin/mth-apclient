@@ -22,7 +22,8 @@ struct GateInputs
     bool symbols_resolved{false};
     bool item_table_shape_ok{false};
     bool layout_probes_ok{false};
-    bool revision_known{false}; // informational: drives a banner, never the verdict
+    bool revision_known{false};   // informational: drives a banner, never the verdict
+    bool mod_api_shape_ok{false}; // informational: drives a banner, never the verdict
     bool worldupdate_observed{false};
     int ticks_since_probe_installed{0};
 };

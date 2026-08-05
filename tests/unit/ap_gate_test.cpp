@@ -14,6 +14,7 @@ mth::GateInputs healthy_pending()
     in.item_table_shape_ok = true;
     in.layout_probes_ok = true;
     in.revision_known = true;
+    in.mod_api_shape_ok = true;
     in.worldupdate_observed = false;
     in.ticks_since_probe_installed = 1;
     return in;
@@ -169,4 +170,16 @@ TEST_CASE("gate: verdict_name covers every enumerator", "[gate]")
     REQUIRE(std::string(mth::verdict_name(mth::GateVerdict::Pending)) == "Pending");
     REQUIRE(std::string(mth::verdict_name(mth::GateVerdict::Clear)) == "Clear");
     REQUIRE(std::string(mth::verdict_name(mth::GateVerdict::Refused)) == "Refused");
+}
+
+TEST_CASE("gate: mod_api_shape_ok is informational and never moves the verdict", "[gate]")
+{
+    mth::GateInputs in = healthy_clear();
+    in.mod_api_shape_ok = false;
+    REQUIRE(mth::evaluate(in) == mth::GateVerdict::Clear);
+    REQUIRE(mth::refusal_reason(in).empty());
+
+    mth::GateInputs pending = healthy_pending();
+    pending.mod_api_shape_ok = false;
+    REQUIRE(mth::evaluate(pending) == mth::GateVerdict::Pending);
 }

@@ -131,6 +131,10 @@ GateInputs run_static_gate_probes(unsigned int game_revision)
     pal::logf(pal::LogLevel::Info, "gate: revision_known=%d (r%u, validated r%u..r%u)", in.revision_known ? 1 : 0, game_revision, kValidatedRevisionMin,
               kValidatedRevisionMax);
 
+    in.mod_api_shape_ok = mod::api_version_matches();
+    pal::logf(in.mod_api_shape_ok ? pal::LogLevel::Info : pal::LogLevel::Error, "gate: mod_api_shape_ok=%d (built against APIVersion %u)",
+              in.mod_api_shape_ok ? 1 : 0, mod::expected_api_version());
+
     pal::logf(pal::LogLevel::Info, "gate: static validation complete, %d symbol(s) missing", missing);
     return in;
 }
