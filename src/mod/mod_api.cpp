@@ -67,6 +67,16 @@ bool api_available()
     return g_mod_api != nullptr && usable(g_mod_api->InstallHook);
 }
 
+bool api_version_matches()
+{
+    return g_mod_api != nullptr && g_mod_api->APIVersion == MinaModAPI_Version;
+}
+
+std::uint32_t expected_api_version()
+{
+    return static_cast<std::uint32_t>(MinaModAPI_Version);
+}
+
 std::uint32_t game_revision()
 {
     return (g_mod_api != nullptr && usable(g_mod_api->GetGameRevision)) ? g_mod_api->GetGameRevision() : 0;

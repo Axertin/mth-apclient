@@ -316,6 +316,8 @@ void App::gate_tick()
         pal::logf(pal::LogLevel::Info, "gate: CLEAR after %d tick(s); AP behavior permitted", gate_inputs_.ticks_since_probe_installed);
         if (!gate_inputs_.revision_known)
             pal::logf(pal::LogLevel::Warn, "gate: this game build is outside the validated revision range; proceeding because every probe passed");
+        if (!gate_inputs_.mod_api_shape_ok)
+            pal::logf(pal::LogLevel::Error, "gate: the game's mod API version differs from the one this build expects; entries may be misaligned");
     }
     {
         std::lock_guard<std::mutex> lk(gate_reason_mutex_);

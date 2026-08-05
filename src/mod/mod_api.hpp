@@ -15,6 +15,11 @@ void set_api(MinaModAPI *api);
 // mod hook (grants, the collection redirect) is inert.
 [[nodiscard]] bool api_available();
 
+// False when the game's API struct version differs from the one this mod was built against, which
+// means field offsets may not line up. Informational: the gate reports it, it does not refuse.
+[[nodiscard]] bool api_version_matches();
+[[nodiscard]] std::uint32_t expected_api_version();
+
 // Game revision ("r-number") via MinaModAPI::GetGameRevision; 0 if unavailable.
 std::uint32_t game_revision();
 
