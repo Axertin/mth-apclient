@@ -81,6 +81,14 @@ App::App() : login_prefs_(pal::log_dir() / "login.prefs")
 
     pal::logf(pal::LogLevel::Info, "game base=0x%llx size=0x%zx path=%s", static_cast<unsigned long long>(game.base), game.size, game.path.c_str());
     pal::logf(pal::LogLevel::Info, "self base=0x%llx path=%s", static_cast<unsigned long long>(self.base), self.path.c_str());
+
+    // Must precede any mod-API call (game_revision() below included): usable() rejects every
+    // entry as fail-open until the range is published.
+    const pal::TextRange text = pal::game_text_range();
+    pal::set_game_text_range(text);
+    pal::logf(text.size != 0 ? pal::LogLevel::Info : pal::LogLevel::Warn, "pal: game .text range base=0x%llx size=0x%zx%s",
+              static_cast<unsigned long long>(text.base), text.size, text.size != 0 ? "" : " (unresolved; mod-API pointer validation disabled)");
+
     const std::uint32_t game_rev = mod::game_revision();
     pal::logf(pal::LogLevel::Info, "game revision=r%u", game_rev);
     if (game_rev == 0)

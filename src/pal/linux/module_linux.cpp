@@ -14,6 +14,7 @@ namespace
 struct MainModuleMatch
 {
     pal::ModuleInfo info;
+    pal::TextRange exec{};
     bool found{false};
 };
 
@@ -36,6 +37,12 @@ int dlpi_collect_main(struct dl_phdr_info *info, size_t /*size*/, void *data)
         const auto end = ph.p_vaddr + ph.p_memsz;
         if (end > hi)
             hi = end;
+        // Largest executable PT_LOAD is the code segment; avoids small exec-but-not-code segments.
+        if ((ph.p_flags & PF_X) != 0 && ph.p_memsz > out->exec.size)
+        {
+            out->exec.base = static_cast<std::uintptr_t>(info->dlpi_addr) + ph.p_vaddr;
+            out->exec.size = ph.p_memsz;
+        }
     }
     if (lo == static_cast<std::uintptr_t>(-1))
         lo = 0;
@@ -58,6 +65,13 @@ ModuleInfo game_module()
     MainModuleMatch m{};
     dl_iterate_phdr(&dlpi_collect_main, &m);
     return m.info;
+}
+
+TextRange game_text_range()
+{
+    MainModuleMatch m{};
+    dl_iterate_phdr(&dlpi_collect_main, &m);
+    return m.exec;
 }
 
 ModuleInfo self_module()
