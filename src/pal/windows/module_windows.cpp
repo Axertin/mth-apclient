@@ -1,4 +1,5 @@
 #include <cstdio>
+#include <cstring>
 #include <string>
 
 #include "pal/pal_module.hpp"
@@ -54,6 +55,27 @@ namespace pal
 ModuleInfo game_module()
 {
     return module_from_handle(GetModuleHandleW(nullptr));
+}
+
+TextRange game_text_range()
+{
+    const ModuleInfo gm = game_module();
+    if (gm.base == 0)
+        return {};
+    const auto *dos = reinterpret_cast<const IMAGE_DOS_HEADER *>(gm.base);
+    if (dos == nullptr || dos->e_magic != IMAGE_DOS_SIGNATURE)
+        return {};
+    const auto *nt = reinterpret_cast<const IMAGE_NT_HEADERS *>(gm.base + dos->e_lfanew);
+    if (nt->Signature != IMAGE_NT_SIGNATURE)
+        return {};
+    const auto *sec = IMAGE_FIRST_SECTION(nt);
+    for (WORD i = 0; i < nt->FileHeader.NumberOfSections; ++i)
+    {
+        // Name is 8 bytes, null-padded; the 5-byte prefix compare also accepts ".text$..".
+        if (std::memcmp(sec[i].Name, ".text", 5) == 0)
+            return {gm.base + sec[i].VirtualAddress, sec[i].Misc.VirtualSize};
+    }
+    return {};
 }
 
 ModuleInfo self_module()

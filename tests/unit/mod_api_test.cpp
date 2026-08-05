@@ -2,6 +2,7 @@
 
 #include "mocks/fake_mod_api.hpp"
 #include "mod/mod_api.hpp"
+#include "pal/pal_module.hpp"
 
 namespace
 {
@@ -20,6 +21,18 @@ void destroy_cb()
 {
     g_destroy_fired = true;
 }
+
+// Restores the process-wide range on scope exit so a failing REQUIRE mid-test cannot leave it
+// stuck at a value that would make every later test's usable() reject the fake api's pointers.
+struct TextRangeGuard
+{
+    pal::TextRange saved{pal::text_range_storage()};
+
+    ~TextRangeGuard()
+    {
+        pal::set_game_text_range(saved);
+    }
+};
 } // namespace
 
 TEST_CASE("mod: game_revision reflects the API, 0 when unset", "[mod]")
@@ -231,4 +244,25 @@ TEST_CASE("mod: active_save_slot normalizes the no-slot sentinel to -1", "[mod]"
 
     mod::set_api(nullptr);
     REQUIRE(mod::active_save_slot() == -1);
+}
+
+TEST_CASE("mod: entries outside the game .text range are not called", "[mod]")
+{
+    TextRangeGuard range_guard;
+    mth::test::recorder().reset();
+    auto fake = mth::test::make_fake_api();
+    mth::test::recorder().revision = 4242;
+    mod::set_api(&fake);
+
+    // No range published: fail open, the fake's entries are honored.
+    pal::set_game_text_range(pal::TextRange{});
+    REQUIRE(mod::game_revision() == 4242);
+
+    // A range that deliberately excludes the test binary's own code.
+    pal::set_game_text_range(pal::TextRange{0x1000, 0x10});
+    REQUIRE(mod::game_revision() == 0);
+    REQUIRE(mod::active_save_slot() == -1);
+    REQUIRE_FALSE(mod::player_die());
+
+    mod::set_api(nullptr);
 }

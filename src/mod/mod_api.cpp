@@ -2,6 +2,7 @@
 
 #include "MinaModAPI.h"
 #include "pal/pal_log.hpp"
+#include "pal/pal_module.hpp"
 
 namespace
 {
@@ -9,6 +10,13 @@ namespace
 constexpr int kSaveSlotCount = 10;
 
 MinaModAPI *g_mod_api = nullptr;
+
+// An entry read past the end of a shorter struct is not null, it is whatever static follows the
+// API table, so a null check alone does not prove the pointer is callable.
+template <class Fn> bool usable(Fn fn)
+{
+    return fn != nullptr && pal::in_game_text(reinterpret_cast<const void *>(fn));
+}
 
 mod::ItemCollectedFn g_item_collected_cb = nullptr;
 void *g_item_collected_handle = nullptr;
@@ -56,22 +64,22 @@ void set_api(MinaModAPI *api)
 
 bool api_available()
 {
-    return g_mod_api != nullptr && g_mod_api->InstallHook != nullptr;
+    return g_mod_api != nullptr && usable(g_mod_api->InstallHook);
 }
 
 std::uint32_t game_revision()
 {
-    return (g_mod_api != nullptr && g_mod_api->GetGameRevision != nullptr) ? g_mod_api->GetGameRevision() : 0;
+    return (g_mod_api != nullptr && usable(g_mod_api->GetGameRevision)) ? g_mod_api->GetGameRevision() : 0;
 }
 
 int current_game_state()
 {
-    return (g_mod_api != nullptr && g_mod_api->GetCurrentGameState != nullptr) ? g_mod_api->GetCurrentGameState() : -1;
+    return (g_mod_api != nullptr && usable(g_mod_api->GetCurrentGameState)) ? g_mod_api->GetCurrentGameState() : -1;
 }
 
 bool install_item_collected_hook(ItemCollectedFn query)
 {
-    if (g_mod_api == nullptr || g_mod_api->InstallHook == nullptr)
+    if (g_mod_api == nullptr || !usable(g_mod_api->InstallHook))
     {
         pal::logf(pal::LogLevel::Warn, "items: modding API unavailable; IsItemCollected override disabled");
         return false;
@@ -90,7 +98,7 @@ bool install_item_collected_hook(ItemCollectedFn query)
 
 void remove_item_collected_hook()
 {
-    if (g_item_collected_handle != nullptr && g_mod_api != nullptr && g_mod_api->RemoveHook != nullptr)
+    if (g_item_collected_handle != nullptr && g_mod_api != nullptr && usable(g_mod_api->RemoveHook))
         g_mod_api->RemoveHook(g_item_collected_handle);
     g_item_collected_handle = nullptr;
     g_item_collected_cb = nullptr;
@@ -98,7 +106,7 @@ void remove_item_collected_hook()
 
 bool install_world_update_hook(WorldUpdatePreFn on_pre)
 {
-    if (g_mod_api == nullptr || g_mod_api->InstallHook == nullptr)
+    if (g_mod_api == nullptr || !usable(g_mod_api->InstallHook))
     {
         pal::logf(pal::LogLevel::Warn, "world: modding API unavailable; World::Update pre-hook disabled");
         return false;
@@ -117,7 +125,7 @@ bool install_world_update_hook(WorldUpdatePreFn on_pre)
 
 void remove_world_update_hook()
 {
-    if (g_world_update_handle != nullptr && g_mod_api != nullptr && g_mod_api->RemoveHook != nullptr)
+    if (g_world_update_handle != nullptr && g_mod_api != nullptr && usable(g_mod_api->RemoveHook))
         g_mod_api->RemoveHook(g_world_update_handle);
     g_world_update_handle = nullptr;
     g_world_update_cb = nullptr;
@@ -125,7 +133,7 @@ void remove_world_update_hook()
 
 bool install_world_destroy_hook(WorldDestroyFn on_destroy)
 {
-    if (g_mod_api == nullptr || g_mod_api->InstallHook == nullptr)
+    if (g_mod_api == nullptr || !usable(g_mod_api->InstallHook))
     {
         pal::logf(pal::LogLevel::Warn, "world: modding API unavailable; World::Destroy hook disabled");
         return false;
@@ -144,7 +152,7 @@ bool install_world_destroy_hook(WorldDestroyFn on_destroy)
 
 void remove_world_destroy_hook()
 {
-    if (g_world_destroy_handle != nullptr && g_mod_api != nullptr && g_mod_api->RemoveHook != nullptr)
+    if (g_world_destroy_handle != nullptr && g_mod_api != nullptr && usable(g_mod_api->RemoveHook))
         g_mod_api->RemoveHook(g_world_destroy_handle);
     g_world_destroy_handle = nullptr;
     g_world_destroy_cb = nullptr;
@@ -152,8 +160,8 @@ void remove_world_destroy_hook()
 
 bool vial_api_available()
 {
-    return g_mod_api != nullptr && g_mod_api->PlayerGetMaxVials != nullptr && g_mod_api->PlayerSetMaxVials != nullptr && g_mod_api->PlayerGetVials != nullptr &&
-           g_mod_api->PlayerSetVials != nullptr;
+    return g_mod_api != nullptr && usable(g_mod_api->PlayerGetMaxVials) && usable(g_mod_api->PlayerSetMaxVials) && usable(g_mod_api->PlayerGetVials) &&
+           usable(g_mod_api->PlayerSetVials);
 }
 
 int player_max_vials()
@@ -180,7 +188,7 @@ void set_player_vials(int n)
 
 bool bones_api_available()
 {
-    return g_mod_api != nullptr && g_mod_api->PlayerGetBones != nullptr && g_mod_api->PlayerSetBones != nullptr;
+    return g_mod_api != nullptr && usable(g_mod_api->PlayerGetBones) && usable(g_mod_api->PlayerSetBones);
 }
 
 int player_bones()
@@ -196,7 +204,7 @@ void set_player_bones(int n)
 
 bool player_die()
 {
-    if (g_mod_api == nullptr || g_mod_api->PlayerDie == nullptr)
+    if (g_mod_api == nullptr || !usable(g_mod_api->PlayerDie))
         return false;
     g_mod_api->PlayerDie();
     return true;
@@ -204,7 +212,7 @@ bool player_die()
 
 bool player_component_available()
 {
-    return g_mod_api != nullptr && g_mod_api->PlayerGetComponent != nullptr;
+    return g_mod_api != nullptr && usable(g_mod_api->PlayerGetComponent);
 }
 
 void *player_component()
@@ -214,7 +222,7 @@ void *player_component()
 
 bool health_api_available()
 {
-    return g_mod_api != nullptr && g_mod_api->PlayerGetHealth != nullptr;
+    return g_mod_api != nullptr && usable(g_mod_api->PlayerGetHealth);
 }
 
 float player_health()
@@ -224,7 +232,7 @@ float player_health()
 
 bool spark_api_available()
 {
-    return g_mod_api != nullptr && g_mod_api->PlayerGetSpark != nullptr;
+    return g_mod_api != nullptr && usable(g_mod_api->PlayerGetSpark);
 }
 
 int player_spark()
@@ -234,7 +242,7 @@ int player_spark()
 
 bool pause_api_available()
 {
-    return g_mod_api != nullptr && g_mod_api->PlayerGetWorld != nullptr && g_mod_api->WorldIsPaused != nullptr;
+    return g_mod_api != nullptr && usable(g_mod_api->PlayerGetWorld) && usable(g_mod_api->WorldIsPaused);
 }
 
 bool world_is_paused()
@@ -247,7 +255,7 @@ bool world_is_paused()
 
 bool room_time_api_available()
 {
-    return g_mod_api != nullptr && g_mod_api->GetRoomTime != nullptr;
+    return g_mod_api != nullptr && usable(g_mod_api->GetRoomTime);
 }
 
 float room_time()
@@ -258,13 +266,13 @@ float room_time()
 bool save_api_available()
 {
     // Only what the takeover actually calls: gating on more would fail a launch that would work.
-    return g_mod_api != nullptr && g_mod_api->SetSaveSlotContents != nullptr && g_mod_api->GetActiveSaveSlotContents != nullptr && g_mod_api->Free != nullptr &&
-           g_mod_api->SetSaveWriteEnabled != nullptr && g_mod_api->IsSaveWriteEnabled != nullptr;
+    return g_mod_api != nullptr && usable(g_mod_api->SetSaveSlotContents) && usable(g_mod_api->GetActiveSaveSlotContents) && usable(g_mod_api->Free) &&
+           usable(g_mod_api->SetSaveWriteEnabled) && usable(g_mod_api->IsSaveWriteEnabled);
 }
 
 int active_save_slot()
 {
-    if (g_mod_api == nullptr || g_mod_api->GetActiveSaveSlot == nullptr)
+    if (g_mod_api == nullptr || !usable(g_mod_api->GetActiveSaveSlot))
         return -1;
     const int slot = g_mod_api->GetActiveSaveSlot();
     // The game's no-slot value is one past the last slot, not a negative sentinel.
@@ -273,46 +281,46 @@ int active_save_slot()
 
 bool set_active_save_slot_contents(const char *ycdata)
 {
-    if (ycdata == nullptr || g_mod_api == nullptr || g_mod_api->SetActiveSaveSlotContents == nullptr)
+    if (ycdata == nullptr || g_mod_api == nullptr || !usable(g_mod_api->SetActiveSaveSlotContents))
         return false;
     return g_mod_api->SetActiveSaveSlotContents(ycdata);
 }
 
 bool set_save_slot_contents(unsigned int slot, const char *ycdata)
 {
-    if (ycdata == nullptr || g_mod_api == nullptr || g_mod_api->SetSaveSlotContents == nullptr)
+    if (ycdata == nullptr || g_mod_api == nullptr || !usable(g_mod_api->SetSaveSlotContents))
         return false;
     return g_mod_api->SetSaveSlotContents(slot, ycdata);
 }
 
 std::string active_save_slot_contents()
 {
-    if (g_mod_api == nullptr || g_mod_api->GetActiveSaveSlotContents == nullptr)
+    if (g_mod_api == nullptr || !usable(g_mod_api->GetActiveSaveSlotContents))
         return {};
     char *raw = g_mod_api->GetActiveSaveSlotContents();
     if (raw == nullptr)
         return {};
     std::string out(raw);
-    if (g_mod_api->Free != nullptr)
+    if (usable(g_mod_api->Free))
         g_mod_api->Free(raw); // the API contract requires freeing through the game's allocator
     return out;
 }
 
 void player_restore_from_save()
 {
-    if (g_mod_api != nullptr && g_mod_api->PlayerRestoreFromSave != nullptr)
+    if (g_mod_api != nullptr && usable(g_mod_api->PlayerRestoreFromSave))
         g_mod_api->PlayerRestoreFromSave();
 }
 
 void set_save_write_enabled(bool on)
 {
-    if (g_mod_api != nullptr && g_mod_api->SetSaveWriteEnabled != nullptr)
+    if (g_mod_api != nullptr && usable(g_mod_api->SetSaveWriteEnabled))
         g_mod_api->SetSaveWriteEnabled(on);
 }
 
 bool save_write_enabled()
 {
-    return (g_mod_api != nullptr && g_mod_api->IsSaveWriteEnabled != nullptr) ? g_mod_api->IsSaveWriteEnabled() : false;
+    return (g_mod_api != nullptr && usable(g_mod_api->IsSaveWriteEnabled)) ? g_mod_api->IsSaveWriteEnabled() : false;
 }
 
 } // namespace mod
