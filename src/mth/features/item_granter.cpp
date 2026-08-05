@@ -125,8 +125,9 @@ void ItemGranter::drain()
         batch.swap(g_pending);
     }
 
-    // Position comes from the tracker's in-context cache; reading it here (pre-World::Update
-    // spawn window) would walk an invalid camera graph and fault. Requeue until cached.
+    // Position comes from the tracker's in-context cache; PlayerGetPos3 dereferences an unwired
+    // second-level pointer unconditionally, which is null pre-World::Update (spawn window) and
+    // would fault. Requeue until cached.
     float p[3];
     void *player = g_tracker != nullptr ? g_tracker->player() : nullptr;
     const bool ready = g_orig_on_pickup_done && player != nullptr && g_tracker->position(p);

@@ -16,11 +16,11 @@ inline constexpr const char *on_pickup_done = "_ZN5Items12OnPickupDoneEiiP6Playe
 inline constexpr const char *on_pickup = "_ZN5Items8OnPickupEiiP6PlayerRK6ycVec3biijb";
 inline constexpr const char *process_sdl_event = "_Z15ProcessSDLEventR9SDL_Event"; // ProcessSDLEvent(SDL_Event&)
 
-// Inbound grant plumbing: Player* via ctor, trackable via Update each frame, position via GetPos.
+// Inbound grant plumbing: Player* via ctor, trackable via Update each frame (position comes from
+// the native mod API's PlayerGetPos3, not this trackable - see mod::player_position).
 inline constexpr const char *player_ctor =
     "_ZN6PlayerC2EP8ycEntityP17GameComponentDescP11PlayerSetup"; // Player::Player(ycEntity*, GameComponentDesc*, PlayerSetup*)
 inline constexpr const char *player_trackable_update = "_ZN15PlayerTrackable6UpdateEP20ycUpdateQueueContext"; // PlayerTrackable::Update(ycUpdateQueueContext*)
-inline constexpr const char *player_trackable_get_pos = "_ZNK15PlayerTrackable6GetPosEv";                     // PlayerTrackable::GetPos() const -> ycVec3
 inline constexpr const char *player_update_stats =
     "_ZN6Player11UpdateStatsEv"; // Player::UpdateStats() -> recompute max HP/magic/spark/vial/trinket from save bits
 // Player::SetVialItemCount(int): the single setter that repartitions a vial total back into the

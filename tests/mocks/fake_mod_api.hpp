@@ -44,6 +44,7 @@ struct ModApiRecorder
     float room_time = 0.0f;
     void *player = nullptr;            // served by PlayerGetComponent; the game nulls its global in Player::~Player
     std::uint64_t bosses_defeated = 0; // served by PlayerGetBossesDefeated
+    float pos[3]{};                    // served by PlayerGetPos3
 
     void fire(const char *name, void *ctx)
     {
@@ -65,6 +66,7 @@ struct ModApiRecorder
         room_time = 0.0f;
         player = nullptr;
         bosses_defeated = 0;
+        pos[0] = pos[1] = pos[2] = 0.0f;
         fake_save_state() = FakeSaveState{};
     }
 };
@@ -132,6 +134,14 @@ inline std::uint64_t fake_get_bosses_defeated()
 {
     return recorder().bosses_defeated;
 }
+inline MM_Vec3 fake_get_pos3()
+{
+    MM_Vec3 v{};
+    v.x = recorder().pos[0];
+    v.y = recorder().pos[1];
+    v.z = recorder().pos[2];
+    return v;
+}
 
 // A MinaModAPI wired to the recorder stubs. reset() the recorder before use.
 inline MinaModAPI make_fake_api()
@@ -150,6 +160,7 @@ inline MinaModAPI make_fake_api()
     mm.PlayerGetWorld = &fake_player_get_world;
     mm.PlayerGetComponent = &fake_player_get_component;
     mm.PlayerGetBossesDefeated = &fake_get_bosses_defeated;
+    mm.PlayerGetPos3 = &fake_get_pos3;
     mm.GetActiveSaveSlot = [] { return fake_save_state().active_slot; };
     mm.SetActiveSaveSlot = [](std::uint32_t slot) { fake_save_state().active_slot = static_cast<int>(slot); };
     mm.SetActiveSaveSlotContents = [](const char *d) -> bool

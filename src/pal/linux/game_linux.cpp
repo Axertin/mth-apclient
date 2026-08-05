@@ -24,12 +24,6 @@
 
 namespace
 {
-struct Vec3
-{
-    float x, y, z;
-};
-Vec3 (*g_get_pos)(const void *) = nullptr; // Itanium returns the vec in registers
-
 // ShopMenu field offsets (build-specific; the AP callback self-checks the read locIdx/itemType).
 constexpr std::ptrdiff_t kShopLocIdxOff = 0x218;
 constexpr std::ptrdiff_t kShopItemTypeOff = 0x21c;
@@ -878,19 +872,6 @@ void repl_profile_menu_update(void *self)
 
 namespace pal
 {
-
-bool read_player_position(const void *trackable, float out[3])
-{
-    if (g_get_pos == nullptr)
-        g_get_pos = reinterpret_cast<Vec3 (*)(const void *)>(resolve_game_symbol(mth::sym::player_trackable_get_pos));
-    if (g_get_pos == nullptr || trackable == nullptr)
-        return false;
-    const Vec3 v = g_get_pos(trackable);
-    out[0] = v.x;
-    out[1] = v.y;
-    out[2] = v.z;
-    return true;
-}
 
 bool current_room_index(void *room_manager, std::uint32_t *out)
 {

@@ -281,3 +281,22 @@ TEST_CASE("mod: player_bosses_defeated reflects the API, 0 when unset", "[mod]")
     REQUIRE(mod::player_bosses_defeated() == 0b1011);
     mod::set_api(nullptr);
 }
+
+TEST_CASE("mod: player_position reports the native position, false when unset", "[mod]")
+{
+    mth::test::recorder().reset();
+    mod::set_api(nullptr);
+    float p[3]{-1.0f, -1.0f, -1.0f};
+    REQUIRE_FALSE(mod::player_position(p));
+
+    auto fake = mth::test::make_fake_api();
+    mth::test::recorder().pos[0] = 12.5f;
+    mth::test::recorder().pos[1] = -3.25f;
+    mth::test::recorder().pos[2] = 0.5f;
+    mod::set_api(&fake);
+    REQUIRE(mod::player_position(p));
+    REQUIRE(p[0] == 12.5f);
+    REQUIRE(p[1] == -3.25f);
+    REQUIRE(p[2] == 0.5f);
+    mod::set_api(nullptr);
+}

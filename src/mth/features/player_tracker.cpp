@@ -4,7 +4,6 @@
 
 #include "mod/mod_api.hpp"
 #include "mth/core/data/game_symbols.hpp"
-#include "pal/pal_game.hpp"
 #include "pal/pal_log.hpp"
 #include "pal/pal_mem.hpp"
 
@@ -31,7 +30,7 @@ void repl_trackable_update(void *self, void *ctx)
         g_orig_trackable_update(self, ctx);
 
     float p[3];
-    if (pal::read_player_position(self, p) && std::isfinite(p[0]) && std::isfinite(p[1]) && std::isfinite(p[2]))
+    if (mod::player_position(p) && std::isfinite(p[0]) && std::isfinite(p[1]) && std::isfinite(p[2]))
     {
         g_last_pos[0] = p[0];
         g_last_pos[1] = p[1];

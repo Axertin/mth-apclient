@@ -7,10 +7,6 @@
 namespace pal
 {
 
-// World-space player position from a PlayerTrackable*. false if unavailable.
-// Windows reads base fields directly; calling the real GetPos faults off its own call sites.
-bool read_player_position(const void *trackable, float out[3]);
-
 // Live current-room index off the RoomManager instance. false if null or negative (no room yet).
 // Field offset is per-platform/per-build (Linux 0x1b4, Windows 0x1bc).
 bool current_room_index(void *room_manager, std::uint32_t *out);
