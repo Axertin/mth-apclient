@@ -6,8 +6,9 @@ namespace mth
 {
 
 // Serves the live Player* and a position cache captured inside PlayerTrackable::Update,
-// in-context, because reading the position from the pre-World::Update spawn window walks
-// an invalid camera graph and faults. The Player* comes from the game's own live-player
+// in-context, because PlayerGetPos3 dereferences an unwired second-level pointer (one hop
+// past the player component) unconditionally, and that pointer is null in the pre-World::Update
+// spawn window, so reading position there faults. The Player* comes from the game's own live-player
 // pointer where the build exposes it, falling back to the ctor hook's capture (refreshable
 // by other hooks) otherwise. All state game-thread-only.
 class PlayerTracker

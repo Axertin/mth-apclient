@@ -30,10 +30,6 @@
    "kind": "Code"
   },
   {
-   "name": "_ZNK15PlayerTrackable6GetPosEv",
-   "kind": "Code"
-  },
-  {
    "name": "_ZN6Pickup4InitEiib",
    "kind": "Code"
   },
@@ -244,9 +240,6 @@
   "_ZN15PlayerTrackable6UpdateEP20ycUpdateQueueContext": {
    "rva": 10535344
   },
-  "_ZNK15PlayerTrackable6GetPosEv": {
-   "rva": 10534832
-  },
   "_ZN6Pickup8OnPickupEP14PickupListener": {
    "rva": 9906720
   },
@@ -411,9 +404,6 @@
   },
   "_ZN15PlayerTrackable6UpdateEP20ycUpdateQueueContext": {
    "rva": 14024608
-  },
-  "_ZNK15PlayerTrackable6GetPosEv": {
-   "rva": 14023408
   },
   "_ZN6Pickup4InitEiib": {
    "rva": 14438560

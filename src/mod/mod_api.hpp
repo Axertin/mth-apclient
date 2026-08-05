@@ -80,6 +80,11 @@ void set_player_bones(int n);
 [[nodiscard]] bool bosses_api_available();
 [[nodiscard]] std::uint64_t player_bosses_defeated();
 
+// Raw player world position via the native accessor. Prefer this over the trackable: that one is
+// the camera target and carries shake, a lerp, and a fixed nose offset. Returns false when the API
+// is unavailable; the game yields {0,0,0} when no player is live.
+[[nodiscard]] bool player_position(float out[3]);
+
 // ---- Save slots. All no-op / return a failure sentinel when the modding API is absent. ----
 
 // True when every entry the save takeover depends on is present.

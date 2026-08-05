@@ -222,6 +222,23 @@ std::uint64_t player_bosses_defeated()
     return bosses_api_available() ? g_mod_api->PlayerGetBossesDefeated() : 0;
 }
 
+bool player_position(float out[3])
+{
+    if (out == nullptr || g_mod_api == nullptr || !usable(g_mod_api->PlayerGetWorld) || !usable(g_mod_api->PlayerGetPos3))
+        return false;
+    // PlayerGetPos3 only null-checks the outer component pointer, not the entity pointer one
+    // level in; when that second level is unwired it either faults or returns {0,0,0} instead of
+    // failing. PlayerGetWorld walks the same chain but checks both levels, so a null return here
+    // catches exactly the case PlayerGetPos3 would fault or silently mis-answer on.
+    if (g_mod_api->PlayerGetWorld() == nullptr)
+        return false;
+    const MM_Vec3 v = g_mod_api->PlayerGetPos3();
+    out[0] = v.x;
+    out[1] = v.y;
+    out[2] = v.z;
+    return true;
+}
+
 bool player_die()
 {
     if (g_mod_api == nullptr || !usable(g_mod_api->PlayerDie))
