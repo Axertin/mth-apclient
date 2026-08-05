@@ -212,6 +212,16 @@ void set_player_bones(int n)
         g_mod_api->PlayerSetBones(n);
 }
 
+bool bosses_api_available()
+{
+    return g_mod_api != nullptr && usable(g_mod_api->PlayerGetBossesDefeated);
+}
+
+std::uint64_t player_bosses_defeated()
+{
+    return bosses_api_available() ? g_mod_api->PlayerGetBossesDefeated() : 0;
+}
+
 bool player_die()
 {
     if (g_mod_api == nullptr || !usable(g_mod_api->PlayerDie))

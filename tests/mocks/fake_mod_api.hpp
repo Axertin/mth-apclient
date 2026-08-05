@@ -42,7 +42,8 @@ struct ModApiRecorder
     bool paused = false;      // served by WorldIsPaused: a menu that pauses the world
     bool game_paused = false; // the whole world update queue is skipped; invisible to WorldIsPaused
     float room_time = 0.0f;
-    void *player = nullptr; // served by PlayerGetComponent; the game nulls its global in Player::~Player
+    void *player = nullptr;            // served by PlayerGetComponent; the game nulls its global in Player::~Player
+    std::uint64_t bosses_defeated = 0; // served by PlayerGetBossesDefeated
 
     void fire(const char *name, void *ctx)
     {
@@ -63,6 +64,7 @@ struct ModApiRecorder
         game_paused = false;
         room_time = 0.0f;
         player = nullptr;
+        bosses_defeated = 0;
         fake_save_state() = FakeSaveState{};
     }
 };
@@ -126,6 +128,10 @@ inline ycComponent *fake_player_get_component()
 {
     return static_cast<ycComponent *>(recorder().player);
 }
+inline std::uint64_t fake_get_bosses_defeated()
+{
+    return recorder().bosses_defeated;
+}
 
 // A MinaModAPI wired to the recorder stubs. reset() the recorder before use.
 inline MinaModAPI make_fake_api()
@@ -143,6 +149,7 @@ inline MinaModAPI make_fake_api()
     mm.WorldIsPaused = &fake_world_is_paused;
     mm.PlayerGetWorld = &fake_player_get_world;
     mm.PlayerGetComponent = &fake_player_get_component;
+    mm.PlayerGetBossesDefeated = &fake_get_bosses_defeated;
     mm.GetActiveSaveSlot = [] { return fake_save_state().active_slot; };
     mm.SetActiveSaveSlot = [](std::uint32_t slot) { fake_save_state().active_slot = static_cast<int>(slot); };
     mm.SetActiveSaveSlotContents = [](const char *d) -> bool

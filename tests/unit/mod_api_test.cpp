@@ -266,3 +266,18 @@ TEST_CASE("mod: entries outside the game .text range are not called", "[mod]")
 
     mod::set_api(nullptr);
 }
+
+TEST_CASE("mod: player_bosses_defeated reflects the API, 0 when unset", "[mod]")
+{
+    mth::test::recorder().reset();
+    mod::set_api(nullptr);
+    REQUIRE_FALSE(mod::bosses_api_available());
+    REQUIRE(mod::player_bosses_defeated() == 0);
+
+    auto fake = mth::test::make_fake_api();
+    mth::test::recorder().bosses_defeated = 0b1011;
+    mod::set_api(&fake);
+    REQUIRE(mod::bosses_api_available());
+    REQUIRE(mod::player_bosses_defeated() == 0b1011);
+    mod::set_api(nullptr);
+}

@@ -2,6 +2,7 @@
 
 #include <cstdio>
 
+#include "mod/mod_api.hpp"
 #include "mth/core/ap/ap_state.hpp"
 #include "mth/core/data/game_layout.hpp"
 #include "mth/core/data/game_symbols.hpp"
@@ -35,7 +36,7 @@ void GoalTracker::evaluate(const ApState &state)
     game_cleared_ = *reinterpret_cast<unsigned char *>(static_cast<char *>(slot) + layout::kSaveGameClearOff) != 0;
     broken_mask_ = state.broken_generator_mask();
     gens_done_ = generators_done(*reinterpret_cast<std::uint64_t *>(static_cast<char *>(slot) + layout::kSaveGeneratorBitsOff), broken_mask_);
-    bosses_done_ = std::popcount(*reinterpret_cast<std::uint64_t *>(static_cast<char *>(slot) + layout::kSaveBossDefeatedBitsOff));
+    bosses_done_ = std::popcount(mod::player_bosses_defeated());
 
     if (goal_met(config_, gens_needed_, bosses_needed_, game_cleared_, gens_done_, bosses_done_))
         bridge_.send_goal(); // one-shot + authenticated-gated in the bridge

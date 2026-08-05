@@ -58,9 +58,8 @@ inline constexpr std::ptrdiff_t kPlayerKearBitsOff = 0x11a8;  // u64 kear-collec
 inline constexpr std::ptrdiff_t kPlayerKearSpentOff = 0x11b0; // int spent-counter mirror in Player (runtime source of truth)
 
 // Goal-completion SaveSlot state (polled; the bitfields are popcounted for the count goals).
-inline constexpr std::ptrdiff_t kSaveBossDefeatedBitsOff = 0x280; // u64 boss-defeated bitfield (BossComponent::GetDefeatedCount popcounts this)
-inline constexpr std::ptrdiff_t kSaveGeneratorBitsOff = 0x290;    // u64 generator-fixed bitfield (BossComponent::SetGeneratorFixed sets a bit per generator)
-inline constexpr std::ptrdiff_t kSaveGameClearOff = 0xd30;        // u8 game-cleared flag (set by GigaLionelBoss::EndingTransition)
+inline constexpr std::ptrdiff_t kSaveGeneratorBitsOff = 0x290; // u64 generator-fixed bitfield (BossComponent::SetGeneratorFixed sets a bit per generator)
+inline constexpr std::ptrdiff_t kSaveGameClearOff = 0xd30;     // u8 game-cleared flag (set by GigaLionelBoss::EndingTransition)
 
 // WeaponMerchant (Legovich) forge mold (#67): the pending weapon-upgrade index; -1 = none.
 inline constexpr std::ptrdiff_t kSaveWeaponIndexOff = 0xc70;     // int: pending weapon index the forge keys on

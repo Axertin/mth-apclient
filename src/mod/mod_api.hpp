@@ -75,6 +75,11 @@ bool bones_api_available();
 int player_bones();
 void set_player_bones(int n);
 
+// Boss-defeated bitfield via the native accessor, replacing a raw SaveSlot offset. The game reads
+// its own active slot, so callers must already know a slot is bound. 0 when unavailable.
+[[nodiscard]] bool bosses_api_available();
+[[nodiscard]] std::uint64_t player_bosses_defeated();
+
 // ---- Save slots. All no-op / return a failure sentinel when the modding API is absent. ----
 
 // True when every entry the save takeover depends on is present.
