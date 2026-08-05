@@ -212,3 +212,23 @@ TEST_CASE("mod: player_component serves the game's live Player, null once it is 
 
     mod::set_api(nullptr);
 }
+
+TEST_CASE("mod: active_save_slot normalizes the no-slot sentinel to -1", "[mod]")
+{
+    mth::test::recorder().reset();
+    auto fake = mth::test::make_fake_api();
+    mod::set_api(&fake);
+
+    mth::test::fake_save_state().active_slot = 3;
+    REQUIRE(mod::active_save_slot() == 3);
+
+    // The game reports 10 (one past the last valid slot) when nothing is bound.
+    mth::test::fake_save_state().active_slot = 10;
+    REQUIRE(mod::active_save_slot() == -1);
+
+    mth::test::fake_save_state().active_slot = -5;
+    REQUIRE(mod::active_save_slot() == -1);
+
+    mod::set_api(nullptr);
+    REQUIRE(mod::active_save_slot() == -1);
+}

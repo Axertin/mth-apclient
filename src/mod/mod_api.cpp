@@ -6,6 +6,8 @@
 namespace
 {
 
+constexpr int kSaveSlotCount = 10;
+
 MinaModAPI *g_mod_api = nullptr;
 
 mod::ItemCollectedFn g_item_collected_cb = nullptr;
@@ -262,7 +264,11 @@ bool save_api_available()
 
 int active_save_slot()
 {
-    return (g_mod_api != nullptr && g_mod_api->GetActiveSaveSlot != nullptr) ? g_mod_api->GetActiveSaveSlot() : -1;
+    if (g_mod_api == nullptr || g_mod_api->GetActiveSaveSlot == nullptr)
+        return -1;
+    const int slot = g_mod_api->GetActiveSaveSlot();
+    // The game's no-slot value is one past the last slot, not a negative sentinel.
+    return (slot >= 0 && slot < kSaveSlotCount) ? slot : -1;
 }
 
 bool set_active_save_slot_contents(const char *ycdata)

@@ -74,7 +74,7 @@ void set_player_bones(int n);
 
 // True when every entry the save takeover depends on is present.
 bool save_api_available();
-int active_save_slot(); // -1 when unavailable
+int active_save_slot(); // -1 when unavailable or no slot is bound (the game reports 10, not -1)
 bool set_active_save_slot_contents(const char *ycdata);
 bool set_save_slot_contents(unsigned int slot, const char *ycdata); // writes a slot without activating it
 std::string active_save_slot_contents();                            // "" on failure
