@@ -395,6 +395,23 @@ TEST_CASE("mod: appended entries stay unavailable on a build that predates them"
     REQUIRE_FALSE(mod::water_is_in_deep_water(&listener, false));
     REQUIRE(mth::test::recorder().water_calls == 0);
 
+    int physics = 0;
+    float box[6]{-1.0f, -1.0f, -1.0f, -1.0f, -1.0f, -1.0f};
+    REQUIRE_FALSE(mod::physics_get_aabb(&physics, box, false, 0u));
+    REQUIRE(box[0] == -1.0f); // left untouched, so a caller cannot query on a garbage box
+    REQUIRE(mth::test::recorder().aabb_calls == 0);
+
+    int manager = 0;
+    int carryable = 0;
+    int overlap = 0;
+    mth::test::recorder().closest_result = &carryable;
+    REQUIRE(mod::closest_carryable(&manager, box, 3, 1.6f, &overlap, 0ull) == nullptr);
+    REQUIRE(mth::test::recorder().closest_calls == 0);
+
+    REQUIRE_FALSE(mod::player_stats_api_available());
+    REQUIRE_FALSE(mod::player_update_stats());
+    REQUIRE(mth::test::recorder().update_stats_calls == 0);
+
     mod::set_api(nullptr);
 }
 
@@ -454,6 +471,40 @@ TEST_CASE("mod: appended entries become available on a newer build", "[mod]")
     mth::test::recorder().in_deep_water = false;
     REQUIRE_FALSE(mod::water_is_in_deep_water(&listener, true));
     REQUIRE(mth::test::recorder().water_ignore_enabled);
+
+    // Six floats in, six floats out, in the game AABB's own order: center.xyz then half-extent.xyz.
+    int physics = 0;
+    float box[6]{};
+    REQUIRE(mod::physics_get_aabb(&physics, box, true, 5u));
+    REQUIRE(mth::test::recorder().aabb_calls == 1);
+    REQUIRE(mth::test::recorder().aabb_target == &physics);
+    REQUIRE(mth::test::recorder().aabb_local);
+    REQUIRE(mth::test::recorder().aabb_shape_flags == 5u);
+    for (int i = 0; i < 6; ++i)
+        REQUIRE(box[i] == static_cast<float>(i + 1));
+
+    // The same six floats have to survive the by-value AABB the carry query takes.
+    int manager = 0;
+    int carryable = 0;
+    int overlap = 0;
+    mth::test::recorder().closest_result = &carryable;
+    REQUIRE(mod::closest_carryable(&manager, box, 3, 1.6f, &overlap, 0x9ull) == &carryable);
+    REQUIRE(mth::test::recorder().closest_calls == 1);
+    REQUIRE(mth::test::recorder().closest_target == &manager);
+    for (int i = 0; i < 6; ++i)
+        REQUIRE(mth::test::recorder().closest_box[i] == static_cast<float>(i + 1));
+    REQUIRE(mth::test::recorder().closest_layer == 3);
+    REQUIRE(mth::test::recorder().closest_max_dist == 1.6f);
+    REQUIRE(mth::test::recorder().closest_mask == 0x9ull);
+    REQUIRE(overlap == 1);
+
+    mth::test::recorder().closest_result = nullptr;
+    REQUIRE(mod::closest_carryable(&manager, box, 3, 1.6f, &overlap, 0ull) == nullptr);
+    REQUIRE(mth::test::recorder().closest_calls == 2);
+
+    REQUIRE(mod::player_stats_api_available());
+    REQUIRE(mod::player_update_stats());
+    REQUIRE(mth::test::recorder().update_stats_calls == 1);
 
     mod::set_api(nullptr);
 }

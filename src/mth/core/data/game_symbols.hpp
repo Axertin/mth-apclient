@@ -19,10 +19,8 @@ inline constexpr const char *process_sdl_event = "_Z15ProcessSDLEventR9SDL_Event
 inline constexpr const char *player_ctor =
     "_ZN6PlayerC2EP8ycEntityP17GameComponentDescP11PlayerSetup"; // Player::Player(ycEntity*, GameComponentDesc*, PlayerSetup*)
 inline constexpr const char *player_trackable_update = "_ZN15PlayerTrackable6UpdateEP20ycUpdateQueueContext"; // PlayerTrackable::Update(ycUpdateQueueContext*)
-inline constexpr const char *player_update_stats =
-    "_ZN6Player11UpdateStatsEv"; // Player::UpdateStats() -> recompute max HP/magic/spark/vial/trinket from save bits
-// Player::SetVialItemCount(int): the single setter that repartitions a vial total back into the
-// owned/held/overflow sub-fields; used to keep the "missing" vial count constant across an upgrade.
+// Player::UpdateStats is not resolved: the native PlayerUpdateStats acts on the game's own live player,
+// which is the only player the upgrade path ever writes through.
 
 // s_rItems: 195-entry item table (stride 0x68, kind at +0x28).
 inline constexpr const char *s_r_items = "_ZN12_GLOBAL__N_18s_rItemsE";
@@ -135,10 +133,9 @@ inline constexpr const char *spring_bellows_collide = "_ZN13SpringBellows11Colli
 inline constexpr const char *player_pickup_carryable = "_ZN6Player30PickUpAnyNearbyCarryableObjectEbbb";
 // #56: burrow-emerge commit. With carry disabled we suppress the emerge when a carryable is overhead so
 // Mina stays burrowed beneath it (no native "duck under a carryable" exists). The overhead check reuses
-// the game's own grab query (read-only): PhysicsComponent::GetAABB + CarryManager::GetClosestCarryableObject.
+// the game's own grab query (read-only), which the native API carries as PhysicsComponentGetAABB and
+// CarryManagerGetClosestCarryableObject, so neither is resolved here.
 inline constexpr const char *mina_on_burrow_jump = "_ZN4Mina12OnBurrowJumpEv";
-inline constexpr const char *physics_get_aabb = "_ZNK16PhysicsComponent7GetAABBEbj";
-inline constexpr const char *carry_get_closest = "_ZN12CarryManager25GetClosestCarryableObjectE6ycAABBifPim";
 inline constexpr const char *train_authority_on_npc_event = "_ZN14TrainAuthority10OnNPCEventEjP17InteractEventInfo";
 // PawnShopNPC::OnNPCEvent: the pawn shop ("Pawnty") interaction dispatcher. Its own class (not a
 // shared NPCBehavior_*), so suppressing it to disable Pawnty cannot affect any other shop.

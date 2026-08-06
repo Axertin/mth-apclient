@@ -493,17 +493,12 @@ unsigned long repl_pickup(void *self, bool a, bool b, bool c)
 // #56: no native "duck under a carryable" exists (the burrow-emerge roof/snap handles only low map
 // ceilings), so with carry disabled we detect a carryable in grab range and suppress the emerge, leaving
 // Mina burrowed beneath it. carryable_overhead is a read-only replica of the game's own grab query.
-// Offsets from Player::PickUpAnyNearbyCarryableObject (0xd515b0, build 8de7a6b5).
-struct ycAABB
-{
-    float v[6]; // center.xyz [0..2], halfExtent.xyz [3..5]
-};
-void (*g_get_aabb)(ycAABB *, void *, bool, unsigned) = nullptr;                     // PhysicsComponent::GetAABB (sret)
-void *(*g_get_closest)(void *, ycAABB, int, float, int *, unsigned long) = nullptr; // CarryManager::GetClosestCarryableObject
-
+// Offsets from Player::PickUpAnyNearbyCarryableObject (0xd515b0, build 8de7a6b5). The two query calls go
+// through the native API (mod::physics_get_aabb / mod::closest_carryable), so no AABB struct is needed
+// here: the box is six floats, center.xyz then half-extent.xyz.
 bool carryable_overhead(void *self)
 {
-    if (self == nullptr || g_get_aabb == nullptr || g_get_closest == nullptr)
+    if (self == nullptr)
         return false;
     char *P = static_cast<char *>(self);
     void *e0 = *reinterpret_cast<void **>(P + 0x278);
@@ -520,16 +515,17 @@ bool carryable_overhead(void *self)
     if (phys == nullptr || comp == nullptr || mgr == nullptr)
         return false;
 
-    ycAABB box{};
-    g_get_aabb(&box, phys, false, 0u);
+    float box[6]{};
+    if (!mod::physics_get_aabb(phys, box, false, 0u))
+        return false;
     // The game clamps the box's z half-extent to |comp+0xd8| * 1.6 * 0.3 before the query.
     const float fd8 = *reinterpret_cast<float *>(static_cast<char *>(comp) + 0xd8);
     const float clamp = (fd8 < 0.0f ? -fd8 : fd8) * 1.6f * 0.3f;
-    if (clamp < box.v[5])
-        box.v[5] = clamp;
+    if (clamp < box[5])
+        box[5] = clamp;
 
     int out_n = 0;
-    return g_get_closest(mgr, box, layer, 1.6f, &out_n, 0ul) != nullptr; // radius 1.6, mask 0 (emerge args)
+    return mod::closest_carryable(mgr, box, layer, 1.6f, &out_n, 0ull) != nullptr; // radius 1.6, mask 0 (emerge args)
 }
 
 void repl_burrow_jump(void *self)
@@ -1362,7 +1358,6 @@ bool g_up_resolved = false;
 bool g_up_ok = false;
 bool g_up_layout_ok = true; // cleared permanently if an upgrade field reads out of its plausible domain
 std::uintptr_t g_up_save_manager = 0;
-void (*g_up_update_stats)(void *) = nullptr; // Player::UpdateStats(this)
 
 float fld_f(void *base, std::ptrdiff_t off)
 {
@@ -1380,11 +1375,9 @@ bool upgrades_available()
         return g_up_ok;
     g_up_resolved = true;
     g_up_save_manager = resolve_game_symbol(mth::sym::save_manager);
-    g_up_update_stats = reinterpret_cast<void (*)(void *)>(resolve_game_symbol(mth::sym::player_update_stats));
-    g_up_ok = g_up_save_manager != 0 && g_up_update_stats != nullptr;
+    g_up_ok = g_up_save_manager != 0;
     if (!g_up_ok)
-        logf(LogLevel::Warn, "upgrades: symbols unresolved (save=0x%llx updatestats=0x%llx); feature disabled",
-             static_cast<unsigned long long>(g_up_save_manager), reinterpret_cast<unsigned long long>(g_up_update_stats));
+        logf(LogLevel::Warn, "upgrades: g_saveManager unresolved; feature disabled");
     return g_up_ok;
 }
 
@@ -1414,6 +1407,13 @@ bool apply_upgrades(const int *counts, void *player)
     if (!g_up_layout_ok)
     {
         trace(3, "skip: layout disabled", nullptr);
+        return false;
+    }
+    // Checked before any write: the owned-bit fields do nothing until UpdateStats recomputes the maxima
+    // from them, so without it the grant would be half-applied instead of merely deferred.
+    if (!mod::player_stats_api_available())
+    {
+        trace(6, "skip: PlayerUpdateStats unavailable", nullptr);
         return false;
     }
     void *slot = active_save_slot(g_up_save_manager);
@@ -1454,7 +1454,7 @@ bool apply_upgrades(const int *counts, void *player)
         }
         fieldv = mth::upgrade_field_value(i, counts[i], fieldv);
     }
-    g_up_update_stats(player); // recompute live maxima from the owned-bit fields
+    mod::player_update_stats(); // recompute live maxima from the owned-bit fields; acts on the live player
 
     if (cc != nullptr)
     {
@@ -1483,8 +1483,6 @@ bool abilities_available()
     g_addr_pickup = resolve_game_symbol(mth::sym::player_pickup_carryable);
     g_addr_train_npc = resolve_game_symbol(mth::sym::train_authority_on_npc_event);
     g_addr_burrow_jump = resolve_game_symbol(mth::sym::mina_on_burrow_jump); // #56
-    g_get_aabb = reinterpret_cast<void (*)(ycAABB *, void *, bool, unsigned)>(resolve_game_symbol(mth::sym::physics_get_aabb));
-    g_get_closest = reinterpret_cast<void *(*)(void *, ycAABB, int, float, int *, unsigned long)>(resolve_game_symbol(mth::sym::carry_get_closest));
     g_ab_ok = g_addr_burrow_ground != 0 || g_addr_rope_climb != 0 || g_addr_bounce_plant != 0 || g_addr_bounce_launch != 0 || g_addr_spring != 0 ||
               g_addr_pickup != 0 || g_addr_train_npc != 0;
     if (!g_ab_ok)

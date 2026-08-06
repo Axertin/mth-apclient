@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include <cstddef>
+#include <cstring>
 #include <utility>
 
 #include "MinaModAPI.h"
@@ -19,6 +20,12 @@ static_assert(offsetof(mod::IsItemCollectedCtx, include_pawn_shop) == offsetof(:
 static_assert(offsetof(mod::IsItemCollectedCtx, include_early_collected) == offsetof(::IsItemCollectedCtx, includeEarlyCollected));
 static_assert(offsetof(mod::IsItemCollectedCtx, mod_handled) == offsetof(::IsItemCollectedCtx, modHandled));
 static_assert(offsetof(mod::IsItemCollectedCtx, mod_ret_val) == offsetof(::IsItemCollectedCtx, modRetVal));
+
+// The six floats the AABB wrappers memcpy are center.xyz then half-extent.xyz, which only holds if
+// MM_AABB is exactly that and nothing else.
+static_assert(sizeof(MM_AABB) == 6 * sizeof(float));
+static_assert(offsetof(MM_AABB, center) == 0);
+static_assert(offsetof(MM_AABB, extents) == 3 * sizeof(float));
 
 namespace
 {
@@ -672,6 +679,41 @@ bool water_is_in_deep_water(void *water_listener, bool ignore_enabled)
     if (water_listener == nullptr || !water_api_available())
         return false;
     return g_mod_api->WaterListenerIsInDeepWater(static_cast<WaterListener *>(water_listener), ignore_enabled);
+}
+
+bool physics_get_aabb(void *physics_component, float out_aabb[6], bool local, unsigned shape_flags)
+{
+    if (physics_component == nullptr || out_aabb == nullptr || !appended_api_possible() || g_mod_api == nullptr ||
+        !usable_appended(g_mod_api->PhysicsComponentGetAABB))
+        return false;
+    MM_AABB box{};
+    g_mod_api->PhysicsComponentGetAABB(static_cast<PhysicsComponent *>(physics_component), &box, local, shape_flags);
+    std::memcpy(out_aabb, &box, sizeof(box));
+    return true;
+}
+
+void *closest_carryable(void *carry_manager, const float box[6], int collision_layer, float max_dist, int *out_overlap_count, std::uint64_t collide_mask_ignore)
+{
+    if (carry_manager == nullptr || box == nullptr || !appended_api_possible() || g_mod_api == nullptr ||
+        !usable_appended(g_mod_api->CarryManagerGetClosestCarryableObject))
+        return nullptr;
+    MM_AABB b{};
+    std::memcpy(&b, box, sizeof(b));
+    return g_mod_api->CarryManagerGetClosestCarryableObject(static_cast<CarryManager *>(carry_manager), b, collision_layer, max_dist, out_overlap_count,
+                                                            collide_mask_ignore);
+}
+
+bool player_stats_api_available()
+{
+    return appended_api_possible() && g_mod_api != nullptr && usable_appended(g_mod_api->PlayerUpdateStats);
+}
+
+bool player_update_stats()
+{
+    if (!player_stats_api_available())
+        return false;
+    g_mod_api->PlayerUpdateStats();
+    return true;
 }
 
 void *sym_addr(const char *name)

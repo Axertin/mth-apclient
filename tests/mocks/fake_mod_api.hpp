@@ -58,6 +58,19 @@ struct ModApiRecorder
     void *water_target = nullptr;
     bool water_ignore_enabled = false;
     bool in_deep_water = false; // the answer the fake serves
+    int aabb_calls = 0;         // PhysicsComponentGetAABB
+    void *aabb_target = nullptr;
+    bool aabb_local = false;
+    std::uint32_t aabb_shape_flags = 0;
+    float aabb[6]{1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f}; // center.xyz then half-extent.xyz, as the API writes it
+    int closest_calls = 0;                             // CarryManagerGetClosestCarryableObject
+    void *closest_target = nullptr;
+    float closest_box[6]{};
+    int closest_layer = 0;
+    float closest_max_dist = 0.0f;
+    std::uint64_t closest_mask = 0;
+    void *closest_result = nullptr; // the carryable the fake reports, null for "nothing in range"
+    int update_stats_calls = 0;     // PlayerUpdateStats
 
     void fire(const char *name, void *ctx)
     {
@@ -93,6 +106,25 @@ struct ModApiRecorder
         water_target = nullptr;
         water_ignore_enabled = false;
         in_deep_water = false;
+        aabb_calls = 0;
+        aabb_target = nullptr;
+        aabb_local = false;
+        aabb_shape_flags = 0;
+        aabb[0] = 1.0f;
+        aabb[1] = 2.0f;
+        aabb[2] = 3.0f;
+        aabb[3] = 4.0f;
+        aabb[4] = 5.0f;
+        aabb[5] = 6.0f;
+        closest_calls = 0;
+        closest_target = nullptr;
+        for (float &f : closest_box)
+            f = 0.0f;
+        closest_layer = 0;
+        closest_max_dist = 0.0f;
+        closest_mask = 0;
+        closest_result = nullptr;
+        update_stats_calls = 0;
         fake_save_state() = FakeSaveState{};
     }
 };
@@ -155,6 +187,48 @@ inline bool fake_water_is_in_deep_water(WaterListener *listener, bool ignore_ena
     recorder().water_target = listener;
     recorder().water_ignore_enabled = ignore_enabled;
     return recorder().in_deep_water;
+}
+
+// Serves the six recorded floats as one MM_AABB, so a test can pin the center.xyz/extents.xyz packing.
+inline void fake_physics_get_aabb(PhysicsComponent *component, MM_AABB *out, bool local, std::uint32_t shape_flags)
+{
+    ++recorder().aabb_calls;
+    recorder().aabb_target = component;
+    recorder().aabb_local = local;
+    recorder().aabb_shape_flags = shape_flags;
+    if (out == nullptr)
+        return;
+    out->center.x = recorder().aabb[0];
+    out->center.y = recorder().aabb[1];
+    out->center.z = recorder().aabb[2];
+    out->extents.x = recorder().aabb[3];
+    out->extents.y = recorder().aabb[4];
+    out->extents.z = recorder().aabb[5];
+}
+
+// Records the by-value box the same way, so the round trip out of physics_get_aabb can be checked end to end.
+inline CarryableObject *fake_closest_carryable(CarryManager *manager, MM_AABB box, std::int32_t layer, float max_dist, std::int32_t *out_count,
+                                               std::uint64_t mask_ignore)
+{
+    ++recorder().closest_calls;
+    recorder().closest_target = manager;
+    recorder().closest_box[0] = box.center.x;
+    recorder().closest_box[1] = box.center.y;
+    recorder().closest_box[2] = box.center.z;
+    recorder().closest_box[3] = box.extents.x;
+    recorder().closest_box[4] = box.extents.y;
+    recorder().closest_box[5] = box.extents.z;
+    recorder().closest_layer = layer;
+    recorder().closest_max_dist = max_dist;
+    recorder().closest_mask = mask_ignore;
+    if (out_count != nullptr)
+        *out_count = recorder().closest_result != nullptr ? 1 : 0;
+    return static_cast<CarryableObject *>(recorder().closest_result);
+}
+
+inline void fake_player_update_stats()
+{
+    ++recorder().update_stats_calls;
 }
 
 inline void *fake_get_sym_addr(const char *name)
@@ -235,6 +309,9 @@ inline MinaModAPI make_fake_api()
     mm.TextComponentSetText = &fake_text_set_text;
     mm.TextComponentGetText = &fake_text_get_text;
     mm.WaterListenerIsInDeepWater = &fake_water_is_in_deep_water;
+    mm.PhysicsComponentGetAABB = &fake_physics_get_aabb;
+    mm.CarryManagerGetClosestCarryableObject = &fake_closest_carryable;
+    mm.PlayerUpdateStats = &fake_player_update_stats;
     mm.GetSymAddr = &fake_get_sym_addr;
     mm.GetCurrentGameState = &fake_get_game_state;
     mm.PlayerGetHealth = &fake_get_health;

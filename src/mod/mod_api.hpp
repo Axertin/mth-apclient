@@ -165,6 +165,24 @@ const char *text_of(void *text_component);
 bool water_api_available();
 bool water_is_in_deep_water(void *water_listener, bool ignore_enabled);
 
+// Read-only halves of the game's own carryable-grab query. The box crosses this boundary as six floats,
+// center.xyz then half-extent.xyz, which is the game AABB's own layout, so the header stays free of game
+// types. The two platforms passed these arguments in different orders when called directly (Linux returned
+// the AABB by value, MSVC took it as an explicit second pointer); the API normalizes both to (self, out).
+// physics_get_aabb leaves out_aabb untouched and returns false when the build's API lacks the entry;
+// closest_carryable returns null both for "nothing in range" and for an entry-less build, which is safe
+// only because its one caller treats a null as "no carryable overhead".
+bool physics_get_aabb(void *physics_component, float out_aabb[6], bool local, unsigned shape_flags);
+void *closest_carryable(void *carry_manager, const float box[6], int collision_layer, float max_dist, int *out_overlap_count,
+                        std::uint64_t collide_mask_ignore);
+
+// Recomputes the live maxima (HP, magic, spark, vials, trinkets) from the save's owned-bit fields. Takes
+// no target: the game acts on its own live player, the same one player_component() reports. Callers that
+// write those bit fields must check available() BEFORE writing, since the fields alone do nothing until
+// this runs.
+bool player_stats_api_available();
+bool player_update_stats();
+
 // Address of a game symbol by its plain source-level name. Null when the API does not expose that
 // name, which leaves the caller on its own resolver. May return data rather than code.
 void *sym_addr(const char *name);

@@ -20,8 +20,8 @@ namespace
 // game_symbols.hpp wholesale: that header declares both platforms' variants side by side, so
 // requiring all of it would refuse everywhere. process_sdl_event is absent on purpose - without it
 // the overlay drops to render-only, which is degraded rather than fatal. queue_destroy,
-// set_item_collected and text_set_color are absent because the mod no longer resolves them at all:
-// the native API carries those three.
+// set_item_collected, text_set_color, physics_get_aabb, carry_get_closest and player_update_stats are
+// absent because the mod no longer resolves them at all: the native API carries them.
 constexpr const char *kRequiredCommonSymbols[] = {
     sym::activate_save_cheats,
     sym::activate_save_slot,
@@ -29,21 +29,18 @@ constexpr const char *kRequiredCommonSymbols[] = {
     sym::boss_trigger_death_sequence,
     sym::bounce_plant_collide,
     sym::bounce_plant_launch,
-    sym::carry_get_closest,
     sym::game_fixed_update,
     sym::hub_fountain_bulb_update,
     sym::key_block_update,
     sym::mina_on_burrow_jump,
     sym::on_pickup_done,
     sym::pawn_shop_on_npc_event,
-    sym::physics_get_aabb,
     sym::pickup_init,
     sym::player_ctor,
     sym::player_pickup_carryable,
     sym::player_rope_climb_start,
     sym::player_set_burrow_ground,
     sym::player_trackable_update,
-    sym::player_update_stats,
     sym::profile_select_menu_update_state,
     sym::room_manager_update,
     sym::s_r_item_collection,
