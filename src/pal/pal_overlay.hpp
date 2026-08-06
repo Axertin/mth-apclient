@@ -29,12 +29,9 @@ class IOverlay
     virtual void set_ui(IOverlayUi *) = 0;
 };
 
-struct OverlayConfig
-{
-    std::uintptr_t process_sdl_event_addr; // absolute address of ProcessSDLEvent(SDL_Event&); 0 = input unavailable
-};
-
 // Linux: Vulkan/SDL overlay. Windows: D3D12/Win32 overlay. Never returns null.
-std::unique_ptr<IOverlay> make_overlay(const OverlayConfig &);
+// Each platform resolves whatever game symbols it needs itself: ProcessSDLEvent is Linux-only, and
+// routing it through here made Windows carry a signature for a symbol it never reads.
+std::unique_ptr<IOverlay> make_overlay();
 
 } // namespace pal

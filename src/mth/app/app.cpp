@@ -158,9 +158,8 @@ App::App() : login_prefs_(pal::log_dir() / "login.prefs")
         [this]() -> void * { return tracker_->player(); });
 #ifdef MTHAP_HAS_OVERLAY
     {
-        const pal::OverlayConfig ocfg{pal::resolve_game_symbol(sym::process_sdl_event)};
         overlay_root_ = std::make_unique<OverlayRoot>(*this, net_->banner_queue());
-        overlay_ = pal::make_overlay(ocfg);
+        overlay_ = pal::make_overlay();
         overlay_->set_ui(overlay_root_.get());
         pal::logf(pal::LogLevel::Info, "overlay: dev console attached"); // overlay logs the resolved toggle key
     }

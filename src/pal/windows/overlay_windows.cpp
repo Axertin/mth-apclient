@@ -806,7 +806,7 @@ class D3D12Overlay final : public IOverlay
 
 } // namespace
 
-std::unique_ptr<IOverlay> make_overlay(const OverlayConfig &)
+std::unique_ptr<IOverlay> make_overlay()
 {
     return std::make_unique<D3D12Overlay>();
 }

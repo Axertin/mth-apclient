@@ -6,10 +6,6 @@
    "kind": "Code"
   },
   {
-   "name": "_Z15ProcessSDLEventR9SDL_Event",
-   "kind": "Code"
-  },
-  {
    "name": "_ZN6PlayerC2EP8ycEntityP17GameComponentDescP11PlayerSetup",
    "kind": "Code"
   },
@@ -67,9 +63,6 @@
   }
  ],
  "windows": {
-  "_Z15ProcessSDLEventR9SDL_Event": {
-   "rva": 723344
-  },
   "_ZN6PlayerC2EP8ycEntityP17GameComponentDescP11PlayerSetup": {
    "rva": 9974368
   },
@@ -120,9 +113,6 @@
  "linux": {
   "_ZN13ycUpdateQueue6UpdateEf": {
    "rva": 3276656
-  },
-  "_Z15ProcessSDLEventR9SDL_Event": {
-   "rva": 2160784
   },
   "_ZN6PlayerC2EP8ycEntityP17GameComponentDescP11PlayerSetup": {
    "rva": 13358512
