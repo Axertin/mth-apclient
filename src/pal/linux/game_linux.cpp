@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <functional>
+#include <limits>
 #include <mutex>
 #include <span>
 #include <string>
@@ -301,6 +302,11 @@ constexpr std::ptrdiff_t kPlayerStatePendOff = 0x260;
 constexpr int kStateBurrow = 0x1c; // current state while burrowing (ground or water)
 constexpr int kStateDeepWaterFall = 0xf1;
 constexpr int kStateMax = 0xf5;
+// Pending bounce target (3 floats, FLT_MAX when none) and the bone-bounce variant marker. Player::OnBounce
+// consumes both; its own early-out clears them, and the block path has to do the same or the target stays
+// armed and fires late (#168).
+constexpr std::ptrdiff_t kPlayerBounceTargetOff = 0x252c;
+constexpr std::ptrdiff_t kPlayerBounceMarkerOff = 0x24c0;
 // PhysicsContactPair -> colliding-entity component kind chain (shared by both CollideWith detours).
 constexpr std::ptrdiff_t kContactEntityOff = 0x110;     // *(contactPair) + 0x110 -> entity
 constexpr std::ptrdiff_t kEntityInteractCompOff = 0xa8; // entity + 0xa8 -> InteractComponent
@@ -343,6 +349,7 @@ std::uintptr_t g_addr_burrow_ground = 0;
 std::uintptr_t g_addr_rope_climb = 0;
 std::uintptr_t g_addr_bounce_plant = 0;
 std::uintptr_t g_addr_bounce_launch = 0;
+std::uintptr_t g_addr_on_bounce = 0;
 std::uintptr_t g_addr_spring = 0;
 std::uintptr_t g_addr_pickup = 0;
 std::uintptr_t g_addr_train_npc = 0;
@@ -352,6 +359,7 @@ pal::HookId g_id_burrow = pal::kInvalidHookId;
 pal::HookId g_id_rope = pal::kInvalidHookId;
 pal::HookId g_id_puff = pal::kInvalidHookId;
 pal::HookId g_id_launch = pal::kInvalidHookId;
+pal::HookId g_id_on_bounce = pal::kInvalidHookId;
 pal::HookId g_id_spring = pal::kInvalidHookId;
 pal::HookId g_id_carry = pal::kInvalidHookId;
 pal::HookId g_id_train = pal::kInvalidHookId;
@@ -361,6 +369,7 @@ unsigned long (*g_orig_burrow_ground)(void *) = nullptr;
 void (*g_orig_rope_climb)(void *, void *, bool, bool) = nullptr;
 void (*g_orig_bounce_plant)(void *, void *) = nullptr;
 void (*g_orig_bounce_launch)(void *, void *) = nullptr;
+void (*g_orig_on_bounce)(void *) = nullptr;
 void (*g_orig_spring)(void *, void *) = nullptr;
 unsigned long (*g_orig_pickup)(void *, bool, bool, bool) = nullptr;
 void (*g_orig_train_npc)(void *, unsigned, void *) = nullptr;
@@ -446,6 +455,23 @@ void repl_bounce_launch(void *self, void *player)
         return;
     if (g_orig_bounce_launch)
         g_orig_bounce_launch(self, player);
+}
+
+// Player::OnBounce is the only consumer of the pending target and the only writer of the launch velocity,
+// so it catches every bounce surface, including the Bone Beach bushes, which are Breakables reached by a
+// dispatch inlined into Player::Update / SlideOutOfWall that neither detour above sees (#168). The listener
+// sweep calls it unconditionally every tick, so the blocked path must stay allocation- and log-free.
+void repl_on_bounce(void *player)
+{
+    if (player != nullptr && ability_blocked(kAbBouncePuff))
+    {
+        float *target = reinterpret_cast<float *>(static_cast<char *>(player) + kPlayerBounceTargetOff);
+        target[0] = target[1] = target[2] = std::numeric_limits<float>::max();
+        *(static_cast<char *>(player) + kPlayerBounceMarkerOff) = 0;
+        return;
+    }
+    if (g_orig_on_bounce)
+        g_orig_on_bounce(player);
 }
 
 void repl_spring(void *self, void *contact_pair)
@@ -1400,12 +1426,14 @@ bool abilities_available()
     g_addr_rope_climb = resolve_game_symbol(mth::sym::player_rope_climb_start);
     g_addr_bounce_plant = resolve_game_symbol(mth::sym::bounce_plant_collide);
     g_addr_bounce_launch = resolve_game_symbol(mth::sym::bounce_plant_launch);
+    g_addr_on_bounce = resolve_game_symbol(mth::sym::player_on_bounce);
     g_addr_spring = resolve_game_symbol(mth::sym::spring_bellows_collide);
     g_addr_pickup = resolve_game_symbol(mth::sym::player_pickup_carryable);
     g_addr_train_npc = resolve_game_symbol(mth::sym::train_authority_on_npc_event);
     g_addr_burrow_jump = resolve_game_symbol(mth::sym::mina_on_burrow_jump); // #56
-    g_ab_ok = g_addr_burrow_ground != 0 || g_addr_rope_climb != 0 || g_addr_bounce_plant != 0 || g_addr_bounce_launch != 0 || g_addr_spring != 0 ||
-              g_addr_pickup != 0 || g_addr_train_npc != 0;
+    g_addr_pickup != 0 || g_addr_train_npc != 0;
+    g_ab_ok = g_addr_burrow_ground != 0 || g_addr_rope_climb != 0 || g_addr_bounce_plant != 0 || g_addr_bounce_launch != 0 || g_addr_on_bounce != 0 ||
+              g_addr_spring != 0 || g_addr_pickup != 0 || g_addr_train_npc != 0;
     if (!g_ab_ok)
         logf(LogLevel::Warn, "abilities: no chokepoint symbols resolved; ability gating disabled");
     return g_ab_ok;
@@ -1459,6 +1487,16 @@ bool install_ability_hooks(AbilityBlockFn block)
     else
         logf(LogLevel::Warn, "abilities: BouncePlant::BounceLaunch not resolved; ground-puff gating disabled");
 
+    if (g_addr_on_bounce != 0) // #168: universal launch gate (bounce bushes and any other non-plant surface)
+    {
+        g_id_on_bounce = hook_engine().install_hook(reinterpret_cast<void *>(g_addr_on_bounce), reinterpret_cast<void *>(&repl_on_bounce),
+                                                    reinterpret_cast<void **>(&g_orig_on_bounce));
+        if (g_id_on_bounce == kInvalidHookId)
+            logf(LogLevel::Error, "abilities: failed to hook Player::OnBounce");
+    }
+    else
+        logf(LogLevel::Warn, "abilities: Player::OnBounce not resolved; bounce-bush gating disabled");
+
     if (g_addr_spring != 0)
     {
         g_id_spring = hook_engine().install_hook(reinterpret_cast<void *>(g_addr_spring), reinterpret_cast<void *>(&repl_spring),
@@ -1502,7 +1540,8 @@ bool install_ability_hooks(AbilityBlockFn block)
         logf(LogLevel::Warn, "abilities: Mina::OnBurrowJump not resolved; carry emerge-suppress disabled");
 
     const bool any = g_id_burrow != kInvalidHookId || g_id_rope != kInvalidHookId || g_id_puff != kInvalidHookId || g_id_launch != kInvalidHookId ||
-                     g_id_spring != kInvalidHookId || g_id_carry != kInvalidHookId || g_id_train != kInvalidHookId || g_id_burrow_jump != kInvalidHookId;
+                     g_id_on_bounce != kInvalidHookId || g_id_spring != kInvalidHookId || g_id_carry != kInvalidHookId || g_id_train != kInvalidHookId ||
+                     g_id_burrow_jump != kInvalidHookId;
     if (any)
         logf(LogLevel::Info, "abilities: ability gating hooks installed");
     else
@@ -1512,7 +1551,7 @@ bool install_ability_hooks(AbilityBlockFn block)
 
 void remove_ability_hooks()
 {
-    for (HookId *id : {&g_id_burrow, &g_id_rope, &g_id_puff, &g_id_launch, &g_id_spring, &g_id_carry, &g_id_train, &g_id_burrow_jump})
+    for (HookId *id : {&g_id_burrow, &g_id_rope, &g_id_puff, &g_id_launch, &g_id_on_bounce, &g_id_spring, &g_id_carry, &g_id_train, &g_id_burrow_jump})
     {
         if (*id != kInvalidHookId)
             hook_engine().remove_hook(*id);

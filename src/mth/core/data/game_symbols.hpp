@@ -117,6 +117,11 @@ inline constexpr const char *bounce_plant_collide = "_ZN11BouncePlant11CollideWi
 // Floating puffs bounce inline in CollideWith; ground/burrow-underable puffs launch out-of-line here
 // (called from Player land/wall/update paths), so both chokepoints must be gated (issue #47).
 inline constexpr const char *bounce_plant_launch = "_ZN11BouncePlant12BounceLaunchEP6Player";
+// Neither BouncePlant entry launches anything: both only stash a bounce target in Player+0x252c.
+// OnBounce is its sole consumer and the only writer of the launch velocity, so it is the universal
+// gate. Bone Beach bounce bushes are Breakables, not BouncePlants, and reach it through a dispatch
+// inlined into Player::Update / Player::SlideOutOfWall that skips both entries above (issue #168).
+inline constexpr const char *player_on_bounce = "_ZN6Player8OnBounceEv";
 inline constexpr const char *spring_bellows_collide = "_ZN13SpringBellows11CollideWithER18PhysicsContactPair";
 inline constexpr const char *player_pickup_carryable = "_ZN6Player30PickUpAnyNearbyCarryableObjectEbbb";
 // #56: burrow-emerge commit. With carry disabled we suppress the emerge when a carryable is overhead so
