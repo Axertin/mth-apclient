@@ -19,7 +19,9 @@ namespace
 // compilers inline different functions. Derived from what the code actually resolves, NOT from
 // game_symbols.hpp wholesale: that header declares both platforms' variants side by side, so
 // requiring all of it would refuse everywhere. process_sdl_event is absent on purpose - without it
-// the overlay drops to render-only, which is degraded rather than fatal.
+// the overlay drops to render-only, which is degraded rather than fatal. queue_destroy,
+// set_item_collected and text_set_color are absent because the mod no longer resolves them at all:
+// the native API carries those three.
 constexpr const char *kRequiredCommonSymbols[] = {
     sym::activate_save_cheats,
     sym::activate_save_slot,
@@ -43,7 +45,6 @@ constexpr const char *kRequiredCommonSymbols[] = {
     sym::player_trackable_update,
     sym::player_update_stats,
     sym::profile_select_menu_update_state,
-    sym::queue_destroy,
     sym::room_manager_update,
     sym::s_r_item_collection,
     sym::s_r_items,
@@ -52,12 +53,10 @@ constexpr const char *kRequiredCommonSymbols[] = {
     sym::save_slot_clear,
     sym::save_slot_init_gamestate,
     sym::set_cheat_applied,
-    sym::set_item_collected,
     sym::shop_get,
     sym::shop_is_out_of_stock,
     sym::shop_set_cursor,
     sym::spring_bellows_collide,
-    sym::text_set_color,
     sym::text_set_text,
     sym::title_screen_start_game,
     sym::title_screen_update_state,
@@ -69,7 +68,7 @@ constexpr const char *kRequiredCommonSymbols[] = {
 // Informational only: refusing on an unfamiliar build would brick the mod on every game patch,
 // including ones where nothing load-bearing moved.
 constexpr unsigned int kValidatedRevisionMin = 148662;
-constexpr unsigned int kValidatedRevisionMax = 148905;
+constexpr unsigned int kValidatedRevisionMax = 149150;
 
 int count_unresolved(std::span<const char *const> names, const char *group)
 {

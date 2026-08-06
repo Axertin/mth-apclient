@@ -52,7 +52,6 @@ void shop_enumerate_locs(void *shop_menu, void (*sink)(int loc, void *ctx), void
 [[nodiscard]] void *shop_name_widget(void *shop_menu);
 [[nodiscard]] void *shop_desc_widget(void *shop_menu);
 void shop_set_text(void *widget, const char *utf8);
-void shop_set_color(void *widget, std::uint32_t rgba);
 
 // Per-frame "open a removed lock" hooks for KeyBlockChain / locked Chest. The platform owns the hook
 // target and the this->base normalization: Linux hooks ::Update (self == entity base); Windows hooks

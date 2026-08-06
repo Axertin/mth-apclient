@@ -376,6 +376,15 @@ TEST_CASE("mod: appended entries stay unavailable on a build that predates them"
     REQUIRE_FALSE(mod::queue_destroy_available());
     REQUIRE(mod::sym_addr("s_rItems") == nullptr);
 
+    REQUIRE_FALSE(mod::set_item_collected_available());
+    REQUIRE_FALSE(mod::set_item_collected(37, true, nullptr, nullptr));
+    REQUIRE(mth::test::recorder().collected_calls == 0);
+
+    int widget = 0;
+    REQUIRE_FALSE(mod::text_color_available());
+    REQUIRE_FALSE(mod::set_text_color(&widget, 0xC0806040u));
+    REQUIRE(mth::test::recorder().text_color_calls == 0);
+
     mod::set_api(nullptr);
 }
 
@@ -400,6 +409,23 @@ TEST_CASE("mod: appended entries become available on a newer build", "[mod]")
     REQUIRE(mod::sym_addr("s_rItems") != nullptr);
     REQUIRE(mod::sym_addr("NotAnExposedName") == nullptr);
 
+    REQUIRE(mod::set_item_collected_available());
+    REQUIRE(mod::set_item_collected(37, true, nullptr, nullptr));
+    REQUIRE(mth::test::recorder().collected_calls == 1);
+    REQUIRE(mth::test::recorder().collected_index == 37);
+    REQUIRE(mth::test::recorder().collected_value);
+
+    // Channel mapping: the packed word carries r in the low byte, which is MM_Color's own byte order.
+    int widget = 0;
+    REQUIRE(mod::text_color_available());
+    REQUIRE(mod::set_text_color(&widget, 0xC0806040u));
+    REQUIRE(mth::test::recorder().text_color_calls == 1);
+    REQUIRE(mth::test::recorder().text_color_target == &widget);
+    REQUIRE(mth::test::recorder().text_color[0] == 0x40); // r
+    REQUIRE(mth::test::recorder().text_color[1] == 0x60); // g
+    REQUIRE(mth::test::recorder().text_color[2] == 0x80); // b
+    REQUIRE(mth::test::recorder().text_color[3] == 0xC0); // a
+
     mod::set_api(nullptr);
 }
 
@@ -415,5 +441,21 @@ TEST_CASE("mod: queue_destroy_entity refuses null world or entity", "[mod]")
     int x = 0;
     REQUIRE_FALSE(mod::queue_destroy_entity(nullptr, &x, false));
     REQUIRE_FALSE(mod::queue_destroy_entity(&x, nullptr, false));
+    mod::set_api(nullptr);
+}
+
+TEST_CASE("mod: set_item_collected and set_text_color refuse bad arguments", "[mod]")
+{
+    TextRangeGuard guard;
+    mth::test::recorder().reset();
+    auto fake = mth::test::make_fake_api();
+    mod::set_api(&fake);
+    pal::set_game_text_range(pal::TextRange{reinterpret_cast<std::uintptr_t>(&fake_text_anchor) - 0x100000, 0x200000});
+    mth::test::recorder().revision = 200000;
+
+    REQUIRE_FALSE(mod::set_item_collected(-1, true, nullptr, nullptr)); // negative index would write an unrelated bit
+    REQUIRE_FALSE(mod::set_text_color(nullptr, 0xFFFFFFFFu));
+    REQUIRE(mth::test::recorder().collected_calls == 0);
+    REQUIRE(mth::test::recorder().text_color_calls == 0);
     mod::set_api(nullptr);
 }

@@ -24,12 +24,6 @@ namespace
 mth::RandoBridge *g_bridge = nullptr;
 mth::ScoutRegistry *g_scout = nullptr;
 
-// ycWorld::QueueDestroy: tears down a pickup entity; used for already-checked locations not covered by the native gate.
-void (*g_queue_destroy)(void *, void *, bool) = nullptr;
-
-// SetItemCollected: writes a durable bitfield bit so the native Pickup::Init reload gate suppresses respawn (bitfield kinds only).
-void (*g_set_item_collected)(int, bool, void *, void *) = nullptr;
-
 // g_saveManager global (resolves the active SaveSlot); needed to neutralize the kear grant under kear_rando.
 std::uintptr_t g_save_manager = 0;
 
@@ -179,7 +173,7 @@ bool credit_kear_key(void *player)
 bool apply_native_collected(int loc_idx)
 {
     const int kind = mth::tables::native_location_kind(loc_idx);
-    if (g_set_item_collected == nullptr || !mth::tables::is_durable_bit_kind(kind))
+    if (!mod::set_item_collected_available() || !mth::tables::is_durable_bit_kind(kind))
         return false;
 
     // Kear (kind 8): capture the bitfield before the write so neutralization targets exactly the new bit.
@@ -187,7 +181,7 @@ bool apply_native_collected(int loc_idx)
     void *slot = neutralize ? pal::active_save_slot(g_save_manager) : nullptr;
     const std::uint64_t before = slot != nullptr ? *reinterpret_cast<std::uint64_t *>(static_cast<char *>(slot) + mth::layout::kSaveKearBitsOff) : 0;
 
-    g_set_item_collected(loc_idx, true, nullptr, nullptr);
+    mod::set_item_collected(loc_idx, true, nullptr, nullptr);
 
     if (neutralize && slot != nullptr)
         neutralize_kear_grant(loc_idx, slot, before); // kear collected-bit == usable key; cancel it (AP controls keys)
@@ -217,7 +211,7 @@ int g_native_last_checked_count = -1;
 
 void enforce_checked_native_bits()
 {
-    if (g_bridge == nullptr || g_set_item_collected == nullptr || !mth::tables::collection_resolved())
+    if (g_bridge == nullptr || !mod::set_item_collected_available() || !mth::tables::collection_resolved())
         return;
     if (g_save_manager == 0 || pal::active_save_slot(g_save_manager) == nullptr)
         return; // no active save yet (e.g. connected at the title screen); retry next tick
@@ -284,15 +278,14 @@ void repl_pickup_init(void *self, int item_type, int loc_idx, bool flag)
     }
 
     // Respawn suppression (fallback): already-checked location; tear down via QueueDestroy.
-    if ((g_queue_destroy != nullptr || mod::queue_destroy_available()) && g_bridge->is_checked(loc_idx))
+    if (mod::queue_destroy_available() && g_bridge->is_checked(loc_idx))
     {
         void *ent = *reinterpret_cast<void **>(static_cast<char *>(self) + mth::layout::kComponentEntityOff);
         void *world = ent != nullptr ? *reinterpret_cast<void **>(static_cast<char *>(ent) + mth::layout::kEntityWorldOff) : nullptr;
         if (ent != nullptr && world != nullptr)
         {
             *reinterpret_cast<unsigned *>(static_cast<char *>(self) + mth::layout::kPickupKilledFlagOff) |= 1u; // killed flag
-            if (!mod::queue_destroy_entity(world, ent, false) && g_queue_destroy != nullptr)
-                g_queue_destroy(world, ent, false);
+            mod::queue_destroy_entity(world, ent, false);
             pal::logf(pal::LogLevel::Info, "outbound: already-checked AP location locIdx=%d -> QueueDestroy", loc_idx);
         }
         return;
@@ -451,7 +444,7 @@ void on_shop_set_cursor(void *shop_menu)
     if (name_w != nullptr)
     {
         pal::shop_set_text(name_w, si->item_name.c_str());
-        pal::shop_set_color(name_w, mth::banner_color("item_id", "", si->item_flags, 0, si->is_self));
+        mod::set_text_color(name_w, mth::banner_color("item_id", "", si->item_flags, 0, si->is_self));
     }
     if (desc_w != nullptr)
         pal::shop_set_text(desc_w, mth::format_scout_desc(*si).c_str());
@@ -529,13 +522,10 @@ LocationHooks::LocationHooks(RandoBridge &bridge, ScoutRegistry *scout)
     tables::resolve();
     tables::repurpose_dummy_item();
 
-    g_queue_destroy = reinterpret_cast<void (*)(void *, void *, bool)>(pal::resolve_game_symbol(sym::queue_destroy));
-    if (g_queue_destroy == nullptr)
-        pal::logf(pal::LogLevel::Warn, "LocationHooks: ycWorld::QueueDestroy not resolved; checked AP pickups will respawn");
-
-    g_set_item_collected = reinterpret_cast<void (*)(int, bool, void *, void *)>(pal::resolve_game_symbol(sym::set_item_collected));
-    if (g_set_item_collected == nullptr || !tables::collection_resolved())
-        pal::logf(pal::LogLevel::Warn, "LocationHooks: SetItemCollected/s_rItemCollection not resolved; bitfield-kind reload suppression disabled");
+    if (!mod::queue_destroy_available())
+        pal::logf(pal::LogLevel::Warn, "LocationHooks: WorldQueueDestroyEntity unavailable; checked AP pickups will respawn");
+    if (!mod::set_item_collected_available() || !tables::collection_resolved())
+        pal::logf(pal::LogLevel::Warn, "LocationHooks: ItemsSetItemCollected/s_rItemCollection unavailable; bitfield-kind reload suppression disabled");
 
     g_save_manager = pal::resolve_game_symbol(sym::save_manager);
     if (g_save_manager == 0)

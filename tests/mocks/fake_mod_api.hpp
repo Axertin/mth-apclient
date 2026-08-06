@@ -45,6 +45,12 @@ struct ModApiRecorder
     void *player = nullptr;            // served by PlayerGetComponent; the game nulls its global in Player::~Player
     std::uint64_t bosses_defeated = 0; // served by PlayerGetBossesDefeated
     float pos[3]{};                    // served by PlayerGetPos3
+    int collected_calls = 0;           // ItemsSetItemCollected
+    int collected_index = -1;
+    bool collected_value = false;
+    int text_color_calls = 0; // TextComponentSetColor
+    void *text_color_target = nullptr;
+    std::uint8_t text_color[4]{}; // r,g,b,a as the API delivered them
 
     void fire(const char *name, void *ctx)
     {
@@ -67,6 +73,12 @@ struct ModApiRecorder
         player = nullptr;
         bosses_defeated = 0;
         pos[0] = pos[1] = pos[2] = 0.0f;
+        collected_calls = 0;
+        collected_index = -1;
+        collected_value = false;
+        text_color_calls = 0;
+        text_color_target = nullptr;
+        text_color[0] = text_color[1] = text_color[2] = text_color[3] = 0;
         fake_save_state() = FakeSaveState{};
     }
 };
@@ -91,6 +103,24 @@ inline int fake_queue_destroys = 0;
 inline void fake_queue_destroy_entity(World * /*w*/, ycEntity * /*e*/, const bool /*depth_first*/)
 {
     ++fake_queue_destroys;
+}
+
+inline void fake_set_item_collected(std::int32_t index, bool collected, ItemCollection * /*collection*/, SaveSlot * /*slot*/)
+{
+    ++recorder().collected_calls;
+    recorder().collected_index = index;
+    recorder().collected_value = collected;
+}
+
+// Records the channels as the API delivered them, so a test can pin the packed-word -> MM_Color mapping.
+inline void fake_text_set_color(ycComponent *component, MM_Color color)
+{
+    ++recorder().text_color_calls;
+    recorder().text_color_target = component;
+    recorder().text_color[0] = color.r;
+    recorder().text_color[1] = color.g;
+    recorder().text_color[2] = color.b;
+    recorder().text_color[3] = color.a;
 }
 
 inline void *fake_get_sym_addr(const char *name)
@@ -166,6 +196,8 @@ inline MinaModAPI make_fake_api()
     mm.RemoveHook = &fake_remove_hook;
     mm.GetGameRevision = &fake_get_revision;
     mm.WorldQueueDestroyEntity = &fake_queue_destroy_entity;
+    mm.ItemsSetItemCollected = &fake_set_item_collected;
+    mm.TextComponentSetColor = &fake_text_set_color;
     mm.GetSymAddr = &fake_get_sym_addr;
     mm.GetCurrentGameState = &fake_get_game_state;
     mm.PlayerGetHealth = &fake_get_health;
