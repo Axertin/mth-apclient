@@ -4,13 +4,17 @@ namespace mth::sym
 {
 
 // Mangled symbol names. Stable across recompiles; verified against the unstripped Linux binary.
+//
+// Deliberately NOT here, so nobody re-adds them: World::Update, Items::OnPickup, Items::IsItemCollected,
+// Pickup::OnPickup, ShopItem::Refresh, AreaManager::NewArea and the Chest ctor run through named mod
+// hooks; ycWorld::QueueDestroy, Items::SetItemCollected, Player::UpdateStats, PhysicsComponent::GetAABB,
+// CarryManager::GetClosestCarryableObject, WaterListener::IsInDeepWaterInternal and the ycTextComponent
+// text/color mutators are native API entries; KeyBlock::Update and KeyBlockChain::UpdateState are a sweep
+// over the world's own entity lists.
 inline constexpr const char *game_fixed_update = "_ZN4Game11FixedUpdateEv"; // Game::FixedUpdate()
-// World::Update is not symbol/sig-resolved: its pre-update hook runs through the native "WorldUpdate"
-// mod hook (game_hooks.cpp / native_mod_entry.cpp), cross-platform.
-inline constexpr const char *update_queue = "_ZN13ycUpdateQueue6UpdateEf"; // ycUpdateQueue::Update(float)
+inline constexpr const char *update_queue = "_ZN13ycUpdateQueue6UpdateEf";  // ycUpdateQueue::Update(float)
 // Items::OnPickupDone(...): resolved for its ADDRESS only (inbound AP grants call it directly); its
-// pre-hook runs through the native "ItemsOnPickupDone" mod hook. Items::OnPickup likewise moved to a
-// named hook ("ItemsOnPickup") and is no longer resolved at all.
+// pre-hook runs through the native "ItemsOnPickupDone" mod hook.
 inline constexpr const char *on_pickup_done = "_ZN5Items12OnPickupDoneEiiP6PlayerRK6ycVec3iijb";
 inline constexpr const char *process_sdl_event = "_Z15ProcessSDLEventR9SDL_Event"; // ProcessSDLEvent(SDL_Event&)
 
@@ -19,8 +23,6 @@ inline constexpr const char *process_sdl_event = "_Z15ProcessSDLEventR9SDL_Event
 inline constexpr const char *player_ctor =
     "_ZN6PlayerC2EP8ycEntityP17GameComponentDescP11PlayerSetup"; // Player::Player(ycEntity*, GameComponentDesc*, PlayerSetup*)
 inline constexpr const char *player_trackable_update = "_ZN15PlayerTrackable6UpdateEP20ycUpdateQueueContext"; // PlayerTrackable::Update(ycUpdateQueueContext*)
-// Player::UpdateStats is not resolved: the native PlayerUpdateStats acts on the game's own live player,
-// which is the only player the upgrade path ever writes through.
 
 // s_rItems: 195-entry item table (stride 0x68, kind at +0x28).
 inline constexpr const char *s_r_items = "_ZN12_GLOBAL__N_18s_rItemsE";
@@ -41,8 +43,6 @@ inline constexpr const char *pickup_init = "_ZN6Pickup4InitEiib"; // Pickup::Ini
 inline constexpr const char *shop_item_present = "_ZN8ShopMenu11ItemPresentEv"; // ShopMenu::ItemPresent()
 // Windows: ShopMenu::ItemPresent is inlined into ShopMenu::InitState; hook InitState there.
 inline constexpr const char *shop_init_state = "_ZN8ShopMenu9InitStateEv"; // ShopMenu::InitState()
-// ShopItem::Refresh's sold-out correction (issue #48) runs through the native "ShopItemRefresh" mod
-// hook, so the symbol is no longer resolved.
 // Shop::IsOutOfStock(ShopDef const*, OutInfo&): tallies a shop's remaining stock via Items::IsItemCollected
 // per slot. Hooked only to bracket a flag so the IsItemCollected override can tell the WeaponMerchant's stock
 // query apart from the weapon-swap chest (both read the same weapon locations) (#67 follow-up).
@@ -62,8 +62,6 @@ inline constexpr const char *shop_set_cursor = "_ZN8ShopMenu9SetCursorEib"; // S
 
 // s_rItemCollection: 361 x 0x50, native itemType at +0x18, maps locIdx to vanilla contents kind.
 inline constexpr const char *s_r_item_collection = "_ZN12_GLOBAL__N_117s_rItemCollectionE"; // s_rItemCollection location table
-// Items::IsItemCollected is no longer resolved by symbol/sig: its override runs through the native modding
-// hook ("IsItemCollected") in native_mod_entry.cpp, which also fires from the game's inlined copies.
 
 // Live boss-death funnels (kill-time). SetBossDefeated was reload-path only (29/34 call sites are in
 // <Boss>::InitState corpse-spawn). Most bosses route through TriggerDeathSequence (its 1-arg variant
@@ -73,9 +71,6 @@ inline constexpr const char *boss_trigger_death_sequence =
     "_ZN13BossComponent20TriggerDeathSequenceEP15BossDeathParamsj"; // BossComponent::TriggerDeathSequence(BossDeathParams*, unsigned)
 inline constexpr const char *boss_on_defeated_no_skeleton =
     "_ZN13BossComponent20OnDefeatedNoSkeletonER19BossDeathRewardInfo"; // BossComponent::OnDefeatedNoSkeleton(BossDeathRewardInfo&)
-
-// KeyBlock / KeyBlockChain / Chest have no symbol here: the per-frame detours were replaced by a sweep
-// over the world's own "KeyBlock" / "KeyBlockChain" entity lists plus the native ChestConstruct hook.
 
 // Active SaveSlot* = *(g_saveManager+0x18); lock-unlocked bits live in a u64 at SaveSlot+0x200.
 inline constexpr const char *save_manager = "g_saveManager";
@@ -114,8 +109,8 @@ inline constexpr const char *get_new_game_max_level_player =
 inline constexpr const char *level_up_menu_update = "_ZN11LevelUpMenu6UpdateEP20ycUpdateQueueContext"; // LevelUpMenu::Update(...) [Windows]
 
 // Ability gating (issues #22/#33-#37). Each is the single chokepoint where the ability commits; the
-// detours suppress it under AP gating. SetBurrowGround's swim-vs-land test is the native
-// WaterListenerIsInDeepWater, not a resolved symbol.
+// detours suppress it under AP gating. SetBurrowGround tests swim-vs-land through the
+// native water accessor.
 inline constexpr const char *player_set_burrow_ground = "_ZN6Player15SetBurrowGroundEv";
 inline constexpr const char *player_rope_climb_start = "_ZN6Player14RopeClimbStartEP13GameComponentbb";
 inline constexpr const char *bounce_plant_collide = "_ZN11BouncePlant11CollideWithER18PhysicsContactPair";
@@ -126,8 +121,7 @@ inline constexpr const char *spring_bellows_collide = "_ZN13SpringBellows11Colli
 inline constexpr const char *player_pickup_carryable = "_ZN6Player30PickUpAnyNearbyCarryableObjectEbbb";
 // #56: burrow-emerge commit. With carry disabled we suppress the emerge when a carryable is overhead so
 // Mina stays burrowed beneath it (no native "duck under a carryable" exists). The overhead check reuses
-// the game's own grab query (read-only), which the native API carries as PhysicsComponentGetAABB and
-// CarryManagerGetClosestCarryableObject, so neither is resolved here.
+// the game's own grab query, read-only, through the native AABB and carryable accessors.
 inline constexpr const char *mina_on_burrow_jump = "_ZN4Mina12OnBurrowJumpEv";
 inline constexpr const char *train_authority_on_npc_event = "_ZN14TrainAuthority10OnNPCEventEjP17InteractEventInfo";
 // PawnShopNPC::OnNPCEvent: the pawn shop ("Pawnty") interaction dispatcher. Its own class (not a

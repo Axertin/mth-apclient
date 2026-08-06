@@ -102,9 +102,6 @@ void *repl_shop_get(std::uint64_t name_hash)
 
 // Items::IsItemCollected override lives in native_mod_entry.cpp (native modding hook; cross-platform).
 
-// KeyBlock / KeyBlockChain / Chest have no detour here: locks are opened and chests unlocked from a
-// per-tick sweep over the world's own entity lists plus the native ChestConstruct hook.
-
 // ---- new-file starting-kit suppression (zero the region-18 default upgrades after SaveSlot::Clear) ----
 // SaveSlot upgrade-count fields written by SaveSlot::Clear on a fresh file (build 9b29bd0d, Linux):
 constexpr std::ptrdiff_t kSparkUpgOff = 0x54;    // Spark_Upgrade   (itemType 0x46)

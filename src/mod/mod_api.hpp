@@ -133,9 +133,8 @@ using AreaNewAreaFn = void (*)(int old_area, int new_area);
 bool install_area_new_area_hook(AreaNewAreaFn on_new_area);
 void remove_area_new_area_hook();
 
-// Chest ctor tail, carrying the real Chest*. The world exposes no "Chest" entity list, so this is the
-// only way to learn a chest exists; the kear-lock clear then rides a registry of what this reported
-// rather than a per-frame detour on Chest's update.
+// Chest ctor tail, carrying the real Chest*. The only notification that a chest exists, so the
+// kear-lock clear rides a registry of these rather than a per-frame detour.
 using ChestConstructFn = void (*)(void *chest);
 bool install_chest_construct_hook(ChestConstructFn on_construct);
 void remove_chest_construct_hook();
@@ -173,13 +172,11 @@ const char *text_of(void *text_component);
 bool water_api_available();
 bool water_is_in_deep_water(void *water_listener, bool ignore_enabled);
 
-// Read-only halves of the game's own carryable-grab query. The box crosses this boundary as six floats,
-// center.xyz then half-extent.xyz, which is the game AABB's own layout, so the header stays free of game
-// types. The two platforms passed these arguments in different orders when called directly (Linux returned
-// the AABB by value, MSVC took it as an explicit second pointer); the API normalizes both to (self, out).
-// physics_get_aabb leaves out_aabb untouched and returns false when the build's API lacks the entry;
-// closest_carryable returns null both for "nothing in range" and for an entry-less build, which is safe
-// only because its one caller treats a null as "no carryable overhead".
+// Read-only halves of the game's own carryable-grab query. The box crosses as six floats, center.xyz
+// then half-extent.xyz, matching the game's AABB so the header stays free of game types. Called
+// directly these took their arguments in a different order per platform; the API normalizes that.
+// physics_get_aabb leaves out_aabb untouched on failure. closest_carryable cannot distinguish
+// "nothing in range" from an entry-less build, which suits its one caller and no other.
 bool physics_get_aabb(void *physics_component, float out_aabb[6], bool local, unsigned shape_flags);
 void *closest_carryable(void *carry_manager, const float box[6], int collision_layer, float max_dist, int *out_overlap_count,
                         std::uint64_t collide_mask_ignore);

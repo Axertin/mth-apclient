@@ -134,10 +134,6 @@ void repl_set_cursor(void *self, int index, bool b)
 // This also catches clang-cl's inlined copies of IsItemCollected (e.g. the Pickup-ctor self-kill), which a
 // standalone-function detour could not - so the #93 have-bit box workaround is no longer platform-specific.
 
-// KeyBlock / KeyBlockChain / Chest have no detour here: locks are opened and chests unlocked from a
-// per-tick sweep over the world's own entity lists plus the native ChestConstruct hook, which also
-// retires the base = self - 0x170 fixup the ::UpdateState detours needed.
-
 // ---- new-file starting-kit suppression. MSVC's SaveSlot layout matches Linux on depot_1875582, so the
 // upgrade-field offsets are identical (verified against Windows SetItemCollected's case map). ----
 constexpr std::ptrdiff_t kSparkUpgOff = 0x54;    // Spark_Upgrade   (itemType 0x46)

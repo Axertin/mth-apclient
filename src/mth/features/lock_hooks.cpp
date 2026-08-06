@@ -154,8 +154,8 @@ void open_chain(void *base)
     *reinterpret_cast<unsigned char *>(static_cast<char *>(base) + mth::layout::kChainStatePendingOff) = 1;
 }
 
-// No room holds anywhere near this many of one entity type; a count above it means the list head is not
-// what we think it is, so walk nothing rather than read a bogus length's worth of pointers.
+// No room holds anywhere near this many of one type, so a larger count means the list is not what we
+// think it is. Walk nothing rather than read that many pointers.
 constexpr std::size_t kEntityListCap = 4096;
 bool g_list_cap_logged = false;
 

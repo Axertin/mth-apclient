@@ -21,7 +21,7 @@ std::set<int> g_logged_chest_slots; // identity log dedup (game-thread only)
 // weak pointer is the only thing that reports it. Game-thread only.
 std::vector<void *> g_chests;
 
-// A room holds a handful of chests; anything near this means the registry is not being drained, so stop
+// A room holds a handful of chests, so nearing this means the registry is not being drained. Stop
 // growing rather than leak a handle per construct.
 constexpr std::size_t kMaxTrackedChests = 512;
 bool g_overflow_logged = false;
