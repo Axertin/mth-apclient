@@ -25,7 +25,6 @@ class RoomTracker
 
   private:
     ScopedHook update_hook_;
-    ScopedHook area_hook_;
 };
 
 } // namespace mth

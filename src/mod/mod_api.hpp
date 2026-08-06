@@ -98,16 +98,46 @@ void player_restore_from_save();
 void set_save_write_enabled(bool on);
 bool save_write_enabled();
 
-// Passive probes on the named hooks the mod wants to move its detours onto. InstallHook accepts any
-// string and hands back a valid handle whether or not the game dispatches that name, so a probe
-// firing is the only way to learn that the running build actually has the hook. The probes only log;
-// every detour stays authoritative, so this is inert on a build that dispatches none of them. Check
-// the log after a build update before retiring any detour. false if the modding API is unavailable.
-bool install_hook_probes();
-void remove_hook_probes();
+// ---- Named hooks that replaced sig/symbol detours. These fire on both platforms and from every
+// inlined copy of the target, which a detour on one address cannot.
+//
+// InstallHook accepts any name and returns a valid handle whether or not the build dispatches it, so
+// a successful install proves nothing; only unfired_hooks() does.
 
-// Probe names that have not fired yet, so a detour is still required for them.
-std::vector<const char *> unfired_hook_probes();
+// Items::OnPickup. Armor upgrades (0x4f/0x50) apply their effect here rather than in OnPickupDone,
+// so they need suppressing at this level (issue #71). Return true to stop the original running.
+using ItemsOnPickupFn = bool (*)(int slot, int item_type, void *player);
+bool install_items_on_pickup_hook(ItemsOnPickupFn on_pickup);
+void remove_items_on_pickup_hook();
+
+// Items::OnPickupDone: suppresses the vanilla grant for an AP location. Suppression only; inbound
+// grants still need the function's address to call it, which a hook does not provide.
+using ItemsOnPickupDoneFn = bool (*)(int slot, int item_type, void *player);
+bool install_items_on_pickup_done_hook(ItemsOnPickupDoneFn on_done);
+void remove_items_on_pickup_done_hook();
+
+// Pickup::OnPickup. The ctx carries the real Pickup*, so unlike the detour this needs no
+// per-platform subobject fixup (MSVC passed the PickupListener base).
+using PickupOnPickupFn = void (*)(void *pickup);
+bool install_pickup_on_pickup_hook(PickupOnPickupFn on_pickup);
+void remove_pickup_on_pickup_hook();
+
+// ShopItem::Refresh: rewrites the slot's stock count so checked AP locations read as sold out.
+using ShopItemRefreshFn = void (*)(void *shop_item);
+bool install_shop_item_refresh_hook(ShopItemRefreshFn on_refresh);
+void remove_shop_item_refresh_hook();
+
+// AreaManager::NewArea: records the area index that combines with the room index into a screen id.
+using AreaNewAreaFn = void (*)(int old_area, int new_area);
+bool install_area_new_area_hook(AreaNewAreaFn on_new_area);
+void remove_area_new_area_hook();
+
+// Drops every named hook above, including IsItemCollected/WorldUpdate/WorldDestroy. The callbacks
+// live in this module, so leaving them armed past teardown faults on unload.
+void remove_all_hooks();
+
+// Installed hook names that have never fired. Empty is the healthy state after real play.
+std::vector<const char *> unfired_hooks();
 
 // Queue an entity for teardown via the native entry, preferred over the carved ycWorld::QueueDestroy
 // address: that one has gone stale across builds, and the queue-append helper sitting next to it in

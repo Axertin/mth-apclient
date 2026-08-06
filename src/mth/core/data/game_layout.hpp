@@ -121,4 +121,11 @@ inline constexpr int kProfileSelectGameState = 0x69;
 inline constexpr std::ptrdiff_t kSaveSlotArrayOff = 0x680;
 inline constexpr std::ptrdiff_t kSaveSlotStride = 0x11c8;
 
+// ShopItem / ShopItemDef. A slot is a chain of ShopItemDef variants (one per level, rising price)
+// linked via +0x28, each carrying its own cached loc_idx. Same offsets on both platforms.
+inline constexpr std::ptrdiff_t kShopItemDefOff = 0xf8;   // ShopItem -> active ShopItemDef*
+inline constexpr std::ptrdiff_t kShopItemStockOff = 0xec; // ShopItem stock count; 0 renders the "sold out" box
+inline constexpr std::ptrdiff_t kShopDefLocOff = 0x48;    // ShopItemDef cached GetCollectionIndex == loc_idx
+inline constexpr std::ptrdiff_t kShopDefNextOff = 0x28;   // ShopItemDef -> next variant (level chain), null-terminated
+
 } // namespace mth::layout

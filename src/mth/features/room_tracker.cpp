@@ -2,6 +2,7 @@
 
 #include <cstdint>
 
+#include "mod/mod_api.hpp"
 #include "mth/core/data/game_symbols.hpp"
 #include "pal/pal_game.hpp"
 #include "pal/pal_log.hpp"
@@ -30,15 +31,12 @@ void repl_room_update(void *self, void *ctx)
     }
 }
 
-void (*g_orig_new_area)(void *, int, int) = nullptr;
-
-void repl_new_area(void *self, int prev, int new_idx)
+// Start of AreaManager::NewArea. The detour ran after the original, but this only records an
+// argument, so running first is equivalent.
+void on_new_area(int /*old_area*/, int new_area)
 {
-    if (g_orig_new_area)
-        g_orig_new_area(self, prev, new_idx);
-
-    if (new_idx >= 0)
-        g_area_idx = static_cast<std::uint32_t>(new_idx);
+    if (new_area >= 0)
+        g_area_idx = static_cast<std::uint32_t>(new_area);
 }
 
 } // namespace
@@ -50,11 +48,12 @@ RoomTracker::RoomTracker()
 {
     update_hook_ = ScopedHook(sym::room_manager_update, reinterpret_cast<void *>(&repl_room_update), reinterpret_cast<void **>(&g_orig_room_update),
                               "RoomManager::Update");
-    area_hook_ = ScopedHook(sym::area_new_area, reinterpret_cast<void *>(&repl_new_area), reinterpret_cast<void **>(&g_orig_new_area), "AreaManager::NewArea");
+    mod::install_area_new_area_hook(&on_new_area);
 }
 
 RoomTracker::~RoomTracker()
 {
+    mod::remove_area_new_area_hook();
     g_room_idx = 0;
     g_have_room = false;
     g_area_idx = 0;

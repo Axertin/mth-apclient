@@ -1,5 +1,10 @@
+#include <algorithm>
+#include <cstdint>
+#include <string>
+
 #include <catch2/catch_test_macros.hpp>
 
+#include "MinaModHooks.h"
 #include "mocks/fake_mod_api.hpp"
 #include "mod/mod_api.hpp"
 #include "pal/pal_module.hpp"
@@ -15,6 +20,16 @@ bool g_world_fired = false;
 void world_cb()
 {
     g_world_fired = true;
+}
+// Address inside this binary's .text, used to build a plausible range for in_game_text().
+void fake_text_anchor()
+{
+}
+int g_pickup_seen_slot = -999;
+bool suppress_all_pickups(int slot, int /*item_type*/, void * /*player*/)
+{
+    g_pickup_seen_slot = slot;
+    return true;
 }
 bool g_destroy_fired = false;
 void destroy_cb()
@@ -298,5 +313,107 @@ TEST_CASE("mod: player_position reports the native position, false when unset", 
     REQUIRE(p[0] == 12.5f);
     REQUIRE(p[1] == -3.25f);
     REQUIRE(p[2] == 0.5f);
+    mod::set_api(nullptr);
+}
+
+TEST_CASE("mod: a named hook registers under its game-facing name", "[mod]")
+{
+    mth::test::recorder().reset();
+    mod::set_api(nullptr);
+    REQUIRE_FALSE(mod::install_items_on_pickup_hook(nullptr)); // no API: nothing armed, nothing crashes
+
+    auto fake = mth::test::make_fake_api();
+    mod::set_api(&fake);
+    REQUIRE(mod::install_items_on_pickup_hook(&suppress_all_pickups));
+    REQUIRE(mth::test::recorder().hooks.count("ItemsOnPickup") == 1);
+
+    // Installed but never dispatched: the state that means this path is dead on the running build.
+    const auto unfired = mod::unfired_hooks();
+    REQUIRE(std::find(unfired.begin(), unfired.end(), std::string("ItemsOnPickup")) != unfired.end());
+
+    mod::remove_all_hooks();
+    mod::set_api(nullptr);
+}
+
+TEST_CASE("mod: a dispatched hook reaches the callback and leaves the unfired list", "[mod]")
+{
+    mth::test::recorder().reset();
+    auto fake = mth::test::make_fake_api();
+    mod::set_api(&fake);
+    REQUIRE(mod::install_items_on_pickup_hook(&suppress_all_pickups));
+
+    g_pickup_seen_slot = -999;
+    std::int32_t slot = 42;
+    std::int32_t item_type = 7;
+    ItemsOnPickupCtx ctx{};
+    ctx.collectionIndex = &slot;
+    ctx.itemType = &item_type;
+    mth::test::recorder().hooks["ItemsOnPickup"](&ctx);
+
+    REQUIRE(g_pickup_seen_slot == 42);
+    REQUIRE(ctx.modHandled); // the callback asked to suppress the original
+
+    const auto after = mod::unfired_hooks();
+    REQUIRE(std::find(after.begin(), after.end(), std::string("ItemsOnPickup")) == after.end());
+
+    mod::remove_all_hooks();
+    mod::set_api(nullptr);
+}
+
+// The appended-entry guard: an entry added to the API struct after the running game build lies past
+// the end of that build's shorter struct, so it must be gated on the revision BEFORE it is read.
+TEST_CASE("mod: appended entries stay unavailable on a build that predates them", "[mod]")
+{
+    TextRangeGuard guard;
+    mth::test::recorder().reset();
+    auto fake = mth::test::make_fake_api();
+    mod::set_api(&fake);
+
+    // A range covering this test binary, so in_game_text() does not fall back to its fail-open answer.
+    pal::set_game_text_range(pal::TextRange{reinterpret_cast<std::uintptr_t>(&fake_text_anchor) - 0x100000, 0x200000});
+
+    mth::test::recorder().revision = 148716; // predates the appended entries
+    REQUIRE_FALSE(mod::queue_destroy_available());
+    REQUIRE(mod::sym_addr("s_rItems") == nullptr);
+
+    mod::set_api(nullptr);
+}
+
+TEST_CASE("mod: appended entries become available on a newer build", "[mod]")
+{
+    TextRangeGuard guard;
+    mth::test::recorder().reset();
+    auto fake = mth::test::make_fake_api();
+    mod::set_api(&fake);
+    pal::set_game_text_range(pal::TextRange{reinterpret_cast<std::uintptr_t>(&fake_text_anchor) - 0x100000, 0x200000});
+
+    mth::test::recorder().revision = 200000; // newer than any build lacking the entries
+    REQUIRE(mod::queue_destroy_available());
+
+    const int before = mth::test::fake_queue_destroys;
+    int world = 0;
+    int entity = 0;
+    REQUIRE(mod::queue_destroy_entity(&world, &entity, false));
+    REQUIRE(mth::test::fake_queue_destroys == before + 1);
+
+    // The mangled -> plain mapping has to reach the API for the resolver path to work at all.
+    REQUIRE(mod::sym_addr("s_rItems") != nullptr);
+    REQUIRE(mod::sym_addr("NotAnExposedName") == nullptr);
+
+    mod::set_api(nullptr);
+}
+
+TEST_CASE("mod: queue_destroy_entity refuses null world or entity", "[mod]")
+{
+    TextRangeGuard guard;
+    mth::test::recorder().reset();
+    auto fake = mth::test::make_fake_api();
+    mod::set_api(&fake);
+    pal::set_game_text_range(pal::TextRange{reinterpret_cast<std::uintptr_t>(&fake_text_anchor) - 0x100000, 0x200000});
+    mth::test::recorder().revision = 200000;
+
+    int x = 0;
+    REQUIRE_FALSE(mod::queue_destroy_entity(nullptr, &x, false));
+    REQUIRE_FALSE(mod::queue_destroy_entity(&x, nullptr, false));
     mod::set_api(nullptr);
 }

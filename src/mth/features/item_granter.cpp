@@ -5,6 +5,7 @@
 #include <mutex>
 #include <vector>
 
+#include "mod/mod_api.hpp"
 #include "mth/core/data/game_layout.hpp"
 #include "mth/core/data/game_symbols.hpp"
 #include "mth/core/data/game_tables.hpp"
@@ -23,16 +24,18 @@ mth::PlayerTracker *g_tracker = nullptr;
 std::function<bool(int)> g_is_ap_location;   // RandoBridge::is_ap_location, wired by App
 std::function<void(int)> g_report_collected; // RandoBridge::on_location_collected, wired by App
 
-// Items::OnPickupDone(int slot, int itemType, Player*, ycVec3 const&, int, int, unsigned int, bool)
-void (*g_orig_on_pickup_done)(int, int, void *, void *, int, int, unsigned int, bool) = nullptr;
-// Items::OnPickup(int slot, int itemType, Player*, ycVec3 const&, bool, int, int, unsigned int, bool)
-void (*g_orig_on_pickup)(int, int, void *, void *, bool, int, int, unsigned int, bool) = nullptr;
+// Items::OnPickupDone(int slot, int itemType, Player*, ycVec3 const&, int, int, unsigned int, bool).
+// Resolved but deliberately NOT detoured: suppression runs through the ItemsOnPickupDone named hook,
+// while an inbound AP grant has to CALL this function, and a named hook hands back no callable
+// original. Calling it re-enters our own hook with slot -1, which the suppression check passes over.
+void (*g_call_on_pickup_done)(int, int, void *, void *, int, int, unsigned int, bool) = nullptr;
 
 // Inbound-grant queue: grant() enqueues, drain() replays inside the engine's update window.
 std::mutex g_pending_mtx;
 std::vector<int> g_pending;
 
-void repl_on_pickup_done(int slot, int item_type, void *player, void *vec, int a5, int a6, unsigned int a7, bool a8)
+// Start of Items::OnPickupDone. Returns true to stop the original running.
+bool on_items_pickup_done(int slot, int item_type, void *player)
 {
     if (g_tracker != nullptr)
         g_tracker->note_player(player); // refresh the grant-target player for inbound replays
@@ -47,11 +50,9 @@ void repl_on_pickup_done(int slot, int item_type, void *player, void *vec, int a
         // dedups, so the world-pickup (dummy itemType, excluded above) and Windows-shop paths can't double-send.
         if (g_report_collected)
             g_report_collected(slot);
-        return;
+        return true;
     }
-
-    if (g_orig_on_pickup_done)
-        g_orig_on_pickup_done(slot, item_type, player, vec, a5, a6, a7, a8);
+    return false;
 }
 
 // Items::OnPickup runs before OnPickupDone and, for armor upgrades (Vitality Vest 0x4f, Damage armor 0x50),
@@ -59,7 +60,7 @@ void repl_on_pickup_done(int slot, int item_type, void *player, void *vec, int a
 // armor for an AP shop buy (issue #71). Suppress those armor types for AP locations here, at the real
 // chokepoint. Scoped to the two armor itemTypes so every other pickup flows through unchanged (OnPickupDone
 // still does the per-location suppression for them). Idempotent collect-report mirrors OnPickupDone.
-void repl_on_pickup(int slot, int item_type, void *player, void *vec, bool a5, int a6, int a7, unsigned int a8, bool a9)
+bool on_items_pickup(int slot, int item_type, void *player)
 {
     if (g_tracker != nullptr)
         g_tracker->note_player(player);
@@ -69,11 +70,9 @@ void repl_on_pickup(int slot, int item_type, void *player, void *vec, bool a5, i
         pal::logf(pal::LogLevel::Info, "outbound: suppressed vanilla armor upgrade for AP location %d (itemType=%d)", slot, item_type);
         if (g_report_collected)
             g_report_collected(slot);
-        return;
+        return true;
     }
-
-    if (g_orig_on_pickup)
-        g_orig_on_pickup(slot, item_type, player, vec, a5, a6, a7, a8, a9);
+    return false;
 }
 
 } // namespace
@@ -86,13 +85,18 @@ ItemGranter::ItemGranter(PlayerTracker &tracker, std::function<bool(int)> is_ap_
     g_tracker = &tracker;
     g_is_ap_location = std::move(is_ap_location);
     g_report_collected = std::move(report_collected);
-    pickup_done_ = ScopedHook(sym::on_pickup_done, reinterpret_cast<void *>(&repl_on_pickup_done), reinterpret_cast<void **>(&g_orig_on_pickup_done),
-                              "Items::OnPickupDone");
-    pickup_ = ScopedHook(sym::on_pickup, reinterpret_cast<void *>(&repl_on_pickup), reinterpret_cast<void **>(&g_orig_on_pickup), "Items::OnPickup");
+    g_call_on_pickup_done = reinterpret_cast<void (*)(int, int, void *, void *, int, int, unsigned int, bool)>(pal::resolve_game_symbol(sym::on_pickup_done));
+    if (g_call_on_pickup_done == nullptr)
+        pal::logf(pal::LogLevel::Warn, "ItemGranter: Items::OnPickupDone not resolved; inbound grants disabled");
+    mod::install_items_on_pickup_done_hook(&on_items_pickup_done);
+    mod::install_items_on_pickup_hook(&on_items_pickup);
 }
 
 ItemGranter::~ItemGranter()
 {
+    mod::remove_items_on_pickup_hook();
+    mod::remove_items_on_pickup_done_hook();
+    g_call_on_pickup_done = nullptr;
     std::lock_guard<std::mutex> lk(g_pending_mtx);
     g_pending.clear();
     g_tracker = nullptr;
@@ -103,7 +107,7 @@ ItemGranter::~ItemGranter()
 bool ItemGranter::grant(int item_type)
 {
     // Require hook + Player* before accepting; return false to retry next tick.
-    if (g_orig_on_pickup_done == nullptr || g_tracker == nullptr || g_tracker->player() == nullptr)
+    if (g_call_on_pickup_done == nullptr || g_tracker == nullptr || g_tracker->player() == nullptr)
         return false;
 
     // itemType 0 = engine "None" sentinel; treat as handled so the cursor advances.
@@ -130,7 +134,7 @@ void ItemGranter::drain()
     // would fault. Requeue until cached.
     float p[3];
     void *player = g_tracker != nullptr ? g_tracker->player() : nullptr;
-    const bool ready = g_orig_on_pickup_done && player != nullptr && g_tracker->position(p);
+    const bool ready = g_call_on_pickup_done && player != nullptr && g_tracker->position(p);
     if (!ready || !std::isfinite(p[0]) || !std::isfinite(p[1]) || !std::isfinite(p[2]))
     {
         std::lock_guard<std::mutex> lk(g_pending_mtx);
@@ -142,7 +146,7 @@ void ItemGranter::drain()
     for (int item_type : batch)
     {
         YcVec3 grant_pos{p[0], p[1], p[2]}; // fresh copy per item (ycVec3 const&)
-        g_orig_on_pickup_done(-1, item_type, player, &grant_pos, 0, 0, 0, false);
+        g_call_on_pickup_done(-1, item_type, player, &grant_pos, 0, 0, 0, false);
         pal::logf(pal::LogLevel::Info, "inbound: granted item_type=%d (kind=%d)", item_type, tables::storage_kind(item_type));
     }
 }
