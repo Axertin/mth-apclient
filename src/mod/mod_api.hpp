@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 
 struct MinaModAPI; // forward decl; MinaModAPI.h is included only in mod_api.cpp
 
@@ -96,6 +97,29 @@ std::string active_save_slot_contents();                            // "" on fai
 void player_restore_from_save();
 void set_save_write_enabled(bool on);
 bool save_write_enabled();
+
+// Passive probes on the named hooks the mod wants to move its detours onto. InstallHook accepts any
+// string and hands back a valid handle whether or not the game dispatches that name, so a probe
+// firing is the only way to learn that the running build actually has the hook. The probes only log;
+// every detour stays authoritative, so this is inert on a build that dispatches none of them. Check
+// the log after a build update before retiring any detour. false if the modding API is unavailable.
+bool install_hook_probes();
+void remove_hook_probes();
+
+// Probe names that have not fired yet, so a detour is still required for them.
+std::vector<const char *> unfired_hook_probes();
+
+// Queue an entity for teardown via the native entry, preferred over the carved ycWorld::QueueDestroy
+// address: that one has gone stale across builds, and the queue-append helper sitting next to it in
+// the binary is a lookalike with no idempotency guard. Returns false when the build's API lacks the
+// entry, leaving the caller to fall back to its own resolved pointer.
+bool queue_destroy_available();
+bool queue_destroy_entity(void *world, void *entity, bool depth_first);
+
+// Address of a game symbol by its plain source-level name, straight from the game. Returns null when
+// the build's API lacks the entry or does not expose that name, so callers fall back to their own
+// resolver. The result may be data rather than code: the supported names include global tables.
+void *sym_addr(const char *name);
 
 // Kill the player via the native MinaModAPI PlayerDie (deathlink apply). Offset-free and cross-platform,
 // replacing the old Player::TriggerDeath sig detour. Returns false (no-op) if the modding API or PlayerDie

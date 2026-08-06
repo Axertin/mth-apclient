@@ -284,14 +284,15 @@ void repl_pickup_init(void *self, int item_type, int loc_idx, bool flag)
     }
 
     // Respawn suppression (fallback): already-checked location; tear down via QueueDestroy.
-    if (g_queue_destroy != nullptr && g_bridge->is_checked(loc_idx))
+    if ((g_queue_destroy != nullptr || mod::queue_destroy_available()) && g_bridge->is_checked(loc_idx))
     {
         void *ent = *reinterpret_cast<void **>(static_cast<char *>(self) + mth::layout::kComponentEntityOff);
         void *world = ent != nullptr ? *reinterpret_cast<void **>(static_cast<char *>(ent) + mth::layout::kEntityWorldOff) : nullptr;
         if (ent != nullptr && world != nullptr)
         {
             *reinterpret_cast<unsigned *>(static_cast<char *>(self) + mth::layout::kPickupKilledFlagOff) |= 1u; // killed flag
-            g_queue_destroy(world, ent, false);
+            if (!mod::queue_destroy_entity(world, ent, false) && g_queue_destroy != nullptr)
+                g_queue_destroy(world, ent, false);
             pal::logf(pal::LogLevel::Info, "outbound: already-checked AP location locIdx=%d -> QueueDestroy", loc_idx);
         }
         return;
