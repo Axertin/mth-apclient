@@ -74,11 +74,13 @@ enum HookId
     kHookPickupOnPickup,
     kHookShopItemRefresh,
     kHookAreaManagerNewArea,
+    kHookChestConstruct,
     kHookCount,
 };
 
 constexpr const char *kHookNames[kHookCount] = {
-    "IsItemCollected", "WorldUpdate", "WorldDestroy", "ItemsOnPickup", "ItemsOnPickupDone", "PickupOnPickup", "ShopItemRefresh", "AreaManagerNewArea",
+    "IsItemCollected", "WorldUpdate",     "WorldDestroy",       "ItemsOnPickup",  "ItemsOnPickupDone",
+    "PickupOnPickup",  "ShopItemRefresh", "AreaManagerNewArea", "ChestConstruct",
 };
 
 std::atomic<bool> g_hook_fired[kHookCount];
@@ -189,6 +191,17 @@ void area_new_area_trampoline(void *pctx)
     if (g_area_new_area_cb == nullptr || c == nullptr || c->oldArea == nullptr || c->newArea == nullptr)
         return;
     g_area_new_area_cb(*c->oldArea, *c->newArea);
+}
+
+mod::ChestConstructFn g_chest_construct_cb = nullptr;
+
+void chest_construct_trampoline(void *pctx)
+{
+    note_fired(kHookChestConstruct);
+    auto *c = static_cast<ChestConstructCtx *>(pctx);
+    // The ctx carries the real Chest*, so no per-platform subobject fixup is needed here.
+    if (g_chest_construct_cb != nullptr && c != nullptr && c->chest != nullptr)
+        g_chest_construct_cb(static_cast<void *>(c->chest));
 }
 
 } // namespace
@@ -413,6 +426,46 @@ int player_spark()
     return spark_api_available() ? g_mod_api->PlayerGetSpark() : 0;
 }
 
+void *player_world()
+{
+    if (g_mod_api == nullptr || !usable(g_mod_api->PlayerGetWorld))
+        return nullptr;
+    return static_cast<void *>(g_mod_api->PlayerGetWorld());
+}
+
+std::size_t world_entity_list(void *world, const char *list, void **out, std::size_t cap)
+{
+    if (world == nullptr || list == nullptr || !appended_api_possible() || g_mod_api == nullptr || !usable_appended(g_mod_api->WorldGetEntityList))
+        return 0;
+    // out may be null with cap 0: that is the sizing call.
+    return g_mod_api->WorldGetEntityList(static_cast<World *>(world), list, reinterpret_cast<GameComponent **>(out), cap);
+}
+
+bool weak_ptr_api_available()
+{
+    return g_mod_api != nullptr && usable(g_mod_api->CreateWeakPtr) && usable(g_mod_api->WeakPtrGet) && usable(g_mod_api->DestroyWeakPtr);
+}
+
+void *weak_ptr_create(void *component_or_entity)
+{
+    if (component_or_entity == nullptr || !weak_ptr_api_available())
+        return nullptr;
+    return static_cast<void *>(g_mod_api->CreateWeakPtr(component_or_entity));
+}
+
+void *weak_ptr_get(void *weak)
+{
+    if (weak == nullptr || !weak_ptr_api_available())
+        return nullptr;
+    return g_mod_api->WeakPtrGet(static_cast<MM_WeakPtr *>(weak));
+}
+
+void weak_ptr_destroy(void *weak)
+{
+    if (weak != nullptr && weak_ptr_api_available())
+        g_mod_api->DestroyWeakPtr(static_cast<MM_WeakPtr *>(weak));
+}
+
 bool pause_api_available()
 {
     return g_mod_api != nullptr && usable(g_mod_api->PlayerGetWorld) && usable(g_mod_api->WorldIsPaused);
@@ -422,8 +475,8 @@ bool world_is_paused()
 {
     if (!pause_api_available())
         return false;
-    World *w = g_mod_api->PlayerGetWorld(); // null with no live player; WorldIsPaused would dereference it
-    return w != nullptr && g_mod_api->WorldIsPaused(w);
+    void *w = player_world(); // null with no live player; WorldIsPaused would dereference it
+    return w != nullptr && g_mod_api->WorldIsPaused(static_cast<World *>(w));
 }
 
 bool room_time_api_available()
@@ -545,6 +598,18 @@ bool install_area_new_area_hook(AreaNewAreaFn on_new_area)
     return true;
 }
 
+bool install_chest_construct_hook(ChestConstructFn on_construct)
+{
+    g_chest_construct_cb = on_construct;
+    if (install_named(kHookChestConstruct, &chest_construct_trampoline) == nullptr)
+    {
+        pal::logf(pal::LogLevel::Warn, "chest: InstallHook(ChestConstruct) failed; kear-lock clearing disabled");
+        g_chest_construct_cb = nullptr;
+        return false;
+    }
+    return true;
+}
+
 void remove_named(HookId id)
 {
     if (g_hook_handles[id] != nullptr && g_mod_api != nullptr && usable(g_mod_api->RemoveHook))
@@ -582,6 +647,12 @@ void remove_area_new_area_hook()
     g_area_new_area_cb = nullptr;
 }
 
+void remove_chest_construct_hook()
+{
+    remove_named(kHookChestConstruct);
+    g_chest_construct_cb = nullptr;
+}
+
 void remove_all_hooks()
 {
     g_items_on_pickup_cb = nullptr;
@@ -589,6 +660,7 @@ void remove_all_hooks()
     g_pickup_on_pickup_cb = nullptr;
     g_shop_item_refresh_cb = nullptr;
     g_area_new_area_cb = nullptr;
+    g_chest_construct_cb = nullptr;
     if (g_mod_api == nullptr || !usable(g_mod_api->RemoveHook))
         return;
     for (void *&h : g_hook_handles)

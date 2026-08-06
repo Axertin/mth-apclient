@@ -1,11 +1,13 @@
 #include "mth/features/chest_hooks.hpp"
 
+#include <cstddef>
 #include <cstdint>
 #include <set>
+#include <vector>
 
+#include "mod/mod_api.hpp"
 #include "mth/core/data/game_layout.hpp"
 #include "mth/core/data/game_tables.hpp"
-#include "pal/pal_game.hpp"
 #include "pal/pal_log.hpp"
 
 namespace
@@ -14,6 +16,15 @@ namespace
 mth::LockRegistry *g_locks = nullptr;
 
 std::set<int> g_logged_chest_slots; // identity log dedup (game-thread only)
+
+// One MM_WeakPtr* per live Chest, never a raw Chest*: a chest can be freed between two sweeps and the
+// weak pointer is the only thing that reports it. Game-thread only.
+std::vector<void *> g_chests;
+
+// A room holds a handful of chests; anything near this means the registry is not being drained, so stop
+// growing rather than leak a handle per construct.
+constexpr std::size_t kMaxTrackedChests = 512;
+bool g_overflow_logged = false;
 
 // Resolve a live locked Chest's effective s_rItemCollection slot. A chest has no cached slot; its
 // identity is the SpawnPoint name-key (Chest +0xa8 -> +0x40 -> +0xd0, fallback *(sp)+0x28), scanned
@@ -50,10 +61,10 @@ std::set<int> g_logged_chest_slots; // identity log dedup (game-thread only)
     return warp < 0 ? matched : warp;
 }
 
-// PAL per-frame callback (base = the Chest entity). Clear the locked flag for a registered slot so it
-// opens with no kear; the ctor only reads the unlock bit at spawn, so an already-spawned chest needs
-// this. seed_removed_locks handles re-entry; the clear is idempotent.
-void chest_unlock_cb(void *base)
+// Clear the locked flag for a registered slot so the chest opens with no kear; the ctor only reads the
+// unlock bit at spawn, so an already-spawned chest needs this. seed_removed_locks handles re-entry; the
+// clear is idempotent.
+void unlock_chest(void *base)
 {
     if (g_locks == nullptr)
         return;
@@ -73,6 +84,33 @@ void chest_unlock_cb(void *base)
     pal::logf(pal::LogLevel::Info, "chest: cleared kear-lock on slot=%d (registered for removal)", slot);
 }
 
+// Native ChestConstruct callback: the ctx hands back the real Chest*, so there is no per-platform
+// subobject fixup and no per-frame detour.
+void on_chest_construct(void *chest)
+{
+    void *weak = mod::weak_ptr_create(chest);
+    if (weak == nullptr)
+        return;
+    if (g_chests.size() >= kMaxTrackedChests)
+    {
+        mod::weak_ptr_destroy(weak);
+        if (!g_overflow_logged)
+        {
+            g_overflow_logged = true;
+            pal::logf(pal::LogLevel::Warn, "chest: tracking %zu chests; ignoring further ones", g_chests.size());
+        }
+        return;
+    }
+    g_chests.push_back(weak);
+}
+
+void drop_all_chests()
+{
+    for (void *weak : g_chests)
+        mod::weak_ptr_destroy(weak);
+    g_chests.clear();
+}
+
 } // namespace
 
 namespace mth
@@ -82,14 +120,41 @@ ChestHooks::ChestHooks(LockRegistry &registry)
 {
     g_locks = &registry;
     tables::resolve();
-    pal::install_chest_unlock_hook(&chest_unlock_cb); // PAL owns the per-platform hook (::Update / ::UpdateState + base fixup)
+    if (!mod::weak_ptr_api_available())
+        pal::logf(pal::LogLevel::Warn, "chest: weak pointers unavailable; kear-lock clearing disabled");
+    mod::install_chest_construct_hook(&on_chest_construct);
 }
 
 ChestHooks::~ChestHooks()
 {
-    pal::remove_chest_unlock_hook(); // stop the PAL-owned chest hook before the registry goes away
+    mod::remove_chest_construct_hook(); // stop the registration callback before the registry goes away
+    drop_all_chests();
     g_logged_chest_slots.clear();
-    g_locks = nullptr; // the callback null-checks it
+    g_overflow_logged = false;
+    g_locks = nullptr; // unlock_chest null-checks it
+}
+
+// Walk the live chests, clearing the lock on the registered ones and dropping whatever the game freed.
+void ChestHooks::sweep()
+{
+    for (std::size_t i = 0; i < g_chests.size();)
+    {
+        void *chest = mod::weak_ptr_get(g_chests[i]);
+        if (chest == nullptr)
+        {
+            mod::weak_ptr_destroy(g_chests[i]);
+            g_chests[i] = g_chests.back(); // order does not matter; swap-erase keeps the sweep O(n)
+            g_chests.pop_back();
+            continue;
+        }
+        unlock_chest(chest);
+        ++i;
+    }
+}
+
+void ChestHooks::on_world_destroy()
+{
+    drop_all_chests();
 }
 
 } // namespace mth

@@ -34,10 +34,6 @@
    "kind": "Code"
   },
   {
-   "name": "_ZN8KeyBlock6UpdateEP20ycUpdateQueueContext",
-   "kind": "Code"
-  },
-  {
    "name": "_ZN8SaveSlot5ClearEb",
    "kind": "Code"
   },
@@ -51,14 +47,6 @@
   },
   {
    "name": "_ZN12CheatManager18ActivateSaveCheatsEv",
-   "kind": "Code"
-  },
-  {
-   "name": "_ZN13KeyBlockChain11UpdateStateEv",
-   "kind": "Code"
-  },
-  {
-   "name": "_ZN5Chest11UpdateStateEv",
    "kind": "Code"
   },
   {
@@ -104,9 +92,6 @@
   "_ZN13BossComponent20OnDefeatedNoSkeletonER19BossDeathRewardInfo": {
    "rva": 5338864
   },
-  "_ZN8KeyBlock6UpdateEP20ycUpdateQueueContext": {
-   "rva": 8579632
-  },
   "_ZN8SaveSlot5ClearEb": {
    "rva": 10737824
   },
@@ -118,12 +103,6 @@
   },
   "_ZN12CheatManager18ActivateSaveCheatsEv": {
    "rva": 1526256
-  },
-  "_ZN13KeyBlockChain11UpdateStateEv": {
-   "rva": 8014000
-  },
-  "_ZN5Chest11UpdateStateEv": {
-   "rva": 7750096
   },
   "_ZN11RoomManager6UpdateEP20ycUpdateQueueContext": {
    "rva": 10853504
@@ -153,12 +132,6 @@
   },
   "_ZN8SaveSlot5ClearEb": {
    "rva": 14271120
-  },
-  "_ZN13KeyBlockChain11UpdateStateEv": {
-   "rva": 12245872
-  },
-  "_ZN5Chest11UpdateStateEv": {
-   "rva": 11926128
   },
   "_ZN11RoomManager6UpdateEP20ycUpdateQueueContext": {
    "rva": 14553168

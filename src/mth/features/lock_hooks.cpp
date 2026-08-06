@@ -1,5 +1,6 @@
 #include "mth/features/lock_hooks.hpp"
 
+#include <cstddef>
 #include <cstdint>
 #include <set>
 #include <vector>
@@ -69,16 +70,12 @@ std::set<int> g_logged_chain_slots; // identity log dedup for KeyBlockChain (gam
     return warp < 0 ? matched : warp;
 }
 
-void (*g_orig_key_block_update)(void *, void *) = nullptr;
-
 // A lock already spawned solid when its slot was removed won't self-open (the unlock bit is only
 // read at spawn). Remove the block live; seed_removed_locks has set the persistent bit so the chain
-// "all-opened" door still fires and the lock re-spawns open on room re-entry. QueueDestroy is idempotent.
-void repl_key_block_update(void *self, void *ctx)
+// "all-opened" door still fires and the lock re-spawns open on room re-entry. QueueDestroy is idempotent,
+// and it only queues, so it cannot mutate the entity list being walked.
+void open_key_block(void *self)
 {
-    if (g_orig_key_block_update)
-        g_orig_key_block_update(self, ctx);
-
     if (g_locks == nullptr)
         return;
 
@@ -134,10 +131,9 @@ void repl_key_block_update(void *self, void *ctx)
     return warp < 0 ? matched : warp;
 }
 
-// PAL per-frame callback (base = the KeyBlockChain entity, already normalized by the platform). An
-// already-spawned chain reads its unlock bit only at ctor time, so drive the state machine to the
+// An already-spawned chain reads its unlock bit only at ctor time, so drive the state machine to the
 // open/kill state for a removed slot; seed_removed_locks handles re-entry.
-void chain_open_cb(void *base)
+void open_chain(void *base)
 {
     if (g_locks == nullptr)
         return;
@@ -158,6 +154,39 @@ void chain_open_cb(void *base)
     *reinterpret_cast<unsigned char *>(static_cast<char *>(base) + mth::layout::kChainStatePendingOff) = 1;
 }
 
+// No room holds anywhere near this many of one entity type; a count above it means the list head is not
+// what we think it is, so walk nothing rather than read a bogus length's worth of pointers.
+constexpr std::size_t kEntityListCap = 4096;
+bool g_list_cap_logged = false;
+
+// Enumerate one of the world's per-type entity lists. The entries are the components themselves, i.e. the
+// same pointer the old ::Update detour received as `this`.
+void for_each_entity(void *world, const char *list, void (*fn)(void *))
+{
+    const std::size_t count = mod::world_entity_list(world, list, nullptr, 0);
+    if (count == 0)
+        return;
+    if (count > kEntityListCap)
+    {
+        if (!g_list_cap_logged)
+        {
+            g_list_cap_logged = true;
+            pal::logf(pal::LogLevel::Warn, "locks: \"%s\" reported %zu entities; refusing to walk it", list, count);
+        }
+        return;
+    }
+
+    static std::vector<void *> buf; // game-thread only; keeps its capacity between ticks
+    buf.assign(count, nullptr);
+    // The fill call re-counts, so take the smaller of the two: a spawn between the calls must not
+    // make us read past what was actually written.
+    const std::size_t got = mod::world_entity_list(world, list, buf.data(), buf.size());
+    const std::size_t n = got < count ? got : count;
+    for (std::size_t i = 0; i < n; ++i)
+        if (buf[i] != nullptr)
+            fn(buf[i]);
+}
+
 } // namespace
 
 namespace mth
@@ -173,25 +202,31 @@ LockHooks::LockHooks()
         pal::logf(pal::LogLevel::Warn, "LockHooks: g_saveManager not resolved; lock removal disabled");
     if (!mod::queue_destroy_available())
         pal::logf(pal::LogLevel::Warn, "LockHooks: WorldQueueDestroyEntity unavailable; live lock removal disabled");
-
-    key_block_update_ = ScopedHook(sym::key_block_update, reinterpret_cast<void *>(&repl_key_block_update), reinterpret_cast<void **>(&g_orig_key_block_update),
-                                   "KeyBlock::Update");
-    pal::install_chain_open_hook(&chain_open_cb); // PAL owns the per-platform hook (::Update / ::UpdateState + base fixup)
 }
 
 LockHooks::~LockHooks()
 {
-    pal::remove_chain_open_hook(); // stop the PAL-owned chain hook before the registry goes away
     g_logged_lock_slots.clear();
     g_logged_chain_slots.clear();
-    // g_locks nulled before the key_block_update_ ScopedHook removes its detour; the repl null-checks it.
-    g_locks = nullptr;
+    g_locks = nullptr; // both sweep handlers null-check it
     g_seed_logged = false;
+    g_list_cap_logged = false;
 }
 
 LockRegistry &LockHooks::locks()
 {
     return locks_;
+}
+
+// Open every already-spawned lock whose slot is registered for removal. Walks the world's own per-type
+// entity lists instead of detouring each class's update, so it covers both platforms with no signature.
+void LockHooks::sweep_locks()
+{
+    void *world = mod::player_world();
+    if (world == nullptr)
+        return; // no live player, so no room to open anything in
+    for_each_entity(world, "KeyBlock", &open_key_block);
+    for_each_entity(world, "KeyBlockChain", &open_chain);
 }
 
 // Set the native unlock bit for every removed lock so the KeyBlock ctor gate spawns it open.

@@ -1,10 +1,12 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 #include "MinaModAPI.h"
 
@@ -72,6 +74,17 @@ struct ModApiRecorder
     void *closest_result = nullptr; // the carryable the fake reports, null for "nothing in range"
     int update_stats_calls = 0;     // PlayerUpdateStats
 
+    // WorldGetEntityList: the entries the fake serves per list name, and what it was asked for.
+    std::unordered_map<std::string, std::vector<void *>> entity_lists;
+    std::string entity_list_asked;
+    int entity_list_calls = 0;
+
+    // CreateWeakPtr/WeakPtrGet/DestroyWeakPtr. A handle is an index into `weak_targets`; a null entry
+    // means the game freed the target, which is the case the chest registry has to survive.
+    std::vector<void *> weak_targets;
+    int weak_creates = 0;
+    int weak_destroys = 0;
+
     void fire(const char *name, void *ctx)
     {
         auto it = hooks.find(name);
@@ -125,6 +138,12 @@ struct ModApiRecorder
         closest_mask = 0;
         closest_result = nullptr;
         update_stats_calls = 0;
+        entity_lists.clear();
+        entity_list_asked.clear();
+        entity_list_calls = 0;
+        weak_targets.clear();
+        weak_creates = 0;
+        weak_destroys = 0;
         fake_save_state() = FakeSaveState{};
     }
 };
@@ -231,6 +250,41 @@ inline void fake_player_update_stats()
     ++recorder().update_stats_calls;
 }
 
+// Mirrors the real contract: the total count comes back even when the buffer is too small, and a
+// null/0 buffer is the sizing call.
+inline std::size_t fake_world_entity_list(World * /*world*/, const char *list, GameComponent **out, std::size_t cap)
+{
+    ++recorder().entity_list_calls;
+    recorder().entity_list_asked = (list != nullptr) ? list : "";
+    auto it = recorder().entity_lists.find(recorder().entity_list_asked);
+    if (it == recorder().entity_lists.end())
+        return 0;
+    const std::vector<void *> &src = it->second;
+    for (std::size_t i = 0; i < src.size() && i < cap; ++i)
+        out[i] = static_cast<GameComponent *>(src[i]);
+    return src.size();
+}
+
+// A handle is (index + 1) so it is never null; get() serves whatever the slot currently holds, which a
+// test clears to model the game freeing the target.
+inline MM_WeakPtr *fake_create_weak_ptr(void *target)
+{
+    ++recorder().weak_creates;
+    recorder().weak_targets.push_back(target);
+    return reinterpret_cast<MM_WeakPtr *>(recorder().weak_targets.size());
+}
+inline void *fake_weak_ptr_get(MM_WeakPtr *weak)
+{
+    const std::size_t idx = reinterpret_cast<std::uintptr_t>(weak);
+    if (idx == 0 || idx > recorder().weak_targets.size())
+        return nullptr;
+    return recorder().weak_targets[idx - 1];
+}
+inline void fake_destroy_weak_ptr(MM_WeakPtr * /*weak*/)
+{
+    ++recorder().weak_destroys;
+}
+
 inline void *fake_get_sym_addr(const char *name)
 {
     // Only the two data symbols, enough to prove the mapping reaches the API.
@@ -312,6 +366,10 @@ inline MinaModAPI make_fake_api()
     mm.PhysicsComponentGetAABB = &fake_physics_get_aabb;
     mm.CarryManagerGetClosestCarryableObject = &fake_closest_carryable;
     mm.PlayerUpdateStats = &fake_player_update_stats;
+    mm.WorldGetEntityList = &fake_world_entity_list;
+    mm.CreateWeakPtr = &fake_create_weak_ptr;
+    mm.WeakPtrGet = &fake_weak_ptr_get;
+    mm.DestroyWeakPtr = &fake_destroy_weak_ptr;
     mm.GetSymAddr = &fake_get_sym_addr;
     mm.GetCurrentGameState = &fake_get_game_state;
     mm.PlayerGetHealth = &fake_get_health;

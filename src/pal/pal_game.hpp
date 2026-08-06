@@ -53,16 +53,6 @@ void shop_enumerate_locs(void *shop_menu, void (*sink)(int loc, void *ctx), void
 [[nodiscard]] void *shop_desc_widget(void *shop_menu);
 void shop_set_text(void *widget, const char *utf8);
 
-// Per-frame "open a removed lock" hooks for KeyBlockChain / locked Chest. The platform owns the hook
-// target and the this->base normalization: Linux hooks ::Update (self == entity base); Windows hooks
-// ::UpdateState (self == the StateMachine sub-object, so base = self - 0x170) because the game's MSVC
-// linker ICF-folds the per-class ::Update wrappers. on_frame runs each frame with the entity base.
-using EntityFrameFn = void (*)(void *base);
-bool install_chain_open_hook(EntityFrameFn on_frame);
-void remove_chain_open_hook();
-bool install_chest_unlock_hook(EntityFrameFn on_frame);
-void remove_chest_unlock_hook();
-
 // ---- Modifier ("cheat") control. All offset/symbol/game-call divergence lives in the PAL impl. ----
 
 // True once every modifier symbol (ActivateSaveSlot, ActivateSaveCheats, ToggleCheat,

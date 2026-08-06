@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -132,6 +133,13 @@ using AreaNewAreaFn = void (*)(int old_area, int new_area);
 bool install_area_new_area_hook(AreaNewAreaFn on_new_area);
 void remove_area_new_area_hook();
 
+// Chest ctor tail, carrying the real Chest*. The world exposes no "Chest" entity list, so this is the
+// only way to learn a chest exists; the kear-lock clear then rides a registry of what this reported
+// rather than a per-frame detour on Chest's update.
+using ChestConstructFn = void (*)(void *chest);
+bool install_chest_construct_hook(ChestConstructFn on_construct);
+void remove_chest_construct_hook();
+
 // Drops every named hook above. The callbacks live in this module, so one left armed past teardown
 // faults on unload.
 void remove_all_hooks();
@@ -209,6 +217,25 @@ float player_health();
 // false when the build's API lacks the getter, and player_spark() returns 0 then.
 bool spark_api_available();
 int player_spark();
+
+// The world the live player is in; null when there is no player yet. The game resolves it from its own
+// live-Player global, so this needs no cached pointer and can never go stale.
+void *player_world();
+
+// One of the world's per-type entity lists, named by the game's own type name ("KeyBlock",
+// "KeyBlockChain", ...); the entries are the components themselves, the same pointer a member-function
+// detour would receive as `this`. Returns the TOTAL count even when the buffer is too small, so a
+// null/0 call sizes the buffer; 0 when the build's API lacks the entry. There is no "Chest" list.
+std::size_t world_entity_list(void *world, const char *list, void **out, std::size_t cap);
+
+// Weak references to a live component or entity: the game clears them when the target dies, so a mod-side
+// registry can outlive a room without holding a raw pointer that a teardown turns into a use-after-free.
+// create() returns null when the API is unavailable, get() returns null once the target is gone, and every
+// non-null handle must be destroyed.
+bool weak_ptr_api_available();
+void *weak_ptr_create(void *component_or_entity);
+void *weak_ptr_get(void *weak);
+void weak_ptr_destroy(void *weak);
 
 // True while the live world is paused, which is any menu that pauses gameplay. World::Update then runs only
 // the pause queue, so nothing the game has already queued can progress. false when there is no live world or

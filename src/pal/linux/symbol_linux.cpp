@@ -35,7 +35,8 @@ namespace
 // See pal_module.hpp. Kept next to the resolver so a platform's list cannot drift
 // away from the platform that consumes it.
 constexpr const char *kPlatformSymbols[] = {
-    mth::sym::chest_update,      mth::sym::get_new_game_max_level_player, mth::sym::key_block_chain_update, mth::sym::level_up_menu_update_state,
+    mth::sym::get_new_game_max_level_player,
+    mth::sym::level_up_menu_update_state,
     mth::sym::shop_item_present,
 };
 } // namespace
