@@ -647,6 +647,33 @@ bool set_text_color(void *text_component, std::uint32_t rgba)
     return true;
 }
 
+bool set_text(void *text_component, const char *utf8)
+{
+    if (text_component == nullptr || utf8 == nullptr || !appended_api_possible() || g_mod_api == nullptr || !usable_appended(g_mod_api->TextComponentSetText))
+        return false;
+    g_mod_api->TextComponentSetText(static_cast<ycComponent *>(text_component), utf8);
+    return true;
+}
+
+const char *text_of(void *text_component)
+{
+    if (text_component == nullptr || !appended_api_possible() || g_mod_api == nullptr || !usable_appended(g_mod_api->TextComponentGetText))
+        return nullptr;
+    return g_mod_api->TextComponentGetText(static_cast<ycComponent *>(text_component));
+}
+
+bool water_api_available()
+{
+    return appended_api_possible() && g_mod_api != nullptr && usable_appended(g_mod_api->WaterListenerIsInDeepWater);
+}
+
+bool water_is_in_deep_water(void *water_listener, bool ignore_enabled)
+{
+    if (water_listener == nullptr || !water_api_available())
+        return false;
+    return g_mod_api->WaterListenerIsInDeepWater(static_cast<WaterListener *>(water_listener), ignore_enabled);
+}
+
 void *sym_addr(const char *name)
 {
     if (!appended_api_possible() || g_mod_api == nullptr || name == nullptr || !usable_appended(g_mod_api->GetSymAddr))

@@ -58,12 +58,11 @@ inline constexpr const char *shop_is_out_of_stock = "_ZN4Shop12IsOutOfStockEPK7S
 inline constexpr const char *shop_get = "_ZN4Shop3GetEm"; // Shop::Get(unsigned long)
 
 // ShopMenu::SetCursor(int index, bool): fires on box selection change; hooked to rewrite the selected
-// item's name+description widgets from scouted AP data. SetText/SetColor are the generic text-widget
-// mutators it drives (ycTextRenderObject/ycTextComponent), not shop-specific.
-inline constexpr const char *shop_set_cursor = "_ZN8ShopMenu9SetCursorEib";           // ShopMenu::SetCursor(int,bool)
-inline constexpr const char *text_set_text = "_ZN18ycTextRenderObject7SetTextEPKcij"; // ycTextRenderObject::SetText(char const*,int,uint)
-// ycWorld::QueueDestroy, Items::SetItemCollected and ycTextComponent::SetColor are no longer resolved:
-// the native API carries WorldQueueDestroyEntity, ItemsSetItemCollected and TextComponentSetColor.
+// item's name+description widgets from scouted AP data.
+inline constexpr const char *shop_set_cursor = "_ZN8ShopMenu9SetCursorEib"; // ShopMenu::SetCursor(int,bool)
+// ycWorld::QueueDestroy, Items::SetItemCollected and the ycTextComponent text/color mutators are no
+// longer resolved: the native API carries WorldQueueDestroyEntity, ItemsSetItemCollected,
+// TextComponentSetText/GetText and TextComponentSetColor.
 
 // s_rItemCollection: 361 x 0x50, native itemType at +0x18, maps locIdx to vanilla contents kind.
 inline constexpr const char *s_r_item_collection = "_ZN12_GLOBAL__N_117s_rItemCollectionE"; // s_rItemCollection location table
@@ -126,9 +125,9 @@ inline constexpr const char *get_new_game_max_level_player =
 inline constexpr const char *level_up_menu_update = "_ZN11LevelUpMenu6UpdateEP20ycUpdateQueueContext"; // LevelUpMenu::Update(...) [Windows]
 
 // Ability gating (issues #22/#33-#37). Each is the single chokepoint where the ability commits; the
-// detours suppress it under AP gating. SetBurrowGround classifies swim-vs-land via IsInDeepWaterInternal.
+// detours suppress it under AP gating. SetBurrowGround's swim-vs-land test is the native
+// WaterListenerIsInDeepWater, not a resolved symbol.
 inline constexpr const char *player_set_burrow_ground = "_ZN6Player15SetBurrowGroundEv";
-inline constexpr const char *water_is_in_deep_water = "_ZN13WaterListener21IsInDeepWaterInternalEb";
 inline constexpr const char *player_rope_climb_start = "_ZN6Player14RopeClimbStartEP13GameComponentbb";
 inline constexpr const char *bounce_plant_collide = "_ZN11BouncePlant11CollideWithER18PhysicsContactPair";
 // Floating puffs bounce inline in CollideWith; ground/burrow-underable puffs launch out-of-line here

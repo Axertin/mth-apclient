@@ -9,6 +9,7 @@
 #include <string>
 #include <utility>
 
+#include "mod/mod_api.hpp"
 #include "mth/core/ap/ap_ids.hpp"
 #include "mth/core/data/game_layout.hpp"
 #include "mth/core/data/game_symbols.hpp"
@@ -59,7 +60,6 @@ void *(*g_orig_shop_get)(std::uint64_t name_hash) = nullptr; // Shop::Get(uint64
 pal::ShopTextFn g_shop_text_cb = nullptr;
 pal::HookId g_shop_text_hook = pal::kInvalidHookId;
 void (*g_orig_set_cursor)(void *, int, bool) = nullptr;
-void (*g_text_set_text)(void *textobj, const char *s, int len, unsigned int flags) = nullptr; // ycTextRenderObject::SetText
 
 // ShopMenu instance fields (box list + selection); distinct from the InitState frame offsets above.
 constexpr std::ptrdiff_t kShopNameWidgetOff = 0x148;
@@ -68,7 +68,6 @@ constexpr std::ptrdiff_t kShopBoxArrayOff = 0x1c8;
 constexpr std::ptrdiff_t kShopBoxCountOff = 0x1d0;
 constexpr std::ptrdiff_t kShopCursorOff = 0x1d8;
 constexpr std::ptrdiff_t kShopBoxItemTypeOff = 0xcc; // ShopItem -> itemType (box's item kind)
-constexpr std::ptrdiff_t kTextObjOff = 0x40;         // text widget -> ycTextRenderObject
 constexpr int kShopSkipItemType = 0x65;
 constexpr int kMaxShopBoxes = 64; // real shops hold well under this; a larger count means these are not box fields
 
@@ -382,7 +381,6 @@ pal::HookId g_id_train = pal::kInvalidHookId;
 pal::HookId g_id_burrow_jump = pal::kInvalidHookId; // #56
 
 unsigned long (*g_orig_burrow_ground)(void *) = nullptr;
-char (*g_water_is_deep)(void *, bool) = nullptr; // WaterListener::IsInDeepWaterInternal(wl, false)
 void (*g_orig_rope_climb)(void *, void *, bool, bool) = nullptr;
 void (*g_orig_bounce_plant)(void *, void *) = nullptr;
 void (*g_orig_bounce_launch)(void *, void *) = nullptr;
@@ -403,10 +401,10 @@ bool ability_blocked(int ordinal)
 // boundary poll so both see exactly the same signal.
 bool player_in_deep_water(void *player)
 {
-    if (player == nullptr || g_water_is_deep == nullptr)
+    if (player == nullptr)
         return false;
     void *wl = *reinterpret_cast<void **>(static_cast<char *>(player) + kPlayerWaterListenerOff);
-    return wl != nullptr && g_water_is_deep(wl, false) != 0;
+    return mod::water_is_in_deep_water(wl, false);
 }
 
 // Free-roam burrow classify-and-commit: deep water => Swim, else Burrow. Scripted/underlab
@@ -677,9 +675,6 @@ void (*g_orig_title_update)(void *) = nullptr;
 // leave a stale string behind. Empty means "restore the cached original" (never an English literal).
 std::string g_title_start_text;
 std::mutex g_title_start_text_mutex;
-// ycTextRenderObject::SetText(this, text, len, flags); resolved separately from the shop feature's
-// copy of the same symbol so this hook stays independently install/removable.
-void (*g_orig_set_text)(void *, const char *, int, unsigned int) = nullptr;
 
 // First sight of the option holds the localized "Start Game"; cache it so restoring the label
 // after a reconnect does not force English.
@@ -689,26 +684,21 @@ bool g_title_start_original_warned = false;
 // own substitution" apart from "the game changed the string for a real reason" (e.g. language change).
 std::string g_title_start_last_substituted;
 
-// ycTextRenderObject's live string-buffer pointer (see ycTextRenderObject::SetText, which writes a
-// fresh allocation here and NUL-terminates it every call); reading it back is safe once non-null.
-constexpr std::ptrdiff_t kTitleTextBufferOff = 0x108;
-
 // Re-applies the desired Start Game text (or the cached original once connected), but only when the
 // option's current text does not already match, so this cannot fight a live language change: a
 // language switch while connected replaces the widget text with a new localized string that equals
 // neither our cache nor our own substitution, and is therefore left alone.
 void apply_title_start_text(void *self)
 {
-    if (self == nullptr || g_orig_set_text == nullptr)
+    if (self == nullptr)
         return;
 
     void *block = *reinterpret_cast<void **>(static_cast<char *>(self) + mth::layout::kTitleOptionBlockOff);
     if (!pal::pointer_looks_valid(block))
         return;
     void *widget = static_cast<char *>(block) + mth::layout::kTitleOptionStartGame * mth::layout::kTitleOptionStride;
-    void *textobj = static_cast<char *>(widget) + kTextObjOff;
 
-    const char *cur = *reinterpret_cast<const char *const *>(static_cast<char *>(textobj) + kTitleTextBufferOff);
+    const char *cur = mod::text_of(widget);
     const bool cur_valid = pal::pointer_looks_valid(cur);
     const std::string current = cur_valid ? std::string(cur) : std::string();
 
@@ -731,15 +721,12 @@ void apply_title_start_text(void *self)
 
     if (!want.empty())
     {
-        if (current != want)
-        {
-            g_orig_set_text(textobj, want.c_str(), 0, 0);
+        if (current != want && mod::set_text(widget, want.c_str()))
             g_title_start_last_substituted = want;
-        }
     }
     else if (!g_title_start_original.empty() && current != g_title_start_original && current == g_title_start_last_substituted)
     {
-        g_orig_set_text(textobj, g_title_start_original.c_str(), 0, 0);
+        mod::set_text(widget, g_title_start_original.c_str());
     }
 }
 
@@ -955,12 +942,6 @@ bool install_title_gate_hook(TitleGateFn connected)
         return false;
     }
     logf(LogLevel::Info, "title: hooked TitleScreen::UpdateState (id=%llu)", static_cast<unsigned long long>(g_title_gate_hook));
-
-    const std::uintptr_t text_addr = resolve_game_symbol(mth::sym::text_set_text);
-    if (text_addr == 0)
-        logf(LogLevel::Warn, "title: ycTextRenderObject::SetText not resolved; Start Game label substitution off");
-    else
-        g_orig_set_text = reinterpret_cast<void (*)(void *, const char *, int, unsigned int)>(text_addr);
     return true;
 }
 
@@ -970,7 +951,6 @@ void remove_title_gate_hook()
         hook_engine().remove_hook(g_title_gate_hook);
     g_title_gate_hook = kInvalidHookId;
     g_title_gate_fn = nullptr;
-    g_orig_set_text = nullptr;
 }
 
 void set_title_start_option_text(const char *text)
@@ -1096,20 +1076,15 @@ void *shop_desc_widget(void *shop_menu)
 
 void shop_set_text(void *widget, const char *utf8)
 {
-    if (widget == nullptr || utf8 == nullptr || g_text_set_text == nullptr)
-        return;
-    g_text_set_text(static_cast<char *>(widget) + kTextObjOff, utf8, 0, 0);
+    mod::set_text(widget, utf8);
 }
 
 bool install_shop_text_hook(ShopTextFn on_set_cursor)
 {
     const std::uintptr_t addr = resolve_game_symbol(mth::sym::shop_set_cursor);
-    g_text_set_text = reinterpret_cast<void (*)(void *, const char *, int, unsigned int)>(resolve_game_symbol(mth::sym::text_set_text));
-    if (addr == 0 || g_text_set_text == nullptr)
+    if (addr == 0)
     {
-        logf(LogLevel::Warn, "shop: SetCursor/SetText not resolved (cursor=0x%llx text=%d); shop text override disabled", static_cast<unsigned long long>(addr),
-             static_cast<int>(g_text_set_text != nullptr));
-        g_text_set_text = nullptr;
+        logf(LogLevel::Warn, "shop: ShopMenu::SetCursor not resolved; shop text override disabled");
         return false;
     }
     g_shop_text_cb = on_set_cursor;
@@ -1119,7 +1094,6 @@ bool install_shop_text_hook(ShopTextFn on_set_cursor)
     {
         logf(LogLevel::Error, "shop: failed to hook ShopMenu::SetCursor");
         g_shop_text_cb = nullptr;
-        g_text_set_text = nullptr;
         return false;
     }
     logf(LogLevel::Info, "shop: hooked ShopMenu::SetCursor for text override (id=%llu)", static_cast<unsigned long long>(g_shop_text_hook));
@@ -1133,7 +1107,6 @@ void remove_shop_text_hook()
     g_shop_text_hook = kInvalidHookId;
     g_shop_text_cb = nullptr;
     g_orig_set_cursor = nullptr;
-    g_text_set_text = nullptr;
 }
 
 // install_item_collected_hook / remove_item_collected_hook live in mod/mod_api.cpp.
@@ -1503,7 +1476,6 @@ bool abilities_available()
         return g_ab_ok;
     g_ab_resolved = true;
     g_addr_burrow_ground = resolve_game_symbol(mth::sym::player_set_burrow_ground);
-    g_water_is_deep = reinterpret_cast<char (*)(void *, bool)>(resolve_game_symbol(mth::sym::water_is_in_deep_water));
     g_addr_rope_climb = resolve_game_symbol(mth::sym::player_rope_climb_start);
     g_addr_bounce_plant = resolve_game_symbol(mth::sym::bounce_plant_collide);
     g_addr_bounce_launch = resolve_game_symbol(mth::sym::bounce_plant_launch);
@@ -1535,8 +1507,8 @@ bool install_ability_hooks(AbilityBlockFn block)
     }
     else
         logf(LogLevel::Warn, "abilities: Player::SetBurrowGround not resolved; burrow/swim gating disabled");
-    if (g_water_is_deep == nullptr)
-        logf(LogLevel::Warn, "abilities: IsInDeepWaterInternal not resolved; swim-vs-land treated as land");
+    if (!mod::water_api_available())
+        logf(LogLevel::Warn, "abilities: WaterListenerIsInDeepWater unavailable; swim-vs-land treated as land");
 
     if (g_addr_rope_climb != 0)
     {
@@ -1640,12 +1612,12 @@ void set_burrow_observers(BurrowCommitFn on_commit, BurrowEmergeFn on_emerge)
 
 int burrow_water_state(void *player)
 {
-    if (player == nullptr || g_water_is_deep == nullptr)
+    if (player == nullptr || !mod::water_api_available())
         return -1;
     void *wl = *reinterpret_cast<void **>(static_cast<char *>(player) + kPlayerWaterListenerOff);
     if (wl == nullptr)
         return -1;
-    return g_water_is_deep(wl, false) != 0 ? 1 : 0;
+    return mod::water_is_in_deep_water(wl, false) ? 1 : 0;
 }
 
 bool player_is_burrowing(void *player)

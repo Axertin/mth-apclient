@@ -57,12 +57,10 @@ constexpr const char *kRequiredCommonSymbols[] = {
     sym::shop_is_out_of_stock,
     sym::shop_set_cursor,
     sym::spring_bellows_collide,
-    sym::text_set_text,
     sym::title_screen_start_game,
     sym::title_screen_update_state,
     sym::toggle_cheat,
     sym::train_authority_on_npc_event,
-    sym::water_is_in_deep_water,
 };
 
 // Informational only: refusing on an unfamiliar build would brick the mod on every game patch,

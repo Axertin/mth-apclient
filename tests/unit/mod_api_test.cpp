@@ -385,6 +385,16 @@ TEST_CASE("mod: appended entries stay unavailable on a build that predates them"
     REQUIRE_FALSE(mod::set_text_color(&widget, 0xC0806040u));
     REQUIRE(mth::test::recorder().text_color_calls == 0);
 
+    REQUIRE_FALSE(mod::set_text(&widget, "Golden Kear"));
+    REQUIRE(mod::text_of(&widget) == nullptr);
+    REQUIRE(mth::test::recorder().text_set_calls == 0);
+
+    int listener = 0;
+    mth::test::recorder().in_deep_water = true;
+    REQUIRE_FALSE(mod::water_api_available());
+    REQUIRE_FALSE(mod::water_is_in_deep_water(&listener, false));
+    REQUIRE(mth::test::recorder().water_calls == 0);
+
     mod::set_api(nullptr);
 }
 
@@ -425,6 +435,25 @@ TEST_CASE("mod: appended entries become available on a newer build", "[mod]")
     REQUIRE(mth::test::recorder().text_color[1] == 0x60); // g
     REQUIRE(mth::test::recorder().text_color[2] == 0x80); // b
     REQUIRE(mth::test::recorder().text_color[3] == 0xC0); // a
+
+    // The widget pointer goes to the API unadjusted: it already IS the ycTextComponent.
+    REQUIRE(mod::set_text(&widget, "Golden Kear"));
+    REQUIRE(mth::test::recorder().text_set_calls == 1);
+    REQUIRE(mth::test::recorder().text_set_target == &widget);
+    const char *read_back = mod::text_of(&widget);
+    REQUIRE(read_back != nullptr);
+    REQUIRE(std::string(read_back) == "Golden Kear");
+
+    int listener = 0;
+    mth::test::recorder().in_deep_water = true;
+    REQUIRE(mod::water_api_available());
+    REQUIRE(mod::water_is_in_deep_water(&listener, false));
+    REQUIRE(mth::test::recorder().water_calls == 1);
+    REQUIRE(mth::test::recorder().water_target == &listener);
+    REQUIRE_FALSE(mth::test::recorder().water_ignore_enabled);
+    mth::test::recorder().in_deep_water = false;
+    REQUIRE_FALSE(mod::water_is_in_deep_water(&listener, true));
+    REQUIRE(mth::test::recorder().water_ignore_enabled);
 
     mod::set_api(nullptr);
 }

@@ -51,6 +51,13 @@ struct ModApiRecorder
     int text_color_calls = 0; // TextComponentSetColor
     void *text_color_target = nullptr;
     std::uint8_t text_color[4]{}; // r,g,b,a as the API delivered them
+    int text_set_calls = 0;       // TextComponentSetText
+    void *text_set_target = nullptr;
+    std::string text_value; // the widget's live string, served back by TextComponentGetText
+    int water_calls = 0;    // WaterListenerIsInDeepWater
+    void *water_target = nullptr;
+    bool water_ignore_enabled = false;
+    bool in_deep_water = false; // the answer the fake serves
 
     void fire(const char *name, void *ctx)
     {
@@ -79,6 +86,13 @@ struct ModApiRecorder
         text_color_calls = 0;
         text_color_target = nullptr;
         text_color[0] = text_color[1] = text_color[2] = text_color[3] = 0;
+        text_set_calls = 0;
+        text_set_target = nullptr;
+        text_value.clear();
+        water_calls = 0;
+        water_target = nullptr;
+        water_ignore_enabled = false;
+        in_deep_water = false;
         fake_save_state() = FakeSaveState{};
     }
 };
@@ -121,6 +135,26 @@ inline void fake_text_set_color(ycComponent *component, MM_Color color)
     recorder().text_color[1] = color.g;
     recorder().text_color[2] = color.b;
     recorder().text_color[3] = color.a;
+}
+
+// SetText stores the widget's string and GetText serves it back, so a test can round-trip one widget.
+inline void fake_text_set_text(ycComponent *component, const char *const text)
+{
+    ++recorder().text_set_calls;
+    recorder().text_set_target = component;
+    recorder().text_value = (text != nullptr) ? text : "";
+}
+inline const char *fake_text_get_text(ycComponent * /*component*/)
+{
+    return recorder().text_value.c_str();
+}
+
+inline bool fake_water_is_in_deep_water(WaterListener *listener, bool ignore_enabled)
+{
+    ++recorder().water_calls;
+    recorder().water_target = listener;
+    recorder().water_ignore_enabled = ignore_enabled;
+    return recorder().in_deep_water;
 }
 
 inline void *fake_get_sym_addr(const char *name)
@@ -198,6 +232,9 @@ inline MinaModAPI make_fake_api()
     mm.WorldQueueDestroyEntity = &fake_queue_destroy_entity;
     mm.ItemsSetItemCollected = &fake_set_item_collected;
     mm.TextComponentSetColor = &fake_text_set_color;
+    mm.TextComponentSetText = &fake_text_set_text;
+    mm.TextComponentGetText = &fake_text_get_text;
+    mm.WaterListenerIsInDeepWater = &fake_water_is_in_deep_water;
     mm.GetSymAddr = &fake_get_sym_addr;
     mm.GetCurrentGameState = &fake_get_game_state;
     mm.PlayerGetHealth = &fake_get_health;

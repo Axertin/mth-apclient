@@ -153,6 +153,18 @@ bool set_item_collected(int index, bool collected, void *collection, void *slot)
 bool text_color_available();
 bool set_text_color(void *text_component, std::uint32_t rgba);
 
+// Text-widget contents. The widget pointer the menus hand us IS the ycTextComponent, so these take it
+// as-is; the old direct calls had to walk to the nested ycTextRenderObject first. text_of() returns
+// null when the string is unreadable, which callers must treat as "no original to restore".
+bool set_text(void *text_component, const char *utf8);
+const char *text_of(void *text_component);
+
+// Swim-vs-land discriminator off a player's WaterListener. ignore_enabled skips the listener's own
+// enable flag. available() is false when the build's API lacks the getter, which callers need to tell
+// apart from a genuine "not in deep water".
+bool water_api_available();
+bool water_is_in_deep_water(void *water_listener, bool ignore_enabled);
+
 // Address of a game symbol by its plain source-level name. Null when the API does not expose that
 // name, which leaves the caller on its own resolver. May return data rather than code.
 void *sym_addr(const char *name);
