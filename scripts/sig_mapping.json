@@ -60,6 +60,10 @@
   {
    "name": "_ZN17ProfileSelectMenu11UpdateStateEv",
    "kind": "Code"
+  },
+  {
+   "name": "_ZN6Player8OnBounceEv",
+   "kind": "Code"
   }
  ],
  "windows": {
@@ -108,6 +112,9 @@
   },
   "_ZN17ProfileSelectMenu11UpdateStateEv": {
    "rva": 7536176
+  },
+  "_ZN6Player8OnBounceEv": {
+   "rva": 10575808
   }
  },
  "linux": {
@@ -125,6 +132,9 @@
   },
   "_ZN11RoomManager6UpdateEP20ycUpdateQueueContext": {
    "rva": 14553168
+  },
+  "_ZN6Player8OnBounceEv": {
+   "rva": 14149168
   }
  }
 }

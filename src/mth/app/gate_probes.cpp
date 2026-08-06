@@ -37,6 +37,7 @@ constexpr const char *kRequiredCommonSymbols[] = {
     sym::pawn_shop_on_npc_event,
     sym::pickup_init,
     sym::player_ctor,
+    sym::player_on_bounce,
     sym::player_pickup_carryable,
     sym::player_rope_climb_start,
     sym::player_set_burrow_ground,
