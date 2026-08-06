@@ -3,7 +3,6 @@
 #include <functional>
 
 #include "mth/core/item_granter_interface.hpp"
-#include "mth/hooks/scoped_hook.hpp"
 
 namespace mth
 {
@@ -29,10 +28,6 @@ class ItemGranter final : public IItemGranter
 
     bool grant(int item_type) override;
     void drain();
-
-  private:
-    ScopedHook pickup_done_;
-    ScopedHook pickup_; // Items::OnPickup: suppress armor upgrades (0x4f/0x50) that grant before OnPickupDone (#71)
 };
 
 } // namespace mth

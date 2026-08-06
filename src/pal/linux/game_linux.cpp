@@ -49,14 +49,6 @@ void repl_item_present(void *self)
 
 // ShopItem / ShopItemDef instance offsets (platform-independent class layout; not the InitState frame
 // offsets above). Verified identical on the Windows build.
-constexpr std::ptrdiff_t kShopItemDefOff = 0xf8;   // ShopItem -> active ShopItemDef*
-constexpr std::ptrdiff_t kShopItemStockOff = 0xec; // ShopItem stock count; 0 renders the "sold out" box
-constexpr std::ptrdiff_t kShopDefLocOff = 0x48;    // ShopItemDef cached GetCollectionIndex == loc_idx
-constexpr std::ptrdiff_t kShopDefNextOff = 0x28;   // ShopItemDef -> next variant (level chain), null-terminated
-
-pal::ShopLevelFn g_shop_stock_cb = nullptr;
-pal::HookId g_shop_stock_hook = pal::kInvalidHookId;
-void (*g_orig_shop_refresh)(void *) = nullptr;
 
 pal::ShopFlattenFn g_shop_flatten_cb = nullptr;
 pal::HookId g_shop_flatten_hook = pal::kInvalidHookId;
@@ -95,43 +87,6 @@ void repl_set_cursor(void *self, int index, bool b)
         g_orig_set_cursor(self, index, b);
     if (g_shop_text_cb != nullptr && self != nullptr)
         g_shop_text_cb(self);
-}
-
-// A shop slot is a chain of ShopItemDef variants (one per level; rising price), linked via +0x28, each
-// with its own loc_idx at +0x48. ShopMenu::SetupBoxes already advances the active variant (ShopItem+0xf8)
-// past bought levels (gated on ShopItemDef+0x4d) before it calls Refresh, so we must NOT advance it again:
-// re-advancing double-counts and skips a level per buy (#94). We only correct the stock count the suppressed
-// grant no longer maintains - set ShopItem+0xec to the number of unchecked AP levels, and 0 (sold out) once
-// every level is checked. A slot with no AP-location levels (normal items, consumables) is left untouched.
-void repl_shop_refresh(void *self)
-{
-    void *def = self != nullptr ? *reinterpret_cast<void **>(static_cast<char *>(self) + kShopItemDefOff) : nullptr;
-    if (g_shop_stock_cb != nullptr && def != nullptr)
-    {
-        void *first_unbought = nullptr;
-        int remaining = 0; // AP levels not yet checked
-        bool any_ap = false;
-        for (void *v = def; v != nullptr; v = *reinterpret_cast<void **>(static_cast<char *>(v) + kShopDefNextOff))
-        {
-            const int loc_idx = *reinterpret_cast<int *>(static_cast<char *>(v) + kShopDefLocOff);
-            const int state = loc_idx >= 0 ? g_shop_stock_cb(loc_idx) : 0; // 0 not-AP, 1 unchecked, 2 checked
-            if (state != 0)
-                any_ap = true;
-            if (state != 2) // not a bought level
-            {
-                if (first_unbought == nullptr)
-                    first_unbought = v;
-                if (state == 1)
-                    ++remaining;
-            }
-        }
-        if (first_unbought == nullptr)
-            *reinterpret_cast<int *>(static_cast<char *>(self) + kShopItemStockOff) = 0; // all levels bought -> sold out
-        else if (any_ap)
-            *reinterpret_cast<int *>(static_cast<char *>(self) + kShopItemStockOff) = remaining; // remaining unchecked levels
-    }
-    if (g_orig_shop_refresh)
-        g_orig_shop_refresh(self);
 }
 
 // Shop::Get(nameHash) is the accessor InteractComponent::OpenShop consults before building a shop's
@@ -885,11 +840,6 @@ bool current_room_index(void *room_manager, std::uint32_t *out)
     return true;
 }
 
-void *pickup_base_from_onpickup(void *onpickup_this)
-{
-    return onpickup_this; // Itanium routes the secondary-base adjust through a separate _ZThn thunk
-}
-
 void *active_save_slot(std::uintptr_t save_manager_global)
 {
     if (save_manager_global == 0)
@@ -1060,37 +1010,6 @@ void remove_start_game_suppress_hook()
     g_start_game_suppress_fn = nullptr;
 }
 
-bool install_shop_stock_hook(ShopLevelFn level_state)
-{
-    g_shop_stock_cb = level_state;
-    const std::uintptr_t addr = resolve_game_symbol(mth::sym::shop_item_refresh);
-    if (addr == 0)
-    {
-        logf(LogLevel::Warn, "shop: ShopItem::Refresh not resolved; sold-out persistence disabled");
-        g_shop_stock_cb = nullptr;
-        return false;
-    }
-    g_shop_stock_hook = hook_engine().install_hook(reinterpret_cast<void *>(addr), reinterpret_cast<void *>(&repl_shop_refresh),
-                                                   reinterpret_cast<void **>(&g_orig_shop_refresh));
-    if (g_shop_stock_hook == kInvalidHookId)
-    {
-        logf(LogLevel::Error, "shop: failed to hook ShopItem::Refresh");
-        g_shop_stock_cb = nullptr;
-        return false;
-    }
-    logf(LogLevel::Info, "shop: hooked ShopItem::Refresh (id=%llu)", static_cast<unsigned long long>(g_shop_stock_hook));
-    return true;
-}
-
-void remove_shop_stock_hook()
-{
-    if (g_shop_stock_hook != kInvalidHookId)
-        hook_engine().remove_hook(g_shop_stock_hook);
-    g_shop_stock_hook = kInvalidHookId;
-    g_shop_stock_cb = nullptr;
-    g_orig_shop_refresh = nullptr;
-}
-
 bool install_shop_flatten_hook(ShopFlattenFn active)
 {
     g_shop_flatten_cb = active;
@@ -1137,13 +1056,13 @@ int shop_selected_loc(void *shop_menu)
     const int item_type = *reinterpret_cast<int *>(static_cast<char *>(box) + kShopBoxItemTypeOff);
     if (item_type == kShopSkipItemType)
         return -1;
-    // Sold-out box: stock count 0 (same field repl_shop_refresh zeroes for a fully-bought slot).
-    if (*reinterpret_cast<int *>(static_cast<char *>(box) + kShopItemStockOff) == 0)
+    // Sold-out box: stock count 0 (same field the ShopItem::Refresh hook zeroes for a fully-bought slot).
+    if (*reinterpret_cast<int *>(static_cast<char *>(box) + mth::layout::kShopItemStockOff) == 0)
         return -1;
-    void *def = *reinterpret_cast<void **>(static_cast<char *>(box) + kShopItemDefOff);
+    void *def = *reinterpret_cast<void **>(static_cast<char *>(box) + mth::layout::kShopItemDefOff);
     if (!pal::pointer_looks_valid(def))
         return -1;
-    return *reinterpret_cast<int *>(static_cast<char *>(def) + kShopDefLocOff);
+    return *reinterpret_cast<int *>(static_cast<char *>(def) + mth::layout::kShopDefLocOff);
 }
 
 void shop_enumerate_locs(void *shop_menu, void (*sink)(int loc, void *ctx), void *ctx)
@@ -1159,10 +1078,10 @@ void shop_enumerate_locs(void *shop_menu, void (*sink)(int loc, void *ctx), void
         void *box = boxes[i];
         if (!pal::pointer_looks_valid(box))
             continue;
-        void *def = *reinterpret_cast<void **>(static_cast<char *>(box) + kShopItemDefOff);
+        void *def = *reinterpret_cast<void **>(static_cast<char *>(box) + mth::layout::kShopItemDefOff);
         if (!pal::pointer_looks_valid(def))
             continue;
-        sink(*reinterpret_cast<int *>(static_cast<char *>(def) + kShopDefLocOff), ctx);
+        sink(*reinterpret_cast<int *>(static_cast<char *>(def) + mth::layout::kShopDefLocOff), ctx);
     }
 }
 

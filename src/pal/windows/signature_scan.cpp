@@ -18,6 +18,20 @@ namespace pal
 // each result itself, on both platforms, so a success line here would duplicate it 1:1. The
 // failure classification below is NOT duplicated: the gate only reports that a symbol is missing,
 // not whether it was a miss, an ambiguous pattern, or an out-of-range DataRef.
+// Signature-table resolution alone, no cache and no GetSymAddr, for cross-checking one source
+// against the other. Returns 0 when the name has no entry, the entry is not `want`, or it misses.
+static std::uintptr_t scan_only(const char *mangled_name, mth::sig::Kind want)
+{
+    const TextRange tr = game_text_range();
+    const std::span<const std::uint8_t> text{reinterpret_cast<const std::uint8_t *>(tr.base), tr.size};
+    if (text.empty())
+        return 0;
+    for (const mth::sig::Entry &e : sig_table())
+        if (e.kind == want && std::strcmp(e.name, mangled_name) == 0)
+            return mth::sig::resolve(text, reinterpret_cast<std::uintptr_t>(text.data()), e);
+    return 0;
+}
+
 std::uintptr_t scan_resolve(const char *mangled_name)
 {
     if (!mangled_name)
@@ -29,15 +43,23 @@ std::uintptr_t scan_resolve(const char *mangled_name)
     if (auto it = cache.find(mangled_name); it != cache.end())
         return it->second;
 
-    // Ask the game first for the names it exposes. That address is authoritative and cannot drift,
-    // so it beats a carved signature; a build without the entry returns null and falls through to
-    // the scan below, which keeps working on its own.
+    // Ask the game first for the names it exposes: that address cannot drift, so it beats a carve.
+    // The source is logged because it is the first thing worth knowing when a game update misbehaves.
     if (const char *plain = mth::sym::native_sym_name(mangled_name); plain != nullptr)
     {
-        if (void *addr = mod::sym_addr(plain); addr != nullptr)
+        if (void *p = mod::sym_addr(plain); p != nullptr)
         {
-            cache[mangled_name] = reinterpret_cast<std::uintptr_t>(addr);
-            return reinterpret_cast<std::uintptr_t>(addr);
+            const std::uintptr_t addr = reinterpret_cast<std::uintptr_t>(p);
+            // DataRef entries are the ones the mod WRITES through (tables::repurpose_dummy_item
+            // make_writable's s_rItems and stores into it), so a wrong base here is not a failed
+            // hook, it is stores into arbitrary game memory. Cross-check those against the carve.
+            if (const std::uintptr_t scanned = scan_only(mangled_name, mth::sig::Kind::DataRef); scanned != 0 && scanned != addr)
+                logf(LogLevel::Error, "sig: %s DISAGREEMENT GetSymAddr=0x%llx scan=0x%llx; using GetSymAddr (check gate item_table_shape_ok)", mangled_name,
+                     static_cast<unsigned long long>(addr), static_cast<unsigned long long>(scanned));
+            else
+                logf(LogLevel::Info, "sig: %s via GetSymAddr -> 0x%llx", mangled_name, static_cast<unsigned long long>(addr));
+            cache[mangled_name] = addr;
+            return addr;
         }
     }
 

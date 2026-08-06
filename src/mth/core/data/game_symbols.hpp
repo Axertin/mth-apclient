@@ -8,12 +8,11 @@ inline constexpr const char *game_fixed_update = "_ZN4Game11FixedUpdateEv"; // G
 inline constexpr const char *game_update = "_ZN4Game6UpdateEf";             // Game::Update(float)
 // World::Update is not symbol/sig-resolved: its pre-update hook runs through the native "WorldUpdate"
 // mod hook (game_hooks.cpp / native_mod_entry.cpp), cross-platform.
-inline constexpr const char *update_queue = "_ZN13ycUpdateQueue6UpdateEf";                       // ycUpdateQueue::Update(float)
-inline constexpr const char *on_pickup_done = "_ZN5Items12OnPickupDoneEiiP6PlayerRK6ycVec3iijb"; // Items::OnPickupDone(...)
-// Items::OnPickup(int slot, int itemType, Player*, ycVec3 const&, bool, int, int, unsigned int, bool): the
-// grant wrapper that runs BEFORE (and conditionally tail-calls) OnPickupDone. Hooked because armor upgrades
-// (0x4f/0x50) apply their effect here directly, bypassing the OnPickupDone suppression (issue #71).
-inline constexpr const char *on_pickup = "_ZN5Items8OnPickupEiiP6PlayerRK6ycVec3biijb";
+inline constexpr const char *update_queue = "_ZN13ycUpdateQueue6UpdateEf"; // ycUpdateQueue::Update(float)
+// Items::OnPickupDone(...): resolved for its ADDRESS only (inbound AP grants call it directly); its
+// pre-hook runs through the native "ItemsOnPickupDone" mod hook. Items::OnPickup likewise moved to a
+// named hook ("ItemsOnPickup") and is no longer resolved at all.
+inline constexpr const char *on_pickup_done = "_ZN5Items12OnPickupDoneEiiP6PlayerRK6ycVec3iijb";
 inline constexpr const char *process_sdl_event = "_Z15ProcessSDLEventR9SDL_Event"; // ProcessSDLEvent(SDL_Event&)
 
 // Inbound grant plumbing: Player* via ctor, trackable via Update each frame (position comes from
@@ -34,24 +33,20 @@ inline constexpr const char *s_r_items = "_ZN12_GLOBAL__N_18s_rItemsE";
 // the live current-room index is read off it (Linux +0x1b4 / Windows +0x1bc) by pal::current_room_index.
 inline constexpr const char *room_manager_update = "_ZN11RoomManager6UpdateEP20ycUpdateQueueContext";
 
-// AreaManager::NewArea(int prevIdx, int newIdx): fires on area change. newIdx is the dense area index
-// (0..197); captured to qualify the per-area room index into a globally-unique screen id.
-inline constexpr const char *area_new_area = "_ZN11AreaManager7NewAreaEii";
+// The area index that qualifies the room index into a globally-unique screen id comes from the native
+// "AreaManagerNewArea" mod hook; AreaManager::NewArea is no longer symbol-resolved.
 
-inline constexpr const char *pickup_init = "_ZN6Pickup4InitEiib";                        // Pickup::Init(int itemType, int locIdx, bool)
-inline constexpr const char *pickup_on_pickup = "_ZN6Pickup8OnPickupEP14PickupListener"; // Pickup::OnPickup(PickupListener*)
+inline constexpr const char *pickup_init = "_ZN6Pickup4InitEiib"; // Pickup::Init(int itemType, int locIdx, bool)
+// Pickup::OnPickup's collect detection runs through the native "PickupOnPickup" mod hook, so it is not
+// symbol-resolved either.
 
 // ShopMenu::ItemPresent(): shop-buy grant funnel; calls Items::OnPickup directly (no Pickup entity).
 // Menu stashes locIdx at ShopMenu+0x218 and itemType at +0x21c before this fires.
 inline constexpr const char *shop_item_present = "_ZN8ShopMenu11ItemPresentEv"; // ShopMenu::ItemPresent()
 // Windows: ShopMenu::ItemPresent is inlined into ShopMenu::InitState; hook InitState there.
 inline constexpr const char *shop_init_state = "_ZN8ShopMenu9InitStateEv"; // ShopMenu::InitState()
-// ShopItem::Refresh(): rebuilds one shop slot's visuals; a slot renders "sold out" when its stock
-// count (ShopItem+0xec) is 0. Hooked to force AP-checked slots sold-out, since the suppressed vanilla
-// grant no longer zeroes that count when an AP shop item is bought (issue #48). The slot's loc_idx is
-// the cached GetCollectionIndex result at (ShopItem+0xf8 def) +0x48 - the same value ShopMenu+0x218
-// (the buy-path loc_idx) is copied from, so no GetCollectionIndex call is needed.
-inline constexpr const char *shop_item_refresh = "_ZN8ShopItem7RefreshEv"; // ShopItem::Refresh()
+// ShopItem::Refresh's sold-out correction (issue #48) runs through the native "ShopItemRefresh" mod
+// hook, so the symbol is no longer resolved.
 // Shop::IsOutOfStock(ShopDef const*, OutInfo&): tallies a shop's remaining stock via Items::IsItemCollected
 // per slot. Hooked only to bracket a flag so the IsItemCollected override can tell the WeaponMerchant's stock
 // query apart from the weapon-swap chest (both read the same weapon locations) (#67 follow-up).

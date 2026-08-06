@@ -17,10 +17,6 @@ using NewfileKitSuppressFn = std::function<bool()>;
 bool install_newfile_kit_suppressor(NewfileKitSuppressFn should_suppress);
 void remove_newfile_kit_suppressor();
 
-// Pickup* base from the `this` passed to a Pickup::OnPickup hook.
-// MSVC: that `this` is the PickupListener MI subobject, not the Pickup base.
-void *pickup_base_from_onpickup(void *onpickup_this);
-
 // Active SaveSlot* from the resolved g_saveManager global. Linux derefs +0x18; on Windows the
 // global already holds the SaveSlot* directly. Returns nullptr if the global is 0.
 void *active_save_slot(std::uintptr_t save_manager_global);
@@ -35,16 +31,6 @@ using ShopBuyFn = int (*)(int loc_idx, int item_type);
 // commit detection; on a committed buy it invokes on_buy. Returns false if not installed.
 bool install_shop_purchase_hook(ShopBuyFn on_buy);
 void remove_shop_purchase_hook();
-
-// Per-level shop sold-out / level-advance override. The vanilla grant that advances a slot and drops
-// its stock is suppressed for AP shop slots, so without this the shop refills every reopen (issue #48)
-// and tiered slots (same slot, rising price per level) never advance. The platform owns the hook
-// (ShopItem::Refresh) and walks the slot's level chain; level_state(loc_idx) classifies each level's
-// AP location: 0 = not an AP location, 1 = AP location not yet checked, 2 = AP location already
-// checked. Returns false if not installed.
-using ShopLevelFn = int (*)(int loc_idx);
-bool install_shop_stock_hook(ShopLevelFn level_state);
-void remove_shop_stock_hook();
 
 // Shop flattening: while active, OR the game's never-stack bit onto each ShopDef before OpenShop
 // builds its box list, so stacked slots show one buyable box per level. `active` is polled per

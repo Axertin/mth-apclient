@@ -306,7 +306,7 @@ void repl_pickup_init(void *self, int item_type, int loc_idx, bool flag)
     if (g_bridge->is_ap_location(loc_idx) && mth::tables::is_item_keyed_collected_kind(mth::tables::native_location_kind(loc_idx)))
         *reinterpret_cast<unsigned char *>(static_cast<char *>(self) + mth::layout::kPickupSaveTrackedFlagOff) = 0;
 
-    // The dummy-itemType redirect is deferred to repl_pickup_on_pickup, not done here: the Pickup ctor's
+    // The dummy-itemType redirect is deferred to the PickupOnPickup hook, not done here: the Pickup ctor's
     // surprise-spawn emerge block runs AFTER Init and reads s_rItems[storedType].kind to decide whether to
     // detach the revealed pickup from the dying wall (SpawnPoint::DisownParent); the dummy's kind 0 misses
     // that branch, so a hidden-room kear stays attached and invisible until a room reload (#86). Init builds
@@ -317,29 +317,22 @@ void repl_pickup_init(void *self, int item_type, int loc_idx, bool flag)
         pal::logf(pal::LogLevel::Debug, "Pickup::Init locIdx=%d itemType=%d -> vanilla (not an AP location)", loc_idx, item_type);
 }
 
-void (*g_orig_pickup_on_pickup)(void *, void *) = nullptr;
-
-void repl_pickup_on_pickup(void *self, void *listener)
+// Start of Pickup::OnPickup. The hook ctx carries the real Pickup*, so this needs none of the
+// per-platform subobject recovery the detour did (MSVC passed the PickupListener base). The original
+// always runs afterward; it re-reads the itemType field live, so rewriting it here is what makes
+// OnPickupDone see the dummy.
+void on_pickup_collected(void *pickup)
 {
-    // `self` may be an MI subobject, not the Pickup base; recover the base for the loc_idx
-    // read. The trampoline still gets the original `self`.
-    void *pickup = pal::pickup_base_from_onpickup(self);
-
-    if (g_pickup_offsets_ok && g_bridge != nullptr)
-    {
-        const int loc_idx = pickup_loc_idx(pickup);
-        pal::logf(pal::LogLevel::Debug, "Pickup::OnPickup locIdx=%d", loc_idx);
-        if (g_bridge->is_ap_location(loc_idx))
-        {
-            pal::logf(pal::LogLevel::Info, "outbound: collected AP location locIdx=%d", loc_idx);
-            collect_ap_location(loc_idx);
-            // No-op the vanilla grant: deferred from Pickup::Init (see #86). The vanilla OnPickup below re-reads
-            // this field live, so OnPickupDone still receives the dummy (kind 0 -> no grant).
-            pickup_item_type(pickup) = mth::layout::kApDummyItemType;
-        }
-    }
-    if (g_orig_pickup_on_pickup)
-        g_orig_pickup_on_pickup(self, listener);
+    if (!g_pickup_offsets_ok || g_bridge == nullptr)
+        return;
+    const int loc_idx = pickup_loc_idx(pickup);
+    pal::logf(pal::LogLevel::Debug, "Pickup::OnPickup locIdx=%d", loc_idx);
+    if (!g_bridge->is_ap_location(loc_idx))
+        return;
+    pal::logf(pal::LogLevel::Info, "outbound: collected AP location locIdx=%d", loc_idx);
+    collect_ap_location(loc_idx);
+    // No-op the vanilla grant: deferred from Pickup::Init (see #86). Kind 0 means no grant.
+    pickup_item_type(pickup) = mth::layout::kApDummyItemType;
 }
 
 // Shared shop-purchase AP logic; the PAL owns the per-platform hook + field reads and calls this.
@@ -367,16 +360,51 @@ int on_shop_buy(int loc_idx, int item_type)
     return item_type;
 }
 
-// ShopItem::Refresh level classifier: the PAL walks a slot's level chain and asks, per level loc_idx,
-// whether it's an AP location and whether it's been checked. We suppress the vanilla grant for AP buys
-// (the grant is what normally advances the slot / zeroes its stock), so the platform replays it from AP
-// state instead - advancing tiered slots past bought levels and selling out only when all are checked
-// (issue #48). 0 = not an AP location, 1 = AP location not yet checked, 2 = AP location checked.
+// ShopItem::Refresh level classifier. 0 = not an AP location, 1 = AP location not yet checked,
+// 2 = AP location checked.
 int on_shop_stock(int loc_idx)
 {
     if (g_bridge == nullptr || !g_bridge->is_ap_location(loc_idx))
         return 0;
     return g_bridge->is_checked(loc_idx) ? 2 : 1;
+}
+
+// ShopItem::Refresh. We suppress the vanilla grant for AP buys, and that grant is what normally
+// advances the slot and zeroes its stock, so replay it from AP state instead: advance tiered slots
+// past bought levels and sell out only when every level is checked (issue #48).
+//
+// ShopMenu::SetupBoxes already advanced the active variant (ShopItem+0xf8) past bought levels before
+// calling Refresh, so do NOT advance it again: re-advancing double-counts and skips a level per buy
+// (#94). Only the stock count is corrected. A slot with no AP-location levels is left untouched.
+void on_shop_item_refresh(void *shop_item)
+{
+    void *def = *reinterpret_cast<void **>(static_cast<char *>(shop_item) + mth::layout::kShopItemDefOff);
+    if (def == nullptr)
+        return;
+
+    void *first_unbought = nullptr;
+    int remaining = 0; // AP levels not yet checked
+    bool any_ap = false;
+    for (void *v = def; v != nullptr; v = *reinterpret_cast<void **>(static_cast<char *>(v) + mth::layout::kShopDefNextOff))
+    {
+        const int loc_idx = *reinterpret_cast<int *>(static_cast<char *>(v) + mth::layout::kShopDefLocOff);
+        const int state = loc_idx >= 0 ? on_shop_stock(loc_idx) : 0;
+        if (state != 0)
+            any_ap = true;
+        if (state != 2) // not a bought level
+        {
+            if (first_unbought == nullptr)
+                first_unbought = v;
+            if (state == 1)
+                ++remaining;
+        }
+    }
+
+    auto *stock = reinterpret_cast<int *>(static_cast<char *>(shop_item) + mth::layout::kShopItemStockOff);
+    if (first_unbought == nullptr)
+        *stock = 0; // all levels bought -> sold out
+    else if (any_ap)
+        *stock = remaining;
 }
 
 // Shop flattening is active while the AP bridge is attached (LocationHooks lifetime == connected
@@ -514,15 +542,14 @@ LocationHooks::LocationHooks(RandoBridge &bridge, ScoutRegistry *scout)
         pal::logf(pal::LogLevel::Warn, "LocationHooks: g_saveManager not resolved; kear_rando key-grant neutralization disabled");
 
     pickup_init_ = ScopedHook(sym::pickup_init, reinterpret_cast<void *>(&repl_pickup_init), reinterpret_cast<void **>(&g_orig_pickup_init), "Pickup::Init");
-    pickup_on_pickup_ = ScopedHook(sym::pickup_on_pickup, reinterpret_cast<void *>(&repl_pickup_on_pickup), reinterpret_cast<void **>(&g_orig_pickup_on_pickup),
-                                   "Pickup::OnPickup");
     shop_oos_ = ScopedHook(sym::shop_is_out_of_stock, reinterpret_cast<void *>(&repl_shop_is_out_of_stock), reinterpret_cast<void **>(&g_orig_shop_oos),
                            "Shop::IsOutOfStock");
     pal::install_shop_purchase_hook(&on_shop_buy);
-    pal::install_shop_stock_hook(&on_shop_stock);
     pal::install_shop_flatten_hook(&on_shop_flatten);
     pal::install_shop_text_hook(&on_shop_set_cursor);
     mod::install_item_collected_hook(&on_item_collected_query);
+    mod::install_pickup_on_pickup_hook(&on_pickup_collected);
+    mod::install_shop_item_refresh_hook(&on_shop_item_refresh);
 }
 
 void LocationHooks::set_kear_gating(bool neutralize, bool suppress)
@@ -559,9 +586,10 @@ void LocationHooks::reset_native_bits()
 LocationHooks::~LocationHooks()
 {
     mod::remove_item_collected_hook();
+    mod::remove_pickup_on_pickup_hook();
+    mod::remove_shop_item_refresh_hook();
     pal::remove_shop_text_hook();
     pal::remove_shop_flatten_hook();
-    pal::remove_shop_stock_hook();
     pal::remove_shop_purchase_hook();
     // g_bridge/g_scout nulled before the ScopedHook members remove the detours; the repls null-check them.
     g_bridge = nullptr;

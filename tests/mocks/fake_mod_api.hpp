@@ -87,6 +87,20 @@ inline void *fake_install_hook(const char *name, std::int32_t /*priority*/, MM_H
 inline void fake_remove_hook(void * /*handle*/)
 {
 }
+inline int fake_queue_destroys = 0;
+inline void fake_queue_destroy_entity(World * /*w*/, ycEntity * /*e*/, const bool /*depth_first*/)
+{
+    ++fake_queue_destroys;
+}
+
+inline void *fake_get_sym_addr(const char *name)
+{
+    // Only the two data symbols, enough to prove the mapping reaches the API.
+    if (std::strcmp(name, "s_rItems") == 0)
+        return reinterpret_cast<void *>(static_cast<std::uintptr_t>(0x1000));
+    return nullptr;
+}
+
 inline std::uint32_t fake_get_revision()
 {
     return recorder().revision;
@@ -151,6 +165,8 @@ inline MinaModAPI make_fake_api()
     mm.InstallHook = &fake_install_hook;
     mm.RemoveHook = &fake_remove_hook;
     mm.GetGameRevision = &fake_get_revision;
+    mm.WorldQueueDestroyEntity = &fake_queue_destroy_entity;
+    mm.GetSymAddr = &fake_get_sym_addr;
     mm.GetCurrentGameState = &fake_get_game_state;
     mm.PlayerGetHealth = &fake_get_health;
     mm.PlayerGetSpark = &fake_get_spark;
