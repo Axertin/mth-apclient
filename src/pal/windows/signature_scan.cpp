@@ -7,17 +7,86 @@
 
 #include "mod/mod_api.hpp"
 #include "mth/core/data/native_sym_names.hpp"
+#include "mth/core/hook_hash.hpp"
 #include "mth/core/sig_scan.hpp"
 #include "pal/pal_log.hpp"
 #include "pal/pal_module.hpp"
 
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+
 namespace pal
 {
 
-// Only failures are logged here. The AP gate resolves every required symbol at startup and logs
-// each result itself, on both platforms, so a success line here would duplicate it 1:1. The
-// failure classification below is NOT duplicated: the gate only reports that a symbol is missing,
-// not whether it was a miss, an ambiguous pattern, or an out-of-range DataRef.
+// The AP gate logs every required symbol's result itself, so the plain signature path stays quiet on
+// success to avoid duplicating it 1:1. What the gate cannot report is logged here: which source
+// produced an address when it was not the signature table, and how a signature failed (miss,
+// ambiguous pattern, or out-of-range DataRef).
+std::uintptr_t resolve_by_hook_anchor(std::uint64_t hook_hash)
+{
+    const TextRange tr = game_text_range();
+    if (tr.size < sizeof(hook_hash))
+        return 0;
+    const auto *text = reinterpret_cast<const std::uint8_t *>(tr.base);
+
+    // The immediate must be unique. Several hooks have multiple dispatch sites, either from repeated
+    // calls or from the compiler inlining the target, and those cannot anchor anything.
+    std::uintptr_t anchor = 0;
+    std::uint8_t want[sizeof(hook_hash)];
+    std::memcpy(want, &hook_hash, sizeof(want));
+    // memchr on the first byte rather than a memcmp per offset: .text is ~13MB and this runs at init.
+    const std::uint8_t *cur = text;
+    const std::uint8_t *end = text + tr.size;
+    while (cur + sizeof(want) <= end)
+    {
+        const auto *hit = static_cast<const std::uint8_t *>(std::memchr(cur, want[0], static_cast<std::size_t>(end - cur) - sizeof(want) + 1));
+        if (hit == nullptr)
+            break;
+        if (std::memcmp(hit, want, sizeof(want)) == 0)
+        {
+            if (anchor != 0)
+            {
+                logf(LogLevel::Error, "anchor: hook hash 0x%llx is not unique in .text", static_cast<unsigned long long>(hook_hash));
+                return 0;
+            }
+            anchor = tr.base + static_cast<std::size_t>(hit - text);
+        }
+        cur = hit + 1;
+    }
+    if (anchor == 0)
+        return 0;
+
+    // .pdata turns the interior address into the exact entry point. Anything dispatching a hook is
+    // non-leaf by construction, so it has an entry.
+    DWORD64 image_base = 0;
+    PRUNTIME_FUNCTION rf = RtlLookupFunctionEntry(static_cast<DWORD64>(anchor), &image_base, nullptr);
+    if (rf == nullptr || image_base == 0)
+    {
+        logf(LogLevel::Error, "anchor: no .pdata entry covering 0x%llx", static_cast<unsigned long long>(anchor));
+        return 0;
+    }
+
+    // Read the entry as its fixed x64 layout {BeginAddress, EndAddress, UnwindInfoAddress}: MSVC
+    // leaves the third field in an anonymous union while mingw names it, so member access does not
+    // compile on both toolchains.
+    const auto *entry = reinterpret_cast<const std::uint32_t *>(rf);
+
+    // Follow chained unwind info: the compiler splits cold blocks into fragments whose BeginAddress
+    // is the fragment, not the function. Bounded so a malformed chain cannot spin.
+    for (int hops = 0; hops < 8; ++hops)
+    {
+        const auto *info = reinterpret_cast<const std::uint8_t *>(image_base + entry[2]);
+        constexpr std::uint8_t kChainInfo = 0x4;
+        if (((info[0] >> 3) & 0x1f) != kChainInfo)
+            break;
+        const std::uint8_t code_count = info[2];
+        const std::size_t chain_off = 4 + 2 * ((code_count + 1) & ~1);
+        entry = reinterpret_cast<const std::uint32_t *>(info + chain_off);
+    }
+
+    return static_cast<std::uintptr_t>(image_base + entry[0]);
+}
+
 // Signature-table resolution alone, no cache and no GetSymAddr, for cross-checking one source
 // against the other. Returns 0 when the name has no entry, the entry is not `want`, or it misses.
 static std::uintptr_t scan_only(const char *mangled_name, mth::sig::Kind want)
@@ -61,6 +130,19 @@ std::uintptr_t scan_resolve(const char *mangled_name)
             cache[mangled_name] = addr;
             return addr;
         }
+    }
+
+    // Then a hook the function itself dispatches. That name hash derives from the hook name rather
+    // than surrounding code, so it survives the codegen churn that breaks a carve.
+    if (const char *hook = mth::sym::hook_anchor_for(mangled_name); hook != nullptr)
+    {
+        if (const std::uintptr_t addr = resolve_by_hook_anchor(mth::hookhash::hash64(hook)); addr != 0)
+        {
+            logf(LogLevel::Info, "sig: %s via \"%s\" hook anchor -> 0x%llx", mangled_name, hook, static_cast<unsigned long long>(addr));
+            cache[mangled_name] = addr;
+            return addr;
+        }
+        logf(LogLevel::Warn, "sig: %s hook anchor \"%s\" did not resolve; trying the signature table", mangled_name, hook);
     }
 
     // g_saveManager is too hot to carve as a DataRef (~2300 xrefs). But the game's only

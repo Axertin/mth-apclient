@@ -102,7 +102,6 @@ pal::ShopTextFn g_shop_text_cb = nullptr;
 pal::HookId g_shop_text_hook = pal::kInvalidHookId;
 void (*g_orig_set_cursor)(void *, int, bool) = nullptr;
 void (*g_text_set_text)(void *textobj, const char *s, int len, unsigned int flags) = nullptr; // ycTextRenderObject::SetText
-void (*g_text_set_color)(void *widget, std::uint32_t rgba) = nullptr;                         // ycTextComponent::SetColor
 
 // ShopMenu instance fields (box list + selection); distinct from the InitState frame offsets above.
 // Confirmed identical to Linux by decompiling SetCursor on the r148851 PE.
@@ -788,24 +787,15 @@ void shop_set_text(void *widget, const char *utf8)
     g_text_set_text(static_cast<char *>(widget) + kTextObjOff, utf8, 0, 0);
 }
 
-void shop_set_color(void *widget, std::uint32_t rgba)
-{
-    if (widget == nullptr || g_text_set_color == nullptr)
-        return;
-    g_text_set_color(widget, rgba);
-}
-
 bool install_shop_text_hook(ShopTextFn on_set_cursor)
 {
     const std::uintptr_t addr = resolve_game_symbol(mth::sym::shop_set_cursor);
     g_text_set_text = reinterpret_cast<void (*)(void *, const char *, int, unsigned int)>(resolve_game_symbol(mth::sym::text_set_text));
-    g_text_set_color = reinterpret_cast<void (*)(void *, std::uint32_t)>(resolve_game_symbol(mth::sym::text_set_color));
-    if (addr == 0 || g_text_set_text == nullptr || g_text_set_color == nullptr)
+    if (addr == 0 || g_text_set_text == nullptr)
     {
-        logf(LogLevel::Warn, "shop: SetCursor/SetText/SetColor not fully resolved (cursor=0x%llx text=%d color=%d); shop text override disabled",
-             static_cast<unsigned long long>(addr), static_cast<int>(g_text_set_text != nullptr), static_cast<int>(g_text_set_color != nullptr));
+        logf(LogLevel::Warn, "shop: SetCursor/SetText not resolved (cursor=0x%llx text=%d); shop text override disabled", static_cast<unsigned long long>(addr),
+             static_cast<int>(g_text_set_text != nullptr));
         g_text_set_text = nullptr;
-        g_text_set_color = nullptr;
         return false;
     }
     g_shop_text_cb = on_set_cursor;
@@ -816,7 +806,6 @@ bool install_shop_text_hook(ShopTextFn on_set_cursor)
         logf(LogLevel::Error, "shop: failed to hook ShopMenu::SetCursor");
         g_shop_text_cb = nullptr;
         g_text_set_text = nullptr;
-        g_text_set_color = nullptr;
         return false;
     }
     logf(LogLevel::Info, "shop: hooked ShopMenu::SetCursor for text override (id=%llu)", static_cast<unsigned long long>(g_shop_text_hook));
@@ -831,7 +820,6 @@ void remove_shop_text_hook()
     g_shop_text_cb = nullptr;
     g_orig_set_cursor = nullptr;
     g_text_set_text = nullptr;
-    g_text_set_color = nullptr;
 }
 
 // install_item_collected_hook / remove_item_collected_hook live in mod/mod_api.cpp.

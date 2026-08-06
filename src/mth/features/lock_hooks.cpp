@@ -17,7 +17,6 @@ namespace
 
 mth::LockRegistry *g_locks = nullptr;
 std::uintptr_t g_save_manager = 0;
-void (*g_queue_destroy)(void *, void *, bool) = nullptr;
 bool g_seed_logged = false;
 
 std::set<int> g_logged_lock_slots;  // identity log dedup (game-thread only)
@@ -89,13 +88,13 @@ void repl_key_block_update(void *self, void *ctx)
         pal::logf(pal::LogLevel::Debug, "KeyBlock slot=%d (raw +0x2d0=%d key=0x%llx)", slot,
                   *reinterpret_cast<int *>(static_cast<char *>(self) + mth::layout::kKeyBlockSlotOff), static_cast<unsigned long long>(key));
 
-    if (slot < 0 || (g_queue_destroy == nullptr && !mod::queue_destroy_available()) || !g_locks->is_removed(slot))
+    if (slot < 0 || !mod::queue_destroy_available() || !g_locks->is_removed(slot))
         return;
 
     void *ent = *reinterpret_cast<void **>(static_cast<char *>(self) + mth::layout::kComponentEntityOff);
     void *world = ent != nullptr ? *reinterpret_cast<void **>(static_cast<char *>(ent) + mth::layout::kEntityWorldOff) : nullptr;
-    if (ent != nullptr && world != nullptr && !mod::queue_destroy_entity(world, ent, false) && g_queue_destroy != nullptr)
-        g_queue_destroy(world, ent, false);
+    if (ent != nullptr && world != nullptr)
+        mod::queue_destroy_entity(world, ent, false);
 }
 
 // Resolve a live KeyBlockChain's effective slot. A chain has no cached +0x2d0; its identity is the
@@ -172,9 +171,8 @@ LockHooks::LockHooks()
     g_save_manager = pal::resolve_game_symbol(sym::save_manager);
     if (g_save_manager == 0)
         pal::logf(pal::LogLevel::Warn, "LockHooks: g_saveManager not resolved; lock removal disabled");
-    g_queue_destroy = reinterpret_cast<void (*)(void *, void *, bool)>(pal::resolve_game_symbol(sym::queue_destroy));
-    if (g_queue_destroy == nullptr)
-        pal::logf(pal::LogLevel::Warn, "LockHooks: ycWorld::QueueDestroy not resolved; live lock removal disabled");
+    if (!mod::queue_destroy_available())
+        pal::logf(pal::LogLevel::Warn, "LockHooks: WorldQueueDestroyEntity unavailable; live lock removal disabled");
 
     key_block_update_ = ScopedHook(sym::key_block_update, reinterpret_cast<void *>(&repl_key_block_update), reinterpret_cast<void **>(&g_orig_key_block_update),
                                    "KeyBlock::Update");

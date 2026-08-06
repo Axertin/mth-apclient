@@ -32,6 +32,7 @@ add_executable(mthap_unit_tests
     unit/inbound_granter_test.cpp
     unit/sig_scan_test.cpp
     unit/native_sym_names_test.cpp
+    unit/hook_hash_test.cpp
     unit/riprel_test.cpp
     unit/lock_registry_test.cpp
     unit/modifier_config_test.cpp

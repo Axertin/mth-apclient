@@ -614,6 +614,39 @@ bool queue_destroy_entity(void *world, void *entity, bool depth_first)
     return true;
 }
 
+bool set_item_collected_available()
+{
+    return appended_api_possible() && g_mod_api != nullptr && usable_appended(g_mod_api->ItemsSetItemCollected);
+}
+
+bool set_item_collected(int index, bool collected, void *collection, void *slot)
+{
+    if (index < 0 || !set_item_collected_available())
+        return false;
+    g_mod_api->ItemsSetItemCollected(index, collected, static_cast<ItemCollection *>(collection), static_cast<SaveSlot *>(slot));
+    return true;
+}
+
+bool text_color_available()
+{
+    return appended_api_possible() && g_mod_api != nullptr && usable_appended(g_mod_api->TextComponentSetColor);
+}
+
+bool set_text_color(void *text_component, std::uint32_t rgba)
+{
+    if (text_component == nullptr || !text_color_available())
+        return false;
+    // MM_Color is four uint8 channels in r,g,b,a memory order, i.e. byte-identical to the packed word
+    // on little-endian; the direct call passed that word as the by-value ycColor already.
+    MM_Color c{};
+    c.r = static_cast<std::uint8_t>(rgba & 0xFFu);
+    c.g = static_cast<std::uint8_t>((rgba >> 8) & 0xFFu);
+    c.b = static_cast<std::uint8_t>((rgba >> 16) & 0xFFu);
+    c.a = static_cast<std::uint8_t>((rgba >> 24) & 0xFFu);
+    g_mod_api->TextComponentSetColor(static_cast<ycComponent *>(text_component), c);
+    return true;
+}
+
 void *sym_addr(const char *name)
 {
     if (!appended_api_possible() || g_mod_api == nullptr || name == nullptr || !usable_appended(g_mod_api->GetSymAddr))

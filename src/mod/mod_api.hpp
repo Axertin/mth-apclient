@@ -132,23 +132,29 @@ using AreaNewAreaFn = void (*)(int old_area, int new_area);
 bool install_area_new_area_hook(AreaNewAreaFn on_new_area);
 void remove_area_new_area_hook();
 
-// Drops every named hook above, including IsItemCollected/WorldUpdate/WorldDestroy. The callbacks
-// live in this module, so leaving them armed past teardown faults on unload.
+// Drops every named hook above. The callbacks live in this module, so one left armed past teardown
+// faults on unload.
 void remove_all_hooks();
 
-// Installed hook names that have never fired. Empty is the healthy state after real play.
+// Installed hook names that have never fired.
 std::vector<const char *> unfired_hooks();
 
-// Queue an entity for teardown via the native entry, preferred over the carved ycWorld::QueueDestroy
-// address: that one has gone stale across builds, and the queue-append helper sitting next to it in
-// the binary is a lookalike with no idempotency guard. Returns false when the build's API lacks the
-// entry, leaving the caller to fall back to its own resolved pointer.
+// Entity teardown, reaching the guarded ycWorld::QueueDestroy. Idempotent: a repeat call falls out at
+// the entity's already-queued flag, so the per-frame lock-removal caller is safe.
 bool queue_destroy_available();
 bool queue_destroy_entity(void *world, void *entity, bool depth_first);
 
-// Address of a game symbol by its plain source-level name, straight from the game. Returns null when
-// the build's API lacks the entry or does not expose that name, so callers fall back to their own
-// resolver. The result may be data rather than code: the supported names include global tables.
+// Durable collected-bit write. Null collection/slot means the game's own active ones.
+bool set_item_collected_available();
+bool set_item_collected(int index, bool collected, void *collection, void *slot);
+
+// rgba is packed as mth::banner_color packs it (r in the low byte), matching MM_Color's own byte
+// order, so the channels map across without a swizzle.
+bool text_color_available();
+bool set_text_color(void *text_component, std::uint32_t rgba);
+
+// Address of a game symbol by its plain source-level name. Null when the API does not expose that
+// name, which leaves the caller on its own resolver. May return data rather than code.
 void *sym_addr(const char *name);
 
 // Kill the player via the native MinaModAPI PlayerDie (deathlink apply). Offset-free and cross-platform,

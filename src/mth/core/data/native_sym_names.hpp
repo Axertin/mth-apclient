@@ -42,6 +42,32 @@ inline constexpr NativeSymName kNativeSymNames[] = {
     {hub_fountain_bulb_update, "HubFountain::Bulb::Update"},
 };
 
+// Mangled symbol -> a mod hook dispatched from inside that function. The hook's name hash is inlined
+// at the dispatch site, which anchors the function without a carved signature. Only worth an entry
+// for a function the mod must call; one it merely intercepts is served by the hook itself.
+struct HookAnchor
+{
+    const char *mangled;
+    const char *hook_name;
+};
+
+inline constexpr HookAnchor kHookAnchors[] = {
+    // Its carved signature broke on r149150, which disabled inbound AP grants. Nothing in the API
+    // grants an item by type, so the address is still needed to call it.
+    {on_pickup_done, "ItemsOnPickupDone"},
+};
+
+// Returns the hook name anchoring a mangled symbol, or nullptr when there is none.
+[[nodiscard]] inline const char *hook_anchor_for(const char *mangled) noexcept
+{
+    if (mangled == nullptr)
+        return nullptr;
+    for (const HookAnchor &a : kHookAnchors)
+        if (std::strcmp(a.mangled, mangled) == 0)
+            return a.hook_name;
+    return nullptr;
+}
+
 // Returns the GetSymAddr name for a mangled symbol, or nullptr when the API does not expose it.
 [[nodiscard]] inline const char *native_sym_name(const char *mangled) noexcept
 {

@@ -60,17 +60,12 @@ inline constexpr const char *shop_get = "_ZN4Shop3GetEm"; // Shop::Get(unsigned 
 // ShopMenu::SetCursor(int index, bool): fires on box selection change; hooked to rewrite the selected
 // item's name+description widgets from scouted AP data. SetText/SetColor are the generic text-widget
 // mutators it drives (ycTextRenderObject/ycTextComponent), not shop-specific.
-inline constexpr const char *shop_set_cursor = "_ZN8ShopMenu9SetCursorEib";             // ShopMenu::SetCursor(int,bool)
-inline constexpr const char *text_set_text = "_ZN18ycTextRenderObject7SetTextEPKcij";   // ycTextRenderObject::SetText(char const*,int,uint)
-inline constexpr const char *text_set_color = "_ZN15ycTextComponent8SetColorE7ycColor"; // ycTextComponent::SetColor(ycColor)
+inline constexpr const char *shop_set_cursor = "_ZN8ShopMenu9SetCursorEib";           // ShopMenu::SetCursor(int,bool)
+inline constexpr const char *text_set_text = "_ZN18ycTextRenderObject7SetTextEPKcij"; // ycTextRenderObject::SetText(char const*,int,uint)
+// ycWorld::QueueDestroy, Items::SetItemCollected and ycTextComponent::SetColor are no longer resolved:
+// the native API carries WorldQueueDestroyEntity, ItemsSetItemCollected and TextComponentSetColor.
 
-// ycWorld::QueueDestroy: unconditional teardown (no SpawnPoint gate); writes no save/grant state.
-inline constexpr const char *queue_destroy = "_ZN7ycWorld12QueueDestroyEP8ycEntityb"; // ycWorld::QueueDestroy(ycEntity*, bool)
-
-// SetItemCollected: side-effect-free bitfield write for keys/bonestones/fish; feeds native reload gate.
 // s_rItemCollection: 361 x 0x50, native itemType at +0x18, maps locIdx to vanilla contents kind.
-inline constexpr const char *set_item_collected =
-    "_ZN5Items16SetItemCollectedEibP14ItemCollectionP8SaveSlot";                            // Items::SetItemCollected(int, bool, ItemCollection*, SaveSlot*)
 inline constexpr const char *s_r_item_collection = "_ZN12_GLOBAL__N_117s_rItemCollectionE"; // s_rItemCollection location table
 // Items::IsItemCollected is no longer resolved by symbol/sig: its override runs through the native modding
 // hook ("IsItemCollected") in native_mod_entry.cpp, which also fires from the game's inlined copies.
