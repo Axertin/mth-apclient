@@ -5,7 +5,6 @@ namespace mth::sym
 
 // Mangled symbol names. Stable across recompiles; verified against the unstripped Linux binary.
 inline constexpr const char *game_fixed_update = "_ZN4Game11FixedUpdateEv"; // Game::FixedUpdate()
-inline constexpr const char *game_update = "_ZN4Game6UpdateEf";             // Game::Update(float)
 // World::Update is not symbol/sig-resolved: its pre-update hook runs through the native "WorldUpdate"
 // mod hook (game_hooks.cpp / native_mod_entry.cpp), cross-platform.
 inline constexpr const char *update_queue = "_ZN13ycUpdateQueue6UpdateEf"; // ycUpdateQueue::Update(float)
@@ -24,7 +23,6 @@ inline constexpr const char *player_update_stats =
     "_ZN6Player11UpdateStatsEv"; // Player::UpdateStats() -> recompute max HP/magic/spark/vial/trinket from save bits
 // Player::SetVialItemCount(int): the single setter that repartitions a vial total back into the
 // owned/held/overflow sub-fields; used to keep the "missing" vial count constant across an upgrade.
-inline constexpr const char *player_set_vial_item_count = "_ZN6Player16SetVialItemCountEi";
 
 // s_rItems: 195-entry item table (stride 0x68, kind at +0x28).
 inline constexpr const char *s_r_items = "_ZN12_GLOBAL__N_18s_rItemsE";
