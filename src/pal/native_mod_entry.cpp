@@ -5,12 +5,6 @@
 #include "pal/pal_log.hpp"
 #include "pal/pal_thread.hpp"
 
-#if defined(_WIN32)
-#define MM_EXPORT __declspec(dllexport)
-#else
-#define MM_EXPORT __attribute__((visibility("default")))
-#endif
-
 namespace
 {
 
@@ -21,8 +15,9 @@ void apclient_main_trampoline(void * /*arg*/)
 
 } // namespace
 
-// Entry point the native mod loader calls.
-extern "C" MM_EXPORT void MinaMod_Init(MinaModAPI *mm)
+// Entry point the native mod loader calls. MM_EXPORT carries the extern "C"
+// linkage and the default-visibility attribute the hidden-by-default build needs.
+MM_EXPORT void MinaMod_Init(MinaModAPI *mm)
 {
     mod::set_api(mm);
     pal::log_init();

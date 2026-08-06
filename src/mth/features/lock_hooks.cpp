@@ -4,6 +4,7 @@
 #include <set>
 #include <vector>
 
+#include "mod/mod_api.hpp"
 #include "mth/core/data/game_layout.hpp"
 #include "mth/core/data/game_symbols.hpp"
 #include "mth/core/data/game_tables.hpp"
@@ -88,12 +89,12 @@ void repl_key_block_update(void *self, void *ctx)
         pal::logf(pal::LogLevel::Debug, "KeyBlock slot=%d (raw +0x2d0=%d key=0x%llx)", slot,
                   *reinterpret_cast<int *>(static_cast<char *>(self) + mth::layout::kKeyBlockSlotOff), static_cast<unsigned long long>(key));
 
-    if (slot < 0 || g_queue_destroy == nullptr || !g_locks->is_removed(slot))
+    if (slot < 0 || (g_queue_destroy == nullptr && !mod::queue_destroy_available()) || !g_locks->is_removed(slot))
         return;
 
     void *ent = *reinterpret_cast<void **>(static_cast<char *>(self) + mth::layout::kComponentEntityOff);
     void *world = ent != nullptr ? *reinterpret_cast<void **>(static_cast<char *>(ent) + mth::layout::kEntityWorldOff) : nullptr;
-    if (ent != nullptr && world != nullptr)
+    if (ent != nullptr && world != nullptr && !mod::queue_destroy_entity(world, ent, false) && g_queue_destroy != nullptr)
         g_queue_destroy(world, ent, false);
 }
 

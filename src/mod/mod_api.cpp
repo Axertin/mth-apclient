@@ -1,8 +1,24 @@
 #include "mod/mod_api.hpp"
 
+#include <atomic>
+#include <cstddef>
+#include <utility>
+
 #include "MinaModAPI.h"
+#include "MinaModHooks.h"
 #include "pal/pal_log.hpp"
 #include "pal/pal_module.hpp"
+
+// mod::IsItemCollectedCtx mirrors the game's hook context by hand so the public header stays free of
+// game headers. Upstream now ships the real struct, so the mirror is checked here instead of by eye.
+static_assert(sizeof(mod::IsItemCollectedCtx) == sizeof(::IsItemCollectedCtx));
+static_assert(offsetof(mod::IsItemCollectedCtx, collection) == offsetof(::IsItemCollectedCtx, collection));
+static_assert(offsetof(mod::IsItemCollectedCtx, save_slot) == offsetof(::IsItemCollectedCtx, saveSlot));
+static_assert(offsetof(mod::IsItemCollectedCtx, index) == offsetof(::IsItemCollectedCtx, index));
+static_assert(offsetof(mod::IsItemCollectedCtx, include_pawn_shop) == offsetof(::IsItemCollectedCtx, includePawnShop));
+static_assert(offsetof(mod::IsItemCollectedCtx, include_early_collected) == offsetof(::IsItemCollectedCtx, includeEarlyCollected));
+static_assert(offsetof(mod::IsItemCollectedCtx, mod_handled) == offsetof(::IsItemCollectedCtx, modHandled));
+static_assert(offsetof(mod::IsItemCollectedCtx, mod_ret_val) == offsetof(::IsItemCollectedCtx, modRetVal));
 
 namespace
 {
@@ -16,6 +32,15 @@ MinaModAPI *g_mod_api = nullptr;
 template <class Fn> bool usable(Fn fn)
 {
     return fn != nullptr && pal::in_game_text(reinterpret_cast<const void *>(fn));
+}
+
+// For entries appended to the API struct after the game build in the field. Those fields sit past the
+// end of an older game's shorter struct, so the read yields whatever static follows it rather than
+// null, and in_game_text()'s fail-open answer would hand back adjacent data as a callable pointer.
+// A field that may not exist at all cannot be validated without the range, so this refuses instead.
+template <class Fn> bool usable_appended(Fn fn)
+{
+    return fn != nullptr && pal::text_range_published() && pal::in_game_text(reinterpret_cast<const void *>(fn));
 }
 
 mod::ItemCollectedFn g_item_collected_cb = nullptr;
@@ -50,6 +75,30 @@ void world_destroy_trampoline(void * /*pctx*/)
 {
     if (g_world_destroy_cb != nullptr)
         g_world_destroy_cb();
+}
+
+// Hook names the mod wants to move onto but that no build on disk dispatches yet. InstallHook hashes
+// whatever name it is given, allocates a bucket and returns a valid handle, so neither the return
+// value nor RemoveHook can tell a real hook from a name the game never runs: a probe firing is the
+// only evidence the running build has the hook. These stay passive on purpose. The detours remain
+// authoritative, so a build that dispatches none of them behaves exactly as before.
+constexpr const char *kProbeNames[] = {
+    "ItemsOnPickup", "ItemsOnPickupDone", "PickupOnPickup", "ShopItemRefresh", "AreaManagerNewArea", "ChestConstruct",
+};
+constexpr std::size_t kProbeCount = sizeof(kProbeNames) / sizeof(kProbeNames[0]);
+
+std::atomic<bool> g_probe_fired[kProbeCount];
+void *g_probe_handles[kProbeCount];
+
+template <std::size_t I> void probe_trampoline(void * /*pctx*/)
+{
+    if (!g_probe_fired[I].exchange(true))
+        pal::logf(pal::LogLevel::Info, "mod hook probe: \"%s\" fires on this build (detour still authoritative)", kProbeNames[I]);
+}
+
+template <std::size_t... I> void install_probes(std::index_sequence<I...>)
+{
+    ((g_probe_handles[I] = g_mod_api->InstallHook(kProbeNames[I], 0, &probe_trampoline<I>)), ...);
 }
 
 } // namespace
@@ -347,6 +396,57 @@ void player_restore_from_save()
 {
     if (g_mod_api != nullptr && usable(g_mod_api->PlayerRestoreFromSave))
         g_mod_api->PlayerRestoreFromSave();
+}
+
+bool install_hook_probes()
+{
+    if (!api_available())
+        return false;
+    install_probes(std::make_index_sequence<kProbeCount>{});
+    return true;
+}
+
+void remove_hook_probes()
+{
+    if (g_mod_api == nullptr || !usable(g_mod_api->RemoveHook))
+        return;
+    for (void *&h : g_probe_handles)
+    {
+        if (h != nullptr)
+            g_mod_api->RemoveHook(h);
+        h = nullptr;
+    }
+}
+
+std::vector<const char *> unfired_hook_probes()
+{
+    std::vector<const char *> out;
+    for (std::size_t i = 0; i < kProbeCount; ++i)
+        if (!g_probe_fired[i].load())
+            out.push_back(kProbeNames[i]);
+    return out;
+}
+
+bool queue_destroy_available()
+{
+    return g_mod_api != nullptr && usable_appended(g_mod_api->WorldQueueDestroyEntity);
+}
+
+bool queue_destroy_entity(void *world, void *entity, bool depth_first)
+{
+    if (world == nullptr || entity == nullptr || !queue_destroy_available())
+        return false;
+    g_mod_api->WorldQueueDestroyEntity(static_cast<World *>(world), static_cast<ycEntity *>(entity), depth_first);
+    return true;
+}
+
+void *sym_addr(const char *name)
+{
+    if (g_mod_api == nullptr || name == nullptr || !usable_appended(g_mod_api->GetSymAddr))
+        return nullptr;
+    // The result is deliberately not range-checked: the supported names include data symbols
+    // (s_rItems, s_rItemCollection, g_cheatManager) that do not live in .text.
+    return g_mod_api->GetSymAddr(name);
 }
 
 void set_save_write_enabled(bool on)

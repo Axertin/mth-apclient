@@ -5,6 +5,8 @@
 #include <string>
 #include <unordered_map>
 
+#include "mod/mod_api.hpp"
+#include "mth/core/data/native_sym_names.hpp"
 #include "mth/core/sig_scan.hpp"
 #include "pal/pal_log.hpp"
 #include "pal/pal_module.hpp"
@@ -26,6 +28,18 @@ std::uintptr_t scan_resolve(const char *mangled_name)
     static std::unordered_map<std::string, std::uintptr_t> cache;
     if (auto it = cache.find(mangled_name); it != cache.end())
         return it->second;
+
+    // Ask the game first for the names it exposes. That address is authoritative and cannot drift,
+    // so it beats a carved signature; a build without the entry returns null and falls through to
+    // the scan below, which keeps working on its own.
+    if (const char *plain = mth::sym::native_sym_name(mangled_name); plain != nullptr)
+    {
+        if (void *addr = mod::sym_addr(plain); addr != nullptr)
+        {
+            cache[mangled_name] = reinterpret_cast<std::uintptr_t>(addr);
+            return reinterpret_cast<std::uintptr_t>(addr);
+        }
+    }
 
     // g_saveManager is too hot to carve as a DataRef (~2300 xrefs). But the game's only
     // `cmove r9,[rip+g_saveManager]` (4c 0f 44 0d, 8-byte) - the "default a null SaveSlot* to the

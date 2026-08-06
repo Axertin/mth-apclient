@@ -42,6 +42,13 @@ inline void set_game_text_range(TextRange r) noexcept
     text_range_storage() = r;
 }
 
+// False until set_game_text_range() runs. Callers that cannot tolerate in_game_text()'s fail-open
+// answer test this first.
+[[nodiscard]] inline bool text_range_published() noexcept
+{
+    return text_range_storage().size != 0;
+}
+
 // True when no range has been published: tests have no game module, and a failed range lookup must
 // not disable every API call.
 [[nodiscard]] inline bool in_game_text(const void *p) noexcept
