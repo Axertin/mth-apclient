@@ -14,10 +14,6 @@
    "kind": "Code"
   },
   {
-   "name": "_ZN5Items12OnPickupDoneEiiP6PlayerRK6ycVec3iijb",
-   "kind": "Code"
-  },
-  {
    "name": "_Z15ProcessSDLEventR9SDL_Event",
    "kind": "Code"
   },
@@ -34,15 +30,7 @@
    "kind": "Code"
   },
   {
-   "name": "_ZN6Pickup8OnPickupEP14PickupListener",
-   "kind": "Code"
-  },
-  {
    "name": "_ZN7ycWorld12QueueDestroyEP8ycEntityb",
-   "kind": "Code"
-  },
-  {
-   "name": "_ZN5Items16SetItemCollectedEibP14ItemCollectionP8SaveSlot",
    "kind": "Code"
   },
   {
@@ -118,10 +106,6 @@
    "kind": "Code"
   },
   {
-   "name": "_ZN11AreaManager7NewAreaEii",
-   "kind": "Code"
-  },
-  {
    "name": "_ZN6Player15SetBurrowGroundEv",
    "kind": "Code"
   },
@@ -158,14 +142,6 @@
    "kind": "Code"
   },
   {
-   "name": "_ZN8ShopItem7RefreshEv",
-   "kind": "Code"
-  },
-  {
-   "name": "_ZN5Items8OnPickupEiiP6PlayerRK6ycVec3biijb",
-   "kind": "Code"
-  },
-  {
    "name": "_ZN4Shop12IsOutOfStockEPK7ShopDefRNS_7OutInfoE",
    "kind": "Code"
   },
@@ -198,10 +174,6 @@
    "kind": "Code"
   },
   {
-   "name": "_ZN15ycTextComponent8SetColorE7ycColor",
-   "kind": "Code"
-  },
-  {
    "name": "_ZN11HubFountain4Bulb6UpdateEfb",
    "kind": "Code"
   },
@@ -225,12 +197,6 @@
   "_ZN4Game6UpdateEf": {
    "rva": 9835504
   },
-  "_ZN5Items12OnPickupDoneEiiP6PlayerRK6ycVec3iijb": {
-   "rva": 8542656
-  },
-  "_ZN5Items16SetItemCollectedEibP14ItemCollectionP8SaveSlot": {
-   "rva": 8548144
-  },
   "_Z15ProcessSDLEventR9SDL_Event": {
    "rva": 723344
   },
@@ -239,9 +205,6 @@
   },
   "_ZN15PlayerTrackable6UpdateEP20ycUpdateQueueContext": {
    "rva": 10535344
-  },
-  "_ZN6Pickup8OnPickupEP14PickupListener": {
-   "rva": 9906720
   },
   "_ZN7ycWorld12QueueDestroyEP8ycEntityb": {
    "rva": 1387760
@@ -302,13 +265,10 @@
    "rva": 9938480
   },
   "_ZN11RoomManager6UpdateEP20ycUpdateQueueContext": {
-   "rva": 10699424
+   "rva": 10853504
   },
   "_ZN6Player11UpdateStatsEv": {
    "rva": 10407488
-  },
-  "_ZN11AreaManager7NewAreaEii": {
-   "rva": 5122112
   },
   "_ZN6Player15SetBurrowGroundEv": {
    "rva": 10300784
@@ -337,12 +297,6 @@
   "_ZN6Player16SetVialItemCountEi": {
    "rva": 10296528
   },
-  "_ZN8ShopItem7RefreshEv": {
-   "rva": 10926544
-  },
-  "_ZN5Items8OnPickupEiiP6PlayerRK6ycVec3biijb": {
-   "rva": 8541872
-  },
   "_ZN4Shop12IsOutOfStockEPK7ShopDefRNS_7OutInfoE": {
    "rva": 11006736
   },
@@ -367,9 +321,6 @@
   "_ZN18ycTextRenderObject7SetTextEPKcij": {
    "rva": 1238224
   },
-  "_ZN15ycTextComponent8SetColorE7ycColor": {
-   "rva": 7464781
-  },
   "_ZN11HubFountain4Bulb6UpdateEfb": {
    "rva": 7447936
   },
@@ -393,9 +344,6 @@
   "_ZN13ycUpdateQueue6UpdateEf": {
    "rva": 3276656
   },
-  "_ZN5Items12OnPickupDoneEiiP6PlayerRK6ycVec3iijb": {
-   "rva": 11768832
-  },
   "_Z15ProcessSDLEventR9SDL_Event": {
    "rva": 2160784
   },
@@ -408,14 +356,8 @@
   "_ZN6Pickup4InitEiib": {
    "rva": 14438560
   },
-  "_ZN6Pickup8OnPickupEP14PickupListener": {
-   "rva": 13291056
-  },
   "_ZN7ycWorld12QueueDestroyEP8ycEntityb": {
    "rva": 3285616
-  },
-  "_ZN5Items16SetItemCollectedEibP14ItemCollectionP8SaveSlot": {
-   "rva": 11775264
   },
   "_ZN8SaveSlot5ClearEb": {
    "rva": 14271120
@@ -427,7 +369,7 @@
    "rva": 11926128
   },
   "_ZN11RoomManager6UpdateEP20ycUpdateQueueContext": {
-   "rva": 14245920
+   "rva": 14553168
   },
   "_ZN6Player15SetBurrowGroundEv": {
    "rva": 14082880
@@ -456,12 +398,6 @@
   "_ZN6Player16SetVialItemCountEi": {
    "rva": 14909472
   },
-  "_ZN8ShopItem7RefreshEv": {
-   "rva": 14511376
-  },
-  "_ZN5Items8OnPickupEiiP6PlayerRK6ycVec3biijb": {
-   "rva": 12933872
-  },
   "_ZN4Shop12IsOutOfStockEPK7ShopDefRNS_7OutInfoE": {
    "rva": 14725584
   },
@@ -488,9 +424,6 @@
   },
   "_ZN18ycTextRenderObject7SetTextEPKcij": {
    "rva": 3177088
-  },
-  "_ZN15ycTextComponent8SetColorE7ycColor": {
-   "rva": 3150960
   },
   "_ZN11HubFountain4Bulb6UpdateEfb": {
    "rva": 10642720
