@@ -4,14 +4,17 @@ namespace mth::sym
 {
 
 // Mangled symbol names. Stable across recompiles; verified against the unstripped Linux binary.
+//
+// Deliberately NOT here, so nobody re-adds them: World::Update, Items::OnPickup, Items::IsItemCollected,
+// Pickup::OnPickup, ShopItem::Refresh, AreaManager::NewArea and the Chest ctor run through named mod
+// hooks; ycWorld::QueueDestroy, Items::SetItemCollected, Player::UpdateStats, PhysicsComponent::GetAABB,
+// CarryManager::GetClosestCarryableObject, WaterListener::IsInDeepWaterInternal and the ycTextComponent
+// text/color mutators are native API entries; KeyBlock::Update and KeyBlockChain::UpdateState are a sweep
+// over the world's own entity lists.
 inline constexpr const char *game_fixed_update = "_ZN4Game11FixedUpdateEv"; // Game::FixedUpdate()
-inline constexpr const char *game_update = "_ZN4Game6UpdateEf";             // Game::Update(float)
-// World::Update is not symbol/sig-resolved: its pre-update hook runs through the native "WorldUpdate"
-// mod hook (game_hooks.cpp / native_mod_entry.cpp), cross-platform.
-inline constexpr const char *update_queue = "_ZN13ycUpdateQueue6UpdateEf"; // ycUpdateQueue::Update(float)
+inline constexpr const char *update_queue = "_ZN13ycUpdateQueue6UpdateEf";  // ycUpdateQueue::Update(float)
 // Items::OnPickupDone(...): resolved for its ADDRESS only (inbound AP grants call it directly); its
-// pre-hook runs through the native "ItemsOnPickupDone" mod hook. Items::OnPickup likewise moved to a
-// named hook ("ItemsOnPickup") and is no longer resolved at all.
+// pre-hook runs through the native "ItemsOnPickupDone" mod hook.
 inline constexpr const char *on_pickup_done = "_ZN5Items12OnPickupDoneEiiP6PlayerRK6ycVec3iijb";
 inline constexpr const char *process_sdl_event = "_Z15ProcessSDLEventR9SDL_Event"; // ProcessSDLEvent(SDL_Event&)
 
@@ -20,11 +23,6 @@ inline constexpr const char *process_sdl_event = "_Z15ProcessSDLEventR9SDL_Event
 inline constexpr const char *player_ctor =
     "_ZN6PlayerC2EP8ycEntityP17GameComponentDescP11PlayerSetup"; // Player::Player(ycEntity*, GameComponentDesc*, PlayerSetup*)
 inline constexpr const char *player_trackable_update = "_ZN15PlayerTrackable6UpdateEP20ycUpdateQueueContext"; // PlayerTrackable::Update(ycUpdateQueueContext*)
-inline constexpr const char *player_update_stats =
-    "_ZN6Player11UpdateStatsEv"; // Player::UpdateStats() -> recompute max HP/magic/spark/vial/trinket from save bits
-// Player::SetVialItemCount(int): the single setter that repartitions a vial total back into the
-// owned/held/overflow sub-fields; used to keep the "missing" vial count constant across an upgrade.
-inline constexpr const char *player_set_vial_item_count = "_ZN6Player16SetVialItemCountEi";
 
 // s_rItems: 195-entry item table (stride 0x68, kind at +0x28).
 inline constexpr const char *s_r_items = "_ZN12_GLOBAL__N_18s_rItemsE";
@@ -45,8 +43,6 @@ inline constexpr const char *pickup_init = "_ZN6Pickup4InitEiib"; // Pickup::Ini
 inline constexpr const char *shop_item_present = "_ZN8ShopMenu11ItemPresentEv"; // ShopMenu::ItemPresent()
 // Windows: ShopMenu::ItemPresent is inlined into ShopMenu::InitState; hook InitState there.
 inline constexpr const char *shop_init_state = "_ZN8ShopMenu9InitStateEv"; // ShopMenu::InitState()
-// ShopItem::Refresh's sold-out correction (issue #48) runs through the native "ShopItemRefresh" mod
-// hook, so the symbol is no longer resolved.
 // Shop::IsOutOfStock(ShopDef const*, OutInfo&): tallies a shop's remaining stock via Items::IsItemCollected
 // per slot. Hooked only to bracket a flag so the IsItemCollected override can tell the WeaponMerchant's stock
 // query apart from the weapon-swap chest (both read the same weapon locations) (#67 follow-up).
@@ -58,17 +54,14 @@ inline constexpr const char *shop_is_out_of_stock = "_ZN4Shop12IsOutOfStockEPK7S
 inline constexpr const char *shop_get = "_ZN4Shop3GetEm"; // Shop::Get(unsigned long)
 
 // ShopMenu::SetCursor(int index, bool): fires on box selection change; hooked to rewrite the selected
-// item's name+description widgets from scouted AP data. SetText/SetColor are the generic text-widget
-// mutators it drives (ycTextRenderObject/ycTextComponent), not shop-specific.
-inline constexpr const char *shop_set_cursor = "_ZN8ShopMenu9SetCursorEib";           // ShopMenu::SetCursor(int,bool)
-inline constexpr const char *text_set_text = "_ZN18ycTextRenderObject7SetTextEPKcij"; // ycTextRenderObject::SetText(char const*,int,uint)
-// ycWorld::QueueDestroy, Items::SetItemCollected and ycTextComponent::SetColor are no longer resolved:
-// the native API carries WorldQueueDestroyEntity, ItemsSetItemCollected and TextComponentSetColor.
+// item's name+description widgets from scouted AP data.
+inline constexpr const char *shop_set_cursor = "_ZN8ShopMenu9SetCursorEib"; // ShopMenu::SetCursor(int,bool)
+// ycWorld::QueueDestroy, Items::SetItemCollected and the ycTextComponent text/color mutators are no
+// longer resolved: the native API carries WorldQueueDestroyEntity, ItemsSetItemCollected,
+// TextComponentSetText/GetText and TextComponentSetColor.
 
 // s_rItemCollection: 361 x 0x50, native itemType at +0x18, maps locIdx to vanilla contents kind.
 inline constexpr const char *s_r_item_collection = "_ZN12_GLOBAL__N_117s_rItemCollectionE"; // s_rItemCollection location table
-// Items::IsItemCollected is no longer resolved by symbol/sig: its override runs through the native modding
-// hook ("IsItemCollected") in native_mod_entry.cpp, which also fires from the game's inlined copies.
 
 // Live boss-death funnels (kill-time). SetBossDefeated was reload-path only (29/34 call sites are in
 // <Boss>::InitState corpse-spawn). Most bosses route through TriggerDeathSequence (its 1-arg variant
@@ -79,16 +72,6 @@ inline constexpr const char *boss_trigger_death_sequence =
 inline constexpr const char *boss_on_defeated_no_skeleton =
     "_ZN13BossComponent20OnDefeatedNoSkeletonER19BossDeathRewardInfo"; // BossComponent::OnDefeatedNoSkeleton(BossDeathRewardInfo&)
 
-// KeyBlock: the kear-lock entity. Slot resolved at Update time via name-scan (KeyBlock+0x2d0 is -1 for non-PairLock).
-inline constexpr const char *key_block_update = "_ZN8KeyBlock6UpdateEP20ycUpdateQueueContext"; // KeyBlock::Update(ycUpdateQueueContext*)
-// Multi-block lock (KeyBlockChain) + kear-locked Chest, opened/unlocked live by a per-frame hook.
-// Windows hooks UpdateState because the game's MSVC linker ICF-folds the byte-identical thin Update
-// wrappers across classes (per-class Update is not a distinct function); UpdateState runs on the
-// StateMachine sub-object at base+0x170, so the PAL recovers base (install_chain_open_hook/...).
-inline constexpr const char *key_block_chain_update = "_ZN13KeyBlockChain6UpdateEP20ycUpdateQueueContext"; // [Linux]
-inline constexpr const char *chest_update = "_ZN5Chest6UpdateEP20ycUpdateQueueContext";                    // [Linux]
-inline constexpr const char *key_block_chain_update_state = "_ZN13KeyBlockChain11UpdateStateEv";           // [Windows]
-inline constexpr const char *chest_update_state = "_ZN5Chest11UpdateStateEv";                              // [Windows]
 // Active SaveSlot* = *(g_saveManager+0x18); lock-unlocked bits live in a u64 at SaveSlot+0x200.
 inline constexpr const char *save_manager = "g_saveManager";
 
@@ -126,9 +109,9 @@ inline constexpr const char *get_new_game_max_level_player =
 inline constexpr const char *level_up_menu_update = "_ZN11LevelUpMenu6UpdateEP20ycUpdateQueueContext"; // LevelUpMenu::Update(...) [Windows]
 
 // Ability gating (issues #22/#33-#37). Each is the single chokepoint where the ability commits; the
-// detours suppress it under AP gating. SetBurrowGround classifies swim-vs-land via IsInDeepWaterInternal.
+// detours suppress it under AP gating. SetBurrowGround tests swim-vs-land through the
+// native water accessor.
 inline constexpr const char *player_set_burrow_ground = "_ZN6Player15SetBurrowGroundEv";
-inline constexpr const char *water_is_in_deep_water = "_ZN13WaterListener21IsInDeepWaterInternalEb";
 inline constexpr const char *player_rope_climb_start = "_ZN6Player14RopeClimbStartEP13GameComponentbb";
 inline constexpr const char *bounce_plant_collide = "_ZN11BouncePlant11CollideWithER18PhysicsContactPair";
 // Floating puffs bounce inline in CollideWith; ground/burrow-underable puffs launch out-of-line here
@@ -138,10 +121,8 @@ inline constexpr const char *spring_bellows_collide = "_ZN13SpringBellows11Colli
 inline constexpr const char *player_pickup_carryable = "_ZN6Player30PickUpAnyNearbyCarryableObjectEbbb";
 // #56: burrow-emerge commit. With carry disabled we suppress the emerge when a carryable is overhead so
 // Mina stays burrowed beneath it (no native "duck under a carryable" exists). The overhead check reuses
-// the game's own grab query (read-only): PhysicsComponent::GetAABB + CarryManager::GetClosestCarryableObject.
+// the game's own grab query, read-only, through the native AABB and carryable accessors.
 inline constexpr const char *mina_on_burrow_jump = "_ZN4Mina12OnBurrowJumpEv";
-inline constexpr const char *physics_get_aabb = "_ZNK16PhysicsComponent7GetAABBEbj";
-inline constexpr const char *carry_get_closest = "_ZN12CarryManager25GetClosestCarryableObjectE6ycAABBifPim";
 inline constexpr const char *train_authority_on_npc_event = "_ZN14TrainAuthority10OnNPCEventEjP17InteractEventInfo";
 // PawnShopNPC::OnNPCEvent: the pawn shop ("Pawnty") interaction dispatcher. Its own class (not a
 // shared NPCBehavior_*), so suppressing it to disable Pawnty cannot affect any other shop.

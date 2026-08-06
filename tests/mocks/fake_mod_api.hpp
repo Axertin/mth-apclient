@@ -1,10 +1,12 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 #include "MinaModAPI.h"
 
@@ -51,6 +53,37 @@ struct ModApiRecorder
     int text_color_calls = 0; // TextComponentSetColor
     void *text_color_target = nullptr;
     std::uint8_t text_color[4]{}; // r,g,b,a as the API delivered them
+    int text_set_calls = 0;       // TextComponentSetText
+    void *text_set_target = nullptr;
+    std::string text_value; // the widget's live string, served back by TextComponentGetText
+    int water_calls = 0;    // WaterListenerIsInDeepWater
+    void *water_target = nullptr;
+    bool water_ignore_enabled = false;
+    bool in_deep_water = false; // the answer the fake serves
+    int aabb_calls = 0;         // PhysicsComponentGetAABB
+    void *aabb_target = nullptr;
+    bool aabb_local = false;
+    std::uint32_t aabb_shape_flags = 0;
+    float aabb[6]{1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f}; // center.xyz then half-extent.xyz, as the API writes it
+    int closest_calls = 0;                             // CarryManagerGetClosestCarryableObject
+    void *closest_target = nullptr;
+    float closest_box[6]{};
+    int closest_layer = 0;
+    float closest_max_dist = 0.0f;
+    std::uint64_t closest_mask = 0;
+    void *closest_result = nullptr; // the carryable the fake reports, null for "nothing in range"
+    int update_stats_calls = 0;     // PlayerUpdateStats
+
+    // WorldGetEntityList: the entries the fake serves per list name, and what it was asked for.
+    std::unordered_map<std::string, std::vector<void *>> entity_lists;
+    std::string entity_list_asked;
+    int entity_list_calls = 0;
+
+    // CreateWeakPtr/WeakPtrGet/DestroyWeakPtr. A handle is an index into `weak_targets`; a null entry
+    // means the game freed the target, which is the case the chest registry has to survive.
+    std::vector<void *> weak_targets;
+    int weak_creates = 0;
+    int weak_destroys = 0;
 
     void fire(const char *name, void *ctx)
     {
@@ -79,6 +112,38 @@ struct ModApiRecorder
         text_color_calls = 0;
         text_color_target = nullptr;
         text_color[0] = text_color[1] = text_color[2] = text_color[3] = 0;
+        text_set_calls = 0;
+        text_set_target = nullptr;
+        text_value.clear();
+        water_calls = 0;
+        water_target = nullptr;
+        water_ignore_enabled = false;
+        in_deep_water = false;
+        aabb_calls = 0;
+        aabb_target = nullptr;
+        aabb_local = false;
+        aabb_shape_flags = 0;
+        aabb[0] = 1.0f;
+        aabb[1] = 2.0f;
+        aabb[2] = 3.0f;
+        aabb[3] = 4.0f;
+        aabb[4] = 5.0f;
+        aabb[5] = 6.0f;
+        closest_calls = 0;
+        closest_target = nullptr;
+        for (float &f : closest_box)
+            f = 0.0f;
+        closest_layer = 0;
+        closest_max_dist = 0.0f;
+        closest_mask = 0;
+        closest_result = nullptr;
+        update_stats_calls = 0;
+        entity_lists.clear();
+        entity_list_asked.clear();
+        entity_list_calls = 0;
+        weak_targets.clear();
+        weak_creates = 0;
+        weak_destroys = 0;
         fake_save_state() = FakeSaveState{};
     }
 };
@@ -121,6 +186,103 @@ inline void fake_text_set_color(ycComponent *component, MM_Color color)
     recorder().text_color[1] = color.g;
     recorder().text_color[2] = color.b;
     recorder().text_color[3] = color.a;
+}
+
+// SetText stores the widget's string and GetText serves it back, so a test can round-trip one widget.
+inline void fake_text_set_text(ycComponent *component, const char *const text)
+{
+    ++recorder().text_set_calls;
+    recorder().text_set_target = component;
+    recorder().text_value = (text != nullptr) ? text : "";
+}
+inline const char *fake_text_get_text(ycComponent * /*component*/)
+{
+    return recorder().text_value.c_str();
+}
+
+inline bool fake_water_is_in_deep_water(WaterListener *listener, bool ignore_enabled)
+{
+    ++recorder().water_calls;
+    recorder().water_target = listener;
+    recorder().water_ignore_enabled = ignore_enabled;
+    return recorder().in_deep_water;
+}
+
+// Serves the six recorded floats as one MM_AABB, so a test can pin the center.xyz/extents.xyz packing.
+inline void fake_physics_get_aabb(PhysicsComponent *component, MM_AABB *out, bool local, std::uint32_t shape_flags)
+{
+    ++recorder().aabb_calls;
+    recorder().aabb_target = component;
+    recorder().aabb_local = local;
+    recorder().aabb_shape_flags = shape_flags;
+    if (out == nullptr)
+        return;
+    out->center.x = recorder().aabb[0];
+    out->center.y = recorder().aabb[1];
+    out->center.z = recorder().aabb[2];
+    out->extents.x = recorder().aabb[3];
+    out->extents.y = recorder().aabb[4];
+    out->extents.z = recorder().aabb[5];
+}
+
+// Records the by-value box the same way, so the round trip out of physics_get_aabb can be checked end to end.
+inline CarryableObject *fake_closest_carryable(CarryManager *manager, MM_AABB box, std::int32_t layer, float max_dist, std::int32_t *out_count,
+                                               std::uint64_t mask_ignore)
+{
+    ++recorder().closest_calls;
+    recorder().closest_target = manager;
+    recorder().closest_box[0] = box.center.x;
+    recorder().closest_box[1] = box.center.y;
+    recorder().closest_box[2] = box.center.z;
+    recorder().closest_box[3] = box.extents.x;
+    recorder().closest_box[4] = box.extents.y;
+    recorder().closest_box[5] = box.extents.z;
+    recorder().closest_layer = layer;
+    recorder().closest_max_dist = max_dist;
+    recorder().closest_mask = mask_ignore;
+    if (out_count != nullptr)
+        *out_count = recorder().closest_result != nullptr ? 1 : 0;
+    return static_cast<CarryableObject *>(recorder().closest_result);
+}
+
+inline void fake_player_update_stats()
+{
+    ++recorder().update_stats_calls;
+}
+
+// Mirrors the real contract: the total count comes back even when the buffer is too small, and a
+// null/0 buffer is the sizing call.
+inline std::size_t fake_world_entity_list(World * /*world*/, const char *list, GameComponent **out, std::size_t cap)
+{
+    ++recorder().entity_list_calls;
+    recorder().entity_list_asked = (list != nullptr) ? list : "";
+    auto it = recorder().entity_lists.find(recorder().entity_list_asked);
+    if (it == recorder().entity_lists.end())
+        return 0;
+    const std::vector<void *> &src = it->second;
+    for (std::size_t i = 0; i < src.size() && i < cap; ++i)
+        out[i] = static_cast<GameComponent *>(src[i]);
+    return src.size();
+}
+
+// A handle is (index + 1) so it is never null; get() serves whatever the slot currently holds, which a
+// test clears to model the game freeing the target.
+inline MM_WeakPtr *fake_create_weak_ptr(void *target)
+{
+    ++recorder().weak_creates;
+    recorder().weak_targets.push_back(target);
+    return reinterpret_cast<MM_WeakPtr *>(recorder().weak_targets.size());
+}
+inline void *fake_weak_ptr_get(MM_WeakPtr *weak)
+{
+    const std::size_t idx = reinterpret_cast<std::uintptr_t>(weak);
+    if (idx == 0 || idx > recorder().weak_targets.size())
+        return nullptr;
+    return recorder().weak_targets[idx - 1];
+}
+inline void fake_destroy_weak_ptr(MM_WeakPtr * /*weak*/)
+{
+    ++recorder().weak_destroys;
 }
 
 inline void *fake_get_sym_addr(const char *name)
@@ -198,6 +360,16 @@ inline MinaModAPI make_fake_api()
     mm.WorldQueueDestroyEntity = &fake_queue_destroy_entity;
     mm.ItemsSetItemCollected = &fake_set_item_collected;
     mm.TextComponentSetColor = &fake_text_set_color;
+    mm.TextComponentSetText = &fake_text_set_text;
+    mm.TextComponentGetText = &fake_text_get_text;
+    mm.WaterListenerIsInDeepWater = &fake_water_is_in_deep_water;
+    mm.PhysicsComponentGetAABB = &fake_physics_get_aabb;
+    mm.CarryManagerGetClosestCarryableObject = &fake_closest_carryable;
+    mm.PlayerUpdateStats = &fake_player_update_stats;
+    mm.WorldGetEntityList = &fake_world_entity_list;
+    mm.CreateWeakPtr = &fake_create_weak_ptr;
+    mm.WeakPtrGet = &fake_weak_ptr_get;
+    mm.DestroyWeakPtr = &fake_destroy_weak_ptr;
     mm.GetSymAddr = &fake_get_sym_addr;
     mm.GetCurrentGameState = &fake_get_game_state;
     mm.PlayerGetHealth = &fake_get_health;

@@ -157,6 +157,8 @@ void HookManager::seed_kear_blocks(ApState &state)
 void HookManager::drain()
 {
     lock_hooks_->seed_removed_locks();
+    lock_hooks_->sweep_locks(); // open already-spawned KeyBlock / KeyBlockChain locks
+    chest_hooks_->sweep();      // clear the kear-lock on already-spawned chests
     ability_hooks_->enforce_train_tick();
     ability_hooks_->enforce_burrow_tick(get_player_ ? get_player_() : nullptr);
 }
@@ -165,6 +167,7 @@ void HookManager::on_world_destroy()
 {
     location_hooks_->reset_native_bits(); // a save reload clears s_rItemCollection; re-apply on the next load
     ability_hooks_->on_world_destroy();
+    chest_hooks_->on_world_destroy(); // the tracked chests died with the world
 }
 
 void HookManager::kill_player()

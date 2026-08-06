@@ -1,6 +1,8 @@
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <string>
+#include <vector>
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -35,6 +37,11 @@ bool g_destroy_fired = false;
 void destroy_cb()
 {
     g_destroy_fired = true;
+}
+void *g_constructed_chest = nullptr;
+void note_chest(void *chest)
+{
+    g_constructed_chest = chest;
 }
 
 // Restores the process-wide range on scope exit so a failing REQUIRE mid-test cannot leave it
@@ -385,6 +392,40 @@ TEST_CASE("mod: appended entries stay unavailable on a build that predates them"
     REQUIRE_FALSE(mod::set_text_color(&widget, 0xC0806040u));
     REQUIRE(mth::test::recorder().text_color_calls == 0);
 
+    REQUIRE_FALSE(mod::set_text(&widget, "Golden Kear"));
+    REQUIRE(mod::text_of(&widget) == nullptr);
+    REQUIRE(mth::test::recorder().text_set_calls == 0);
+
+    int listener = 0;
+    mth::test::recorder().in_deep_water = true;
+    REQUIRE_FALSE(mod::water_api_available());
+    REQUIRE_FALSE(mod::water_is_in_deep_water(&listener, false));
+    REQUIRE(mth::test::recorder().water_calls == 0);
+
+    int physics = 0;
+    float box[6]{-1.0f, -1.0f, -1.0f, -1.0f, -1.0f, -1.0f};
+    REQUIRE_FALSE(mod::physics_get_aabb(&physics, box, false, 0u));
+    REQUIRE(box[0] == -1.0f); // left untouched, so a caller cannot query on a garbage box
+    REQUIRE(mth::test::recorder().aabb_calls == 0);
+
+    int manager = 0;
+    int carryable = 0;
+    int overlap = 0;
+    mth::test::recorder().closest_result = &carryable;
+    REQUIRE(mod::closest_carryable(&manager, box, 3, 1.6f, &overlap, 0ull) == nullptr);
+    REQUIRE(mth::test::recorder().closest_calls == 0);
+
+    REQUIRE_FALSE(mod::player_stats_api_available());
+    REQUIRE_FALSE(mod::player_update_stats());
+    REQUIRE(mth::test::recorder().update_stats_calls == 0);
+
+    int block = 0;
+    mth::test::recorder().entity_lists["KeyBlock"] = {&block};
+    void *live_world = mod::player_world();
+    REQUIRE(live_world != nullptr); // the world accessor itself predates the appended block
+    REQUIRE(mod::world_entity_list(live_world, "KeyBlock", nullptr, 0) == 0);
+    REQUIRE(mth::test::recorder().entity_list_calls == 0);
+
     mod::set_api(nullptr);
 }
 
@@ -426,6 +467,199 @@ TEST_CASE("mod: appended entries become available on a newer build", "[mod]")
     REQUIRE(mth::test::recorder().text_color[2] == 0x80); // b
     REQUIRE(mth::test::recorder().text_color[3] == 0xC0); // a
 
+    // The widget pointer goes to the API unadjusted: it already IS the ycTextComponent.
+    REQUIRE(mod::set_text(&widget, "Golden Kear"));
+    REQUIRE(mth::test::recorder().text_set_calls == 1);
+    REQUIRE(mth::test::recorder().text_set_target == &widget);
+    const char *read_back = mod::text_of(&widget);
+    REQUIRE(read_back != nullptr);
+    REQUIRE(std::string(read_back) == "Golden Kear");
+
+    int listener = 0;
+    mth::test::recorder().in_deep_water = true;
+    REQUIRE(mod::water_api_available());
+    REQUIRE(mod::water_is_in_deep_water(&listener, false));
+    REQUIRE(mth::test::recorder().water_calls == 1);
+    REQUIRE(mth::test::recorder().water_target == &listener);
+    REQUIRE_FALSE(mth::test::recorder().water_ignore_enabled);
+    mth::test::recorder().in_deep_water = false;
+    REQUIRE_FALSE(mod::water_is_in_deep_water(&listener, true));
+    REQUIRE(mth::test::recorder().water_ignore_enabled);
+
+    // Six floats in, six floats out, in the game AABB's own order: center.xyz then half-extent.xyz.
+    int physics = 0;
+    float box[6]{};
+    REQUIRE(mod::physics_get_aabb(&physics, box, true, 5u));
+    REQUIRE(mth::test::recorder().aabb_calls == 1);
+    REQUIRE(mth::test::recorder().aabb_target == &physics);
+    REQUIRE(mth::test::recorder().aabb_local);
+    REQUIRE(mth::test::recorder().aabb_shape_flags == 5u);
+    for (int i = 0; i < 6; ++i)
+        REQUIRE(box[i] == static_cast<float>(i + 1));
+
+    // The same six floats have to survive the by-value AABB the carry query takes.
+    int manager = 0;
+    int carryable = 0;
+    int overlap = 0;
+    mth::test::recorder().closest_result = &carryable;
+    REQUIRE(mod::closest_carryable(&manager, box, 3, 1.6f, &overlap, 0x9ull) == &carryable);
+    REQUIRE(mth::test::recorder().closest_calls == 1);
+    REQUIRE(mth::test::recorder().closest_target == &manager);
+    for (int i = 0; i < 6; ++i)
+        REQUIRE(mth::test::recorder().closest_box[i] == static_cast<float>(i + 1));
+    REQUIRE(mth::test::recorder().closest_layer == 3);
+    REQUIRE(mth::test::recorder().closest_max_dist == 1.6f);
+    REQUIRE(mth::test::recorder().closest_mask == 0x9ull);
+    REQUIRE(overlap == 1);
+
+    mth::test::recorder().closest_result = nullptr;
+    REQUIRE(mod::closest_carryable(&manager, box, 3, 1.6f, &overlap, 0ull) == nullptr);
+    REQUIRE(mth::test::recorder().closest_calls == 2);
+
+    REQUIRE(mod::player_stats_api_available());
+    REQUIRE(mod::player_update_stats());
+    REQUIRE(mth::test::recorder().update_stats_calls == 1);
+
+    // The entity list sizes itself: a null/0 call reports the total, then the fill call reads it back.
+    int block_a = 0;
+    int block_b = 0;
+    mth::test::recorder().entity_lists["KeyBlock"] = {&block_a, &block_b};
+    void *live_world = mod::player_world();
+    REQUIRE(live_world != nullptr);
+    REQUIRE(mod::world_entity_list(live_world, "KeyBlock", nullptr, 0) == 2);
+    void *entities[2]{};
+    REQUIRE(mod::world_entity_list(live_world, "KeyBlock", entities, 2) == 2);
+    REQUIRE(entities[0] == &block_a);
+    REQUIRE(entities[1] == &block_b);
+
+    // The total comes back even when the buffer is short, which is what makes the sizing call safe.
+    void *one[1]{};
+    REQUIRE(mod::world_entity_list(live_world, "KeyBlock", one, 1) == 2);
+    REQUIRE(one[0] == &block_a);
+
+    // A list the world does not carry (there is no "Chest" list) reports nothing.
+    REQUIRE(mod::world_entity_list(live_world, "Chest", nullptr, 0) == 0);
+    REQUIRE(mod::world_entity_list(nullptr, "KeyBlock", nullptr, 0) == 0);
+    REQUIRE(mod::world_entity_list(live_world, nullptr, nullptr, 0) == 0);
+
+    mod::set_api(nullptr);
+}
+
+TEST_CASE("mod: ChestConstruct hands the callback the ctx's Chest", "[mod]")
+{
+    mth::test::recorder().reset();
+    mod::set_api(nullptr);
+    REQUIRE_FALSE(mod::install_chest_construct_hook(&note_chest)); // no API: nothing armed
+
+    auto fake = mth::test::make_fake_api();
+    mod::set_api(&fake);
+    REQUIRE(mod::install_chest_construct_hook(&note_chest));
+    REQUIRE(mth::test::recorder().hooks.count("ChestConstruct") == 1);
+
+    // Installed but never dispatched: the state that means chests would never be registered.
+    const auto unfired = mod::unfired_hooks();
+    REQUIRE(std::find(unfired.begin(), unfired.end(), std::string("ChestConstruct")) != unfired.end());
+
+    int chest = 0;
+    ChestConstructCtx ctx{};
+    ctx.chest = reinterpret_cast<Chest *>(&chest);
+    g_constructed_chest = nullptr;
+    mth::test::recorder().fire("ChestConstruct", &ctx);
+    REQUIRE(g_constructed_chest == &chest); // the ctx carries the real Chest*, so no subobject fixup
+
+    const auto after = mod::unfired_hooks();
+    REQUIRE(std::find(after.begin(), after.end(), std::string("ChestConstruct")) == after.end());
+
+    mod::remove_chest_construct_hook();
+    mod::set_api(nullptr);
+}
+
+TEST_CASE("mod: weak pointers need no revision gate and report a dead target", "[mod]")
+{
+    TextRangeGuard guard;
+    mth::test::recorder().reset();
+    mod::set_api(nullptr);
+    REQUIRE_FALSE(mod::weak_ptr_api_available());
+    REQUIRE(mod::weak_ptr_create(nullptr) == nullptr);
+
+    auto fake = mth::test::make_fake_api();
+    mod::set_api(&fake);
+    pal::set_game_text_range(pal::TextRange{reinterpret_cast<std::uintptr_t>(&fake_text_anchor) - 0x100000, 0x200000});
+
+    // The weak-pointer entries predate the appended block, so an old build still has them.
+    mth::test::recorder().revision = 148716;
+    REQUIRE(mod::weak_ptr_api_available());
+
+    int live = 0;
+    void *weak = mod::weak_ptr_create(&live);
+    REQUIRE(weak != nullptr);
+    REQUIRE(mod::weak_ptr_get(weak) == &live);
+
+    mth::test::recorder().weak_targets[0] = nullptr; // the game freed the target
+    REQUIRE(mod::weak_ptr_get(weak) == nullptr);
+
+    mod::weak_ptr_destroy(weak);
+    REQUIRE(mth::test::recorder().weak_destroys == 1);
+
+    REQUIRE(mod::weak_ptr_create(nullptr) == nullptr); // never hands the game a null target
+    REQUIRE(mod::weak_ptr_get(nullptr) == nullptr);
+    mod::weak_ptr_destroy(nullptr); // no-op, not a call
+    REQUIRE(mth::test::recorder().weak_destroys == 1);
+
+    mod::set_api(nullptr);
+}
+
+// The chest registry's sweep step: hold weak pointers, drop the ones whose target died, keep the rest.
+// A raw pointer here would be a use-after-free the first time a freed chest was written through.
+TEST_CASE("mod: a weak-pointer registry drops exactly the dead entries", "[mod]")
+{
+    TextRangeGuard guard;
+    mth::test::recorder().reset();
+    auto fake = mth::test::make_fake_api();
+    mod::set_api(&fake);
+    pal::set_game_text_range(pal::TextRange{reinterpret_cast<std::uintptr_t>(&fake_text_anchor) - 0x100000, 0x200000});
+
+    int a = 0;
+    int b = 0;
+    int c = 0;
+    std::vector<void *> registry{mod::weak_ptr_create(&a), mod::weak_ptr_create(&b), mod::weak_ptr_create(&c)};
+    REQUIRE(mth::test::recorder().weak_creates == 3);
+
+    mth::test::recorder().weak_targets[1] = nullptr; // b died between two sweeps
+
+    std::vector<void *> alive;
+    for (std::size_t i = 0; i < registry.size();)
+    {
+        void *target = mod::weak_ptr_get(registry[i]);
+        if (target == nullptr)
+        {
+            mod::weak_ptr_destroy(registry[i]);
+            registry[i] = registry.back();
+            registry.pop_back();
+            continue;
+        }
+        alive.push_back(target);
+        ++i;
+    }
+
+    REQUIRE(registry.size() == 2);
+    REQUIRE(mth::test::recorder().weak_destroys == 1); // exactly the dead one was released
+    REQUIRE(std::find(alive.begin(), alive.end(), static_cast<void *>(&a)) != alive.end());
+    REQUIRE(std::find(alive.begin(), alive.end(), static_cast<void *>(&c)) != alive.end());
+    REQUIRE(std::find(alive.begin(), alive.end(), static_cast<void *>(&b)) == alive.end());
+
+    mod::set_api(nullptr);
+}
+
+TEST_CASE("mod: player_world serves the game's live world, null when unset", "[mod]")
+{
+    mth::test::recorder().reset();
+    mod::set_api(nullptr);
+    REQUIRE(mod::player_world() == nullptr);
+
+    auto fake = mth::test::make_fake_api();
+    mod::set_api(&fake);
+    REQUIRE(mod::player_world() != nullptr);
     mod::set_api(nullptr);
 }
 

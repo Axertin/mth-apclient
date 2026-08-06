@@ -7,7 +7,7 @@
 // are read from the game's renderer globals instead: the engine inlines its
 // vkCreateInstance/vkCreateDevice calls, so hooks on those never fire.
 //
-// Input: hooks ProcessSDLEvent(SDL_Event&) from OverlayConfig. Toggle key (default F1)
+// Input: hooks ProcessSDLEvent(SDL_Event&), resolved here. Toggle key (default F1)
 // flips g_console_open; while open, input events are queued (mutex) and drained into
 // ImGui IO on the render thread before NewFrame. ImGui is not touched on the event thread.
 
@@ -31,6 +31,7 @@
 #include <link.h> // dl_iterate_phdr (libvulkan presence check without touching dlerror)
 #include <vulkan/vulkan.h>
 
+#include "mth/core/data/game_symbols.hpp"
 #include "pal/pal_hook.hpp"
 #include "pal/pal_log.hpp"
 #include "pal/pal_module.hpp"
@@ -1321,12 +1322,11 @@ void watch_for_libvulkan()
 class VulkanOverlay final : public IOverlay
 {
   public:
-    explicit VulkanOverlay(const OverlayConfig &cfg) : cfg_(cfg)
+    VulkanOverlay()
     {
-        pal::logf(pal::LogLevel::Info, "overlay: VulkanOverlay constructing (event_proc=0x%llx)", static_cast<unsigned long long>(cfg_.process_sdl_event_addr));
-
-        g_process_sdl_event_addr = cfg_.process_sdl_event_addr;
-        if (cfg_.process_sdl_event_addr == 0)
+        g_process_sdl_event_addr = resolve_game_symbol(mth::sym::process_sdl_event);
+        pal::logf(pal::LogLevel::Info, "overlay: VulkanOverlay constructing (event_proc=0x%llx)", static_cast<unsigned long long>(g_process_sdl_event_addr));
+        if (g_process_sdl_event_addr == 0)
             pal::logf(pal::LogLevel::Warn, "overlay: process_sdl_event_addr == 0; input unavailable for this build (render-only mode)");
         g_toggle_key = parse_console_key(std::getenv("MTHAP_CONSOLE_KEY"));
         pal::logf(pal::LogLevel::Info, "overlay: console toggle key = 0x%x (SDLK)", static_cast<int>(g_toggle_key));
@@ -1375,14 +1375,13 @@ class VulkanOverlay final : public IOverlay
     }
 
   private:
-    OverlayConfig cfg_;
 };
 
 } // namespace
 
-std::unique_ptr<IOverlay> make_overlay(const OverlayConfig &cfg)
+std::unique_ptr<IOverlay> make_overlay()
 {
-    return std::make_unique<VulkanOverlay>(cfg);
+    return std::make_unique<VulkanOverlay>();
 }
 
 } // namespace pal

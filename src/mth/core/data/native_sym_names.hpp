@@ -43,8 +43,12 @@ inline constexpr NativeSymName kNativeSymNames[] = {
 };
 
 // Mangled symbol -> a mod hook dispatched from inside that function. The hook's name hash is inlined
-// at the dispatch site, which anchors the function without a carved signature. Only worth an entry
-// for a function the mod must call; one it merely intercepts is served by the hook itself.
+// at the dispatch site, which anchors the function without a carved signature. Deriving from the
+// hook NAME is what makes it durable: a mask that happens to be unique is not a substitute.
+//
+// An entry here is worth it whenever the mod needs the ADDRESS, which includes functions it detours
+// rather than hooks. Game::FixedUpdate is anchored but still detoured, because the hook fires at the
+// top of the function while the tick has to run after the original.
 struct HookAnchor
 {
     const char *mangled;
@@ -55,6 +59,7 @@ inline constexpr HookAnchor kHookAnchors[] = {
     // Its carved signature broke on r149150, which disabled inbound AP grants. Nothing in the API
     // grants an item by type, so the address is still needed to call it.
     {on_pickup_done, "ItemsOnPickupDone"},
+    {game_fixed_update, "FixedUpdate"},
 };
 
 // Returns the hook name anchoring a mangled symbol, or nullptr when there is none.

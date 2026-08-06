@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -132,6 +133,12 @@ using AreaNewAreaFn = void (*)(int old_area, int new_area);
 bool install_area_new_area_hook(AreaNewAreaFn on_new_area);
 void remove_area_new_area_hook();
 
+// Chest ctor tail, carrying the real Chest*. The only notification that a chest exists, so the
+// kear-lock clear rides a registry of these rather than a per-frame detour.
+using ChestConstructFn = void (*)(void *chest);
+bool install_chest_construct_hook(ChestConstructFn on_construct);
+void remove_chest_construct_hook();
+
 // Drops every named hook above. The callbacks live in this module, so one left armed past teardown
 // faults on unload.
 void remove_all_hooks();
@@ -152,6 +159,34 @@ bool set_item_collected(int index, bool collected, void *collection, void *slot)
 // order, so the channels map across without a swizzle.
 bool text_color_available();
 bool set_text_color(void *text_component, std::uint32_t rgba);
+
+// Text-widget contents. The widget pointer the menus hand us IS the ycTextComponent, so these take it
+// as-is; the old direct calls had to walk to the nested ycTextRenderObject first. text_of() returns
+// null when the string is unreadable, which callers must treat as "no original to restore".
+bool set_text(void *text_component, const char *utf8);
+const char *text_of(void *text_component);
+
+// Swim-vs-land discriminator off a player's WaterListener. ignore_enabled skips the listener's own
+// enable flag. available() is false when the build's API lacks the getter, which callers need to tell
+// apart from a genuine "not in deep water".
+bool water_api_available();
+bool water_is_in_deep_water(void *water_listener, bool ignore_enabled);
+
+// Read-only halves of the game's own carryable-grab query. The box crosses as six floats, center.xyz
+// then half-extent.xyz, matching the game's AABB so the header stays free of game types. Called
+// directly these took their arguments in a different order per platform; the API normalizes that.
+// physics_get_aabb leaves out_aabb untouched on failure. closest_carryable cannot distinguish
+// "nothing in range" from an entry-less build, which suits its one caller and no other.
+bool physics_get_aabb(void *physics_component, float out_aabb[6], bool local, unsigned shape_flags);
+void *closest_carryable(void *carry_manager, const float box[6], int collision_layer, float max_dist, int *out_overlap_count,
+                        std::uint64_t collide_mask_ignore);
+
+// Recomputes the live maxima (HP, magic, spark, vials, trinkets) from the save's owned-bit fields. Takes
+// no target: the game acts on its own live player, the same one player_component() reports. Callers that
+// write those bit fields must check available() BEFORE writing, since the fields alone do nothing until
+// this runs.
+bool player_stats_api_available();
+bool player_update_stats();
 
 // Address of a game symbol by its plain source-level name. Null when the API does not expose that
 // name, which leaves the caller on its own resolver. May return data rather than code.
@@ -179,6 +214,25 @@ float player_health();
 // false when the build's API lacks the getter, and player_spark() returns 0 then.
 bool spark_api_available();
 int player_spark();
+
+// The world the live player is in; null when there is no player yet. The game resolves it from its own
+// live-Player global, so this needs no cached pointer and can never go stale.
+void *player_world();
+
+// One of the world's per-type entity lists, named by the game's own type name ("KeyBlock",
+// "KeyBlockChain", ...); the entries are the components themselves, the same pointer a member-function
+// detour would receive as `this`. Returns the TOTAL count even when the buffer is too small, so a
+// null/0 call sizes the buffer; 0 when the build's API lacks the entry. There is no "Chest" list.
+std::size_t world_entity_list(void *world, const char *list, void **out, std::size_t cap);
+
+// Weak references to a live component or entity: the game clears them when the target dies, so a mod-side
+// registry can outlive a room without holding a raw pointer that a teardown turns into a use-after-free.
+// create() returns null when the API is unavailable, get() returns null once the target is gone, and every
+// non-null handle must be destroyed.
+bool weak_ptr_api_available();
+void *weak_ptr_create(void *component_or_entity);
+void *weak_ptr_get(void *weak);
+void weak_ptr_destroy(void *weak);
 
 // True while the live world is paused, which is any menu that pauses gameplay. World::Update then runs only
 // the pause queue, so nothing the game has already queued can progress. false when there is no live world or
