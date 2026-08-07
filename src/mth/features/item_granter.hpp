@@ -26,7 +26,8 @@ class ItemGranter final : public IItemGranter
     ItemGranter(const ItemGranter &) = delete;
     ItemGranter &operator=(const ItemGranter &) = delete;
 
-    bool grant(int item_type) override;
+    bool grant(int item_type, int receipt) override;
+    void discard_pending() override;
     void drain();
 };
 

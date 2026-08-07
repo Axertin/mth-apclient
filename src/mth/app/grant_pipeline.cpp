@@ -20,13 +20,15 @@ GrantPipeline::~GrantPipeline()
     granter_.reset();
 }
 
+// Dev-console path: nothing durable to record, so it carries no receipt.
 bool GrantPipeline::grant(int item_type)
 {
-    return granter_->grant(item_type);
+    return granter_->grant(item_type, kNoReceipt);
 }
 
 void GrantPipeline::build_inbound(ApState &state, ApSaveState &save_state, std::function<bool()> credit_kear_key)
 {
+    inbound_.reset(); // release the old save reference before binding the new one
     inbound_ = std::make_unique<InboundGranter>(*granter_, state, save_state, std::move(credit_kear_key));
 }
 
@@ -35,8 +37,11 @@ bool GrantPipeline::inbound_ready() const
     return inbound_ != nullptr;
 }
 
+// The queued grants belong to the save this inbound granter was built against, so they must not
+// survive into the next session's save (#175).
 void GrantPipeline::release_inbound()
 {
+    granter_->discard_pending();
     inbound_.reset();
 }
 
