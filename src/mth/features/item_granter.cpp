@@ -40,6 +40,11 @@ bool on_items_pickup_done(int slot, int item_type, void *player)
     if (g_tracker != nullptr)
         g_tracker->note_player(player); // refresh the grant-target player for inbound replays
 
+    // These re-seed the vial bitfield behind the AP count (#171); App re-asserts it, so this is a trace
+    // of what fired, not a suppression point.
+    if (item_type == mth::layout::kItemHealingVialFirst || item_type == mth::layout::kItemVialUpgrade)
+        pal::logf(pal::LogLevel::Debug, "vials: OnPickupDone itemType=%#x slot=%d", item_type, slot);
+
     // Skip vanilla grants for randomized locations. AP replays use slot==-1; world AP pickups carry the
     // dummy itemType; only a real item at an AP slot is the vanilla grant the server overrides.
     if (slot >= 0 && item_type != mth::layout::kApDummyItemType && g_is_ap_location && g_is_ap_location(slot))

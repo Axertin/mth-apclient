@@ -40,6 +40,11 @@ inline constexpr std::ptrdiff_t kPickupSaveTrackedFlagOff = 0x3ac; // u8; nonzer
 inline constexpr int kApDummyItemType = 1;
 inline constexpr int kDummyAssetDonor = 40;
 
+// The only two item types that reach Player::AddVialUpgrade, which ORs bits into the durable vial
+// bitfield (#171). HealingVialFirst is the one-time story grant and ORs the whole 3-bit base.
+inline constexpr int kItemHealingVialFirst = 0x12;
+inline constexpr int kItemVialUpgrade = 0x47;
+
 // BossComponent (verified by the index-range self-check in the death funnels).
 inline constexpr std::ptrdiff_t kBossIndexOff = 0x68;
 

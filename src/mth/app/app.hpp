@@ -96,8 +96,8 @@ class App : public ICommandSink
     // Drain ApState's server-reported checked locations into the save-state checked set (Collect / coop),
     // once inbound is ready. Never re-sends; persists once per pass. Called each drive_tick.
     void reconcile_server_checked();
-    void apply_vial_capacity(); // push the AP vial count through the offset-free mod-API accessors
-    void enforce_wallet_cap();  // clamp live bones to the AP wallet cap (#112); no-op unless authed + wallet_cap
+    void enforce_vial_capacity(); // re-assert the AP vial count through the offset-free mod-API accessors (#171)
+    void enforce_wallet_cap();    // clamp live bones to the AP wallet cap (#112); no-op unless authed + wallet_cap
     // Destruction order: overlay first, then hooks_ (game hooks stop first inside the manager),
     // grants_, tracker_/room_tracker_, events_ (AppTickSink, after hooks_), net_ (stops net thread last).
     ApState state_;
