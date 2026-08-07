@@ -49,6 +49,15 @@ void AbilityHooks::set_train_gate(bool rando_active, std::uint32_t line_mask)
     pal::set_train_destination_gate(line_mask, rando_active); // published to the OnNPCEvent detour
 }
 
+void AbilityHooks::set_ticket_machine(bool is_ap_location, bool checked, std::uint32_t progress_seed)
+{
+    // A machine that is a live check keeps its prompt; one that is not, or has already been donated to,
+    // loses it. Reporting the location collected instead would read as "the pass exists" to the conductor,
+    // which activates it without the pass ever being granted.
+    ticket_machine_suppress_ = !is_ap_location || checked;
+    ticket_machine_seed_ = progress_seed;
+}
+
 void AbilityHooks::enforce_train_tick()
 {
     // train_rando: boarding requires the generic Train Pass (#98), and each destination is gated on its AP
@@ -59,6 +68,29 @@ void AbilityHooks::enforce_train_tick()
     {
         pal::enforce_train_boarding(g_save_manager_);
         pal::enforce_train_destinations(g_save_manager_, train_mask_);
+        // The donation machine hands out that same pass (#162): while it is a live check the seed makes it
+        // affordable, and once it is not the gate stops it prompting at all.
+        //
+        // The two are deliberately gated differently. The seed is a DURABLE write, so it waits for the bound
+        // AP save - seeding an unrelated one would leave a near-free train pass behind in vanilla play. The
+        // disable is in-memory and dies with the room, and failing to apply it is the worse outcome of the
+        // two: an interactible machine takes 10000 bones and (via the backstop) returns nothing. So it runs
+        // unbound on purpose. Do not "even these up".
+        if (ticket_machine_suppress_)
+        {
+            ticket_machine_.tick();
+        }
+        else if (enforce_)
+        {
+            pal::seed_ticket_machine_progress(g_save_manager_, ticket_machine_seed_);
+        }
+        else if (!warned_seed_withheld_)
+        {
+            // Otherwise slot_data's train_pass_cost is silently ignored and the machine keeps asking vanilla
+            // price, with nothing in the log to say why.
+            warned_seed_withheld_ = true;
+            pal::logf(pal::LogLevel::Warn, "train: donation cost left at vanilla; the live save is not the bound AP slot (#162)");
+        }
     }
     else
     {
@@ -107,6 +139,7 @@ void AbilityHooks::on_world_destroy()
 {
     burrow_.disarm();
     last_player_ = nullptr;
+    ticket_machine_.on_world_destroy(); // the next room's machine should not stay live for a walk cadence
 }
 
 } // namespace mth

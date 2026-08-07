@@ -329,6 +329,10 @@ constexpr std::ptrdiff_t kSaveTrainPresentOff = 0x1c1;
 // SaveSlot unlocked-train-lines bitfield (5 low bits, one per destination). Set by the TrainAuthority ctor
 // on station footfall; the AP client clamps it to the granted-ticket mask. Same layout on both platforms.
 constexpr std::ptrdiff_t kSaveTrainUnlockedLinesOff = 0x1e0;
+// SaveSlot donation-machine progress (u32 uTicketProgress). Read fresh by the machine every tick and never
+// reset, with exactly three readers (the state machine's goal compare, the progress bar, the deposit dial),
+// so raising it is a complete way to lower the donation cost. Same layout on both platforms.
+constexpr std::ptrdiff_t kSaveTicketProgressOff = 0x1bc;
 // CTP boss (Thorne 2) defeated bit: byte +0x281 mask 0x02 of the SaveSlot+0x280 boss bitfield. The Coltrane
 // line ride is gated on it (#108).
 constexpr std::ptrdiff_t kSaveCtpBossByteOff = 0x281;
@@ -1643,6 +1647,20 @@ void enforce_train_boarding(std::uintptr_t save_manager_global)
     // cannot be boarded. Once the pass is received (OnPickupDone sets +0x1c0) leave the story-set presence.
     if (*reinterpret_cast<std::uint8_t *>(static_cast<char *>(slot) + kSaveTrainPassOwnedOff) == 0)
         *reinterpret_cast<char *>(static_cast<char *>(slot) + kSaveTrainPresentOff) = 0;
+}
+
+void seed_ticket_machine_progress(std::uintptr_t save_manager_global, std::uint32_t seed)
+{
+    if (seed == 0)
+        return;
+    void *slot = active_save_slot(save_manager_global);
+    if (slot == nullptr)
+        return;
+    // Raise only: a player already past the seed keeps their own progress, and re-running this each tick
+    // must not undo a deposit in flight.
+    auto *progress = reinterpret_cast<std::uint32_t *>(static_cast<char *>(slot) + kSaveTicketProgressOff);
+    if (*progress < seed)
+        *progress = seed;
 }
 
 void set_train_destination_gate(std::uint32_t granted_mask, bool rando_active)

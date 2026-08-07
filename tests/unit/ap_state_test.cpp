@@ -36,7 +36,8 @@ TEST_CASE("ap_state: ossex_start flows from ApConnected", "[mth][ap_state]")
 TEST_CASE("ap_state: deathlink flows from ApConnected", "[mth][ap_state]")
 {
     mth::ApState s;
-    s.apply(mth::ApConnected{{}, "{}", 1, {}, {}, false, mth::KearMode::ApItems, false, false, false, false, false, false, false, true});
+    s.apply(mth::ApConnected{
+        {}, "{}", 1, {}, {}, false, mth::KearMode::ApItems, false, false, false, false, false, false, false, mth::kTrainPassCostDefault, true});
     REQUIRE(s.deathlink());
 }
 

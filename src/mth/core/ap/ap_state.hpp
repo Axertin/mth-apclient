@@ -104,6 +104,10 @@ class ApState
     {
         return train_rando_;
     }
+    [[nodiscard]] int train_pass_cost() const // bones the station's donation machine asks for
+    {
+        return train_pass_cost_;
+    }
     [[nodiscard]] bool deathlink() const // slot_data flag: deaths bounce over the AP link
     {
         return deathlink_;
@@ -191,6 +195,7 @@ class ApState
     bool spring_rando_{false};
     bool carry_rando_{false};
     bool train_rando_{false};
+    int train_pass_cost_{kTrainPassCostDefault};
     bool deathlink_{false};
     int max_stat_level_{99};
     int goal_config_{0};

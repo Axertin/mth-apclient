@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "mod/mod_api.hpp"
+#include "mth/core/ap/ap_ids.hpp"
 #include "mth/core/data/game_layout.hpp"
 #include "mth/core/data/game_symbols.hpp"
 #include "mth/core/data/game_tables.hpp"
@@ -23,6 +24,7 @@ struct YcVec3
 mth::PlayerTracker *g_tracker = nullptr;
 std::function<bool(int)> g_is_ap_location;   // RandoBridge::is_ap_location, wired by App
 std::function<void(int)> g_report_collected; // RandoBridge::on_location_collected, wired by App
+bool g_train_pass_machine_blocked = false;   // train_rando: the donation machine grants nothing (#162)
 
 // Items::OnPickupDone(int slot, int itemType, Player*, ycVec3 const&, int, int, unsigned int, bool).
 // Resolved but deliberately NOT detoured: suppression runs through the ItemsOnPickupDone named hook,
@@ -76,6 +78,15 @@ bool on_items_pickup(int slot, int item_type, void *player)
     if (g_tracker != nullptr)
         g_tracker->note_player(player);
 
+    // Backstop to TicketMachineGate: the machine should never have been interactible, so reaching here
+    // means the prompt suppression missed. Refusing the grant costs the player the donated bones, which
+    // is why it is the second line of defence and not the first.
+    if (g_train_pass_machine_blocked && mth::is_train_pass_machine_grant(slot, item_type))
+    {
+        pal::logf(pal::LogLevel::Warn, "train: refused the donation machine's Train Pass grant (#162)");
+        return true;
+    }
+
     if (slot >= 0 && mth::tables::is_armor_upgrade_itemtype(item_type) && g_is_ap_location && g_is_ap_location(slot))
     {
         pal::logf(pal::LogLevel::Info, "outbound: suppressed vanilla armor upgrade for AP location %d (itemType=%d)", slot, item_type);
@@ -90,6 +101,11 @@ bool on_items_pickup(int slot, int item_type, void *player)
 
 namespace mth
 {
+
+void set_train_pass_machine_blocked(bool on)
+{
+    g_train_pass_machine_blocked = on;
+}
 
 ItemGranter::ItemGranter(PlayerTracker &tracker, std::function<bool(int)> is_ap_location, std::function<void(int)> report_collected)
 {
@@ -113,6 +129,7 @@ ItemGranter::~ItemGranter()
     g_tracker = nullptr;
     g_is_ap_location = nullptr;
     g_report_collected = nullptr;
+    g_train_pass_machine_blocked = false;
 }
 
 bool ItemGranter::grant(int item_type, int receipt)

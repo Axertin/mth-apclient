@@ -150,6 +150,33 @@ TEST_CASE("train_destination_blocked cancels un-granted ticket lines", "[train]"
     REQUIRE_FALSE(mth::train_destination_blocked(41, 0x00));
 }
 
+TEST_CASE("is_train_pass_machine_grant matches only the donation machine's dispense", "[train]")
+{
+    REQUIRE(mth::is_train_pass_machine_grant(149, 0x5e)); // the machine's Items::OnPickup(149, 94)
+
+    REQUIRE_FALSE(mth::is_train_pass_machine_grant(-1, 0x5e));  // AP replay of the pass (no location)
+    REQUIRE_FALSE(mth::is_train_pass_machine_grant(149, 0x5f)); // same location, a ticket instead
+    REQUIRE_FALSE(mth::is_train_pass_machine_grant(148, 0x5e)); // the pass elsewhere
+    REQUIRE_FALSE(mth::is_train_pass_machine_grant(149, 41));   // a normal item at that location
+}
+
+TEST_CASE("ticket_machine_seed pre-pays the donation goal down to the configured cost", "[train]")
+{
+    // Seed + cost == the compiled-in goal, so the player owes exactly the cost.
+    REQUIRE(mth::ticket_machine_seed(1000) == 9000u);
+    REQUIRE(mth::ticket_machine_seed(2500) == 7500u);
+    REQUIRE(mth::ticket_machine_seed(1) == 9999u);
+
+    // Vanilla cost (or more) seeds nothing: the machine is left exactly as the game shipped it.
+    REQUIRE(mth::ticket_machine_seed(10000) == 0u);
+    REQUIRE(mth::ticket_machine_seed(50000) == 0u);
+
+    // A free donation would complete the moment the seed lands, before the player ever opened the machine,
+    // so zero and negatives floor at one bone owing.
+    REQUIRE(mth::ticket_machine_seed(0) == 9999u);
+    REQUIRE(mth::ticket_machine_seed(-1) == 9999u);
+}
+
 TEST_CASE("maintained_vial_held preserves the missing flask count across a capacity change", "[upgrade]")
 {
     REQUIRE(mth::maintained_vial_held(3, 3, 1) == 1); // full 3/3 -> new cap 1 stays full 1/1

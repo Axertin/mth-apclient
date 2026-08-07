@@ -73,6 +73,7 @@ class HookManager
 
     std::atomic<std::uint32_t> lamp_console_override_{0}; // sticky console-forced lamp mask (render thread) OR'd over slot_data in tick (game thread)
 
+    RandoBridge &rando_;                 // checked-location state; the donation machine reads it (#162)
     std::function<void *()> get_player_; // live Player* accessor (shared with DeathHooks + kear credit)
     std::unique_ptr<GameHooks> game_hooks_;
     std::unique_ptr<LocationHooks> location_hooks_;

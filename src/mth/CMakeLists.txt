@@ -94,6 +94,7 @@ if(NOT MTHAP_BUILD_TESTS_ONLY)
         features/chest_hooks.cpp
         features/death_hooks.cpp
         features/ability_hooks.cpp
+        features/ticket_machine_gate.cpp
         features/pawn_shop_hooks.cpp
         features/modifier_hooks.cpp
         features/levelcap_hooks.cpp
