@@ -1,4 +1,5 @@
 #include <filesystem>
+#include <memory>
 #include <vector>
 
 #include <catch2/catch_test_macros.hpp>
@@ -13,14 +14,35 @@ namespace
 {
 struct FakeGranter : mth::IItemGranter
 {
-    std::vector<int> granted;
+    std::vector<int> granted;  // itemTypes accepted
+    std::vector<int> in_queue; // receipts accepted but not yet applied (defer mode)
     bool ok = true;
-    bool grant(int item_type) override
+    bool defer = false; // model the real granter's queue: accept now, apply on a later drain
+
+    bool grant(int item_type, int receipt) override
     {
         if (!ok)
             return false;
         granted.push_back(item_type);
+        if (defer)
+            in_queue.push_back(receipt);
+        else
+            notify_applied(receipt);
         return true;
+    }
+
+    void discard_pending() override
+    {
+        in_queue.clear();
+    }
+
+    // the drain window: everything queued actually lands now
+    void apply_queued()
+    {
+        std::vector<int> batch;
+        batch.swap(in_queue);
+        for (int receipt : batch)
+            notify_applied(receipt);
     }
 };
 
@@ -329,6 +351,144 @@ TEST_CASE("InboundGranter retries a weapon at its correct tier after a failure",
     granter.ok = true;
     inbound.tick();
     REQUIRE(granter.granted == std::vector<int>{2, 3}); // tiers recomputed correctly, both granted
+
+    std::filesystem::remove(path);
+}
+
+// #175: the real granter only QUEUES on grant(); the item lands later, inside the engine's update
+// window. Persisting "granted" on acceptance loses the item for good if that window never comes,
+// because is_granted() then suppresses it on every future launch.
+TEST_CASE("InboundGranter does not persist a receipt the granter has only queued", "[inbound]")
+{
+    const auto path = std::filesystem::temp_directory_path() / "mthap_inbound_queued.txt";
+    std::filesystem::remove(path);
+
+    mth::ApState state;
+    mth::ApSaveState save(path);
+    FakeGranter granter;
+    granter.defer = true;
+    mth::InboundGranter inbound(granter, state, save);
+
+    state.apply(recv(mth::ap_item_id(5), 0));
+    inbound.tick();
+    REQUIRE(granter.granted == std::vector<int>{5}); // accepted
+    REQUIRE_FALSE(save.is_granted(0));               // but not applied, so not durable yet
+
+    granter.apply_queued();
+    REQUIRE(save.is_granted(0));
+
+    std::filesystem::remove(path);
+}
+
+// The in-flight receipt is not durable yet, so the next tick must not hand it to the granter again.
+TEST_CASE("InboundGranter does not re-queue an in-flight receipt", "[inbound]")
+{
+    const auto path = std::filesystem::temp_directory_path() / "mthap_inbound_inflight.txt";
+    std::filesystem::remove(path);
+
+    mth::ApState state;
+    mth::ApSaveState save(path);
+    FakeGranter granter;
+    granter.defer = true;
+    mth::InboundGranter inbound(granter, state, save);
+
+    state.apply(recv(mth::ap_item_id(5), 0));
+    inbound.tick();
+    inbound.tick();
+    inbound.tick();
+    REQUIRE(granter.granted == std::vector<int>{5}); // queued once, not once per tick
+
+    granter.apply_queued();
+    inbound.tick();
+    REQUIRE(granter.granted == std::vector<int>{5}); // and not again after it lands
+    REQUIRE(save.is_granted(0));
+
+    std::filesystem::remove(path);
+}
+
+// The loss window in #175: the player quits with the batch still queued. Nothing was persisted, so a
+// fresh granter over the same save file must hand the item out again rather than skip it forever.
+TEST_CASE("InboundGranter retries a receipt that was queued but never applied", "[inbound]")
+{
+    const auto path = std::filesystem::temp_directory_path() / "mthap_inbound_lost_queue.txt";
+    std::filesystem::remove(path);
+
+    mth::ApState state;
+    state.apply(recv(mth::ap_item_id(5), 0));
+
+    {
+        mth::ApSaveState save(path);
+        FakeGranter granter;
+        granter.defer = true;
+        mth::InboundGranter inbound(granter, state, save);
+        inbound.tick();
+        REQUIRE(granter.granted == std::vector<int>{5});
+        REQUIRE_FALSE(save.is_granted(0));
+    } // process exit: the queue dies with it
+
+    // relaunch: the server replays the same stream against the persisted state
+    mth::ApSaveState reloaded(path);
+    REQUIRE_FALSE(reloaded.is_granted(0));
+    FakeGranter granter;
+    mth::InboundGranter inbound(granter, state, reloaded);
+    inbound.tick();
+    REQUIRE(granter.granted == std::vector<int>{5}); // recovered, not lost
+    REQUIRE(reloaded.is_granted(0));
+
+    std::filesystem::remove(path);
+}
+
+// A session change drops the queue, so those receipts must be retried against the new save rather
+// than acked into it.
+TEST_CASE("InboundGranter re-queues receipts dropped by a session change", "[inbound]")
+{
+    const auto path = std::filesystem::temp_directory_path() / "mthap_inbound_discard.txt";
+    std::filesystem::remove(path);
+
+    mth::ApState state;
+    mth::ApSaveState save(path);
+    FakeGranter granter;
+    granter.defer = true;
+    state.apply(recv(mth::ap_item_id(5), 0));
+
+    {
+        mth::InboundGranter inbound(granter, state, save);
+        inbound.tick();
+        REQUIRE(granter.granted == std::vector<int>{5});
+    }
+    granter.discard_pending(); // what GrantPipeline::release_inbound does
+    granter.granted.clear();
+
+    mth::InboundGranter rebuilt(granter, state, save); // the next session, against its own save
+    rebuilt.tick();
+    REQUIRE(granter.granted == std::vector<int>{5}); // offered again, never silently dropped
+    REQUIRE_FALSE(save.is_granted(0));
+
+    std::filesystem::remove(path);
+}
+
+// The granter outlives its InboundGranter and holds the applied sink. If a replacement is built
+// before the incumbent is torn down, the incumbent's teardown must disarm only its own sink. Wiping
+// the installed one leaves grants applying with nothing marked, so they all re-apply next launch.
+TEST_CASE("InboundGranter teardown does not disarm a successor's applied sink", "[inbound]")
+{
+    const auto path = std::filesystem::temp_directory_path() / "mthap_inbound_sink_handover.txt";
+    std::filesystem::remove(path);
+
+    mth::ApState state;
+    mth::ApSaveState save(path);
+    FakeGranter granter;
+    granter.defer = true;
+    state.apply(recv(mth::ap_item_id(5), 0));
+
+    auto first = std::make_unique<mth::InboundGranter>(granter, state, save);
+    auto second = std::make_unique<mth::InboundGranter>(granter, state, save); // built before...
+    first.reset();                                                             // ...the incumbent goes
+
+    second->tick();
+    REQUIRE(granter.granted == std::vector<int>{5});
+    granter.apply_queued();
+    REQUIRE(save.is_granted(0)); // false if the teardown wiped the live sink
 
     std::filesystem::remove(path);
 }

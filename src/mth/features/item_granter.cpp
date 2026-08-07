@@ -31,8 +31,14 @@ std::function<void(int)> g_report_collected; // RandoBridge::on_location_collect
 void (*g_call_on_pickup_done)(int, int, void *, void *, int, int, unsigned int, bool) = nullptr;
 
 // Inbound-grant queue: grant() enqueues, drain() replays inside the engine's update window.
+// The receipt rides along so drain() can ack the caller only for what actually landed (#175).
+struct PendingGrant
+{
+    int item_type;
+    int receipt;
+};
 std::mutex g_pending_mtx;
-std::vector<int> g_pending;
+std::vector<PendingGrant> g_pending;
 
 // Start of Items::OnPickupDone. Returns true to stop the original running.
 bool on_items_pickup_done(int slot, int item_type, void *player)
@@ -109,24 +115,37 @@ ItemGranter::~ItemGranter()
     g_report_collected = nullptr;
 }
 
-bool ItemGranter::grant(int item_type)
+bool ItemGranter::grant(int item_type, int receipt)
 {
     // Require hook + Player* before accepting; return false to retry next tick.
     if (g_call_on_pickup_done == nullptr || g_tracker == nullptr || g_tracker->player() == nullptr)
         return false;
 
-    // itemType 0 = engine "None" sentinel; treat as handled so the cursor advances.
+    // itemType 0 = engine "None" sentinel; nothing to apply, so ack straight away.
     if (item_type <= 0)
+    {
+        notify_applied(receipt);
         return true;
+    }
 
     std::lock_guard<std::mutex> lk(g_pending_mtx);
-    g_pending.push_back(item_type);
+    g_pending.push_back(PendingGrant{item_type, receipt});
     return true;
+}
+
+// Session change: the queue belongs to the old save. Dropping it un-acked makes the caller re-offer
+// each receipt against the new one, which is the only safe direction (#175).
+void ItemGranter::discard_pending()
+{
+    std::lock_guard<std::mutex> lk(g_pending_mtx);
+    if (!g_pending.empty())
+        pal::logf(pal::LogLevel::Info, "inbound: dropped %zu queued grant(s) on session change", g_pending.size());
+    g_pending.clear();
 }
 
 void ItemGranter::drain()
 {
-    std::vector<int> batch;
+    std::vector<PendingGrant> batch;
     {
         std::lock_guard<std::mutex> lk(g_pending_mtx);
         if (g_pending.empty())
@@ -148,11 +167,14 @@ void ItemGranter::drain()
     }
 
     // locIdx=-1: grant by type only, no location state touched.
-    for (int item_type : batch)
+    for (const PendingGrant &pending : batch)
     {
         YcVec3 grant_pos{p[0], p[1], p[2]}; // fresh copy per item (ycVec3 const&)
-        g_call_on_pickup_done(-1, item_type, player, &grant_pos, 0, 0, 0, false);
-        pal::logf(pal::LogLevel::Info, "inbound: granted item_type=%d (kind=%d)", item_type, tables::storage_kind(item_type));
+        g_call_on_pickup_done(-1, pending.item_type, player, &grant_pos, 0, 0, 0, false);
+        pal::logf(pal::LogLevel::Info, "inbound: granted item_type=%d (kind=%d)", pending.item_type, tables::storage_kind(pending.item_type));
+        // Ack only now, once the item is really in the save. Everything upstream of this keys its
+        // durable state off the ack, so a batch that never reaches here is retried, not lost (#175).
+        notify_applied(pending.receipt);
     }
 }
 

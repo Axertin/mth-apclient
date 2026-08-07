@@ -515,7 +515,7 @@ void App::give_item(std::int64_t ap_item_id)
 
     const int item_type = mth::game_item_type(ap_item_id);
     if (grants_->grant(item_type))
-        pal::logf(pal::LogLevel::Info, "console: giveapitem %lld (type=%d) granted", static_cast<long long>(ap_item_id), item_type);
+        pal::logf(pal::LogLevel::Info, "console: giveapitem %lld (type=%d) queued", static_cast<long long>(ap_item_id), item_type);
     else
         pal::logf(pal::LogLevel::Warn, "console: giveapitem %lld not ready (collect any pickup first to capture player + position)",
                   static_cast<long long>(ap_item_id));
