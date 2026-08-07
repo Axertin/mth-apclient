@@ -225,6 +225,18 @@ void *player_world();
 // null/0 call sizes the buffer; 0 when the build's API lacks the entry. There is no "Chest" list.
 std::size_t world_entity_list(void *world, const char *list, void **out, std::size_t cap);
 
+// The world's scene-graph root, and the walk down it - the only way to reach a component type
+// world_entity_list does not name (its table has no "TicketMachine" entry). entity_children returns the
+// entity's DIRECT children only, and an entity is itself one of those children, so reaching an arbitrary
+// component means recursing on the ones that component_isa reports as ycEntity. It returns the TOTAL count
+// even when the buffer is too small, so a null/0 call sizes the buffer. component_isa runs the game's own
+// virtual Isa, so it is inheritance-aware; ids are the hashlittle2 of the type name (mth::rtti). A full
+// traversal is not free - do not run one per frame. false/null/0 when the build's API lacks the entries.
+bool entity_walk_api_available();
+void *world_game_root_entity(void *world);
+std::size_t entity_children(void *entity, void **out, std::size_t cap);
+bool component_isa(void *component, std::uint64_t type_id);
+
 // Weak references to a live component or entity: the game clears them when the target dies, so a mod-side
 // registry can outlive a room without holding a raw pointer that a teardown turns into a use-after-free.
 // create() returns null when the API is unavailable, get() returns null once the target is gone, and every

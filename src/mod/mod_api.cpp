@@ -441,6 +441,36 @@ std::size_t world_entity_list(void *world, const char *list, void **out, std::si
     return g_mod_api->WorldGetEntityList(static_cast<World *>(world), list, reinterpret_cast<GameComponent **>(out), cap);
 }
 
+bool entity_walk_api_available()
+{
+    return g_mod_api != nullptr && usable(g_mod_api->WorldGetGameRootEntity) && usable(g_mod_api->EntityGetChildren) && usable(g_mod_api->ComponentIsa);
+}
+
+void *world_game_root_entity(void *world)
+{
+    if (world == nullptr || !entity_walk_api_available())
+        return nullptr;
+    return static_cast<void *>(g_mod_api->WorldGetGameRootEntity(static_cast<World *>(world)));
+}
+
+std::size_t entity_children(void *entity, void **out, std::size_t cap)
+{
+    if (entity == nullptr || !entity_walk_api_available())
+        return 0;
+    // out may be null with cap 0: that is the sizing call.
+    return g_mod_api->EntityGetChildren(static_cast<ycEntity *>(entity), reinterpret_cast<ycComponent **>(out), cap);
+}
+
+bool component_isa(void *component, std::uint64_t type_id)
+{
+    if (component == nullptr || !entity_walk_api_available())
+        return false;
+    // Tail-jumps to the object's own virtual Isa (vtable+0x18) with no validation of its own, so the
+    // caller has to have established that this is a real polymorphic game object first.
+    const MM_Rtti rtti{type_id};
+    return g_mod_api->ComponentIsa(static_cast<ycComponent *>(component), rtti);
+}
+
 bool weak_ptr_api_available()
 {
     return g_mod_api != nullptr && usable(g_mod_api->CreateWeakPtr) && usable(g_mod_api->WeakPtrGet) && usable(g_mod_api->DestroyWeakPtr);
