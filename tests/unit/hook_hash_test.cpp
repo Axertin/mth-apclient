@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include "mth/core/data/component_types.hpp" // MM_Rtti type ids: same hash, pinned to GetTypeId() bodies
 #include "mth/core/hook_hash.hpp"
 
 using mth::hookhash::hash64;
