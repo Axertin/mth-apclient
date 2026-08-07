@@ -106,6 +106,36 @@ inline constexpr int kTrainLineCount = 5;
     return bit != 0 && (granted_mask & bit) == 0;
 }
 
+// The generic Train Pass (boarding, as opposed to a per-line ticket) and the collection index the
+// station's donation machine dispenses it at. 10000 donated bones make the machine call
+// Items::OnPickup(kTrainPassLocIdx, kTrainPassItemType), which is the vanilla train unlock; the pass is
+// an AP item, and the location is not in the apworld, so nothing else refuses that grant (#162).
+inline constexpr int kTrainPassItemType = 0x5e; // 94
+inline constexpr int kTrainPassLocIdx = 149;    // Ticket_Pass
+
+[[nodiscard]] inline constexpr bool is_train_pass_machine_grant(int loc_idx, int item_type) noexcept
+{
+    return loc_idx == kTrainPassLocIdx && item_type == kTrainPassItemType;
+}
+
+// Donating to the machine accumulates a SaveSlot counter, and the machine completes once that counter
+// passes kTicketMachineGoal. The goal is compiled in, so a cheaper donation comes from pre-seeding the
+// counter with the part the player does not have to pay: seeding 10000-cost leaves exactly `cost` owing.
+// Seeding beats topping the counter up on arrival at a threshold, because the game clamps how much the
+// player can dial in to what is still owed - so the seed also stops them over-paying, which a late top-up
+// (the deposit itself is unclamped) would not. cost is clamped to a payable, non-free range.
+inline constexpr unsigned kTicketMachineGoal = 10000;
+inline constexpr int kTrainPassCostDefault = 1000;
+
+[[nodiscard]] inline constexpr unsigned ticket_machine_seed(int cost) noexcept
+{
+    if (cost < 1)
+        return kTicketMachineGoal - 1; // free would complete the donation before the player sees it
+    if (static_cast<unsigned>(cost) >= kTicketMachineGoal)
+        return 0; // vanilla cost: nothing to seed
+    return kTicketMachineGoal - static_cast<unsigned>(cost);
+}
+
 // Progressive Items
 // Count-based: the Nth receipt of a chain's id is "tier N". Sub-layout:
 //   1000..1004  weapon families  (kProgWeaponBase + family)

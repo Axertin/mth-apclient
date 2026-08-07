@@ -9,6 +9,13 @@ namespace mth
 
 class PlayerTracker;
 
+// Backstop for #162, paired with TicketMachineGate: refuse the station donation machine's Train Pass
+// dispense while the train is randomized. It comes through Items::OnPickup at a location the apworld
+// does not carry, so the is_ap_location suppression never sees it. Inbound AP grants arrive through
+// OnPickupDone instead, so the AP Train Pass itself still lands. Owned by the hook the granter installs,
+// hence a free function rather than a member.
+void set_train_pass_machine_blocked(bool on);
+
 // twin: mth/core/item_granter_interface.hpp (the IItemGranter interface).
 // IItemGranter via Items::OnPickupDone replay. Owns the OnPickupDone hook (which also
 // refreshes the tracker's Player* on every vanilla pickup). grant() enqueues (false

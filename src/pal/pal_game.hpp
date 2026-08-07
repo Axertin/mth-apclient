@@ -135,6 +135,12 @@ void enforce_train_destinations(std::uintptr_t save_manager_global, std::uint32_
 // to 0 while the pass is unowned, then releases it once received (#98). No-op if unavailable. Game-thread.
 void enforce_train_boarding(std::uintptr_t save_manager_global);
 
+// Raises the station donation machine's progress counter to `seed`, never lowering it. The machine's
+// completion goal is compiled in, so pre-paying part of it is what makes the donation cost less; the game
+// also clamps how much the player can dial in to what is still owed, so this bounds the charge too (#162).
+// seed 0 leaves the counter alone (vanilla cost). No-op if unavailable. Game-thread.
+void seed_ticket_machine_progress(std::uintptr_t save_manager_global, std::uint32_t seed);
+
 // Publishes the train_rando destination gate read by the OnNPCEvent detour. When rando_active, a selected
 // ticket line is cancelled unless its bit is in granted_mask; when inactive the detour uses the console
 // Train-ability block instead. Cheap; call each tick.

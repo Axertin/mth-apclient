@@ -5,6 +5,7 @@
 #include <variant>
 #include <vector>
 
+#include "mth/core/ap/ap_ids.hpp" // kTrainPassCostDefault
 #include "mth/core/broadcast.hpp"
 #include "mth/core/goal_state.hpp" // kAllGeneratorsMask
 #include "mth/core/scout_registry.hpp"
@@ -53,6 +54,7 @@ struct ApConnected
     bool spring_rando{false};
     bool carry_rando{false};
     bool train_rando{true};
+    int train_pass_cost{kTrainPassCostDefault};              // slot_data "train_pass_cost": bones the station machine asks for
     bool deathlink{false};                                   // slot_data "death_link": bounce/receive deaths over the AP link
     int max_stat_level{99};                                  // slot_data "max_stat_level": per-stat level ceiling (clamped 10..99; 99 = game's absolute max)
     int goal_config{0};                                      // slot_data "goal_config": 0=finish, 1=generators, 2=bosses

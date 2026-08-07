@@ -126,6 +126,14 @@ inline constexpr int kProfileSelectGameState = 0x69;
 inline constexpr std::ptrdiff_t kSaveSlotArrayOff = 0x680;
 inline constexpr std::ptrdiff_t kSaveSlotStride = 0x11c8;
 
+// TicketMachine (the station's train-pass donation machine) and the InteractComponent it owns.
+// InteractComponent::IsInteractable early-returns false on the disable byte, which is what suppresses
+// both the on-screen prompt and the interaction itself. It is the game's own on/off switch (the same
+// one NPCBehavior_Brainless flips), and nothing in the machine ever writes it - unlike the prompt byte
+// at +0x231, which TicketMachine::UpdateState rewrites every tick from IsItemCollected(149).
+inline constexpr std::ptrdiff_t kTicketMachineInteractOff = 0x1b0; // TicketMachine -> InteractComponent*
+inline constexpr std::ptrdiff_t kInteractDisabledOff = 0x23a;      // u8: nonzero = never interactable
+
 // ShopItem / ShopItemDef. A slot is a chain of ShopItemDef variants (one per level, rising price)
 // linked via +0x28, each carrying its own cached loc_idx. Same offsets on both platforms.
 inline constexpr std::ptrdiff_t kShopItemDefOff = 0xf8;   // ShopItem -> active ShopItemDef*
