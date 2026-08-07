@@ -223,10 +223,10 @@ void App::drive_tick()
         }
     }
     if (upgrades_.dirty() && tracker_ && pal::apply_upgrades(upgrades_.counts(), tracker_->player()))
-    {
-        apply_vial_capacity();    // vials go through the offset-free mod API, not a raw SaveSlot poke
         upgrades_.mark_applied(); // applied to the save; retry next tick if player not ready yet
-    }
+    // Vials are deliberately outside the dirty gate: the game re-seeds their bitfield mid-run, so the AP
+    // count has to be re-asserted every tick rather than once per change (#171).
+    enforce_vial_capacity();
     enforce_wallet_cap();
     if (pending_inbound_death_.exchange(false))
         hooks_->kill_player();
@@ -257,18 +257,29 @@ void App::drain_grants()
     grants_->drain();
 }
 
-void App::apply_vial_capacity()
+void App::enforce_vial_capacity()
 {
-    // Vial capacity is popcount of a SaveSlot bitfield whose offset drifts between builds (#97); drive it
-    // through the mod API instead, which resolves the current player/save-slot itself. Preserve the missing
-    // flask count across the capacity change. No-op until a player exists.
-    if (!mod::vial_api_available())
+    // Vial capacity is popcount of a durable SaveSlot bitfield whose offset drifts between builds (#97), so
+    // it is driven through the mod API, which resolves the player/save-slot itself. It has to be re-asserted
+    // rather than written once (#171): the run's own healing-vial grant ORs the vanilla 3-bit base straight
+    // back in (Items::OnPickupDone -> Player::AddVialUpgrade), and an OR can never reduce it (#83). No-op
+    // until a player exists; idempotent once the count matches, so held flasks are left alone at rest.
+    if (!state_.authenticated() || !mod::vial_api_available())
         return;
-    const int want = upgrades_.counts()[kVialUpgradeIndex];
+    const int want = upgrades_.counts()[kVialUpgradeIndex]; // clamped >= 0; the setter hangs on a negative
     const int old_max = mod::player_max_vials();
     const int old_held = mod::player_vials();
     mod::set_player_max_vials(want);
-    mod::set_player_vials(maintained_vial_held(old_max, old_held, want));
+    // Re-read instead of assuming `want`: the getter adds the trinket vial bonus that the setter does not
+    // write, so comparing the two directly would fight an equipped bonus trinket every tick.
+    const int new_max = mod::player_max_vials();
+    if (new_max == old_max)
+        return;
+    const int new_held = maintained_vial_held(old_max, old_held, new_max);
+    mod::set_player_vials(new_held);
+    // Logged unthrottled on purpose: a correction only happens when something re-seeded the bitfield, so
+    // repeats are the signal, not noise. #171 was undiagnosable because this path was entirely silent.
+    pal::logf(pal::LogLevel::Info, "vials: capacity %d -> %d (AP count %d, held %d -> %d)", old_max, new_max, want, old_held, new_held);
 }
 
 void App::enforce_wallet_cap()

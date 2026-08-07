@@ -141,8 +141,8 @@ constexpr std::ptrdiff_t kSparkUpgOff = 0x54;    // Spark_Upgrade   (itemType 0x
 constexpr std::ptrdiff_t kHealthUpgOff = 0x130;  // Health_Upgrade  (itemType 0x45) bitfield (0xff = 8)
 constexpr std::ptrdiff_t kMagicUpgOff = 0x170;   // Magic_Upgrade   (itemType 0x44)
 constexpr std::ptrdiff_t kTrinketUpgOff = 0x950; // Trinket_Upgrade (itemType 0x48)
-// Vials are not zeroed here: their bitfield offset drifts (#97) and App re-asserts the AP vial count via
-// the mod API each tick anyway, overwriting the vanilla seed.
+// Vials are not zeroed here: their bitfield offset drifts (#97). App::enforce_vial_capacity re-asserts the
+// AP vial count via the mod API each tick instead, which also survives the run re-seeding the base (#171).
 
 pal::NewfileKitSuppressFn g_kit_suppress = nullptr;
 pal::HookId g_kit_hook = pal::kInvalidHookId;
