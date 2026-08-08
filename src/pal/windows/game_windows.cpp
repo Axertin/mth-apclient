@@ -176,6 +176,7 @@ void *g_cheat_mgr = nullptr;
 bool g_mod_resolved = false;
 bool g_mod_ok = false;
 pal::SeedFn g_seed_fn;
+pal::SaveLoadedFn g_save_loaded_fn;
 pal::BlockFn g_block_fn;
 std::uintptr_t g_addr_activate_slot = 0, g_addr_activate_cheats = 0, g_addr_toggle = 0, g_addr_set_applied = 0;
 pal::HookId g_id_activate_slot = pal::kInvalidHookId;
@@ -229,6 +230,10 @@ void repl_activate_slot(void *self, bool flag)
     }
     if (g_orig_activate_slot)
         g_orig_activate_slot(self, flag);
+    // Post-original: the slot's contents are the run's by now. flag=false is a title/profile-menu
+    // re-activation and must not fire, or the notify lands before the save data does.
+    if (flag && g_save_loaded_fn)
+        g_save_loaded_fn();
 }
 void repl_activate_cheats(void *self)
 {
@@ -818,6 +823,11 @@ bool modifiers_available()
              static_cast<unsigned long long>(g_addr_activate_cheats), static_cast<unsigned long long>(g_addr_set_applied));
     return g_mod_ok;
 }
+void set_save_loaded(SaveLoadedFn cb)
+{
+    g_save_loaded_fn = std::move(cb);
+}
+
 void set_new_game_modifier_seed(SeedFn seed)
 {
     if (!modifiers_available())
@@ -878,6 +888,7 @@ void remove_modifier_hooks()
         *id = kInvalidHookId;
     }
     g_seed_fn = nullptr;
+    g_save_loaded_fn = nullptr;
     g_block_fn = nullptr;
 }
 

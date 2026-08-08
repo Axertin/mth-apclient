@@ -72,6 +72,12 @@ void set_new_game_modifier_seed(SeedFn seed);
 using BlockFn = std::function<bool(int idx)>;
 void set_modifier_lockdown(BlockFn block);
 
+// Invoked on the game thread when a save slot is activated with a real load; title/profile-menu
+// re-activations pass flag=false and do NOT fire it. Rides the ActivateSaveSlot hook that
+// set_new_game_modifier_seed installs, so it is inert while modifiers are unavailable.
+using SaveLoadedFn = std::function<void()>;
+void set_save_loaded(SaveLoadedFn cb);
+
 // Set/clear a modifier's enable bit on the live slot(s) and rebuild the runtime mirror so the
 // effect is live. Game-thread only (calls ActivateSaveCheats). Returns false if unavailable or idx
 // invalid. Writes both the apply-path and live slots to sidestep the unresolved aliasing.

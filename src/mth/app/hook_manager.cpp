@@ -36,6 +36,7 @@ HookManager::HookManager(IGameEvents &events, RandoBridge &rando, ScoutRegistry 
     game_hooks_ = std::make_unique<GameHooks>(events);
     location_hooks_ = std::make_unique<LocationHooks>(rando, &scout);
     boss_tracker_ = std::make_unique<BossTracker>(rando);
+    pal::set_save_loaded([this] { boss_tracker_->on_save_loaded(); });
     goal_tracker_ = std::make_unique<GoalTracker>(rando);
     lock_hooks_ = std::make_unique<LockHooks>();
     chest_hooks_ = std::make_unique<ChestHooks>(lock_hooks_->locks()); // shares the lock registry + seed
@@ -70,6 +71,7 @@ HookManager::~HookManager()
     save_takeover_.reset();
     fountain_lamp_hooks_.reset();
     goal_tracker_.reset();
+    pal::set_save_loaded(nullptr); // the callback captures this; drop it before the tracker dies
     boss_tracker_.reset();
     location_hooks_.reset();
     chest_hooks_.reset();
