@@ -44,8 +44,8 @@ namespace detail
 {
     if (mode == KearMode::Vanilla)
     {
-        const std::int64_t kear = ap_item_id(kUniversalKearItemType);
-        const auto n = std::count_if(received.begin(), received.end(), [kear](const ReceivedItem &it) { return it.item_id == kear; });
+        constexpr std::int64_t kear = ap_item_id(kUniversalKearItemType);
+        const auto n = std::count_if(received.begin(), received.end(), [](const ReceivedItem &it) { return it.item_id == kear; });
         return n >= kVanillaKearTotal;
     }
 
