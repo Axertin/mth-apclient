@@ -35,6 +35,10 @@ function(apply_release_optimizations target)
     if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
         target_compile_options(${target} PRIVATE -O3 -flto)
         target_link_options(${target} PRIVATE -flto LINKER:--gc-sections)
+    elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+        # clang-cl: the cl driver silently discards GCC-style -O3 ("argument unused during
+        # compilation") on every TU. CMAKE_CXX_FLAGS_RELEASE already carries /O2 /Ob2 /DNDEBUG,
+        # which is the equivalent, so there is nothing to add here.
     elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
         # No thin-LTO: it turns the static libs into LLVM-bitcode archives that a
         # non-LTO consumer linked with GNU ld can't read ("file format not

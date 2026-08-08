@@ -63,7 +63,11 @@
                 "VCPKG_TARGET_TRIPLET": "x64-windows-static",
                 "VCPKG_MANIFEST_FEATURES": "net",
                 "CMAKE_MSVC_RUNTIME_LIBRARY": "MultiThreaded$<$<CONFIG:Debug>:Debug>",
-                "MTHAP_BUILD_TESTS": "OFF"
+                "VCPKG_APPLOCAL_DEPS": "OFF",
+                "MTHAP_BUILD_TESTS": "OFF",
+                "MTHAP_BUILD_TESTS_ONLY": "OFF",
+                "MTHAP_ENABLE_NET": "ON",
+                "MTHAP_ENABLE_OVERLAY": "ON"
             },
             "condition": {
                 "type": "equals",
@@ -95,7 +99,10 @@
                 "VCPKG_TARGET_TRIPLET": "x64-mingw-static",
                 "VCPKG_MANIFEST_FEATURES": "net",
                 "VCPKG_APPLOCAL_DEPS": "OFF",
-                "MTHAP_BUILD_TESTS": "OFF"
+                "MTHAP_BUILD_TESTS": "OFF",
+                "MTHAP_BUILD_TESTS_ONLY": "OFF",
+                "MTHAP_ENABLE_NET": "ON",
+                "MTHAP_ENABLE_OVERLAY": "ON"
             },
             "condition": {
                 "type": "equals",

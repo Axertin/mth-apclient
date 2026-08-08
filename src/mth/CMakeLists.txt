@@ -131,12 +131,14 @@ if(NOT MTHAP_BUILD_TESTS_ONLY)
         # Output is `mod.dll`: loaded by the native MinaModAPI from mods/apclient/.
         # CRT linkage is controlled by CMAKE_MSVC_RUNTIME_LIBRARY (per-preset,
         # static via the x64-windows-static triplet).
+        set(_mthap_mod_name "mod.dll")
         set_target_properties(mthap PROPERTIES
             OUTPUT_NAME "mod"
             PREFIX ""
             SUFFIX ".dll"
         )
     else()
+        set(_mthap_mod_name "mod.so")
         set_target_properties(mthap PROPERTIES
             OUTPUT_NAME "mod"
             PREFIX ""
@@ -160,17 +162,34 @@ if(NOT MTHAP_BUILD_TESTS_ONLY)
     endif()
 
     # Mod manifest: packed semver + configured game-version range. add_git_version_info
-    # (called on mthap_core above) exported MTHAP_MOD_VERSION into this scope.
+    # (called on mthap_core above) exported MTHAP_MOD_VERSION into this scope. Staged outside the
+    # drop-in so the copy rules below, not configure, own everything that lands in mods/apclient/.
     configure_file(
         "${CMAKE_SOURCE_DIR}/packaging/mod.yc.in"
-        "${CMAKE_BINARY_DIR}/mods/apclient/mod.yc"
+        "${CMAKE_BINARY_DIR}/generated/mod.yc"
         @ONLY
     )
 
     # Assemble the drop-in: mods/apclient/{mod.yc, mod.<dll|so>}. The library is
     # self-contained (static runtime + deps), so no sidecar libraries ship.
-    add_custom_command(TARGET mthap POST_BUILD
-        COMMAND "${CMAKE_COMMAND}" -E copy "$<TARGET_FILE:mthap>" "${CMAKE_BINARY_DIR}/mods/apclient/"
+    # These are declared OUTPUTs of a target rather than a POST_BUILD step because a POST_BUILD is
+    # invisible to the generator: deleting mods/ (the directory you copy into the game) left the
+    # build reporting "no work to do" and shipping nothing. As real outputs they get restored.
+    set(_mthap_dropin "${CMAKE_BINARY_DIR}/mods/apclient")
+    add_custom_command(
+        OUTPUT "${_mthap_dropin}/${_mthap_mod_name}"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "${_mthap_dropin}"
+        COMMAND "${CMAKE_COMMAND}" -E copy "$<TARGET_FILE:mthap>" "${_mthap_dropin}/${_mthap_mod_name}"
+        DEPENDS mthap
         VERBATIM
         COMMENT "Assembling mods/apclient drop-in")
+    add_custom_command(
+        OUTPUT "${_mthap_dropin}/mod.yc"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "${_mthap_dropin}"
+        COMMAND "${CMAKE_COMMAND}" -E copy "${CMAKE_BINARY_DIR}/generated/mod.yc" "${_mthap_dropin}/mod.yc"
+        DEPENDS "${CMAKE_BINARY_DIR}/generated/mod.yc"
+        VERBATIM
+        COMMENT "Staging mods/apclient/mod.yc")
+    add_custom_target(mthap_dropin ALL
+        DEPENDS "${_mthap_dropin}/${_mthap_mod_name}" "${_mthap_dropin}/mod.yc")
 endif()
