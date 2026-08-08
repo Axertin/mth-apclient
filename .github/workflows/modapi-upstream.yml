@@ -1,0 +1,78 @@
+name: modapi-upstream
+
+# MinaModAPI.h defines the struct layout the game hands MinaMod_Init, so the pin in
+# cmake/MinaModApi.cmake cannot be allowed to go quietly stale. This compares it against
+# upstream main and opens an issue when they diverge. It never edits the pin itself.
+
+on:
+  schedule:
+    - cron: "17 6 * * 1" # Mondays, 06:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    name: Check MinaModAPI pin against upstream main
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compare pin with upstream main
+        id: compare
+        run: |
+          set -euo pipefail
+          pinned=$(grep -oE 'set\(MINAMODAPI_COMMIT [0-9a-f]{40}\)' cmake/MinaModApi.cmake \
+                   | grep -oE '[0-9a-f]{40}' || true)
+          if [ -z "$pinned" ]; then
+            echo "::error file=cmake/MinaModApi.cmake::could not parse MINAMODAPI_COMMIT"
+            exit 1
+          fi
+          upstream=$(git ls-remote https://github.com/YachtClubGames/MinaModAPI.git refs/heads/main \
+                     | cut -f1)
+          if [ -z "$upstream" ]; then
+            echo "::error::could not read upstream main"
+            exit 1
+          fi
+          echo "pinned=$pinned"     >> "$GITHUB_OUTPUT"
+          echo "upstream=$upstream" >> "$GITHUB_OUTPUT"
+          if [ "$pinned" = "$upstream" ]; then
+            echo "drift=false" >> "$GITHUB_OUTPUT"
+            echo "Pin is current ($pinned)."
+          else
+            echo "drift=true" >> "$GITHUB_OUTPUT"
+            echo "Pin $pinned is behind upstream $upstream."
+          fi
+
+      # One issue per upstream commit: the title carries the sha, so a rerun while the same
+      # commit is still untracked finds the open issue and stays quiet.
+      - name: Open an issue when the pin is behind
+        if: steps.compare.outputs.drift == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PINNED: ${{ steps.compare.outputs.pinned }}
+          UPSTREAM: ${{ steps.compare.outputs.upstream }}
+        run: |
+          set -euo pipefail
+          title="MinaModAPI upstream moved to ${UPSTREAM:0:12}"
+          if gh issue list --state open --limit 200 --json title --jq '.[].title' \
+             | grep -Fxq "$title"; then
+            echo "Already reported: $title"
+            exit 0
+          fi
+          # Quoted heredoc so backticks and markdown stay literal; the shas go in afterwards.
+          cat > /tmp/modapi-drift.md <<'BODY'
+          `cmake/MinaModApi.cmake` pins MinaModAPI at `__PINNED__`, but upstream `main` is now `__UPSTREAM__`.
+
+          MinaModAPI.h defines the struct layout the game passes to `MinaMod_Init`, so review the diff
+          before bumping - a layout change needs the PAL entry point checked, not just a rebuild.
+
+          [Compare](https://github.com/YachtClubGames/MinaModAPI/compare/__PINNED__...__UPSTREAM__)
+
+          To adopt: update `MINAMODAPI_COMMIT` in `cmake/MinaModApi.cmake`, then reconfigure and run
+          the Windows and Linux builds.
+          BODY
+          sed -i "s/__PINNED__/$PINNED/g; s/__UPSTREAM__/$UPSTREAM/g" /tmp/modapi-drift.md
+          gh issue create --title "$title" --body-file /tmp/modapi-drift.md

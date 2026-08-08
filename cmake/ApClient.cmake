@@ -26,12 +26,17 @@ cmake_policy(SET CMP0097 NEW)
 # their own CMake builds (examples/tests/install) are not wanted.
 set(_apclient_no_build "_headers_only")
 
+# FetchContent's stamps record the patch COMMAND, not the patch CONTENT, so editing the patch
+# would otherwise leave the old one applied with no reconfigure and no warning.
+set(_apclient_ws_patch "${CMAKE_CURRENT_LIST_DIR}/patches/websocketpp-0.8.2-cxx23-cdtor.patch")
+set_property(DIRECTORY "${CMAKE_SOURCE_DIR}" APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${_apclient_ws_patch}")
+
 FetchContent_Declare(
     websocketpp
     GIT_REPOSITORY https://github.com/zaphoyd/websocketpp.git
     GIT_TAG        56123c87598f8b1dd471be83ca841ceae07f95ba # 0.8.2
     PATCH_COMMAND  ${CMAKE_COMMAND}
-                       -DPATCH=${CMAKE_CURRENT_LIST_DIR}/patches/websocketpp-0.8.2-cxx23-cdtor.patch
+                       -DPATCH=${_apclient_ws_patch}
                        -DWORKDIR=<SOURCE_DIR>
                        -P ${CMAKE_CURRENT_LIST_DIR}/apply_patch.cmake
     SOURCE_SUBDIR  ${_apclient_no_build}
