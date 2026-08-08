@@ -45,9 +45,6 @@ inline constexpr int kDummyAssetDonor = 40;
 inline constexpr int kItemHealingVialFirst = 0x12;
 inline constexpr int kItemVialUpgrade = 0x47;
 
-// BossComponent (verified by the index-range self-check in the death funnels).
-inline constexpr std::ptrdiff_t kBossIndexOff = 0x68;
-
 // KeyBlock / SaveSlot lock bits.
 inline constexpr std::ptrdiff_t kKeyBlockSlotOff = 0x2d0;     // int: cached slot, -1 = name-scan (non-PairLock)
 inline constexpr std::ptrdiff_t kKeyBlockEntityRefOff = 0xa8; // start of the +0xa8 -> +0x40 -> +0xd0 name-key chain

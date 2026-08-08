@@ -12,6 +12,7 @@
 #include "mth/core/data/game_tables.hpp"
 #include "mth/features/player_tracker.hpp"
 #include "pal/pal_log.hpp"
+#include "pal/pal_module.hpp"
 
 namespace
 {

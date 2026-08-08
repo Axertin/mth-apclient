@@ -88,7 +88,7 @@ if(NOT MTHAP_BUILD_TESTS_ONLY)
         features/room_tracker.cpp
         features/item_granter.cpp
         features/location_hooks.cpp
-        features/boss_hooks.cpp
+        features/boss_tracker.cpp
         features/goal_tracker.cpp
         features/lock_hooks.cpp
         features/chest_hooks.cpp

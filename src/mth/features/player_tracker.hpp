@@ -1,32 +1,26 @@
 #pragma once
 
-#include "mth/hooks/scoped_hook.hpp"
-
 namespace mth
 {
 
-// Serves the live Player* and a position cache captured inside PlayerTrackable::Update,
-// in-context, because PlayerGetPos3 dereferences an unwired second-level pointer (one hop
-// past the player component) unconditionally, and that pointer is null in the pre-World::Update
-// spawn window, so reading position there faults. The Player* comes from the game's own live-player
-// pointer where the build exposes it, falling back to the ctor hook's capture (refreshable
-// by other hooks) otherwise. All state game-thread-only.
+// Serves the live Player* and a position cache sampled once per tick. Position comes from the native
+// mod API's PlayerGetPos3, which reports failure rather than faulting in the pre-World::Update spawn
+// window, so the sample no longer has to run in-context inside PlayerTrackable::Update. The Player*
+// comes from the game's own live-player pointer where the build exposes it, falling back to whatever
+// a game-thread hook last handed to note_player. All state game-thread-only.
 class PlayerTracker
 {
   public:
-    PlayerTracker();
+    PlayerTracker() = default;
     ~PlayerTracker();
     PlayerTracker(const PlayerTracker &) = delete;
     PlayerTracker &operator=(const PlayerTracker &) = delete;
 
     [[nodiscard]] void *player() const;
-    [[nodiscard]] bool position(float out[3]) const; // false until the first in-context capture
+    [[nodiscard]] bool position(float out[3]) const; // false until the first successful sample
+    void sample_position();                          // per-tick; the only writer of the position cache
     void note_player(void *player);                  // refresh the fallback capture from another game-thread hook
     void invalidate_player();                        // drop the fallback capture on world teardown (its object is about to be freed)
-
-  private:
-    ScopedHook ctor_hook_;
-    ScopedHook trackable_update_;
 };
 
 } // namespace mth

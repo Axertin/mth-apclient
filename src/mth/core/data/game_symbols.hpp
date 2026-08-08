@@ -18,12 +18,6 @@ inline constexpr const char *update_queue = "_ZN13ycUpdateQueue6UpdateEf";  // y
 inline constexpr const char *on_pickup_done = "_ZN5Items12OnPickupDoneEiiP6PlayerRK6ycVec3iijb";
 inline constexpr const char *process_sdl_event = "_Z15ProcessSDLEventR9SDL_Event"; // ProcessSDLEvent(SDL_Event&)
 
-// Inbound grant plumbing: Player* via ctor, trackable via Update each frame (position comes from
-// the native mod API's PlayerGetPos3, not this trackable - see mod::player_position).
-inline constexpr const char *player_ctor =
-    "_ZN6PlayerC2EP8ycEntityP17GameComponentDescP11PlayerSetup"; // Player::Player(ycEntity*, GameComponentDesc*, PlayerSetup*)
-inline constexpr const char *player_trackable_update = "_ZN15PlayerTrackable6UpdateEP20ycUpdateQueueContext"; // PlayerTrackable::Update(ycUpdateQueueContext*)
-
 // s_rItems: 195-entry item table (stride 0x68, kind at +0x28).
 inline constexpr const char *s_r_items = "_ZN12_GLOBAL__N_18s_rItemsE";
 
@@ -62,15 +56,6 @@ inline constexpr const char *shop_set_cursor = "_ZN8ShopMenu9SetCursorEib"; // S
 
 // s_rItemCollection: 361 x 0x50, native itemType at +0x18, maps locIdx to vanilla contents kind.
 inline constexpr const char *s_r_item_collection = "_ZN12_GLOBAL__N_117s_rItemCollectionE"; // s_rItemCollection location table
-
-// Live boss-death funnels (kill-time). SetBossDefeated was reload-path only (29/34 call sites are in
-// <Boss>::InitState corpse-spawn). Most bosses route through TriggerDeathSequence (its 1-arg variant
-// tail-jumps into this 2-arg one); Lionel/Maxi route through OnDefeatedNoSkeleton. Boss index is at
-// bossComponent+0x68. Some bosses hit both funnels in one death -> dedup at the bridge.
-inline constexpr const char *boss_trigger_death_sequence =
-    "_ZN13BossComponent20TriggerDeathSequenceEP15BossDeathParamsj"; // BossComponent::TriggerDeathSequence(BossDeathParams*, unsigned)
-inline constexpr const char *boss_on_defeated_no_skeleton =
-    "_ZN13BossComponent20OnDefeatedNoSkeletonER19BossDeathRewardInfo"; // BossComponent::OnDefeatedNoSkeleton(BossDeathRewardInfo&)
 
 // Active SaveSlot* = *(g_saveManager+0x18); lock-unlocked bits live in a u64 at SaveSlot+0x200.
 inline constexpr const char *save_manager = "g_saveManager";

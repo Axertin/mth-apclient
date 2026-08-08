@@ -6,28 +6,12 @@
    "kind": "Code"
   },
   {
-   "name": "_ZN6PlayerC2EP8ycEntityP17GameComponentDescP11PlayerSetup",
-   "kind": "Code"
-  },
-  {
-   "name": "_ZN15PlayerTrackable6UpdateEP20ycUpdateQueueContext",
-   "kind": "Code"
-  },
-  {
    "name": "_ZN12_GLOBAL__N_18s_rItemsE",
    "kind": "DataRef"
   },
   {
    "name": "_ZN12_GLOBAL__N_117s_rItemCollectionE",
    "kind": "DataRef"
-  },
-  {
-   "name": "_ZN13BossComponent20TriggerDeathSequenceEP15BossDeathParamsj",
-   "kind": "Code"
-  },
-  {
-   "name": "_ZN13BossComponent20OnDefeatedNoSkeletonER19BossDeathRewardInfo",
-   "kind": "Code"
   },
   {
    "name": "_ZN8SaveSlot5ClearEb",
@@ -67,12 +51,6 @@
   }
  ],
  "windows": {
-  "_ZN6PlayerC2EP8ycEntityP17GameComponentDescP11PlayerSetup": {
-   "rva": 9974368
-  },
-  "_ZN15PlayerTrackable6UpdateEP20ycUpdateQueueContext": {
-   "rva": 10535344
-  },
   "_ZN12_GLOBAL__N_18s_rItemsE": {
    "ref_site_rva": 9907588,
    "disp_off": 3,
@@ -82,12 +60,6 @@
    "ref_site_rva": 3088757,
    "disp_off": 3,
    "next_insn": 7
-  },
-  "_ZN13BossComponent20TriggerDeathSequenceEP15BossDeathParamsj": {
-   "rva": 5332640
-  },
-  "_ZN13BossComponent20OnDefeatedNoSkeletonER19BossDeathRewardInfo": {
-   "rva": 5338864
   },
   "_ZN8SaveSlot5ClearEb": {
    "rva": 10737824
@@ -120,12 +92,6 @@
  "linux": {
   "_ZN13ycUpdateQueue6UpdateEf": {
    "rva": 3276656
-  },
-  "_ZN6PlayerC2EP8ycEntityP17GameComponentDescP11PlayerSetup": {
-   "rva": 13358512
-  },
-  "_ZN15PlayerTrackable6UpdateEP20ycUpdateQueueContext": {
-   "rva": 14024608
   },
   "_ZN8SaveSlot5ClearEb": {
    "rva": 14271120
