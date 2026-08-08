@@ -1,36 +1,40 @@
 name: release
 
+# release-please keeps a release PR open against master; merging it cuts the tag and the GitHub
+# release. The build jobs below run only on that merge, so the tag exists by the time they check
+# out and git describe stamps the drop-in with the released version rather than a -dev one.
+
 on:
   push:
-    tags: ["v*"]
+    branches: [master]
+
+permissions:
+  contents: read
 
 env:
   VCPKG_BINARY_SOURCES: "clear;files,${{ github.workspace }}/.vcpkg-cache,readwrite"
 
 jobs:
-  guard:
-    name: Check tag is on master
+  release-please:
+    name: Maintain the release PR
     runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      pull-requests: write
     outputs:
-      on_master: ${{ steps.check.outputs.on_master }}
+      released: ${{ steps.rp.outputs.release_created }}
+      tag: ${{ steps.rp.outputs.tag_name }}
     steps:
-      - uses: actions/checkout@v7
-        with: { fetch-depth: 0 }
-      - name: Is the tagged commit on master?
-        id: check
-        run: |
-          git fetch --no-tags origin master:refs/remotes/origin/master
-          if git merge-base --is-ancestor "$GITHUB_SHA" origin/master; then
-            echo "on_master=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "on_master=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::tag $GITHUB_REF_NAME ($GITHUB_SHA) is not on master; skipping release"
-          fi
+      - uses: googleapis/release-please-action@v5
+        id: rp
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
 
   build-linux:
     name: Build mod (Linux x86_64, Frida)
-    needs: guard
-    if: needs.guard.outputs.on_master == 'true'
+    needs: release-please
+    if: needs.release-please.outputs.released == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -48,6 +52,16 @@ jobs:
         run: ./external/vcpkg/bootstrap-vcpkg.sh -disableMetrics
       - name: Configure
         run: cmake --preset clang-x64-release
+      - name: Check the build picked up the release tag
+        run: |
+          built=$(cat build/clang-x64-release/version.txt)
+          want="${TAG#v}"
+          if [ "$built" != "$want" ]; then
+            echo "::error::drop-in stamped $built but the release is $want"
+            exit 1
+          fi
+        env:
+          TAG: ${{ needs.release-please.outputs.tag }}
       - name: Build
         run: cmake --build --preset clang-x64-release
       - name: Upload mod drop-in (Linux)
@@ -59,8 +73,8 @@ jobs:
 
   build-windows:
     name: Build mod (Windows clang-cl x64)
-    needs: guard
-    if: needs.guard.outputs.on_master == 'true'
+    needs: release-please
+    if: needs.release-please.outputs.released == 'true'
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v7
@@ -81,6 +95,17 @@ jobs:
         run: external\vcpkg\bootstrap-vcpkg.bat -disableMetrics
       - name: Configure
         run: cmake --preset clang-cl-x64-release
+      - name: Check the build picked up the release tag
+        shell: bash
+        run: |
+          built=$(cat build/clang-cl-x64-release/version.txt)
+          want="${TAG#v}"
+          if [ "$built" != "$want" ]; then
+            echo "::error::drop-in stamped $built but the release is $want"
+            exit 1
+          fi
+        env:
+          TAG: ${{ needs.release-please.outputs.tag }}
       - name: Build
         run: cmake --build --preset clang-cl-x64-release
       - name: Upload mod drop-in (Windows)
@@ -90,9 +115,9 @@ jobs:
           path: build/clang-cl-x64-release/mods/
           if-no-files-found: error
 
-  release:
-    name: Create GitHub release
-    needs: [build-linux, build-windows]
+  publish:
+    name: Attach the drop-ins to the release
+    needs: [release-please, build-linux, build-windows]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -103,27 +128,21 @@ jobs:
       # Each artifact extracts to dist/<name>/apclient/ (the binary, mod.yc and the licence files); re-zip per platform
       # so the release asset unpacks to an apclient/ drop-in folder.
       - name: Package drop-in zips
+        env:
+          TAG: ${{ needs.release-please.outputs.tag }}
         run: |
-          ( cd dist/release-linux && zip -r "$GITHUB_WORKSPACE/mth-apclient-${GITHUB_REF_NAME}-linux.zip" apclient )
-          ( cd dist/release-windows && zip -r "$GITHUB_WORKSPACE/mth-apclient-${GITHUB_REF_NAME}-windows.zip" apclient )
-      # Pre-release for any prerelease tag suffix (-dev/-beta/-rc/...) or a 0.x major.
-      - name: Classify tag
-        id: tag
-        run: |
-          ver="${GITHUB_REF_NAME#v}"
-          if [[ "$ver" == *-* || "$ver" == 0.* ]]; then
-            echo "prerelease=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "prerelease=false" >> "$GITHUB_OUTPUT"
-          fi
-      - name: Create release
+          ( cd dist/release-linux && zip -r "$GITHUB_WORKSPACE/mth-apclient-${TAG}-linux.zip" apclient )
+          ( cd dist/release-windows && zip -r "$GITHUB_WORKSPACE/mth-apclient-${TAG}-windows.zip" apclient )
+      - name: Upload assets
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }} # this job has no checkout; tell gh the repo
+          TAG: ${{ needs.release-please.outputs.tag }}
         run: |
-          args=(--title "$GITHUB_REF_NAME" --generate-notes)
-          if [[ "${{ steps.tag.outputs.prerelease }}" == "true" ]]; then args+=(--prerelease); fi
-          gh release create "$GITHUB_REF_NAME" \
-            "mth-apclient-${GITHUB_REF_NAME}-linux.zip" \
-            "mth-apclient-${GITHUB_REF_NAME}-windows.zip" \
-            "${args[@]}"
+          gh release upload "$TAG" \
+            "mth-apclient-${TAG}-linux.zip" \
+            "mth-apclient-${TAG}-windows.zip" --clobber
+          # Any tag carrying a prerelease suffix ships as a pre-release.
+          if [[ "$TAG" == *-* ]]; then
+            gh release edit "$TAG" --prerelease
+          fi
