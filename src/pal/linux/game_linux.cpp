@@ -780,25 +780,6 @@ void repl_write_save_data(void *self, bool flag)
         g_orig_write_save_data(self, flag);
 }
 
-// ProfileSelectMenu::UpdateState: observed, never suppressed. The takeover needs the live menu to
-// drive it into its launch state; the menu itself is created and destroyed by the intro cinematic.
-pal::ProfileMenuFn g_profile_menu_fn;
-pal::HookId g_profile_menu_hook = pal::kInvalidHookId;
-void (*g_orig_profile_menu_update)(void *) = nullptr;
-
-// Resolved once at install time: on Windows each resolve is a full .text signature scan, and the
-// staging path runs on a game frame.
-std::uintptr_t g_takeover_save_manager = 0;
-std::uintptr_t g_takeover_slot_clear = 0;
-std::uintptr_t g_takeover_init_gamestate = 0;
-
-void repl_profile_menu_update(void *self)
-{
-    if (g_profile_menu_fn && pal::pointer_looks_valid(self))
-        g_profile_menu_fn(self);
-    if (g_orig_profile_menu_update)
-        g_orig_profile_menu_update(self);
-}
 } // namespace
 
 namespace pal
@@ -1677,43 +1658,28 @@ void remove_save_request_hook()
     g_save_request_fn = nullptr;
 }
 
-bool install_profile_menu_hook(ProfileMenuFn on_update)
+// Resolved on first use rather than eagerly: on Windows each resolve is a full .text signature scan,
+// and the staging path runs on a game frame.
+std::uintptr_t g_takeover_save_manager = 0;
+std::uintptr_t g_takeover_slot_clear = 0;
+std::uintptr_t g_takeover_init_gamestate = 0;
+bool g_takeover_syms_resolved = false;
+
+void resolve_takeover_symbols()
 {
-    g_profile_menu_fn = std::move(on_update);
-    const std::uintptr_t addr = resolve_game_symbol(mth::sym::profile_select_menu_update_state);
-    if (addr == 0)
-    {
-        logf(LogLevel::Warn, "takeover: ProfileSelectMenu::UpdateState not resolved; the save takeover cannot launch");
-        g_profile_menu_fn = nullptr;
-        return false;
-    }
-    g_profile_menu_hook = hook_engine().install_hook(reinterpret_cast<void *>(addr), reinterpret_cast<void *>(&repl_profile_menu_update),
-                                                     reinterpret_cast<void **>(&g_orig_profile_menu_update));
-    if (g_profile_menu_hook == kInvalidHookId)
-    {
-        logf(LogLevel::Error, "takeover: failed to hook ProfileSelectMenu::UpdateState");
-        g_profile_menu_fn = nullptr;
-        return false;
-    }
-    logf(LogLevel::Info, "takeover: hooked ProfileSelectMenu::UpdateState (id=%llu)", static_cast<unsigned long long>(g_profile_menu_hook));
+    if (g_takeover_syms_resolved)
+        return;
+    g_takeover_syms_resolved = true;
     g_takeover_save_manager = resolve_game_symbol(mth::sym::save_manager);
     g_takeover_slot_clear = resolve_game_symbol(mth::sym::save_slot_clear);
     g_takeover_init_gamestate = resolve_game_symbol(mth::sym::save_slot_init_gamestate);
     if (g_takeover_save_manager == 0 || g_takeover_slot_clear == 0 || g_takeover_init_gamestate == 0)
         logf(LogLevel::Warn, "takeover: g_saveManager/SaveSlot::Clear/InitGamestate not all resolved; a new save cannot be staged");
-    return true;
-}
-
-void remove_profile_menu_hook()
-{
-    if (g_profile_menu_hook != kInvalidHookId)
-        hook_engine().remove_hook(g_profile_menu_hook);
-    g_profile_menu_hook = kInvalidHookId;
-    g_profile_menu_fn = nullptr;
 }
 
 bool init_new_save_file(unsigned int slot)
 {
+    resolve_takeover_symbols();
     if (g_takeover_save_manager == 0 || g_takeover_slot_clear == 0 || g_takeover_init_gamestate == 0)
     {
         logf(LogLevel::Warn, "takeover: SaveSlot::Clear/InitGamestate or g_saveManager not resolved; cannot init a new save");

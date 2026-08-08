@@ -1,10 +1,13 @@
 #include "mth/features/save_takeover.hpp"
 
 #include "mod/mod_api.hpp"
+#include "mth/core/data/component_types.hpp"
 #include "mth/core/data/game_layout.hpp"
+#include "mth/features/scene_walk.hpp"
 #include "pal/pal_game.hpp"
 #include "pal/pal_log.hpp"
 #include "pal/pal_mem.hpp"
+#include "pal/pal_module.hpp"
 
 namespace mth
 {
@@ -14,8 +17,9 @@ namespace
 // deterministic. Its on-disk contents are never modified.
 constexpr unsigned int kScratchSlot = 0;
 
-// The menu pointer is normalized by the PAL detour (Windows hands the detour a base subobject), so
-// the shared mth::layout offsets apply on both platforms from here down.
+// The scene walk hands back the object's primary pointer on both platforms, so the shared mth::layout
+// offsets apply directly - unlike the old detour, where MSVC passed a base subobject that needed a
+// per-platform adjust.
 int *menu_field(void *menu, std::ptrdiff_t off)
 {
     return reinterpret_cast<int *>(static_cast<char *>(menu) + off);
@@ -75,22 +79,20 @@ SaveTakeover::SaveTakeover(ApSaveStore store, IdentityFn identity) : store_(std:
 {
     if (!pal::install_save_request_hook([this] { on_game_save_requested(); }))
         pal::logf(pal::LogLevel::Warn, "takeover: save-request hook unavailable; mod saves will not flush");
-    menu_hook_ok_ = pal::install_profile_menu_hook([this](void *menu) { on_profile_menu(menu); }); // logs its own failure
 }
 
 SaveTakeover::~SaveTakeover()
 {
-    pal::remove_profile_menu_hook();
     pal::remove_save_request_hook();
 }
 
 bool SaveTakeover::begin()
 {
-    // Without the menu hook nothing would ever drive the launch, and the recovery that bounces the
-    // player back to the title lives in that same callback. Refuse the launch instead.
-    if (!menu_hook_ok_)
+    // Without the scene walk nothing would ever find the menu to drive, and the recovery that bounces
+    // the player back to the title runs off the same pass. Refuse the launch instead.
+    if (!mod::entity_walk_api_available() || !mod::world_menu_root_api_available())
     {
-        pal::logf(pal::LogLevel::Error, "takeover: profile-menu hook never installed; refusing to start");
+        pal::logf(pal::LogLevel::Error, "takeover: scene-walk API unavailable; refusing to start");
         return false;
     }
 
@@ -150,7 +152,67 @@ void SaveTakeover::fail(const char *why)
     pal::logf(pal::LogLevel::Error, "takeover: aborted (%s); save writes remain disabled", why);
 }
 
-void SaveTakeover::on_profile_menu(void *menu)
+// The ProfileSelectMenu is docked directly on the menu world's root entity, so this is normally a
+// single level; the descent is insurance against a build that nests it. A menu world is tiny compared
+// with a room, so this runs every pass rather than on a cadence - the launch should not wait.
+void SaveTakeover::on_world_update_end(void *world)
+{
+    // Only the AwaitingMenu claim and the Failed bounce need the menu; every other step ignores it.
+    if (world == nullptr || (step_ != TakeoverStep::AwaitingMenu && step_ != TakeoverStep::Failed))
+        return;
+    if (!mod::entity_walk_api_available() || !mod::world_menu_root_api_available())
+        return;
+    void *root = mod::world_menu_root_entity(world);
+    if (root == nullptr)
+        return;
+
+    if (mod_size_ == 0)
+    {
+        const pal::ModuleInfo gm = pal::game_module();
+        mod_base_ = gm.base;
+        mod_size_ = gm.size;
+    }
+
+    std::size_t visited = 0;
+    pending_.clear();
+    pending_.push_back(root);
+    while (!pending_.empty() && visited < kSceneMaxNodes)
+    {
+        void *entity = pending_.back();
+        pending_.pop_back();
+
+        const std::size_t count = mod::entity_children(entity, nullptr, 0); // sizing call
+        if (count == 0)
+            continue;
+        buffer_.assign(count > kSceneMaxChildren ? kSceneMaxChildren : count, nullptr);
+        mod::entity_children(entity, buffer_.data(), buffer_.size());
+        for (void *c : buffer_)
+        {
+            if (!looks_like_component(c, mod_base_, mod_size_))
+                continue;
+            ++visited;
+            // ProfileSelectMenu is a plain ycComponent, so it is a leaf: never descend into it.
+            if (mod::component_isa(c, rtti::kProfileSelectMenu))
+            {
+                drive_profile_menu(c);
+                return;
+            }
+            if (mod::component_isa(c, rtti::kYcEntity))
+                pending_.push_back(c);
+        }
+    }
+
+    // Silence is this walk's failure mode, and here it is also the normal case: the menu only exists for
+    // the seconds between the title and the launch. Warn once only when a claim is actually pending and
+    // the walk reached nothing at all, which can only mean broken rather than absent.
+    if (visited == 0 && step_ == TakeoverStep::AwaitingMenu && !warned_no_walk_)
+    {
+        warned_no_walk_ = true;
+        pal::logf(pal::LogLevel::Warn, "takeover: menu-world scene walk reached no components; the profile menu cannot be found");
+    }
+}
+
+void SaveTakeover::drive_profile_menu(void *menu)
 {
     // A takeover that gave up must not leave the player on a live profile-select, where they could
     // start a vanilla save inside a mod session.

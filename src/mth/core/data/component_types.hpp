@@ -22,9 +22,11 @@ inline constexpr std::uint64_t kYcEntity = type_id("ycEntity");
 // The Ossex Station train-pass donation machine and the interact component it owns.
 inline constexpr std::uint64_t kTicketMachine = type_id("TicketMachine");
 inline constexpr std::uint64_t kInteractComponent = type_id("InteractComponent");
+inline constexpr std::uint64_t kProfileSelectMenu = type_id("ProfileSelectMenu");
 
 static_assert(kYcEntity == 0x8a1d0d54bd371fe0ULL, "ycEntity::GetTypeId()");
 static_assert(kTicketMachine == 0xca27866425643ac0ULL, "TicketMachine::GetTypeId()");
 static_assert(kInteractComponent == 0x7998225abfacd663ULL, "InteractComponent::GetTypeId()");
+static_assert(kProfileSelectMenu == 0xd583afd6328982feULL, "ProfileSelectMenu::GetTypeId()");
 
 } // namespace mth::rtti

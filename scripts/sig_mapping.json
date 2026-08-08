@@ -34,10 +34,6 @@
    "kind": "Code"
   },
   {
-   "name": "_ZN17ProfileSelectMenu11UpdateStateEv",
-   "kind": "Code"
-  },
-  {
    "name": "_ZN6Player8OnBounceEv",
    "kind": "Code"
   }
@@ -67,9 +63,6 @@
   },
   "_ZN11TitleScreen9StartGameEv": {
    "rva": 11582032
-  },
-  "_ZN17ProfileSelectMenu11UpdateStateEv": {
-   "rva": 7536176
   },
   "_ZN6Player8OnBounceEv": {
    "rva": 10575808

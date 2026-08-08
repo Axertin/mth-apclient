@@ -345,9 +345,10 @@ void App::gate_tick()
 
 void App::on_world_update_end(void *world)
 {
-    (void)world;
     if (room_tracker_)
         room_tracker_->poll();
+    if (hooks_)
+        hooks_->on_world_update_end(world);
 }
 
 void App::on_world_destroy()

@@ -6,6 +6,7 @@
 #include "mod/mod_api.hpp"
 #include "mth/core/data/component_types.hpp"
 #include "mth/core/data/game_layout.hpp"
+#include "mth/features/scene_walk.hpp"
 #include "pal/pal_log.hpp"
 #include "pal/pal_mem.hpp"
 #include "pal/pal_module.hpp"
@@ -17,26 +18,9 @@ namespace
 // machine, so this runs at about 1Hz rather than per frame.
 constexpr int kWalkIntervalTicks = 60;
 
-// Runaway guards. The scene graph is a tree, but these bound the damage if a build ever hands back a
-// cyclic or corrupt one rather than letting the walk hang the game thread.
-constexpr std::size_t kMaxNodes = 65536;
-constexpr std::size_t kMaxChildren = 8192;
-
-// ComponentIsa jumps straight through the object's vtable with no validation of its own, so only pass it
-// something shaped like a live polymorphic game object. Note the vtable lives in the module's read-only
-// DATA, not its code, so pal::in_game_text is the wrong test here - it would reject every real object.
-bool looks_like_component(const void *p, std::uintptr_t mod_base, std::size_t mod_size)
-{
-    if (!pal::pointer_looks_valid(p))
-        return false;
-    const void *vtable = *static_cast<const void *const *>(p);
-    if (!pal::pointer_looks_valid(vtable))
-        return false;
-    if (mod_size == 0)
-        return true; // no module range published (tests): the pointer checks are all we have
-    const auto v = reinterpret_cast<std::uintptr_t>(vtable);
-    return v >= mod_base && v < mod_base + mod_size;
-}
+constexpr std::size_t kMaxNodes = mth::kSceneMaxNodes;
+constexpr std::size_t kMaxChildren = mth::kSceneMaxChildren;
+using mth::looks_like_component;
 
 // Disables the machine's interact component. Writes only on a real transition, so the log marks the one
 // tick that changed something instead of repeating at the walk cadence - and would speak up again if the
