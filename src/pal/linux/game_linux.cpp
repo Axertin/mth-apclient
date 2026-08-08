@@ -1193,9 +1193,14 @@ bool apply_live_modifier(int idx, bool on)
         logf(LogLevel::Warn, "modifiers: live set idx=%d failed (no valid save slot active)", idx);
         return false;
     }
-    set_mask_bit(aslot, idx, on);
-    if (lslot != aslot)
+    // The native entry covers the live slot only (it resolves *(g_saveManager+0x18) itself) and does
+    // NOT null-check it, so it is only safe once that slot is known good; the apply-path slot has no
+    // native path either way and keeps the raw write.
+    const bool native = pal::pointer_looks_valid(lslot) && mod::cheat_manager_set_cheat_applied(idx, on);
+    if (!native)
         set_mask_bit(lslot, idx, on);
+    if (aslot != lslot)
+        set_mask_bit(aslot, idx, on);
     if (!pal::pointer_looks_valid(aslot) || !pal::pointer_looks_valid(lslot))
         logf(LogLevel::Warn, "modifiers: live set idx=%d partial (apply=%p live=%p)", idx, aslot, lslot);
     // ActivateSaveCheats reads the apply-path slot internally, so only rebuild when it is valid.

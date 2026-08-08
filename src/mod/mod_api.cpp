@@ -834,6 +834,16 @@ bool cheat_manager_activate_save_cheats()
     return true;
 }
 
+bool cheat_manager_set_cheat_applied(int cheat, bool active)
+{
+    if (cheat < 0 || cheat > 0xfd)
+        return false;
+    if (!appended_api_possible() || g_mod_api == nullptr || !usable_appended(g_mod_api->CheatManagerSetCheatApplied))
+        return false;
+    g_mod_api->CheatManagerSetCheatApplied(cheat, active, static_cast<std::uint32_t>(-1));
+    return true;
+}
+
 void set_save_write_enabled(bool on)
 {
     if (g_mod_api != nullptr && usable(g_mod_api->SetSaveWriteEnabled))

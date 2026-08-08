@@ -850,7 +850,10 @@ bool apply_live_modifier(int idx, bool on)
         logf(LogLevel::Warn, "modifiers: live set idx=%d failed (no valid save slot)", idx);
         return false;
     }
-    set_mask_bit(slot, idx, on);
+    // The native entry resolves the active slot itself, so this drops our own save-manager offset
+    // guess, and it stamps the extra save-file byte the four special indices need.
+    if (!mod::cheat_manager_set_cheat_applied(idx, on))
+        set_mask_bit(slot, idx, on); // pre-appended-API build: fall back to the raw mask write
     if (!mod::cheat_manager_activate_save_cheats())
         logf(LogLevel::Warn, "modifiers: live set idx=%d bit written but mirror NOT rebuilt (native ActivateSaveCheats unavailable)", idx);
     logf(LogLevel::Info, "modifiers: live set idx=%d on=%d slot=%p", idx, static_cast<int>(on), slot);
