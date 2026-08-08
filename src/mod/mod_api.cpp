@@ -75,12 +75,13 @@ enum HookId
     kHookShopItemRefresh,
     kHookAreaManagerNewArea,
     kHookChestConstruct,
+    kHookWorldUpdateEnd,
     kHookCount,
 };
 
 constexpr const char *kHookNames[kHookCount] = {
     "IsItemCollected", "WorldUpdate",     "WorldDestroy",       "ItemsOnPickup",  "ItemsOnPickupDone",
-    "PickupOnPickup",  "ShopItemRefresh", "AreaManagerNewArea", "ChestConstruct",
+    "PickupOnPickup",  "ShopItemRefresh", "AreaManagerNewArea", "ChestConstruct", "WorldUpdateEnd",
 };
 
 std::atomic<bool> g_hook_fired[kHookCount];
@@ -124,6 +125,24 @@ void world_update_trampoline(void * /*pctx*/)
     note_fired(kHookWorldUpdate);
     if (g_world_update_cb != nullptr)
         g_world_update_cb();
+}
+
+// WorldUpdateEnd shares WorldUpdateCtx with WorldUpdate. Unlike the pre-hook this one forwards the
+// World*: it is the only supply of one in a menu world, where PlayerGetWorld() is null for want of a player.
+struct WorldUpdateCtx
+{
+    void *world;
+    float elapsed;
+};
+
+mod::WorldUpdateEndFn g_world_update_end_cb = nullptr;
+
+void world_update_end_trampoline(void *pctx)
+{
+    note_fired(kHookWorldUpdateEnd);
+    auto *c = static_cast<WorldUpdateCtx *>(pctx);
+    if (g_world_update_end_cb != nullptr)
+        g_world_update_end_cb(c != nullptr ? c->world : nullptr);
 }
 
 mod::WorldDestroyFn g_world_destroy_cb = nullptr;
@@ -289,6 +308,32 @@ void remove_world_update_hook()
         g_mod_api->RemoveHook(g_hook_handles[kHookWorldUpdate]);
     g_hook_handles[kHookWorldUpdate] = nullptr;
     g_world_update_cb = nullptr;
+}
+
+bool install_world_update_end_hook(WorldUpdateEndFn on_end)
+{
+    if (g_mod_api == nullptr || !usable(g_mod_api->InstallHook))
+    {
+        pal::logf(pal::LogLevel::Warn, "world: modding API unavailable; World::Update post-hook disabled");
+        return false;
+    }
+    g_world_update_end_cb = on_end;
+    if (install_named(kHookWorldUpdateEnd, &world_update_end_trampoline) == nullptr)
+    {
+        pal::logf(pal::LogLevel::Warn, "world: InstallHook(WorldUpdateEnd) returned null; post-hook disabled");
+        g_world_update_end_cb = nullptr;
+        return false;
+    }
+    pal::logf(pal::LogLevel::Info, "world: World::Update post-hook installed (modding hook)");
+    return true;
+}
+
+void remove_world_update_end_hook()
+{
+    if (g_hook_handles[kHookWorldUpdateEnd] != nullptr && g_mod_api != nullptr && usable(g_mod_api->RemoveHook))
+        g_mod_api->RemoveHook(g_hook_handles[kHookWorldUpdateEnd]);
+    g_hook_handles[kHookWorldUpdateEnd] = nullptr;
+    g_world_update_end_cb = nullptr;
 }
 
 bool install_world_destroy_hook(WorldDestroyFn on_destroy)
@@ -824,6 +869,24 @@ void *sym_addr(const char *name)
         return nullptr;
     // Not range-checked: the supported names include data symbols that do not live in .text.
     return g_mod_api->GetSymAddr(name);
+}
+
+bool room_index_api_available()
+{
+    return g_mod_api != nullptr && usable(g_mod_api->GetRoomIndex);
+}
+
+int room_index()
+{
+    // The field is signed and negative means "no room bound"; the API returns it as uint32_t.
+    return room_index_api_available() ? static_cast<int>(static_cast<std::int32_t>(g_mod_api->GetRoomIndex())) : -1;
+}
+
+void *world_menu_root_entity(void *world)
+{
+    if (world == nullptr || g_mod_api == nullptr || !usable(g_mod_api->WorldGetMenuRootEntity))
+        return nullptr;
+    return g_mod_api->WorldGetMenuRootEntity(static_cast<World *>(world));
 }
 
 bool cheat_manager_activate_save_cheats()

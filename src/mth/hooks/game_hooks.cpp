@@ -28,6 +28,12 @@ void world_update_notify()
         g_sink->on_world_update_pre();
 }
 
+void world_update_end_notify(void *world)
+{
+    if (g_sink)
+        g_sink->on_world_update_end(world);
+}
+
 // World::Destroy has no original to forward: it is delivered by the native "WorldDestroy" mod hook.
 void world_destroy_notify()
 {
@@ -46,12 +52,14 @@ GameHooks::GameHooks(IGameEvents &sink)
     fixed_update_ = ScopedHook(sym::game_fixed_update, reinterpret_cast<void *>(&repl_game_fixed_update), reinterpret_cast<void **>(&g_orig_game_fixed_update),
                                "Game::FixedUpdate");
     mod::install_world_update_hook(&world_update_notify);
+    mod::install_world_update_end_hook(&world_update_end_notify);
     mod::install_world_destroy_hook(&world_destroy_notify);
 }
 
 GameHooks::~GameHooks()
 {
     mod::remove_world_destroy_hook(); // stop the mod hooks before the sink goes away
+    mod::remove_world_update_end_hook();
     mod::remove_world_update_hook();
     // g_sink cleared first; the repls null-check it, so a hook firing during member
     // teardown is a safe no-op forward.

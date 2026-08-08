@@ -64,10 +64,11 @@ class App : public ICommandSink
         return scout_registry_;
     }
 
-    void drive_tick();            // called by tick sink each fixed update (only once ready())
-    void drain_grants();          // called by tick sink from World::Update pre-hook (only once ready())
-    void on_world_destroy();      // called by tick sink on World teardown (only once ready()); drops the cached Player*
-    void gate_note_worldupdate(); // called by tick sink on the native WorldUpdate; proves the mod-hook path is live
+    void drive_tick();                     // called by tick sink each fixed update (only once ready())
+    void drain_grants();                   // called by tick sink from World::Update pre-hook (only once ready())
+    void on_world_update_end(void *world); // called by tick sink after World::Update (only once ready())
+    void on_world_destroy();               // called by tick sink on World teardown (only once ready()); drops the cached Player*
+    void gate_note_worldupdate();          // called by tick sink on the native WorldUpdate; proves the mod-hook path is live
 
     void connect(const std::string &server, const std::string &slot, const std::string &password) override;
     void disconnect() override;
