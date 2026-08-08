@@ -24,7 +24,6 @@ namespace
 // KeyBlock / KeyBlockChain / Chest update entries are absent because the mod no longer resolves them at
 // all: the native API carries them.
 constexpr const char *kRequiredCommonSymbols[] = {
-    sym::activate_save_cheats,
     sym::activate_save_slot,
     sym::bounce_plant_collide,
     sym::bounce_plant_launch,

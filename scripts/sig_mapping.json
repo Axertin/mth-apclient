@@ -26,10 +26,6 @@
    "kind": "Code"
   },
   {
-   "name": "_ZN12CheatManager18ActivateSaveCheatsEv",
-   "kind": "Code"
-  },
-  {
    "name": "_ZN11RoomManager6UpdateEP20ycUpdateQueueContext",
    "kind": "Code"
   },
@@ -69,9 +65,6 @@
   },
   "_ZN11SaveManager13WriteSaveDataEb": {
    "rva": 10883968
-  },
-  "_ZN12CheatManager18ActivateSaveCheatsEv": {
-   "rva": 1526256
   },
   "_ZN11RoomManager6UpdateEP20ycUpdateQueueContext": {
    "rva": 10853504

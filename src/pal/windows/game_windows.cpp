@@ -172,19 +172,16 @@ constexpr std::ptrdiff_t kSlotIndexOff = 0x8;
 constexpr std::ptrdiff_t kSaveMasterOff = 0x10;
 
 std::uintptr_t g_mod_save_manager = 0;
-void *g_cheat_mgr = nullptr;
 bool g_mod_resolved = false;
 bool g_mod_ok = false;
 pal::SeedFn g_seed_fn;
 pal::SaveLoadedFn g_save_loaded_fn;
 pal::BlockFn g_block_fn;
-std::uintptr_t g_addr_activate_slot = 0, g_addr_activate_cheats = 0, g_addr_toggle = 0, g_addr_set_applied = 0;
+std::uintptr_t g_addr_activate_slot = 0, g_addr_toggle = 0, g_addr_set_applied = 0;
 pal::HookId g_id_activate_slot = pal::kInvalidHookId;
-pal::HookId g_id_activate_cheats = pal::kInvalidHookId;
 pal::HookId g_id_toggle = pal::kInvalidHookId;
 pal::HookId g_id_set_applied = pal::kInvalidHookId;
 void (*g_orig_activate_slot)(void *, bool) = nullptr;
-void (*g_orig_activate_cheats)(void *) = nullptr;
 void (*g_orig_toggle)(void *, int, bool, void *, bool, int) = nullptr;
 void (*g_orig_set_applied)(void *, int, bool, void *) = nullptr;
 
@@ -235,21 +232,10 @@ void repl_activate_slot(void *self, bool flag)
     if (flag && g_save_loaded_fn)
         g_save_loaded_fn();
 }
-void repl_activate_cheats(void *self)
-{
-    g_cheat_mgr = self; // capture the CheatManager singleton (not a player path)
-    // Diagnostic (#46): logs each rebuild of the runtime cheat mirror from the mask. If this does NOT
-    // fire AFTER the flag=1 seed on the custom-mode new game, our seeded force-on bits never go live.
-    pal::logf(pal::LogLevel::Debug, "modifiers: ActivateSaveCheats fired (cheatmgr=%p)", self);
-    if (g_orig_activate_cheats)
-        g_orig_activate_cheats(self);
-}
 // ToggleCheat (menu toggle) writes the runtime mirror + persists; block it to keep a gameplay modifier
 // off. The checkbox flips transiently but re-syncs on cursor-over. idx = 2nd arg (edx).
 void repl_toggle(void *self, int idx, bool enable, void *slot, bool b, int i)
 {
-    if (g_cheat_mgr == nullptr)
-        g_cheat_mgr = self;
     const bool blocked = g_block_fn && g_block_fn(idx);
     pal::logf(pal::LogLevel::Debug, "modifiers: ToggleCheat idx=%d enable=%d -> %s", idx, static_cast<int>(enable), blocked ? "BLOCKED" : "allowed");
     if (blocked)
@@ -261,8 +247,6 @@ void repl_toggle(void *self, int idx, bool enable, void *slot, bool b, int i)
 // through ToggleCheat above). idx = 2nd arg.
 void repl_set_applied(void *self, int idx, bool applied, void *slot)
 {
-    if (g_cheat_mgr == nullptr)
-        g_cheat_mgr = self;
     const bool blocked = g_block_fn && g_block_fn(idx);
     pal::logf(pal::LogLevel::Debug, "modifiers: SetCheatApplied idx=%d applied=%d -> %s", idx, static_cast<int>(applied), blocked ? "BLOCKED" : "allowed");
     if (blocked)
@@ -813,14 +797,13 @@ bool modifiers_available()
     g_mod_resolved = true;
     g_mod_save_manager = resolve_game_symbol(mth::sym::save_manager);
     g_addr_activate_slot = resolve_game_symbol(mth::sym::activate_save_slot);
-    g_addr_activate_cheats = resolve_game_symbol(mth::sym::activate_save_cheats);
     g_addr_toggle = resolve_game_symbol(mth::sym::toggle_cheat);
     g_addr_set_applied = resolve_game_symbol(mth::sym::set_cheat_applied);
-    g_mod_ok = g_mod_save_manager != 0 && g_addr_activate_slot != 0 && g_addr_activate_cheats != 0 && g_addr_toggle != 0 && g_addr_set_applied != 0;
+    g_mod_ok = g_mod_save_manager != 0 && g_addr_activate_slot != 0 && g_addr_toggle != 0 && g_addr_set_applied != 0;
     if (!g_mod_ok)
-        logf(LogLevel::Warn, "modifiers: Windows symbols unresolved (mgr=0x%llx slot=0x%llx cheats=0x%llx set=0x%llx); feature disabled",
+        logf(LogLevel::Warn, "modifiers: Windows symbols unresolved (mgr=0x%llx slot=0x%llx set=0x%llx); feature disabled",
              static_cast<unsigned long long>(g_mod_save_manager), static_cast<unsigned long long>(g_addr_activate_slot),
-             static_cast<unsigned long long>(g_addr_activate_cheats), static_cast<unsigned long long>(g_addr_set_applied));
+             static_cast<unsigned long long>(g_addr_set_applied));
     return g_mod_ok;
 }
 void set_save_loaded(SaveLoadedFn cb)
@@ -833,12 +816,8 @@ void set_new_game_modifier_seed(SeedFn seed)
     if (!modifiers_available())
         return;
     g_seed_fn = std::move(seed);
-    g_id_activate_cheats = hook_engine().install_hook(reinterpret_cast<void *>(g_addr_activate_cheats), reinterpret_cast<void *>(&repl_activate_cheats),
-                                                      reinterpret_cast<void **>(&g_orig_activate_cheats));
     g_id_activate_slot = hook_engine().install_hook(reinterpret_cast<void *>(g_addr_activate_slot), reinterpret_cast<void *>(&repl_activate_slot),
                                                     reinterpret_cast<void **>(&g_orig_activate_slot));
-    if (g_id_activate_cheats == kInvalidHookId)
-        logf(LogLevel::Error, "modifiers: ActivateSaveCheats capture hook FAILED (live-set mirror rebuilds will be skipped)");
     if (g_id_activate_slot == kInvalidHookId)
         logf(LogLevel::Error, "modifiers: ActivateSaveSlot seed hook FAILED (new-game seeding disabled)");
     else
@@ -872,16 +851,14 @@ bool apply_live_modifier(int idx, bool on)
         return false;
     }
     set_mask_bit(slot, idx, on);
-    if (g_cheat_mgr != nullptr && g_orig_activate_cheats != nullptr)
-        g_orig_activate_cheats(g_cheat_mgr); // rebuild the runtime mirror from the mask
-    else
-        logf(LogLevel::Warn, "modifiers: live set idx=%d bit written but mirror NOT rebuilt (CheatManager not captured yet)", idx);
+    if (!mod::cheat_manager_activate_save_cheats())
+        logf(LogLevel::Warn, "modifiers: live set idx=%d bit written but mirror NOT rebuilt (native ActivateSaveCheats unavailable)", idx);
     logf(LogLevel::Info, "modifiers: live set idx=%d on=%d slot=%p", idx, static_cast<int>(on), slot);
     return true;
 }
 void remove_modifier_hooks()
 {
-    for (HookId *id : {&g_id_activate_slot, &g_id_activate_cheats, &g_id_toggle, &g_id_set_applied})
+    for (HookId *id : {&g_id_activate_slot, &g_id_toggle, &g_id_set_applied})
     {
         if (*id != kInvalidHookId)
             hook_engine().remove_hook(*id);

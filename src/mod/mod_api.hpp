@@ -192,6 +192,11 @@ bool player_update_stats();
 // name, which leaves the caller on its own resolver. May return data rather than code.
 void *sym_addr(const char *name);
 
+// Rebuild the runtime cheat mirror from the active slot's mask. The native entry resolves
+// g_cheatManager itself, so a live modifier write no longer needs a captured CheatManager* or a
+// trampoline into ActivateSaveCheats. False when the entry is absent on this build.
+bool cheat_manager_activate_save_cheats();
+
 // Kill the player via the native MinaModAPI PlayerDie (deathlink apply). Offset-free and cross-platform,
 // replacing the old Player::TriggerDeath sig detour. Returns false (no-op) if the modding API or PlayerDie
 // is unavailable.

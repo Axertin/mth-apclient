@@ -85,12 +85,12 @@ void BossTracker::poll()
     {
         if ((risen & (1ULL << idx)) == 0)
             continue;
-        const int slot = boss_location_slot(idx);
-        pal::logf(pal::LogLevel::Info, "outbound: boss defeated index=%d -> loc slot=%d (defeat bit)", idx, slot);
-        if (bridge_.is_ap_location(slot))
-            bridge_.on_location_collected(slot);
+        const int loc_slot = boss_location_slot(idx);
+        pal::logf(pal::LogLevel::Info, "outbound: boss defeated index=%d -> loc slot=%d (defeat bit)", idx, loc_slot);
+        if (bridge_.is_ap_location(loc_slot))
+            bridge_.on_location_collected(loc_slot);
         else
-            pal::logf(pal::LogLevel::Debug, "boss: slot=%d not a valid AP location (apworld may not define this boss)", slot);
+            pal::logf(pal::LogLevel::Debug, "boss: slot=%d not a valid AP location (apworld may not define this boss)", loc_slot);
     }
     // Bits above kMaxBossIndex are not boss indices; log once so a layout shift is visible.
     const std::uint64_t stray = risen & ~((kMaxBossIndex >= 63) ? ~0ULL : ((1ULL << (kMaxBossIndex + 1)) - 1));

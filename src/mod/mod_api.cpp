@@ -826,6 +826,14 @@ void *sym_addr(const char *name)
     return g_mod_api->GetSymAddr(name);
 }
 
+bool cheat_manager_activate_save_cheats()
+{
+    if (!appended_api_possible() || g_mod_api == nullptr || !usable_appended(g_mod_api->CheatManagerActivateSaveCheats))
+        return false;
+    g_mod_api->CheatManagerActivateSaveCheats();
+    return true;
+}
+
 void set_save_write_enabled(bool on)
 {
     if (g_mod_api != nullptr && usable(g_mod_api->SetSaveWriteEnabled))
