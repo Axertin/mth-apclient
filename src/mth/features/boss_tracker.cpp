@@ -28,6 +28,13 @@ void BossTracker::prime(const void *slot, const char *why, std::uint64_t mask)
     pal::logf(pal::LogLevel::Debug, "boss: baseline primed (%s) slot=%p mask=0x%llx", why, slot, static_cast<unsigned long long>(mask));
 }
 
+void BossTracker::on_save_loaded()
+{
+    // Defer to the next poll rather than reading here: this runs inside the game's activation call.
+    primed_ = false;
+    pal::logf(pal::LogLevel::Debug, "boss: save activated; baseline re-taken on the next tick");
+}
+
 void BossTracker::poll()
 {
     if (save_manager_ == 0)
