@@ -16,6 +16,7 @@
 #include "mth/features/fountain_lamp_hooks.hpp"
 #include "mth/features/goal_tracker.hpp"
 #include "mth/features/item_granter.hpp"
+#include "mth/features/kear_completion_tracker.hpp"
 #include "mth/features/levelcap_hooks.hpp"
 #include "mth/features/location_hooks.hpp"
 #include "mth/features/lock_hooks.hpp"
@@ -37,6 +38,7 @@ HookManager::HookManager(IGameEvents &events, RandoBridge &rando, ScoutRegistry 
     location_hooks_ = std::make_unique<LocationHooks>(rando, &scout);
     boss_hooks_ = std::make_unique<BossHooks>(rando);
     goal_tracker_ = std::make_unique<GoalTracker>(rando);
+    kear_completion_ = std::make_unique<KearCompletionTracker>();
     lock_hooks_ = std::make_unique<LockHooks>();
     chest_hooks_ = std::make_unique<ChestHooks>(lock_hooks_->locks()); // shares the lock registry + seed
     get_player_ = get_player;                                          // shared with the vanilla-kear credit (credit_kear_key)
@@ -70,6 +72,7 @@ HookManager::~HookManager()
     save_takeover_.reset();
     fountain_lamp_hooks_.reset();
     goal_tracker_.reset();
+    kear_completion_.reset();
     location_hooks_.reset();
     boss_hooks_.reset();
     chest_hooks_.reset();
@@ -100,7 +103,10 @@ void HookManager::tick(ApState &state, SessionPolicy &policy, int save_game_slot
     fountain_lamp_hooks_->set_lit_mask((authed ? state.lit_generator_lamp_mask() : 0) | lamp_console_override_.load(std::memory_order_relaxed));
 
     if (authed)
-        goal_tracker_->evaluate(state); // poll SaveSlot; fires the AP goal when the slot_data condition is met
+    {
+        goal_tracker_->evaluate(state);    // poll SaveSlot; fires the AP goal when the slot_data condition is met
+        kear_completion_->evaluate(state); // latches the KeyMiser trade flag once every kear is held (#174)
+    }
 
     if (authed)
     {
