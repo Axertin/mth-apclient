@@ -60,6 +60,12 @@ inline constexpr std::ptrdiff_t kSaveKearSpentOff = 0x1f8;    // int spent-count
 inline constexpr std::ptrdiff_t kPlayerKearBitsOff = 0x11a8;  // u64 kear-collected bitfield mirror in Player
 inline constexpr std::ptrdiff_t kPlayerKearSpentOff = 0x11b0; // int spent-counter mirror in Player (runtime source of truth)
 
+// KeyMiser (Kear Institute) trade latch, set by NPCBehavior_KeyMiser on a successful trade. KeyReward's
+// constructor spawns the location-150 reward pickup off this bit on room load, which is the only thing in
+// the game that spawns it (#174). Exactly four readers in the binary, so it carries no other meaning.
+inline constexpr std::ptrdiff_t kSaveKeyMiserFlagOff = 0xb08; // u64 flags word in SaveSlot
+inline constexpr unsigned kSaveKeyMiserTradeBit = 62;
+
 // Goal-completion SaveSlot state (polled; the bitfields are popcounted for the count goals).
 inline constexpr std::ptrdiff_t kSaveGeneratorBitsOff = 0x290; // u64 generator-fixed bitfield (BossComponent::SetGeneratorFixed sets a bit per generator)
 inline constexpr std::ptrdiff_t kSaveGameClearOff = 0xd30;     // u8 game-cleared flag (set by GigaLionelBoss::EndingTransition)
