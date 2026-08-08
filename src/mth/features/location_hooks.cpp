@@ -208,6 +208,9 @@ void collect_ap_location(int loc_idx)
 // collection + an active save slot, so it no-ops at the title screen (connected before a save loads) and
 // retries once a save is live. Idempotent. Game-thread, per-tick.
 int g_native_last_checked_count = -1;
+// Log filter only. WorldDestroy fires per room, so the re-arm replays the same set on every room
+// transition; without this it reported an unchanged set ~30 times a session.
+std::set<int> g_native_applied_last;
 
 void enforce_checked_native_bits()
 {
@@ -219,13 +222,14 @@ void enforce_checked_native_bits()
     if (checked == nullptr || static_cast<int>(checked->size()) == g_native_last_checked_count)
         return; // nothing new since the last pass
 
-    int applied = 0;
+    std::set<int> applied;
     for (int slot : *checked)
         if (apply_native_collected(slot))
-            ++applied;
+            applied.insert(slot);
     g_native_last_checked_count = static_cast<int>(checked->size());
-    if (applied > 0)
-        pal::logf(pal::LogLevel::Info, "collect: applied native collected-bit to %d durable-bit checked location(s)", applied);
+    if (!applied.empty() && applied != g_native_applied_last)
+        pal::logf(pal::LogLevel::Info, "collect: applied native collected-bit to %d durable-bit checked location(s)", static_cast<int>(applied.size()));
+    g_native_applied_last = std::move(applied);
 }
 
 // Re-arm the enforcement so the next tick re-applies: a save reload clears s_rItemCollection of our
@@ -304,10 +308,12 @@ void repl_pickup_init(void *self, int item_type, int loc_idx, bool flag)
     // detach the revealed pickup from the dying wall (SpawnPoint::DisownParent); the dummy's kind 0 misses
     // that branch, so a hidden-room kear stays attached and invisible until a room reload (#86). Init builds
     // the sprite from the real itemType regardless, so deferring changes no visual.
+    // locIdx < 0 is an untracked pickup and by far the commonest case; logging those buried the rest
+    // of the stream (they were half of a 23-minute field log).
     if (g_bridge->is_ap_location(loc_idx))
         pal::logf(pal::LogLevel::Debug, "Pickup::Init locIdx=%d itemType=%d -> AP location (dummy redirect deferred to collect)", loc_idx, item_type);
-    else
-        pal::logf(pal::LogLevel::Debug, "Pickup::Init locIdx=%d itemType=%d -> vanilla (not an AP location)", loc_idx, item_type);
+    else if (loc_idx >= 0)
+        pal::logf(pal::LogLevel::Debug, "Pickup::Init locIdx=%d itemType=%d -> vanilla (location not in this seed)", loc_idx, item_type);
 }
 
 // Start of Pickup::OnPickup. The hook ctx carries the real Pickup*, so this needs none of the
@@ -319,7 +325,8 @@ void on_pickup_collected(void *pickup)
     if (!g_pickup_offsets_ok || g_bridge == nullptr)
         return;
     const int loc_idx = pickup_loc_idx(pickup);
-    pal::logf(pal::LogLevel::Debug, "Pickup::OnPickup locIdx=%d", loc_idx);
+    if (loc_idx >= 0)
+        pal::logf(pal::LogLevel::Debug, "Pickup::OnPickup locIdx=%d", loc_idx);
     if (!g_bridge->is_ap_location(loc_idx))
         return;
     pal::logf(pal::LogLevel::Info, "outbound: collected AP location locIdx=%d", loc_idx);
