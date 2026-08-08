@@ -109,7 +109,10 @@ function(add_git_version_info target)
   set(VERSION_HEADER "${VERSION_HEADER_DIR}/mth_version.h")
 
   file(MAKE_DIRECTORY ${VERSION_HEADER_DIR})
-  file(WRITE ${VERSION_HEADER}
+  # Staged through a temp + configure_file rather than written in place: .git/HEAD is a configure
+  # dependency, so every commit or branch switch re-runs this, and an unconditional write would bump
+  # the header's mtime and relink the mod even when the version is byte-identical.
+  file(WRITE "${VERSION_HEADER}.in"
     "#pragma once
 #include <string_view>
 namespace mth::version {
@@ -121,8 +124,10 @@ namespace mth::version {
     inline constexpr std::string_view branch{\"${VERSION_BRANCH}\"};
 }
 ")
+  configure_file("${VERSION_HEADER}.in" "${VERSION_HEADER}" COPYONLY)
 
   target_include_directories(${target} PUBLIC ${VERSION_HEADER_DIR})
-  file(WRITE ${CMAKE_BINARY_DIR}/version.txt "${VERSION_STRING}")
+  file(WRITE "${CMAKE_BINARY_DIR}/version.txt.in" "${VERSION_STRING}")
+  configure_file("${CMAKE_BINARY_DIR}/version.txt.in" "${CMAKE_BINARY_DIR}/version.txt" COPYONLY)
   message(STATUS "mth-apclient version: ${VERSION_STRING} (${VERSION_HASH})")
 endfunction()
