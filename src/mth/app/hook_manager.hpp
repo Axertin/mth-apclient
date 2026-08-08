@@ -19,7 +19,7 @@ class ScoutRegistry;
 class ApState;
 class SessionPolicy;
 class LocationHooks;
-class BossHooks;
+class BossTracker;
 class GoalTracker;
 class LockHooks;
 class ChestHooks;
@@ -77,7 +77,7 @@ class HookManager
     std::function<void *()> get_player_; // live Player* accessor (shared with DeathHooks + kear credit)
     std::unique_ptr<GameHooks> game_hooks_;
     std::unique_ptr<LocationHooks> location_hooks_;
-    std::unique_ptr<BossHooks> boss_hooks_;
+    std::unique_ptr<BossTracker> boss_tracker_;
     std::unique_ptr<GoalTracker> goal_tracker_;
     std::unique_ptr<LockHooks> lock_hooks_;
     std::unique_ptr<ChestHooks> chest_hooks_;

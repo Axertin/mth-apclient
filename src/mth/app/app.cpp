@@ -202,6 +202,8 @@ void App::drive_tick()
         first_tick_logged_ = true;
         pal::logf(pal::LogLevel::Info, "tick: Game::FixedUpdate live; AP coordinator pumping");
     }
+    if (tracker_)
+        tracker_->sample_position(); // post-FixedUpdate, so grants drained from WorldUpdate read the prior frame
     std::optional<std::uint32_t> screen;
     std::uint32_t screen_id = 0;
     if (room_tracker_ && room_tracker_->current_screen(&screen_id))

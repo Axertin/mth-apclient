@@ -10,7 +10,7 @@
 #include "mth/core/scout_registry.hpp"
 #include "mth/core/session_policy.hpp"
 #include "mth/features/ability_hooks.hpp"
-#include "mth/features/boss_hooks.hpp"
+#include "mth/features/boss_tracker.hpp"
 #include "mth/features/chest_hooks.hpp"
 #include "mth/features/death_hooks.hpp"
 #include "mth/features/fountain_lamp_hooks.hpp"
@@ -35,7 +35,7 @@ HookManager::HookManager(IGameEvents &events, RandoBridge &rando, ScoutRegistry 
 {
     game_hooks_ = std::make_unique<GameHooks>(events);
     location_hooks_ = std::make_unique<LocationHooks>(rando, &scout);
-    boss_hooks_ = std::make_unique<BossHooks>(rando);
+    boss_tracker_ = std::make_unique<BossTracker>(rando);
     goal_tracker_ = std::make_unique<GoalTracker>(rando);
     lock_hooks_ = std::make_unique<LockHooks>();
     chest_hooks_ = std::make_unique<ChestHooks>(lock_hooks_->locks()); // shares the lock registry + seed
@@ -70,8 +70,8 @@ HookManager::~HookManager()
     save_takeover_.reset();
     fountain_lamp_hooks_.reset();
     goal_tracker_.reset();
+    boss_tracker_.reset();
     location_hooks_.reset();
-    boss_hooks_.reset();
     chest_hooks_.reset();
     lock_hooks_.reset();
 }
@@ -98,6 +98,10 @@ void HookManager::tick(ApState &state, SessionPolicy &policy, int save_game_slot
 
     // slot_data lamps (0 when not authed) OR'd with the sticky console override (works offline).
     fountain_lamp_hooks_->set_lit_mask((authed ? state.lit_generator_lamp_mask() : 0) | lamp_console_override_.load(std::memory_order_relaxed));
+
+    // Unconditional: the bridge persists and queues checks while disconnected, so a kill during an
+    // outage is still recorded rather than lost.
+    boss_tracker_->poll();
 
     if (authed)
         goal_tracker_->evaluate(state); // poll SaveSlot; fires the AP goal when the slot_data condition is met
