@@ -90,6 +90,7 @@ if(NOT MTHAP_BUILD_TESTS_ONLY)
         features/location_hooks.cpp
         features/boss_hooks.cpp
         features/goal_tracker.cpp
+        features/kear_completion_tracker.cpp
         features/lock_hooks.cpp
         features/chest_hooks.cpp
         features/death_hooks.cpp
