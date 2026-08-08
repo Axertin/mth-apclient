@@ -882,6 +882,11 @@ int room_index()
     return room_index_api_available() ? static_cast<int>(static_cast<std::int32_t>(g_mod_api->GetRoomIndex())) : -1;
 }
 
+bool world_menu_root_api_available()
+{
+    return g_mod_api != nullptr && usable(g_mod_api->WorldGetMenuRootEntity);
+}
+
 void *world_menu_root_entity(void *world)
 {
     if (world == nullptr || g_mod_api == nullptr || !usable(g_mod_api->WorldGetMenuRootEntity))

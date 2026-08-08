@@ -224,13 +224,6 @@ using SaveRequestedFn = std::function<void()>;
 bool install_save_request_hook(SaveRequestedFn on_save);
 void remove_save_request_hook();
 
-// Fires at the top of ProfileSelectMenu::UpdateState with the live menu, every frame it updates.
-// The pointer is normalized to the primary `this` (Windows detours receive a base subobject), and
-// the menu only exists while the game is in profile-select, so callbacks must not cache it.
-using ProfileMenuFn = std::function<void(void *menu)>;
-[[nodiscard]] bool install_profile_menu_hook(ProfileMenuFn on_update);
-void remove_profile_menu_hook();
-
 // Runs the game's own new-file init on the vanilla SaveSlot ARRAY element for `slot`, not the live
 // working slot: the launch copies array over working, so a working-slot write here is discarded.
 // Clear(false) then InitGamestate(); true would be the NG+ cycle. Deliberately does not persist;

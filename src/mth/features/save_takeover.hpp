@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <string>
 #include <utility>
@@ -34,9 +36,10 @@ class SaveTakeover
     void tick();
     void on_game_save_requested();
 
-    // The live profile-select menu, once per update while it exists. Never cached: the intro
-    // cinematic owns the menu's lifetime.
-    void on_profile_menu(void *menu);
+    // Finds the live profile-select menu in the menu world's scene graph and drives it. Called once per
+    // World::Update end; world may be null. The menu is never cached: the intro cinematic owns its
+    // lifetime, so it is re-found each pass.
+    void on_world_update_end(void *world);
 
     // True from claim until settled. The dev console's save-write toggle must refuse while this
     // holds, or it leaks the mod-owned session into the player's vanilla saveData.yc.
@@ -48,6 +51,7 @@ class SaveTakeover
     [[nodiscard]] std::vector<std::string> status_lines() const;
 
   private:
+    void drive_profile_menu(void *menu);
     void flush();
     bool stage_save();
     void fail(const char *why);
@@ -57,7 +61,11 @@ class SaveTakeover
     IdentityFn identity_;
     TakeoverStep step_{TakeoverStep::Idle};
     int frames_in_step_{0};
-    bool menu_hook_ok_{false};
+    std::uintptr_t mod_base_{0};
+    std::size_t mod_size_{0};
+    bool warned_no_walk_{false};
+    std::vector<void *> pending_;
+    std::vector<void *> buffer_;
     std::string seed_;
     std::string slot_;
 };

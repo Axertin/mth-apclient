@@ -206,6 +206,7 @@ bool room_index_api_available();
 int room_index();
 
 // Menu-world scene root. Null when unavailable or world is null.
+bool world_menu_root_api_available();
 void *world_menu_root_entity(void *world);
 
 // Rebuild the runtime cheat mirror from the active slot's mask. The native entry resolves

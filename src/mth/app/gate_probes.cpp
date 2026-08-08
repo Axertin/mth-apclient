@@ -37,7 +37,6 @@ constexpr const char *kRequiredCommonSymbols[] = {
     sym::player_pickup_carryable,
     sym::player_rope_climb_start,
     sym::player_set_burrow_ground,
-    sym::profile_select_menu_update_state,
     sym::s_r_item_collection,
     sym::s_r_items,
     sym::save_manager,

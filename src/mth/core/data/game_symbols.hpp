@@ -125,9 +125,4 @@ inline constexpr const char *title_screen_update_state = "_ZN11TitleScreen11Upda
 // builds the profile-select menu the takeover drives.
 inline constexpr const char *title_screen_start_game = "_ZN11TitleScreen9StartGameEv";
 
-// ProfileSelectMenu::UpdateState(): hooked observe-only to reach the live menu object. The takeover
-// stages its save and pushes the menu into its launch state from here, so the game performs the
-// activation, the StartActiveSaveSlot call and the intro-cinematic handshake itself.
-inline constexpr const char *profile_select_menu_update_state = "_ZN17ProfileSelectMenu11UpdateStateEv";
-
 } // namespace mth::sym
