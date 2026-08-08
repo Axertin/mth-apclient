@@ -21,6 +21,7 @@ class SessionPolicy;
 class LocationHooks;
 class BossTracker;
 class GoalTracker;
+class KearCompletionTracker;
 class LockHooks;
 class ChestHooks;
 class DeathHooks;
@@ -88,6 +89,7 @@ class HookManager
     std::unique_ptr<LocationHooks> location_hooks_;
     std::unique_ptr<BossTracker> boss_tracker_;
     std::unique_ptr<GoalTracker> goal_tracker_;
+    std::unique_ptr<KearCompletionTracker> kear_completion_;
     std::unique_ptr<LockHooks> lock_hooks_;
     std::unique_ptr<ChestHooks> chest_hooks_;
     std::unique_ptr<DeathHooks> death_hooks_;
