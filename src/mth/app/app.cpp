@@ -57,6 +57,11 @@ class AppTickSink final : public mth::IGameEvents
         app_.gate_note_worldupdate();
         app_.drain_grants();
     }
+    void on_world_update_end(void *world) override
+    {
+        if (app_.ready())
+            app_.on_world_update_end(world);
+    }
     void on_world_destroy() override
     {
         if (app_.ready())
@@ -336,6 +341,13 @@ void App::gate_tick()
         std::lock_guard<std::mutex> lk(gate_reason_mutex_);
         gate_reason_ = std::move(reason);
     }
+}
+
+void App::on_world_update_end(void *world)
+{
+    (void)world;
+    if (room_tracker_)
+        room_tracker_->poll();
 }
 
 void App::on_world_destroy()

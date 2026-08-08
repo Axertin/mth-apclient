@@ -804,18 +804,6 @@ void repl_profile_menu_update(void *self)
 namespace pal
 {
 
-bool current_room_index(void *room_manager, std::uint32_t *out)
-{
-    if (room_manager == nullptr)
-        return false;
-    // Room index field; live build 828346d4 = +0x1b4 (stale Ghidra build read +0x1bc). Re-verify on update.
-    const std::int32_t idx = *reinterpret_cast<const std::int32_t *>(static_cast<const char *>(room_manager) + 0x1b4);
-    if (idx < 0)
-        return false;
-    *out = static_cast<std::uint32_t>(idx);
-    return true;
-}
-
 void *active_save_slot(std::uintptr_t save_manager_global)
 {
     if (save_manager_global == 0)

@@ -26,10 +26,6 @@
    "kind": "Code"
   },
   {
-   "name": "_ZN11RoomManager6UpdateEP20ycUpdateQueueContext",
-   "kind": "Code"
-  },
-  {
    "name": "_ZN11TitleScreen11UpdateStateEv",
    "kind": "Code"
   },
@@ -66,9 +62,6 @@
   "_ZN11SaveManager13WriteSaveDataEb": {
    "rva": 10883968
   },
-  "_ZN11RoomManager6UpdateEP20ycUpdateQueueContext": {
-   "rva": 10853504
-  },
   "_ZN11TitleScreen11UpdateStateEv": {
    "rva": 11576464
   },
@@ -88,9 +81,6 @@
   },
   "_ZN8SaveSlot5ClearEb": {
    "rva": 14271120
-  },
-  "_ZN11RoomManager6UpdateEP20ycUpdateQueueContext": {
-   "rva": 14553168
   },
   "_ZN6Player8OnBounceEv": {
    "rva": 14149168

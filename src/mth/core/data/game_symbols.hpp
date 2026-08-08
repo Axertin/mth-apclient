@@ -21,12 +21,8 @@ inline constexpr const char *process_sdl_event = "_Z15ProcessSDLEventR9SDL_Event
 // s_rItems: 195-entry item table (stride 0x68, kind at +0x28).
 inline constexpr const char *s_r_items = "_ZN12_GLOBAL__N_18s_rItemsE";
 
-// RoomManager::Update: per-frame tick on the room-transition state machine. self == RoomManager instance;
-// the live current-room index is read off it (Linux +0x1b4 / Windows +0x1bc) by pal::current_room_index.
-inline constexpr const char *room_manager_update = "_ZN11RoomManager6UpdateEP20ycUpdateQueueContext";
-
-// The area index that qualifies the room index into a globally-unique screen id comes from the native
-// "AreaManagerNewArea" mod hook; AreaManager::NewArea is no longer symbol-resolved.
+// The screen id is polled from the native GetCurrentGameState/GetRoomIndex accessors on the
+// "WorldUpdateEnd" mod hook; RoomManager::Update is no longer symbol-resolved.
 
 inline constexpr const char *pickup_init = "_ZN6Pickup4InitEiib"; // Pickup::Init(int itemType, int locIdx, bool)
 // Pickup::OnPickup's collect detection runs through the native "PickupOnPickup" mod hook, so it is not

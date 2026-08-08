@@ -50,6 +50,14 @@ using WorldUpdatePreFn = void (*)();
 bool install_world_update_hook(WorldUpdatePreFn on_pre);
 void remove_world_update_hook();
 
+// World::Update post-tick via the native "WorldUpdateEnd" mod hook, after the other systems have run.
+// Forwards the ctx's World*, which is the only way to reach a menu world's scene graph: PlayerGetWorld()
+// dereferences the live-Player global and is null wherever no player exists. on_end runs on the game
+// thread; world may be null. false if the modding API is unavailable.
+using WorldUpdateEndFn = void (*)(void *world);
+bool install_world_update_end_hook(WorldUpdateEndFn on_end);
+void remove_world_update_end_hook();
+
 // World teardown via the native "WorldDestroy" mod hook. Fires when a World is destroyed (exit-to-menu,
 // save reload, shutdown), so cached per-world game pointers (e.g. the live Player*) can be dropped before
 // the game frees them. A stale one is a use-after-free the next time a tick writes through it. on_destroy
@@ -191,6 +199,14 @@ bool player_update_stats();
 // Address of a game symbol by its plain source-level name. Null when the API does not expose that
 // name, which leaves the caller on its own resolver. May return data rather than code.
 void *sym_addr(const char *name);
+
+// Live room index off the game's own RoomManager global, the same field the room detour read.
+// Negative means no room is bound (also returned when the entry is unavailable).
+bool room_index_api_available();
+int room_index();
+
+// Menu-world scene root. Null when unavailable or world is null.
+void *world_menu_root_entity(void *world);
 
 // Rebuild the runtime cheat mirror from the active slot's mask. The native entry resolves
 // g_cheatManager itself, so a live modifier write no longer needs a captured CheatManager* or a

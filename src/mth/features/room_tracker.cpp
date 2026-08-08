@@ -3,67 +3,54 @@
 #include <cstdint>
 
 #include "mod/mod_api.hpp"
-#include "mth/core/data/game_symbols.hpp"
-#include "pal/pal_game.hpp"
+#include "mth/core/data/game_state_ids.hpp"
 #include "pal/pal_log.hpp"
 
 namespace
 {
 
-std::uint32_t g_room_idx = 0;
-bool g_have_room = false;
-std::uint32_t g_area_idx = 0; // dense area index from AreaManager::NewArea; 0 until the first transition
-
-void (*g_orig_room_update)(void *, void *) = nullptr;
-
-void repl_room_update(void *self, void *ctx)
-{
-    if (g_orig_room_update)
-        g_orig_room_update(self, ctx);
-
-    std::uint32_t idx = 0;
-    if (self != nullptr && pal::current_room_index(self, &idx))
-    {
-        if (!g_have_room || idx != g_room_idx)
-            pal::logf(pal::LogLevel::Info, "area: area %u room %u", g_area_idx, idx);
-        g_room_idx = idx;
-        g_have_room = true;
-    }
-}
-
-// Start of AreaManager::NewArea. The detour ran after the original, but this only records an
-// argument, so running first is equivalent.
-void on_new_area(int /*old_area*/, int new_area)
-{
-    if (new_area >= 0)
-        g_area_idx = static_cast<std::uint32_t>(new_area);
-}
+std::uint32_t g_screen = 0;
+bool g_have_screen = false;
 
 } // namespace
 
 namespace mth
 {
 
-RoomTracker::RoomTracker()
+void RoomTracker::poll()
 {
-    update_hook_ = ScopedHook(sym::room_manager_update, reinterpret_cast<void *>(&repl_room_update), reinterpret_cast<void **>(&g_orig_room_update),
-                              "RoomManager::Update");
-    mod::install_area_new_area_hook(&on_new_area);
+    // Menu worlds (title, profile select, the in-run overlays) tick World::Update too, and GetRoomIndex
+    // keeps returning the last room throughout, so the gamestate is what separates "in a room" from
+    // "in a menu". Reporting nothing outside a room is the contract AreaReporter is built on: it
+    // early-returns on an absent screen without clearing what it last sent, so a menu neither
+    // publishes a bogus screen nor re-publishes the real one on the way back.
+    const int gs = mod::current_game_state();
+    if (!is_gameplay_game_state(gs))
+        return;
+
+    const int room = mod::room_index();
+    if (room < 0)
+        return;
+
+    const std::uint32_t screen = (static_cast<std::uint32_t>(gs) << 16) | (static_cast<std::uint32_t>(room) & 0xFFFFu);
+    if (g_have_screen && screen == g_screen)
+        return;
+    g_screen = screen;
+    g_have_screen = true;
+    pal::logf(pal::LogLevel::Info, "area: gamestate %d room %d -> screen 0x%x", gs, room, screen);
 }
 
 RoomTracker::~RoomTracker()
 {
-    mod::remove_area_new_area_hook();
-    g_room_idx = 0;
-    g_have_room = false;
-    g_area_idx = 0;
+    g_screen = 0;
+    g_have_screen = false;
 }
 
 bool RoomTracker::current_screen(std::uint32_t *out) const
 {
-    if (!g_have_room)
+    if (!g_have_screen)
         return false;
-    *out = (g_area_idx << 16) | (g_room_idx & 0xFFFFu);
+    *out = g_screen;
     return true;
 }
 

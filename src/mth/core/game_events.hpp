@@ -19,6 +19,12 @@ struct IGameEvents
     {
     }
 
+    // Fired AFTER World::Update (via the native "WorldUpdateEnd" mod hook), once the other systems have
+    // run. Carries the ctx's World*, the only one reachable in a menu world. world may be null.
+    virtual void on_world_update_end(void * /*world*/)
+    {
+    }
+
     // Fired when a World is destroyed (via the native "WorldDestroy" mod hook): exit-to-menu, save
     // reload, shutdown. Drop any cached per-world game pointers here before the game frees them.
     virtual void on_world_destroy()
