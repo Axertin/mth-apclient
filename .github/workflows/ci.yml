@@ -15,7 +15,7 @@ jobs:
     name: clang-format check
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Check formatting (clang-format 21.1.8)
         run: |
           python3 -m venv /tmp/cf
@@ -29,12 +29,12 @@ jobs:
     needs: format
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { submodules: recursive, fetch-depth: 0 }
       - name: Install toolchain
         run: sudo apt-get update && sudo apt-get install -y clang ninja-build
       - name: Cache vcpkg binaries
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .vcpkg-cache
           key: vcpkg-native-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}-${{ github.run_id }}
@@ -50,7 +50,7 @@ jobs:
         run: ctest --preset clang-x64-tests --output-on-failure --output-junit "$GITHUB_WORKSPACE/test-results.xml"
       - name: Upload test results (JUnit)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: junit-native-tests
           path: test-results.xml
@@ -60,12 +60,12 @@ jobs:
     needs: format
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { submodules: recursive, fetch-depth: 0 }
       - name: Install toolchain
         run: sudo apt-get update && sudo apt-get install -y clang ninja-build
       - name: Cache vcpkg binaries
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .vcpkg-cache
           key: vcpkg-linux-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}-${{ github.run_id }}
@@ -81,7 +81,7 @@ jobs:
         id: version
         run: echo "version=$(cat build/clang-x64-release/version.txt)" >> "$GITHUB_OUTPUT"
       - name: Upload mod drop-in (Linux)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: mod-linux-${{ steps.version.outputs.version }}
           path: build/clang-x64-release/mods/
@@ -92,14 +92,14 @@ jobs:
     needs: format
     runs-on: windows-2022
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { submodules: recursive, fetch-depth: 0 }
       - name: Set up MSVC environment (x64)
-        uses: ilammy/msvc-dev-cmd@v1
+        uses: TheMrMilchmann/setup-msvc-dev@v4.1.0
         with:
-          arch: amd64
+          arch: x64
       - name: Cache vcpkg binaries
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .vcpkg-cache
           key: vcpkg-winclangcl-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}-${{ github.run_id }}
@@ -117,7 +117,7 @@ jobs:
         shell: bash
         run: echo "version=$(cat build/clang-cl-x64-release/version.txt)" >> "$GITHUB_OUTPUT"
       - name: Upload mod drop-in (Windows)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: mod-windows-${{ steps.version.outputs.version }}
           path: build/clang-cl-x64-release/mods/
