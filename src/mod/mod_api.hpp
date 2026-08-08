@@ -197,6 +197,13 @@ void *sym_addr(const char *name);
 // trampoline into ActivateSaveCheats. False when the entry is absent on this build.
 bool cheat_manager_activate_save_cheats();
 
+// Set/clear one modifier bit on the ACTIVE save slot, which the native entry resolves itself. It
+// inlines the write rather than calling CheatManager::SetCheatApplied, so it does not re-enter the
+// mod's lockdown detour on that function. Refused outside 0..0xfd: >= 0xfe diverts into
+// ApplyBackerCheats (an unrelated write set) and a negative index silently no-ops game-side. The
+// entry does NOT null-check the slot, so the caller must know one is bound. False when unavailable.
+bool cheat_manager_set_cheat_applied(int cheat, bool active);
+
 // Kill the player via the native MinaModAPI PlayerDie (deathlink apply). Offset-free and cross-platform,
 // replacing the old Player::TriggerDeath sig detour. Returns false (no-op) if the modding API or PlayerDie
 // is unavailable.
