@@ -13,7 +13,10 @@
                 "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/external/vcpkg/scripts/buildsystems/vcpkg.cmake",
                 "VCPKG_TARGET_TRIPLET": "x64-linux",
                 "VCPKG_MANIFEST_FEATURES": "net;overlay",
-                "MTHAP_BUILD_TESTS": "OFF"
+                "MTHAP_BUILD_TESTS": "OFF",
+                "MTHAP_BUILD_TESTS_ONLY": "OFF",
+                "MTHAP_ENABLE_NET": "ON",
+                "MTHAP_ENABLE_OVERLAY": "ON"
             },
             "condition": {
                 "type": "equals",
