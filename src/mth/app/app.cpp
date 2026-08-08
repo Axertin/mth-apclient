@@ -74,7 +74,8 @@ namespace mth
 
 App::App() : login_prefs_(pal::log_dir() / "login.prefs")
 {
-    pal::logf(pal::LogLevel::Info, "mth-apclient %.*s loaded", static_cast<int>(version::string.size()), version::string.data());
+    pal::logf(pal::LogLevel::Info, "mth-apclient %.*s (%.*s) loaded", static_cast<int>(version::string.size()), version::string.data(),
+              static_cast<int>(version::hash.size()), version::hash.data());
 
     const auto game = pal::game_module();
     const auto self = pal::self_module();
