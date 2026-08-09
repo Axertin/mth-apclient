@@ -131,6 +131,12 @@ inline constexpr std::ptrdiff_t kSaveSlotStride = 0x11c8;
 inline constexpr std::ptrdiff_t kTicketMachineInteractOff = 0x1b0; // TicketMachine -> InteractComponent*
 inline constexpr std::ptrdiff_t kInteractDisabledOff = 0x23a;      // u8: nonzero = never interactable
 
+// The sewer-cat vendor's NPCEntity carries its InteractComponent at the same offset. Only a backstop:
+// NPCEntity::Init docks the interact component into the same child list as the behaviour, so a walk
+// already holds it as a sibling and never has to dereference the owner.
+inline constexpr std::ptrdiff_t kSewerCatEntityOff = 0x50;     // NPCBehavior_SewerCat -> NPCEntity*
+inline constexpr std::ptrdiff_t kNpcEntityInteractOff = 0x1b0; // NPCEntity -> InteractComponent*
+
 // ShopItem / ShopItemDef. A slot is a chain of ShopItemDef variants (one per level, rising price)
 // linked via +0x28, each carrying its own cached loc_idx. Same offsets on both platforms.
 inline constexpr std::ptrdiff_t kShopItemDefOff = 0xf8;   // ShopItem -> active ShopItemDef*

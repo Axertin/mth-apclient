@@ -39,7 +39,6 @@ inline constexpr NativeSymName kNativeSymNames[] = {
     {mina_on_burrow_jump, "Mina::OnBurrowJump"},
     {train_authority_on_npc_event, "TrainAuthority::OnNPCEvent"},
     {pawn_shop_on_npc_event, "PawnShopNPC::OnNPCEvent"},
-    {sewer_cat_on_npc_event, "NPCBehavior_SewerCat::OnNPCEvent"},
     {hub_fountain_bulb_update, "HubFountain::Bulb::Update"},
 };
 

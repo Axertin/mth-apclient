@@ -22,7 +22,7 @@
 #include "mth/features/modifier_hooks.hpp"
 #include "mth/features/pawn_shop_hooks.hpp"
 #include "mth/features/save_takeover.hpp"
-#include "mth/features/sewer_cat_hooks.hpp"
+#include "mth/features/sewer_cat_gate.hpp"
 #include "mth/features/title_gate.hpp"
 #include "mth/hooks/game_hooks.hpp"
 #include "pal/pal_game.hpp"
@@ -62,7 +62,7 @@ HookManager::HookManager(IGameEvents &events, RandoBridge &rando, ScoutRegistry 
         return vendor_lockout_.load(std::memory_order_relaxed);
     };
     pawn_shop_hooks_ = std::make_unique<PawnShopHooks>(vendor_locked);
-    sewer_cat_hooks_ = std::make_unique<SewerCatHooks>(vendor_locked);
+    sewer_cat_gate_ = std::make_unique<SewerCatGate>(vendor_locked);
     modifier_hooks_ = std::make_unique<ModifierHooks>(ModifierRequest{});
     level_cap_hooks_ = std::make_unique<LevelCapHooks>();
     fountain_lamp_hooks_ = std::make_unique<FountainLampHooks>();
@@ -81,7 +81,7 @@ HookManager::~HookManager()
     game_hooks_.reset();
     ability_hooks_.reset();
     pawn_shop_hooks_.reset();
-    sewer_cat_hooks_.reset();
+    sewer_cat_gate_.reset();
     death_hooks_.reset();
     modifier_hooks_.reset();
     level_cap_hooks_.reset();
@@ -195,6 +195,7 @@ void HookManager::drain()
     chest_hooks_->sweep();      // clear the kear-lock on already-spawned chests
     ability_hooks_->enforce_train_tick();
     ability_hooks_->enforce_burrow_tick(get_player_ ? get_player_() : nullptr);
+    sewer_cat_gate_->tick(); // self-gated on the vendor lockout; walks nothing when it is clear
 }
 
 void HookManager::on_world_update_end(void *world)
@@ -207,6 +208,7 @@ void HookManager::on_world_destroy()
     location_hooks_->reset_native_bits(); // a save reload clears s_rItemCollection; re-apply on the next load
     ability_hooks_->on_world_destroy();
     chest_hooks_->on_world_destroy(); // the tracked chests died with the world
+    sewer_cat_gate_->on_world_destroy();
 }
 
 void HookManager::kill_player()

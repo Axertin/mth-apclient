@@ -645,14 +645,11 @@ void patch_train_destination_menu()
               static_cast<unsigned long long>(gm.base + m.offset + kMaskByte));
 }
 
-// InteractComponent::IsInteractable dispatches event 0x1f as a veto query: a nonzero float at info+0x8
-// means "not interactable" -> no prompt. The mechanism is generic across NPC behaviours, so both
-// suppressors below share it, and each no-ops every other event so no dialogue line is set and no menu
-// opens.
-constexpr unsigned kInteractableQueryEvent = 0x1f;
-constexpr std::ptrdiff_t kInteractVetoFloatOff = 0x8; // InteractEventInfo veto float
-
-// Pawnty (PawnShopNPC::OnNPCEvent) disable.
+// Pawnty (PawnShopNPC::OnNPCEvent) disable. event 0x1f is InteractComponent::IsInteractable's veto
+// query: a nonzero float at info+0x8 means "not interactable" -> no prompt. No-op everything else so
+// no dialogue line is set and the sell menu never opens.
+constexpr unsigned kPawnInteractableQueryEvent = 0x1f;
+constexpr std::ptrdiff_t kPawnVetoFloatOff = 0x8; // InteractEventInfo veto float
 pal::PawnShopBlockFn g_pawn_disable;
 pal::HookId g_pawn_hook = pal::kInvalidHookId;
 void (*g_orig_pawn_npc)(void *, unsigned, void *) = nullptr;
@@ -661,31 +658,12 @@ void repl_pawn_npc(void *self, unsigned event, void *info)
 {
     if (g_pawn_disable && g_pawn_disable())
     {
-        if (event == kInteractableQueryEvent && info != nullptr)
-            *reinterpret_cast<float *>(static_cast<char *>(info) + kInteractVetoFloatOff) = 1.0f;
+        if (event == kPawnInteractableQueryEvent && info != nullptr)
+            *reinterpret_cast<float *>(static_cast<char *>(info) + kPawnVetoFloatOff) = 1.0f;
         return; // swallow dialogue/menu/can-interact; never call the original
     }
     if (g_orig_pawn_npc)
         g_orig_pawn_npc(self, event, info);
-}
-
-// Panino (NPCBehavior_SewerCat::OnNPCEvent) disable. He takes an order for an item still out in the
-// world and later spawns the real pickup beside him, handing over something AP never routed. Dedicated
-// one-off class, so suppressing the whole behaviour costs no other vendor (#88).
-pal::SewerCatBlockFn g_sewer_cat_disable;
-pal::HookId g_sewer_cat_hook = pal::kInvalidHookId;
-void (*g_orig_sewer_cat_npc)(void *, unsigned, void *) = nullptr;
-
-void repl_sewer_cat_npc(void *self, unsigned event, void *info)
-{
-    if (g_sewer_cat_disable && g_sewer_cat_disable())
-    {
-        if (event == kInteractableQueryEvent && info != nullptr)
-            *reinterpret_cast<float *>(static_cast<char *>(info) + kInteractVetoFloatOff) = 1.0f;
-        return;
-    }
-    if (g_orig_sewer_cat_npc)
-        g_orig_sewer_cat_npc(self, event, info);
 }
 
 // HubFountain::Bulb::Update(float dt, bool lit): forces lit=true for AP-granted generator lamps.
@@ -901,36 +879,6 @@ void remove_pawn_shop_hook()
         hook_engine().remove_hook(g_pawn_hook);
     g_pawn_hook = kInvalidHookId;
     g_pawn_disable = nullptr;
-}
-
-bool install_sewer_cat_hook(SewerCatBlockFn disable)
-{
-    g_sewer_cat_disable = std::move(disable);
-    const std::uintptr_t addr = resolve_game_symbol(mth::sym::sewer_cat_on_npc_event);
-    if (addr == 0)
-    {
-        logf(LogLevel::Warn, "panino: NPCBehavior_SewerCat::OnNPCEvent not resolved; fetch-vendor disable off");
-        g_sewer_cat_disable = nullptr;
-        return false;
-    }
-    g_sewer_cat_hook = hook_engine().install_hook(reinterpret_cast<void *>(addr), reinterpret_cast<void *>(&repl_sewer_cat_npc),
-                                                  reinterpret_cast<void **>(&g_orig_sewer_cat_npc));
-    if (g_sewer_cat_hook == kInvalidHookId)
-    {
-        logf(LogLevel::Error, "panino: failed to hook NPCBehavior_SewerCat::OnNPCEvent");
-        g_sewer_cat_disable = nullptr;
-        return false;
-    }
-    logf(LogLevel::Info, "panino: hooked NPCBehavior_SewerCat::OnNPCEvent (id=%llu)", static_cast<unsigned long long>(g_sewer_cat_hook));
-    return true;
-}
-
-void remove_sewer_cat_hook()
-{
-    if (g_sewer_cat_hook != kInvalidHookId)
-        hook_engine().remove_hook(g_sewer_cat_hook);
-    g_sewer_cat_hook = kInvalidHookId;
-    g_sewer_cat_disable = nullptr;
 }
 
 bool install_fountain_lamp_hook(FountainLampFn lit_mask)
