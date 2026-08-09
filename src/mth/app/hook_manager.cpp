@@ -37,7 +37,14 @@ HookManager::HookManager(IGameEvents &events, RandoBridge &rando, ScoutRegistry 
     game_hooks_ = std::make_unique<GameHooks>(events);
     location_hooks_ = std::make_unique<LocationHooks>(rando, &scout);
     boss_tracker_ = std::make_unique<BossTracker>(rando);
-    pal::set_save_loaded([this] { boss_tracker_->on_save_loaded(); });
+    // Loading a save is the only reset point for the vendor lockout: it is what makes the latch
+    // "for this save" rather than "for this process", so a later unconnected save is left vanilla.
+    pal::set_save_loaded(
+        [this]
+        {
+            boss_tracker_->on_save_loaded();
+            vendor_lockout_.store(false, std::memory_order_relaxed);
+        });
     goal_tracker_ = std::make_unique<GoalTracker>(rando);
     lock_hooks_ = std::make_unique<LockHooks>();
     chest_hooks_ = std::make_unique<ChestHooks>(lock_hooks_->locks()); // shares the lock registry + seed
@@ -46,8 +53,16 @@ HookManager::HookManager(IGameEvents &events, RandoBridge &rando, ScoutRegistry 
     death_hooks_ = std::make_unique<DeathHooks>(std::move(send_death), std::move(get_player));
     ability_hooks_ = std::make_unique<AbilityHooks>([&state](std::int64_t id) { return state.has_received(id); });
     auto connected = [&state] { return state.phase() == ConnectionPhase::Connected; };
-    pawn_shop_hooks_ = std::make_unique<PawnShopHooks>(connected);
-    sewer_cat_hooks_ = std::make_unique<SewerCatHooks>(connected);
+    // Pawnty and Panino both sell outside AP logic, so they stay shut for the rest of the save once a
+    // session has been seen; a mid-run disconnect must not hand the exploit back.
+    auto vendor_locked = [this, &state]
+    {
+        if (state.phase() == ConnectionPhase::Connected)
+            vendor_lockout_.store(true, std::memory_order_relaxed);
+        return vendor_lockout_.load(std::memory_order_relaxed);
+    };
+    pawn_shop_hooks_ = std::make_unique<PawnShopHooks>(vendor_locked);
+    sewer_cat_hooks_ = std::make_unique<SewerCatHooks>(vendor_locked);
     modifier_hooks_ = std::make_unique<ModifierHooks>(ModifierRequest{});
     level_cap_hooks_ = std::make_unique<LevelCapHooks>();
     fountain_lamp_hooks_ = std::make_unique<FountainLampHooks>();

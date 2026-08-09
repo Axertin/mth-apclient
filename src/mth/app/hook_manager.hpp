@@ -74,6 +74,10 @@ class HookManager
     void seed_kear_blocks(ApState &state); // received kear-block items -> LockRegistry removals
 
     std::atomic<std::uint32_t> lamp_console_override_{0}; // sticky console-forced lamp mask (render thread) OR'd over slot_data in tick (game thread)
+    // Set the first time a save sees an AP session, cleared only when a save is loaded. Vendors that
+    // sell outside AP logic latch on this rather than on the live phase, so dropping the connection
+    // mid-run cannot reopen them.
+    std::atomic<bool> vendor_lockout_{false};
 
     RandoBridge &rando_;                 // checked-location state; the donation machine reads it (#162)
     std::function<void *()> get_player_; // live Player* accessor (shared with DeathHooks + kear credit)
