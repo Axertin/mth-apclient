@@ -22,6 +22,7 @@
 #include "mth/features/modifier_hooks.hpp"
 #include "mth/features/pawn_shop_hooks.hpp"
 #include "mth/features/save_takeover.hpp"
+#include "mth/features/sewer_cat_gate.hpp"
 #include "mth/features/title_gate.hpp"
 #include "mth/hooks/game_hooks.hpp"
 #include "pal/pal_game.hpp"
@@ -36,7 +37,14 @@ HookManager::HookManager(IGameEvents &events, RandoBridge &rando, ScoutRegistry 
     game_hooks_ = std::make_unique<GameHooks>(events);
     location_hooks_ = std::make_unique<LocationHooks>(rando, &scout);
     boss_tracker_ = std::make_unique<BossTracker>(rando);
-    pal::set_save_loaded([this] { boss_tracker_->on_save_loaded(); });
+    // Loading a save is the vendor lockout's only reset point, which scopes the latch to a save rather
+    // than to the process.
+    pal::set_save_loaded(
+        [this]
+        {
+            boss_tracker_->on_save_loaded();
+            vendor_lockout_.store(false, std::memory_order_relaxed);
+        });
     goal_tracker_ = std::make_unique<GoalTracker>(rando);
     lock_hooks_ = std::make_unique<LockHooks>();
     chest_hooks_ = std::make_unique<ChestHooks>(lock_hooks_->locks()); // shares the lock registry + seed
@@ -45,7 +53,18 @@ HookManager::HookManager(IGameEvents &events, RandoBridge &rando, ScoutRegistry 
     death_hooks_ = std::make_unique<DeathHooks>(std::move(send_death), std::move(get_player));
     ability_hooks_ = std::make_unique<AbilityHooks>([&state](std::int64_t id) { return state.has_received(id); });
     auto connected = [&state] { return state.phase() == ConnectionPhase::Connected; };
-    pawn_shop_hooks_ = std::make_unique<PawnShopHooks>(connected);
+    // Pawnty and Panino both sell outside AP logic, so they stay shut for the rest of the save once a
+    // session has been seen; a mid-run disconnect must not hand the exploit back. SewerCatGate::tick
+    // calls this every drain, which is what arms the latch for Pawnty too: his own detour does not run
+    // until the player reaches him.
+    auto vendor_locked = [this, &state]
+    {
+        if (state.phase() == ConnectionPhase::Connected)
+            vendor_lockout_.store(true, std::memory_order_relaxed);
+        return vendor_lockout_.load(std::memory_order_relaxed);
+    };
+    pawn_shop_hooks_ = std::make_unique<PawnShopHooks>(vendor_locked);
+    sewer_cat_gate_ = std::make_unique<SewerCatGate>(vendor_locked);
     modifier_hooks_ = std::make_unique<ModifierHooks>(ModifierRequest{});
     level_cap_hooks_ = std::make_unique<LevelCapHooks>();
     fountain_lamp_hooks_ = std::make_unique<FountainLampHooks>();
@@ -64,6 +83,7 @@ HookManager::~HookManager()
     game_hooks_.reset();
     ability_hooks_.reset();
     pawn_shop_hooks_.reset();
+    sewer_cat_gate_.reset();
     death_hooks_.reset();
     modifier_hooks_.reset();
     level_cap_hooks_.reset();
@@ -177,6 +197,7 @@ void HookManager::drain()
     chest_hooks_->sweep();      // clear the kear-lock on already-spawned chests
     ability_hooks_->enforce_train_tick();
     ability_hooks_->enforce_burrow_tick(get_player_ ? get_player_() : nullptr);
+    sewer_cat_gate_->tick(); // self-gated on the vendor lockout; walks nothing when it is clear
 }
 
 void HookManager::on_world_update_end(void *world)
@@ -189,6 +210,7 @@ void HookManager::on_world_destroy()
     location_hooks_->reset_native_bits(); // a save reload clears s_rItemCollection; re-apply on the next load
     ability_hooks_->on_world_destroy();
     chest_hooks_->on_world_destroy(); // the tracked chests died with the world
+    sewer_cat_gate_->on_world_destroy();
 }
 
 void HookManager::kill_player()

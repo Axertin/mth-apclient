@@ -131,6 +131,13 @@ inline constexpr std::ptrdiff_t kSaveSlotStride = 0x11c8;
 inline constexpr std::ptrdiff_t kTicketMachineInteractOff = 0x1b0; // TicketMachine -> InteractComponent*
 inline constexpr std::ptrdiff_t kInteractDisabledOff = 0x23a;      // u8: nonzero = never interactable
 
+// NPCEntity holds its InteractComponent at the same offset as TicketMachine (shared base). Linux-derived
+// only: NPCBehavior_SewerCat is multiply inherited (four vptrs), so MSVC need not place +0x50 where
+// Itanium does. Both hops are validated at use, so a Windows mismatch degrades to the gate's sibling
+// fallback instead of writing somewhere wrong.
+inline constexpr std::ptrdiff_t kSewerCatEntityOff = 0x50;     // NPCBehavior_SewerCat -> NPCEntity*
+inline constexpr std::ptrdiff_t kNpcEntityInteractOff = 0x1b0; // NPCEntity -> InteractComponent*
+
 // ShopItem / ShopItemDef. A slot is a chain of ShopItemDef variants (one per level, rising price)
 // linked via +0x28, each carrying its own cached loc_idx. Same offsets on both platforms.
 inline constexpr std::ptrdiff_t kShopItemDefOff = 0xf8;   // ShopItem -> active ShopItemDef*

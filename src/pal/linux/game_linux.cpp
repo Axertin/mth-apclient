@@ -88,11 +88,39 @@ void repl_set_cursor(void *self, int index, bool b)
         g_shop_text_cb(self);
 }
 
+// The ShopItemRefresh context carries only a ShopItem*, so nothing there says which shop opened. The
+// name hash passed here does; log each distinct one once (#88).
+void note_shop_lookup(std::uint64_t name_hash, const void *def)
+{
+    constexpr std::size_t kMaxSeenShops = 32;
+    static std::uint64_t seen[kMaxSeenShops] = {};
+    static std::size_t seen_count = 0;
+    static bool capped = false;
+    if (capped)
+        return;
+    for (std::size_t i = 0; i < seen_count; ++i)
+    {
+        if (seen[i] == name_hash)
+            return;
+    }
+    // Latch instead of dropping the overflow: an unrecorded hash misses the scan above on every later
+    // call, and Shop::Get runs per tick from several UpdateState paths.
+    if (seen_count == kMaxSeenShops)
+    {
+        capped = true;
+        pal::logf(pal::LogLevel::Debug, "shop: Shop::Get hash log capped at %zu distinct shops", kMaxSeenShops);
+        return;
+    }
+    seen[seen_count++] = name_hash;
+    pal::logf(pal::LogLevel::Debug, "shop: Shop::Get hash=0x%016llx -> %p", static_cast<unsigned long long>(name_hash), def);
+}
+
 // Shop::Get(nameHash) is the accessor InteractComponent::OpenShop consults before building a shop's
 // box list; OR the never-stack bit onto the returned ShopDef so stacked slots flatten (one box/level).
 void *repl_shop_get(std::uint64_t name_hash)
 {
     void *def = g_orig_shop_get != nullptr ? g_orig_shop_get(name_hash) : nullptr;
+    note_shop_lookup(name_hash, def);
     if (def != nullptr && g_shop_flatten_cb != nullptr && g_shop_flatten_cb())
     {
         auto *flags = reinterpret_cast<std::uint32_t *>(static_cast<char *>(def) + mth::kShopFlagsOff);

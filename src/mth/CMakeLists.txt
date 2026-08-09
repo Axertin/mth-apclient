@@ -96,6 +96,7 @@ if(NOT MTHAP_BUILD_TESTS_ONLY)
         features/ability_hooks.cpp
         features/ticket_machine_gate.cpp
         features/pawn_shop_hooks.cpp
+        features/sewer_cat_gate.cpp
         features/modifier_hooks.cpp
         features/levelcap_hooks.cpp
         features/fountain_lamp_hooks.cpp
