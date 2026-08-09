@@ -93,13 +93,23 @@ void note_shop_lookup(std::uint64_t name_hash, const void *def)
     constexpr std::size_t kMaxSeenShops = 32;
     static std::uint64_t seen[kMaxSeenShops] = {};
     static std::size_t seen_count = 0;
+    static bool capped = false;
+    if (capped)
+        return;
     for (std::size_t i = 0; i < seen_count; ++i)
     {
         if (seen[i] == name_hash)
             return;
     }
-    if (seen_count < kMaxSeenShops)
-        seen[seen_count++] = name_hash;
+    // Latch instead of dropping the overflow: an unrecorded hash misses the scan above on every later
+    // call, and Shop::Get runs per tick from several UpdateState paths.
+    if (seen_count == kMaxSeenShops)
+    {
+        capped = true;
+        pal::logf(pal::LogLevel::Debug, "shop: Shop::Get hash log capped at %zu distinct shops", kMaxSeenShops);
+        return;
+    }
+    seen[seen_count++] = name_hash;
     pal::logf(pal::LogLevel::Debug, "shop: Shop::Get hash=0x%016llx -> %p", static_cast<unsigned long long>(name_hash), def);
 }
 
