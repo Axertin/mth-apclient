@@ -88,9 +88,8 @@ void repl_set_cursor(void *self, int index, bool b)
         g_shop_text_cb(self);
 }
 
-// Which NPC opened a shop is otherwise unrecoverable at runtime: the ShopItemRefresh context carries
-// only a ShopItem*, with no shop identity on it. The name hash passed here is that identity, so log
-// each distinct one once - repeats every frame would say nothing new (#88).
+// The ShopItemRefresh context carries only a ShopItem*, so nothing there says which shop opened. The
+// name hash passed here does; log each distinct one once (#88).
 void note_shop_lookup(std::uint64_t name_hash, const void *def)
 {
     constexpr std::size_t kMaxSeenShops = 32;

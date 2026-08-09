@@ -14,16 +14,16 @@
 namespace
 {
 
-// Ticks between walks. Matches the donation-machine gate: a full traversal is microseconds, but it is
-// pure waste in every room he is not in, so this runs at about 1Hz rather than per frame.
+// About 1Hz, matching the donation-machine gate: a traversal costs microseconds but is waste in every
+// room he is not in.
 constexpr int kWalkIntervalTicks = 60;
 
 constexpr std::size_t kMaxNodes = mth::kSceneMaxNodes;
 constexpr std::size_t kMaxChildren = mth::kSceneMaxChildren;
 using mth::looks_like_component;
 
-// The game's own ownership link, and the only unambiguous answer: it names THIS vendor's component.
-// Both hops are validated rather than trusted, since the offsets were read off the Linux build.
+// The game's ownership link, and the only path that names THIS vendor's component. Both offsets are
+// Linux-derived, so both hops are validated.
 [[nodiscard]] void *interact_via_owner(void *behavior, std::uintptr_t mod_base, std::size_t mod_size)
 {
     void *owner = *reinterpret_cast<void **>(static_cast<char *>(behavior) + mth::layout::kSewerCatEntityOff);
@@ -44,15 +44,11 @@ SewerCatGate::SewerCatGate(std::function<bool()> should_disable) : should_disabl
 {
 }
 
-// Writes only on a real transition, so the log marks the one tick that changed something instead of
-// repeating at the walk cadence - and would speak up again if the game ever cleared the byte.
-//
-// The owner link is authoritative and is what decides. The sibling the walk already validated is only a
-// fallback for a build whose owner offset has moved, and only when the child list held exactly one
-// interact component: nothing structurally binds "an interact component under this entity" to THIS
-// vendor, so with two NPCs on one entity an unconditional sibling would disable the wrong one - and then
-// hide it forever, since every later walk re-finds it already set. Which path won is logged because the
-// fallback firing means an offset needs re-checking.
+// The owner link decides. The sibling is a fallback for a moved owner offset, usable only when the child
+// list held exactly one interact component: nothing binds a sibling to a particular NPC, so guessing with
+// two NPCs on one entity disables the wrong one and then hides it, every later walk finding the byte
+// already set. The winning path is logged because a sibling win means the owner offset needs re-checking.
+// Writes only on a 0->1 transition, so the log marks the tick that changed something.
 void SewerCatGate::disable_vendor(void *behavior, void *sibling_interact, bool sibling_unique)
 {
     const char *via = "owner";
@@ -89,15 +85,14 @@ void SewerCatGate::tick()
         --cooldown_;
         return;
     }
-    void *world = mod::player_world(); // null until a player is live, which is also when no room exists
+    void *world = mod::player_world(); // null until a player is live
     if (world == nullptr)
         return;
     void *root = mod::world_game_root_entity(world);
     if (root == nullptr)
         return;
-    // Only once a walk is actually going to run: charging the cooldown above would let the first tick
-    // after a room load - the one most likely to have no live player yet - eat the on_world_destroy
-    // reset and leave him interactible for a full interval, in the room the player just walked into.
+    // Charged only when a walk runs. Charging it above lets the first tick after a room load, which
+    // usually has no live player yet, eat the on_world_destroy reset and cost a full interval.
     cooldown_ = kWalkIntervalTicks;
 
     if (mod_size_ == 0)
@@ -127,9 +122,8 @@ void SewerCatGate::tick()
         }
         mod::entity_children(entity, buffer_.data(), buffer_.size());
 
-        // Behaviour and interact component are docked as siblings, so both come out of the same pass.
-        // The count is what makes the sibling usable: one interact component under this entity means it
-        // can only be his, several mean it cannot be attributed and disable_vendor must not guess.
+        // Behaviour and interact component are docked as siblings, so one pass yields both. The count is
+        // what makes the sibling usable: one under this entity can only be his, several cannot be told apart.
         void *vendor = nullptr;
         void *interact = nullptr;
         std::size_t interact_count = 0;

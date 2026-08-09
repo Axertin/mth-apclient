@@ -85,9 +85,8 @@ pal::HookId g_shop_flatten_hook = pal::kInvalidHookId;
 // LLP64 and would truncate the hash, so the forwarded lookup finds no shop and returns null.
 void *(*g_orig_shop_get)(std::uint64_t name_hash) = nullptr; // Shop::Get(uint64_t) -> ShopDef*
 
-// Which NPC opened a shop is otherwise unrecoverable at runtime: the ShopItemRefresh context carries
-// only a ShopItem*, with no shop identity on it. The name hash passed here is that identity, so log
-// each distinct one once - repeats every frame would say nothing new (#88).
+// The ShopItemRefresh context carries only a ShopItem*, so nothing there says which shop opened. The
+// name hash passed here does; log each distinct one once (#88).
 void note_shop_lookup(std::uint64_t name_hash, const void *def)
 {
     constexpr std::size_t kMaxSeenShops = 32;

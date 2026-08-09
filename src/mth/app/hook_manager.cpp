@@ -37,8 +37,8 @@ HookManager::HookManager(IGameEvents &events, RandoBridge &rando, ScoutRegistry 
     game_hooks_ = std::make_unique<GameHooks>(events);
     location_hooks_ = std::make_unique<LocationHooks>(rando, &scout);
     boss_tracker_ = std::make_unique<BossTracker>(rando);
-    // Loading a save is the only reset point for the vendor lockout: it is what makes the latch
-    // "for this save" rather than "for this process", so a later unconnected save is left vanilla.
+    // Loading a save is the vendor lockout's only reset point, which scopes the latch to a save rather
+    // than to the process.
     pal::set_save_loaded(
         [this]
         {
@@ -55,9 +55,8 @@ HookManager::HookManager(IGameEvents &events, RandoBridge &rando, ScoutRegistry 
     auto connected = [&state] { return state.phase() == ConnectionPhase::Connected; };
     // Pawnty and Panino both sell outside AP logic, so they stay shut for the rest of the save once a
     // session has been seen; a mid-run disconnect must not hand the exploit back. SewerCatGate::tick
-    // calls this every drain, which is also what arms the latch promptly for Pawnty - whose own detour
-    // would otherwise not run until the player walked up to him. Keep that in mind before short-circuiting
-    // the gate.
+    // calls this every drain, which is what arms the latch for Pawnty too: his own detour does not run
+    // until the player reaches him.
     auto vendor_locked = [this, &state]
     {
         if (state.phase() == ConnectionPhase::Connected)

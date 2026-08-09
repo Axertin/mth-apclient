@@ -131,12 +131,10 @@ inline constexpr std::ptrdiff_t kSaveSlotStride = 0x11c8;
 inline constexpr std::ptrdiff_t kTicketMachineInteractOff = 0x1b0; // TicketMachine -> InteractComponent*
 inline constexpr std::ptrdiff_t kInteractDisabledOff = 0x23a;      // u8: nonzero = never interactable
 
-// The sewer-cat vendor's NPCEntity carries its InteractComponent at the same offset (NPCEntity and
-// TicketMachine share the base that owns the field). This is the ownership link the gate prefers, since
-// it names one vendor's component rather than whatever the child list happens to hold.
-// READ OFF THE LINUX BUILD ONLY: NPCBehavior_SewerCat is multiply-inherited (four vptrs), so MSVC need
-// not place +0x50 where Itanium does. Both hops are validated at use, so a Windows mismatch degrades to
-// the sibling fallback rather than writing somewhere wrong - re-check before relying on it there.
+// NPCEntity holds its InteractComponent at the same offset as TicketMachine (shared base). Linux-derived
+// only: NPCBehavior_SewerCat is multiply inherited (four vptrs), so MSVC need not place +0x50 where
+// Itanium does. Both hops are validated at use, so a Windows mismatch degrades to the gate's sibling
+// fallback instead of writing somewhere wrong.
 inline constexpr std::ptrdiff_t kSewerCatEntityOff = 0x50;     // NPCBehavior_SewerCat -> NPCEntity*
 inline constexpr std::ptrdiff_t kNpcEntityInteractOff = 0x1b0; // NPCEntity -> InteractComponent*
 
