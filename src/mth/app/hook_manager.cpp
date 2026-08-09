@@ -54,7 +54,10 @@ HookManager::HookManager(IGameEvents &events, RandoBridge &rando, ScoutRegistry 
     ability_hooks_ = std::make_unique<AbilityHooks>([&state](std::int64_t id) { return state.has_received(id); });
     auto connected = [&state] { return state.phase() == ConnectionPhase::Connected; };
     // Pawnty and Panino both sell outside AP logic, so they stay shut for the rest of the save once a
-    // session has been seen; a mid-run disconnect must not hand the exploit back.
+    // session has been seen; a mid-run disconnect must not hand the exploit back. SewerCatGate::tick
+    // calls this every drain, which is also what arms the latch promptly for Pawnty - whose own detour
+    // would otherwise not run until the player walked up to him. Keep that in mind before short-circuiting
+    // the gate.
     auto vendor_locked = [this, &state]
     {
         if (state.phase() == ConnectionPhase::Connected)

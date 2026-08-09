@@ -1,5 +1,7 @@
 #include "mth/features/sewer_cat_gate.hpp"
 
+#include <cstddef>
+#include <cstdint>
 #include <utility>
 
 #include "mod/mod_api.hpp"
@@ -20,13 +22,10 @@ constexpr std::size_t kMaxNodes = mth::kSceneMaxNodes;
 constexpr std::size_t kMaxChildren = mth::kSceneMaxChildren;
 using mth::looks_like_component;
 
-// The behaviour and the NPC's interact component are docked into the SAME child list, so the sibling the
-// walk already validated is the whole answer. The owner hop is only a backstop for a build that docks
-// them apart, and it re-validates rather than trusting the offset.
-[[nodiscard]] void *interact_for(void *behavior, void *sibling, std::uintptr_t mod_base, std::size_t mod_size)
+// The game's own ownership link, and the only unambiguous answer: it names THIS vendor's component.
+// Both hops are validated rather than trusted, since the offsets were read off the Linux build.
+[[nodiscard]] void *interact_via_owner(void *behavior, std::uintptr_t mod_base, std::size_t mod_size)
 {
-    if (sibling != nullptr)
-        return sibling;
     void *owner = *reinterpret_cast<void **>(static_cast<char *>(behavior) + mth::layout::kSewerCatEntityOff);
     if (!looks_like_component(owner, mod_base, mod_size))
         return nullptr;
@@ -47,15 +46,28 @@ SewerCatGate::SewerCatGate(std::function<bool()> should_disable) : should_disabl
 
 // Writes only on a real transition, so the log marks the one tick that changed something instead of
 // repeating at the walk cadence - and would speak up again if the game ever cleared the byte.
-void SewerCatGate::disable_vendor(void *behavior, void *sibling_interact)
+//
+// The owner link is authoritative and is what decides. The sibling the walk already validated is only a
+// fallback for a build whose owner offset has moved, and only when the child list held exactly one
+// interact component: nothing structurally binds "an interact component under this entity" to THIS
+// vendor, so with two NPCs on one entity an unconditional sibling would disable the wrong one - and then
+// hide it forever, since every later walk re-finds it already set. Which path won is logged because the
+// fallback firing means an offset needs re-checking.
+void SewerCatGate::disable_vendor(void *behavior, void *sibling_interact, bool sibling_unique)
 {
-    void *ic = interact_for(behavior, sibling_interact, mod_base_, mod_size_);
+    const char *via = "owner";
+    void *ic = interact_via_owner(behavior, mod_base_, mod_size_);
+    if (ic == nullptr && sibling_unique)
+    {
+        ic = sibling_interact;
+        via = "sibling";
+    }
     if (ic == nullptr)
     {
         if (!warned_no_interact_)
         {
             warned_no_interact_ = true;
-            pal::logf(pal::LogLevel::Warn, "panino: fetch vendor %p has no reachable interact component; left live (#88)", behavior);
+            pal::logf(pal::LogLevel::Warn, "panino: fetch vendor %p has no unambiguous interact component; left live (#88)", behavior);
         }
         return;
     }
@@ -63,7 +75,7 @@ void SewerCatGate::disable_vendor(void *behavior, void *sibling_interact)
     if (*disabled != 0)
         return;
     *disabled = 1;
-    pal::logf(pal::LogLevel::Info, "panino: fetch vendor %p disabled (interact %p) (#88)", behavior, ic);
+    pal::logf(pal::LogLevel::Info, "panino: fetch vendor %p disabled (interact %p via %s) (#88)", behavior, ic, via);
 }
 
 void SewerCatGate::tick()
@@ -77,14 +89,16 @@ void SewerCatGate::tick()
         --cooldown_;
         return;
     }
-    cooldown_ = kWalkIntervalTicks;
-
     void *world = mod::player_world(); // null until a player is live, which is also when no room exists
     if (world == nullptr)
         return;
     void *root = mod::world_game_root_entity(world);
     if (root == nullptr)
         return;
+    // Only once a walk is actually going to run: charging the cooldown above would let the first tick
+    // after a room load - the one most likely to have no live player yet - eat the on_world_destroy
+    // reset and leave him interactible for a full interval, in the room the player just walked into.
+    cooldown_ = kWalkIntervalTicks;
 
     if (mod_size_ == 0)
     {
@@ -113,10 +127,12 @@ void SewerCatGate::tick()
         }
         mod::entity_children(entity, buffer_.data(), buffer_.size());
 
-        // Behaviour and interact component are siblings under one entity, so both are picked up in the
-        // same pass; neither ordering nor a second lookup is needed.
+        // Behaviour and interact component are docked as siblings, so both come out of the same pass.
+        // The count is what makes the sibling usable: one interact component under this entity means it
+        // can only be his, several mean it cannot be attributed and disable_vendor must not guess.
         void *vendor = nullptr;
         void *interact = nullptr;
+        std::size_t interact_count = 0;
         for (void *c : buffer_)
         {
             if (!looks_like_component(c, mod_base_, mod_size_))
@@ -128,12 +144,16 @@ void SewerCatGate::tick()
             else if (mod::component_isa(c, rtti::kNpcBehaviorSewerCat))
                 vendor = c;
             else if (mod::component_isa(c, rtti::kInteractComponent))
+            {
                 interact = c;
+                ++interact_count;
+            }
         }
         if (vendor != nullptr)
         {
-            disable_vendor(vendor, interact);
-            return; // one dedicated instance per world; nothing left to find
+            disable_vendor(vendor, interact, interact_count == 1);
+            pending_.clear(); // no game pointer outlives the walk that produced it
+            return;           // one dedicated instance per world; nothing left to find
         }
     }
 
@@ -143,8 +163,18 @@ void SewerCatGate::tick()
         pal::logf(pal::LogLevel::Warn, "panino: scene walk hit the %zu node cap; the vendor may be past it (#88)", kMaxNodes);
     }
     // The failure mode of this walk is silence: a broken traversal finds no vendor, which is also what
-    // every room without him looks like. Log the extent of a working walk once so the two are separable.
-    if (visited != 0 && !logged_extent_)
+    // every room without him looks like. Reaching zero components off a valid root is the one reading
+    // that can only mean broken, so it warns; the extent of a working walk is logged once for scale.
+    if (visited == 0)
+    {
+        if (!warned_empty_)
+        {
+            warned_empty_ = true;
+            pal::logf(pal::LogLevel::Warn, "panino: scene walk reached no components; the fetch vendor cannot be found (#88)");
+        }
+        return;
+    }
+    if (!logged_extent_)
     {
         logged_extent_ = true;
         pal::logf(pal::LogLevel::Debug, "panino: scene walk reached %zu components (#88)", visited);
