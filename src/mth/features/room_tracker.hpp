@@ -19,7 +19,8 @@ class RoomTracker
     void poll(); // game thread, per World::Update end
 
     // Packed screen id: gamestate in the high 16 bits, room index in the low 16. false until the first
-    // reading taken in a gameplay gamestate, so menus report nothing at all.
+    // reading taken in a gameplay gamestate, so menus report nothing at all. Readings taken mid-transition are
+    // dropped: the game reports room 0 for both "no room matched" and the real room 0.
     [[nodiscard]] bool current_screen(std::uint32_t *out) const;
 };
 

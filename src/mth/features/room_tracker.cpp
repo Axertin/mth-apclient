@@ -28,6 +28,16 @@ void RoomTracker::poll()
     if (!is_gameplay_game_state(gs))
         return;
 
+    // RoomManager::BeginRoomTransition recomputes the room index by walking the camera's bound list and
+    // stores 0 when nothing matches - and 0 is also a legitimate room - so a mid-transition reading
+    // cannot be told from a real one by value. That same call zeroes the room timer BEFORE recomputing
+    // the index, and every transition state leaves the timer frozen, so a positive timer is the game's
+    // own "this room is settled" signal. Fails open if the build lacks the entry: reporting a transient
+    // beats reporting nothing. Known hole: Player::UpdateResurrectur rewrites the index without zeroing
+    // the timer, so a failed lookup on respawn would still get through.
+    if (mod::room_time_api_available() && !(mod::room_time() > 0.0f))
+        return;
+
     const int room = mod::room_index();
     if (room < 0)
         return;
