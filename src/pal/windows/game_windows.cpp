@@ -85,11 +85,30 @@ pal::HookId g_shop_flatten_hook = pal::kInvalidHookId;
 // LLP64 and would truncate the hash, so the forwarded lookup finds no shop and returns null.
 void *(*g_orig_shop_get)(std::uint64_t name_hash) = nullptr; // Shop::Get(uint64_t) -> ShopDef*
 
+// Which NPC opened a shop is otherwise unrecoverable at runtime: the ShopItemRefresh context carries
+// only a ShopItem*, with no shop identity on it. The name hash passed here is that identity, so log
+// each distinct one once - repeats every frame would say nothing new (#88).
+void note_shop_lookup(std::uint64_t name_hash, const void *def)
+{
+    constexpr std::size_t kMaxSeenShops = 32;
+    static std::uint64_t seen[kMaxSeenShops] = {};
+    static std::size_t seen_count = 0;
+    for (std::size_t i = 0; i < seen_count; ++i)
+    {
+        if (seen[i] == name_hash)
+            return;
+    }
+    if (seen_count < kMaxSeenShops)
+        seen[seen_count++] = name_hash;
+    pal::logf(pal::LogLevel::Debug, "shop: Shop::Get hash=0x%016llx -> %p", static_cast<unsigned long long>(name_hash), def);
+}
+
 // Shop::Get(nameHash) is the accessor InteractComponent::OpenShop consults before building a shop's
 // box list; OR the never-stack bit onto the returned ShopDef so stacked slots flatten (one box/level).
 void *repl_shop_get(std::uint64_t name_hash)
 {
     void *def = g_orig_shop_get != nullptr ? g_orig_shop_get(name_hash) : nullptr;
+    note_shop_lookup(name_hash, def);
     if (def != nullptr && g_shop_flatten_cb != nullptr && g_shop_flatten_cb())
     {
         auto *flags = reinterpret_cast<std::uint32_t *>(static_cast<char *>(def) + mth::kShopFlagsOff);
