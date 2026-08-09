@@ -188,6 +188,14 @@ using PawnShopBlockFn = std::function<bool()>;
 bool install_pawn_shop_hook(PawnShopBlockFn disable);
 void remove_pawn_shop_hook();
 
+// ---- Sewer-cat fetch vendor ("Panino") disable. Symbol divergence lives in the PAL impl. ----
+
+// NPCBehavior_SewerCat::OnNPCEvent suppressor, same shape as the pawn-shop one above. Returns false if
+// the chokepoint did not resolve.
+using SewerCatBlockFn = std::function<bool()>;
+bool install_sewer_cat_hook(SewerCatBlockFn disable);
+void remove_sewer_cat_hook();
+
 // ---- Ossex fountain lamp pre-light. Symbol/offset divergence lives in the PAL impl. ----
 
 // Returns the current "force lit" lamp bitmask (bit i => force lamp index i lit). Called per bulb

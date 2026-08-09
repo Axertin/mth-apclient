@@ -22,6 +22,7 @@
 #include "mth/features/modifier_hooks.hpp"
 #include "mth/features/pawn_shop_hooks.hpp"
 #include "mth/features/save_takeover.hpp"
+#include "mth/features/sewer_cat_hooks.hpp"
 #include "mth/features/title_gate.hpp"
 #include "mth/hooks/game_hooks.hpp"
 #include "pal/pal_game.hpp"
@@ -46,6 +47,7 @@ HookManager::HookManager(IGameEvents &events, RandoBridge &rando, ScoutRegistry 
     ability_hooks_ = std::make_unique<AbilityHooks>([&state](std::int64_t id) { return state.has_received(id); });
     auto connected = [&state] { return state.phase() == ConnectionPhase::Connected; };
     pawn_shop_hooks_ = std::make_unique<PawnShopHooks>(connected);
+    sewer_cat_hooks_ = std::make_unique<SewerCatHooks>(connected);
     modifier_hooks_ = std::make_unique<ModifierHooks>(ModifierRequest{});
     level_cap_hooks_ = std::make_unique<LevelCapHooks>();
     fountain_lamp_hooks_ = std::make_unique<FountainLampHooks>();
@@ -64,6 +66,7 @@ HookManager::~HookManager()
     game_hooks_.reset();
     ability_hooks_.reset();
     pawn_shop_hooks_.reset();
+    sewer_cat_hooks_.reset();
     death_hooks_.reset();
     modifier_hooks_.reset();
     level_cap_hooks_.reset();
