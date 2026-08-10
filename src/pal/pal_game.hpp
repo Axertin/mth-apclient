@@ -49,6 +49,10 @@ void shop_enumerate_locs(void *shop_menu, void (*sink)(int loc, void *ctx), void
 [[nodiscard]] void *shop_desc_widget(void *shop_menu);
 void shop_set_text(void *widget, const char *utf8);
 
+// Makes `rgba` actually render on a palette-mapped text widget, by pointing it at a private palette
+// clone carrying that color at the entry the widget will select. False leaves the widget untouched.
+bool shop_apply_name_palette(void *name_widget, std::uint32_t rgba);
+
 // ---- Modifier ("cheat") control. All offset/symbol/game-call divergence lives in the PAL impl. ----
 
 // True once every modifier symbol (ActivateSaveSlot, ActivateSaveCheats, ToggleCheat,

@@ -1,0 +1,99 @@
+#include <cstdint>
+
+#include "mod/mod_api.hpp"
+#include "mth/core/data/game_layout.hpp"
+#include "mth/core/palette_index.hpp"
+#include "pal/pal_game.hpp"
+#include "pal/pal_log.hpp"
+#include "pal/pal_mem.hpp"
+
+namespace
+{
+
+// One clone serves every widget and every shop: only the single entry the engine selects is ever
+// read back, and it is rewritten on each application, so the clone's provenance and its other
+// entries are unobservable.
+void *g_clone = nullptr;
+bool g_warned_range = false;
+bool g_warned_refcount = false;
+
+std::int32_t *field_i32(void *base, std::ptrdiff_t off)
+{
+    return reinterpret_cast<std::int32_t *>(static_cast<char *>(base) + off);
+}
+
+void **field_ptr(void *base, std::ptrdiff_t off)
+{
+    return reinterpret_cast<void **>(static_cast<char *>(base) + off);
+}
+
+// Cloned once and never released. ReleasePalette only decrements and never frees, so releasing would
+// not reclaim anything; it would only drop our reference and let the game's own release path destroy
+// the clone under a widget still pointing at it.
+void *ensure_clone(void *source)
+{
+    if (g_clone != nullptr)
+        return g_clone;
+    void *clone = mod::clone_palette(source);
+    if (clone == nullptr)
+        return nullptr;
+    mod::palette_set_group(clone, -1); // detach from the group remap chain so it resolves from its own colors
+    g_clone = clone;
+    return g_clone;
+}
+
+} // namespace
+
+namespace pal
+{
+
+bool shop_apply_name_palette(void *name_widget, std::uint32_t rgba)
+{
+    if (!pal::pointer_looks_valid(name_widget) || !mod::palette_api_available())
+        return false;
+
+    void *lookup = *field_ptr(name_widget, mth::layout::kTextLookupPaletteOff);
+    void *output = *field_ptr(name_widget, mth::layout::kTextOutputPaletteOff);
+    if (!pal::pointer_looks_valid(lookup) || !pal::pointer_looks_valid(output))
+        return false;
+
+    void *clone = ensure_clone(output);
+    if (clone == nullptr)
+        return false;
+
+    const auto target = mth::palette_target_index(mod::palette_get_index(lookup, rgba), mod::palette_get_width(clone));
+    if (!target.has_value())
+    {
+        if (!g_warned_range)
+        {
+            g_warned_range = true;
+            pal::logf(pal::LogLevel::Warn, "shop: palette entry out of range; item name color disabled");
+        }
+        return false;
+    }
+    mod::palette_write_index(clone, static_cast<std::int32_t>(*target), rgba);
+
+    if (output != clone)
+    {
+        // Hand-rolled SetPalette. The widget's reference to the game's palette moves to the clone.
+        std::int32_t *out_rc = field_i32(output, mth::layout::kPaletteRefCountOff);
+        if (*out_rc > 1)
+        {
+            *out_rc -= 1;
+        }
+        else if (!g_warned_refcount)
+        {
+            // The owning ShopMenu holds its own reference, so this should be unreachable. Leaking a
+            // reference is survivable; destroying a palette the game still points at is not.
+            g_warned_refcount = true;
+            pal::logf(pal::LogLevel::Warn, "shop: name palette refcount would reach zero; leaving it held");
+        }
+
+        *field_ptr(name_widget, mth::layout::kTextOutputPaletteOff) = clone;
+        *field_i32(clone, mth::layout::kPaletteRefCountOff) += 1;
+        *field_i32(name_widget, mth::layout::kTextPaletteVersionOff) = *field_i32(clone, mth::layout::kPaletteVersionOff) - 1;
+    }
+    return true;
+}
+
+} // namespace pal

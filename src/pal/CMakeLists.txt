@@ -55,6 +55,9 @@ endif()
 # macro is the only platform divergence and lives inside the TU.
 list(APPEND _mthap_pal_sources native_mod_entry.cpp)
 
+# Palette-mapped text coloring - identical struct offsets on both platforms, so one TU.
+list(APPEND _mthap_pal_sources shop_palette.cpp)
+
 add_library(mthap_pal OBJECT ${_mthap_pal_sources})
 
 target_include_directories(mthap_pal PUBLIC "${CMAKE_SOURCE_DIR}/src")
