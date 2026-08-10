@@ -29,7 +29,8 @@ void ApState::reset_session()
 {
     received_items_.clear();
     server_checked_pending_.clear();
-    last_item_index_ = -1; // the next server's indices restart at 0 and must not read as duplicates
+    removed_locations_.clear(); // the next seed prunes a different set (or none)
+    last_item_index_ = -1;      // the next server's indices restart at 0 and must not read as duplicates
     console_index_ = -1000000;
     // A no-op on the normal path (the new ApConnected re-authenticates right after). It matters when the
     // marker arrives without one, e.g. the socket dies mid-handshake: leaving the old session authenticated
@@ -76,6 +77,19 @@ void ApState::apply(const ApEvent &ev)
                 valid_locations_.clear();
                 valid_locations_.insert(e.checked_locations.begin(), e.checked_locations.end());
                 valid_locations_.insert(e.missing_locations.begin(), e.missing_locations.end());
+
+                // A pruned id the server still lists is an apworld bug. Suppressing it would strand a check
+                // AP expects and make the seed uncompletable, so the server's view wins and it stays real.
+                removed_locations_.clear();
+                std::size_t removed_overlap = 0;
+                for (std::int64_t id : e.removed_locations)
+                {
+                    if (valid_locations_.contains(id))
+                        ++removed_overlap;
+                    else
+                        removed_locations_.insert(id);
+                }
+
                 authenticated_ = true;
                 status_ = "Connected";
                 set_phase(ConnectionPhase::Connected);
@@ -90,6 +104,11 @@ void ApState::apply(const ApEvent &ev)
                           player_slot_, seed_.c_str(), slot_data_.size(), ossex_start_, static_cast<int>(kear_mode_), train_rando_, train_pass_cost_,
                           max_stat_level_, valid_locations_.size(), e.checked_locations.size(), e.missing_locations.size(), static_cast<long long>(lo),
                           static_cast<long long>(hi));
+                if (!removed_locations_.empty())
+                    pal::logf(pal::LogLevel::Info, "ap_state: %zu location(s) removed by slot_data; treated as already collected", removed_locations_.size());
+                if (removed_overlap != 0)
+                    pal::logf(pal::LogLevel::Warn, "ap_state: %zu removed_location(s) are still in the server's location list; kept as real checks",
+                              removed_overlap);
             }
             else if constexpr (std::is_same_v<T, ApConnecting>)
             {

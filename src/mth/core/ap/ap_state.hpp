@@ -144,6 +144,16 @@ class ApState
     {
         return valid_locations_.contains(id);
     }
+    // slot_data "removed_locations": pruned from the pool, so the client treats them as already
+    // collected. Disjoint from valid_locations_ by construction (see apply): the server's view wins.
+    [[nodiscard]] bool is_removed_location(std::int64_t id) const
+    {
+        return removed_locations_.contains(id);
+    }
+    [[nodiscard]] const std::set<std::int64_t> &removed_locations() const
+    {
+        return removed_locations_;
+    }
     [[nodiscard]] const std::vector<ReceivedItem> &received_items() const
     {
         return received_items_;
@@ -205,6 +215,7 @@ class ApState
     bool wallet_cap_{false};
     std::uint32_t lit_generator_lamp_mask_{0};
     std::set<std::int64_t> valid_locations_{};
+    std::set<std::int64_t> removed_locations_{};
     std::vector<ReceivedItem> received_items_{};
     std::vector<std::int64_t> server_checked_pending_{}; // server-reported checks awaiting reconcile (game-thread)
     int last_item_index_{-1};

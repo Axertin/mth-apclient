@@ -196,3 +196,47 @@ TEST_CASE("ap_state: an item index reused by the next server is not swallowed as
     REQUIRE(s.received_items().size() == 1);
     REQUIRE(s.received_items()[0].item_id == 99);
 }
+
+TEST_CASE("ap_state: removed locations are tracked and cleared on session reset", "[mth][ap_state]")
+{
+    mth::ApState s;
+    s.apply(mth::ApConnected{.slot_data = "{}", .player_slot = 1, .missing_locations = {5, 6}, .removed_locations = {40, 41}});
+    REQUIRE(s.is_removed_location(40));
+    REQUIRE(s.is_removed_location(41));
+    REQUIRE_FALSE(s.is_removed_location(5));
+    REQUIRE(s.removed_locations().size() == 2);
+
+    s.reset_session();
+    REQUIRE_FALSE(s.is_removed_location(40));
+    REQUIRE(s.removed_locations().empty());
+}
+
+TEST_CASE("ap_state: a removed id the server still lists stays a real check", "[mth][ap_state]")
+{
+    mth::ApState s;
+    s.apply(mth::ApConnected{.slot_data = "{}", .player_slot = 1, .checked_locations = {7}, .missing_locations = {5, 6}, .removed_locations = {5, 7, 40}});
+
+    REQUIRE_FALSE(s.is_removed_location(5)); // in missing_locations, so the server's view wins
+    REQUIRE_FALSE(s.is_removed_location(7)); // in checked_locations, likewise
+    REQUIRE(s.is_removed_location(40));
+    REQUIRE(s.removed_locations().size() == 1);
+    REQUIRE(s.is_valid_location(5));
+}
+
+TEST_CASE("ap_state: a disconnect keeps the removed set", "[mth][ap_state]")
+{
+    mth::ApState s;
+    s.apply(mth::ApConnected{.slot_data = "{}", .player_slot = 1, .missing_locations = {5}, .removed_locations = {40}});
+    s.apply(mth::ApDisconnected{});
+
+    REQUIRE_FALSE(s.authenticated());
+    REQUIRE(s.is_removed_location(40)); // a dropped link must not turn pruned pickups back into real items
+}
+
+TEST_CASE("ap_state: an absent removed list leaves the set empty", "[mth][ap_state]")
+{
+    mth::ApState s;
+    s.apply(mth::ApConnected{.slot_data = "{}", .player_slot = 1, .missing_locations = {5}});
+    REQUIRE(s.removed_locations().empty());
+    REQUIRE_FALSE(s.is_removed_location(5));
+}
