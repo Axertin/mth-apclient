@@ -145,11 +145,10 @@ inline constexpr std::ptrdiff_t kShopItemStockOff = 0xec; // ShopItem stock coun
 inline constexpr std::ptrdiff_t kShopDefLocOff = 0x48;    // ShopItemDef cached GetCollectionIndex == loc_idx
 inline constexpr std::ptrdiff_t kShopDefNextOff = 0x28;   // ShopItemDef -> next variant (level chain), null-terminated
 
-// ycTextComponent text coloring. The rendered color is NOT the one SetColor stores: the render
-// object resolves it as outputPalette.colors[ GetIndex(lookupPalette, storedColor) ], and GetIndex
-// answers 0 for a color the palette does not contain, so an arbitrary color renders as entry 0.
-// The render object is a base subobject at +0x40, so these component-relative offsets are its own
-// plus 0x40. Same offsets on both platforms.
+// ycTextComponent text coloring. SetColor only stores a color; the render object resolves it as
+// outputPalette.colors[ GetIndex(lookupPalette, storedColor) ], and GetIndex answers 0 for a color
+// the palette does not contain. The render object is a base subobject at +0x40, so these
+// component-relative offsets are its own plus 0x40. Same offsets on both platforms.
 inline constexpr std::ptrdiff_t kTextOutputPaletteOff = 0x128;  // ycTextComponent -> ycPaletteTexture* the final RGBA is read from
 inline constexpr std::ptrdiff_t kTextLookupPaletteOff = 0x130;  // ycTextComponent -> ycPaletteTexture* GetIndex runs against
 inline constexpr std::ptrdiff_t kTextPaletteVersionOff = 0x1c0; // cached output-palette version; a stale value forces a re-resolve

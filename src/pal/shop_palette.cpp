@@ -11,10 +11,9 @@
 namespace
 {
 
-// One clone serves every widget and every shop. The widget resolves a SECOND palette entry per
-// Update (component+0x17c, a different index of this same clone) besides the one this file writes,
-// but RenderInternal only consumes it when the flag at component+0x1ac is set - the ctor zeroes that
-// flag, which is what keeps the clone's other entries unobservable, not that only one is ever read.
+// One clone serves every widget and every shop. Update resolves a second entry of this same clone
+// (component+0x17c) besides the one written here, but RenderInternal consumes it only when the flag
+// at component+0x1ac is set, and the ctor zeroes it.
 void *g_clone = nullptr;
 bool g_warned_range = false;
 bool g_warned_refcount = false;
@@ -30,9 +29,8 @@ void **field_ptr(void *base, std::ptrdiff_t off)
     return reinterpret_cast<void **>(static_cast<char *>(base) + off);
 }
 
-// Cloned once and never released. ReleasePalette only decrements and never frees, so releasing would
-// not reclaim anything; it would only drop our reference and let the game's own release path destroy
-// the clone under a widget still pointing at it.
+// Cloned once and never released. ReleasePalette only decrements and never frees, so releasing
+// reclaims nothing and lets the game's release path destroy the clone under a live widget.
 void *ensure_clone(void *source)
 {
     if (g_clone != nullptr)
@@ -80,9 +78,9 @@ bool shop_apply_name_palette(void *name_widget, std::uint32_t rgba)
     {
         std::int32_t *out_rc = field_i32(output, mth::layout::kPaletteRefCountOff);
         const std::uint32_t out_width = mod::palette_get_width(output);
-        // Tripwire: pointer_looks_valid above only proves output is a canonical address, not that it
-        // is really a ycPaletteTexture. A refcount/width outside plausible bounds means this field
-        // moved and we are about to decrement/overwrite an unrelated object; bail before touching it.
+        // pointer_looks_valid above only proves output is a canonical address, not a
+        // ycPaletteTexture. Implausible bounds mean the field moved between builds and the writes
+        // below would land in an unrelated object.
         if (*out_rc <= 0 || *out_rc >= 0x10000 || out_width == 0 || out_width > 255)
         {
             if (!g_warned_plausibility)

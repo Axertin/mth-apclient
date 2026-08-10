@@ -6,11 +6,9 @@
 namespace mth
 {
 
-// Which palette entry to overwrite so a wanted color survives the engine's palette mapping.
-// api_index is what the mod API's PaletteGetIndex answered for that color against the widget's
-// lookup palette; the engine resolves a non-member color to entry 0, so a negative answer means
-// the same thing. Nullopt when the entry does not exist: PaletteWriteIndex is unbounded and would
-// write past the color array.
+// Which palette entry to overwrite so a color survives the engine's palette mapping. A negative
+// api_index is PaletteGetIndex's miss answer, which the engine resolves to entry 0. Nullopt when
+// the entry does not exist: PaletteWriteIndex is unbounded.
 [[nodiscard]] constexpr std::optional<std::uint32_t> palette_target_index(std::int32_t api_index, std::uint32_t palette_width)
 {
     const std::uint32_t idx = api_index < 0 ? 0u : static_cast<std::uint32_t>(api_index);

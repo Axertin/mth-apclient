@@ -168,11 +168,10 @@ bool set_item_collected(int index, bool collected, void *collection, void *slot)
 bool text_color_available();
 bool set_text_color(void *text_component, std::uint32_t rgba);
 
-// ycPaletteTexture. The game's text is palette-mapped: a ycTextComponent resolves its color to an
-// index against one palette and reads the final RGBA from another, so an arbitrary color renders as
-// entry 0. Cloning a widget's palette and writing the wanted color into it is the API's own recipe
-// (see the upstream palette_select example), including the group -1 detach, which is what makes the
-// clone resolve from its own colors instead of the shared group chain.
+// ycPaletteTexture. Text is palette-mapped (see mth::layout kText*PaletteOff), so an arbitrary
+// color renders as entry 0; getting one to render means cloning a widget's palette and writing the
+// color into it. The group -1 detach is not optional: without it the clone still resolves through
+// the shared group chain rather than its own colors.
 // rgba is packed as mth::banner_color packs it, matching MM_Color's byte order.
 bool palette_api_available();
 void *clone_palette(void *source);
