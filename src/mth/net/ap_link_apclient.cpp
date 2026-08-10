@@ -403,6 +403,20 @@ void ApLink::setup_handlers(const std::string &slot, const std::string &password
                                       mth::kGeneratorLampCount - 1);
                     broken_generator_mask = mth::broken_generator_mask(broken_indices);
                 }
+            // Locations the apworld pruned from the pool (dungeons the generator goal never requires).
+            // Absent means nothing was pruned, so an empty result is the right default.
+            std::vector<std::int64_t> removed_locations;
+            if (data.is_object())
+                if (auto rl = data.find("removed_locations"); rl != data.end() && rl->is_array())
+                {
+                    for (const auto &v : *rl)
+                        if (v.is_number_integer())
+                            removed_locations.push_back(v.get<std::int64_t>());
+                    if (removed_locations.size() != rl->size())
+                        pal::logf(pal::LogLevel::Warn, "removed_locations: dropped %zu non-integer entr(ies)", rl->size() - removed_locations.size());
+                }
+            if (!removed_locations.empty())
+                pal::logf(pal::LogLevel::Info, "removed_locations: seed prunes %zu location(s)", removed_locations.size());
             push_event(mth::ApConnected{client_->get_seed(),
                                         data.is_null() ? std::string{} : data.dump(),
                                         client_->get_player_number(),
@@ -425,7 +439,8 @@ void ApLink::setup_handlers(const std::string &slot, const std::string &password
                                         broken_generator_mask,
                                         goal_bosses,
                                         wallet_cap,
-                                        lit_generator_lamp_mask});
+                                        lit_generator_lamp_mask,
+                                        std::move(removed_locations)});
 
             // Publish last. The game thread's resend gate keys on is_connected(), so flipping it
             // before ApConnected is drained lets a tick flush the previous seed's checked set to
