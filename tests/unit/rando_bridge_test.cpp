@@ -1,4 +1,5 @@
 #include <filesystem>
+#include <fstream>
 #include <set>
 
 #include <catch2/catch_test_macros.hpp>
@@ -319,4 +320,103 @@ TEST_CASE("rando_bridge: reset_session re-arms the one-shot goal for the next se
     bridge.reset_session();
     bridge.send_goal();
     REQUIRE(link.goal_calls == 2); // a new session must be able to send its own goal
+}
+
+TEST_CASE("rando_bridge: a removed location reads as a checked AP location", "[mth][rando]")
+{
+    mth::test::FakeApLink link;
+    link.connected = true;
+    mth::ApState state;
+    state.apply(mth::ApConnected{.slot_data = "{}", .player_slot = 1, .missing_locations = {ap_loc_id(5)}, .removed_locations = {ap_loc_id(40)}});
+    mth::RandoBridge bridge(link, state);
+
+    REQUIRE(bridge.is_ap_location(40)); // opens the suppression gates
+    REQUIRE(bridge.is_checked(40));     // pickup despawn, shop sold-out, IsItemCollected redirect
+    REQUIRE(bridge.is_removed(40));
+    REQUIRE(bridge.is_ap_location(5));
+    REQUIRE_FALSE(bridge.is_checked(5));
+    REQUIRE_FALSE(bridge.is_removed(5));
+    REQUIRE_FALSE(bridge.is_removed(-1));
+}
+
+TEST_CASE("rando_bridge: a removed location is never persisted, sent, or flushed", "[mth][rando]")
+{
+    const auto path = std::filesystem::temp_directory_path() / "mthap_bridge_removed.state";
+    std::filesystem::remove(path);
+    mth::ApSaveState save(path);
+
+    mth::test::FakeApLink link;
+    link.connected = true;
+    mth::ApState state;
+    state.apply(mth::ApConnected{.slot_data = "{}", .player_slot = 1, .missing_locations = {ap_loc_id(5)}, .removed_locations = {ap_loc_id(40)}});
+    mth::RandoBridge bridge(link, state);
+    bridge.attach_save_state(save);
+
+    bridge.on_location_collected(40);
+    REQUIRE(link.sent_locations.empty());
+    REQUIRE_FALSE(save.is_checked(40));
+
+    bridge.on_location_collected(5); // a real check still works
+    link.sent_locations.clear();
+    bridge.flush();
+    REQUIRE(link.sent_locations == std::vector<std::int64_t>{ap_loc_id(5)});
+}
+
+TEST_CASE("rando_bridge: a removed location is not reconciled or scouted", "[mth][rando]")
+{
+    const auto path = std::filesystem::temp_directory_path() / "mthap_bridge_removed_reconcile.state";
+    std::filesystem::remove(path);
+    mth::ApSaveState save(path);
+
+    mth::test::FakeApLink link;
+    link.connected = true;
+    mth::ApState state;
+    state.apply(mth::ApConnected{.slot_data = "{}", .player_slot = 1, .missing_locations = {ap_loc_id(5)}, .removed_locations = {ap_loc_id(40)}});
+    mth::RandoBridge bridge(link, state);
+    bridge.attach_save_state(save);
+
+    REQUIRE_FALSE(bridge.reconcile_server_checked(40)); // must not enter checked_ and get re-flushed
+    REQUIRE_FALSE(save.is_checked(40));
+
+    bridge.request_scouts({5, 40});
+    REQUIRE(link.scouted_locations == std::vector<std::int64_t>{ap_loc_id(5)});
+
+    REQUIRE(bridge.removed_slots() == std::set<std::int64_t>{ap_loc_id(40)});
+}
+
+TEST_CASE("rando_bridge: a removed location suppresses without a save attached", "[mth][rando]")
+{
+    mth::test::FakeApLink link;
+    link.connected = true;
+    mth::ApState state;
+    state.apply(mth::ApConnected{.slot_data = "{}", .player_slot = 1, .missing_locations = {ap_loc_id(5)}, .removed_locations = {ap_loc_id(40)}});
+    mth::RandoBridge bridge(link, state); // no attach_save_state
+
+    REQUIRE(bridge.is_checked(40)); // session fallback must not shadow the removed set
+    bridge.on_location_collected(40);
+    REQUIRE(link.sent_locations.empty());
+}
+
+TEST_CASE("rando_bridge: flush excludes a removed id even from a stale statefile", "[mth][rando]")
+{
+    const auto path = std::filesystem::temp_directory_path() / "mthap_bridge_removed_flush.state";
+    std::filesystem::remove(path);
+    {
+        // Written directly (not through the bridge) to simulate a statefile predating the seed's prune,
+        // so slot 40 is checked on disk despite slot_data now marking it removed.
+        std::ofstream out(path);
+        out << "c 5\n";
+        out << "c 40\n";
+    }
+    mth::ApSaveState save(path);
+
+    mth::test::FakeApLink link;
+    link.connected = true;
+    mth::ApState state;
+    state.apply(mth::ApConnected{.slot_data = "{}", .player_slot = 1, .missing_locations = {ap_loc_id(5)}, .removed_locations = {ap_loc_id(40)}});
+    mth::RandoBridge bridge(link, state);
+    bridge.attach_save_state(save);
+
+    bridge.flush();
+    REQUIRE(link.sent_locations == std::vector<std::int64_t>{ap_loc_id(5)});
 }
