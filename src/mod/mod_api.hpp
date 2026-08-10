@@ -168,6 +168,18 @@ bool set_item_collected(int index, bool collected, void *collection, void *slot)
 bool text_color_available();
 bool set_text_color(void *text_component, std::uint32_t rgba);
 
+// ycPaletteTexture. Text is palette-mapped (see mth::layout kText*PaletteOff), so an arbitrary
+// color renders as entry 0; getting one to render means cloning a widget's palette and writing the
+// color into it. The group -1 detach is not optional: without it the clone still resolves through
+// the shared group chain rather than its own colors.
+// rgba is packed as mth::banner_color packs it, matching MM_Color's byte order.
+bool palette_api_available();
+void *clone_palette(void *source);
+void palette_set_group(void *palette, std::int32_t group);
+void palette_write_index(void *palette, std::int32_t index, std::uint32_t rgba);
+std::int32_t palette_get_index(void *palette, std::uint32_t rgba);
+std::uint32_t palette_get_width(void *palette);
+
 // Text-widget contents. The widget pointer the menus hand us IS the ycTextComponent, so these take it
 // as-is; the old direct calls had to walk to the nested ycTextRenderObject first. text_of() returns
 // null when the string is unreadable, which callers must treat as "no original to restore".

@@ -786,19 +786,70 @@ bool text_color_available()
     return appended_api_possible() && g_mod_api != nullptr && usable_appended(g_mod_api->TextComponentSetColor);
 }
 
+namespace
+{
+
+MM_Color to_mm_color(std::uint32_t rgba)
+{
+    MM_Color c{};
+    c.r = static_cast<std::uint8_t>(rgba & 0xFFu);
+    c.g = static_cast<std::uint8_t>((rgba >> 8) & 0xFFu);
+    c.b = static_cast<std::uint8_t>((rgba >> 16) & 0xFFu);
+    c.a = static_cast<std::uint8_t>((rgba >> 24) & 0xFFu);
+    return c;
+}
+
+} // namespace
+
 bool set_text_color(void *text_component, std::uint32_t rgba)
 {
     if (text_component == nullptr || !text_color_available())
         return false;
     // MM_Color is four uint8 channels in r,g,b,a memory order, i.e. byte-identical to the packed word
     // on little-endian; the direct call passed that word as the by-value ycColor already.
-    MM_Color c{};
-    c.r = static_cast<std::uint8_t>(rgba & 0xFFu);
-    c.g = static_cast<std::uint8_t>((rgba >> 8) & 0xFFu);
-    c.b = static_cast<std::uint8_t>((rgba >> 16) & 0xFFu);
-    c.a = static_cast<std::uint8_t>((rgba >> 24) & 0xFFu);
-    g_mod_api->TextComponentSetColor(static_cast<ycComponent *>(text_component), c);
+    g_mod_api->TextComponentSetColor(static_cast<ycComponent *>(text_component), to_mm_color(rgba));
     return true;
+}
+
+bool palette_api_available()
+{
+    return appended_api_possible() && g_mod_api != nullptr && usable_appended(g_mod_api->ClonePalette) && usable_appended(g_mod_api->PaletteSetGroup) &&
+           usable_appended(g_mod_api->PaletteWriteIndex) && usable_appended(g_mod_api->PaletteGetIndex) && usable_appended(g_mod_api->PaletteGetWidth);
+}
+
+void *clone_palette(void *source)
+{
+    if (source == nullptr || !palette_api_available())
+        return nullptr;
+    return g_mod_api->ClonePalette(static_cast<ycPaletteTexture *>(source));
+}
+
+void palette_set_group(void *palette, std::int32_t group)
+{
+    if (palette == nullptr || !palette_api_available())
+        return;
+    g_mod_api->PaletteSetGroup(static_cast<ycPaletteTexture *>(palette), group);
+}
+
+void palette_write_index(void *palette, std::int32_t index, std::uint32_t rgba)
+{
+    if (palette == nullptr || !palette_api_available())
+        return;
+    g_mod_api->PaletteWriteIndex(static_cast<ycPaletteTexture *>(palette), index, to_mm_color(rgba));
+}
+
+std::int32_t palette_get_index(void *palette, std::uint32_t rgba)
+{
+    if (palette == nullptr || !palette_api_available())
+        return -1;
+    return g_mod_api->PaletteGetIndex(static_cast<ycPaletteTexture *>(palette), to_mm_color(rgba));
+}
+
+std::uint32_t palette_get_width(void *palette)
+{
+    if (palette == nullptr || !palette_api_available())
+        return 0;
+    return g_mod_api->PaletteGetWidth(static_cast<ycPaletteTexture *>(palette));
 }
 
 bool set_text(void *text_component, const char *utf8)

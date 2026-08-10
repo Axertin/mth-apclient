@@ -450,8 +450,13 @@ void on_shop_set_cursor(void *shop_menu)
     void *desc_w = pal::shop_desc_widget(shop_menu);
     if (name_w != nullptr)
     {
+        const std::uint32_t color = mth::banner_color("item_id", "", si->item_flags, 0, si->is_self);
         pal::shop_set_text(name_w, si->item_name.c_str());
-        mod::set_text_color(name_w, mth::banner_color("item_id", "", si->item_flags, 0, si->is_self));
+        // SetCursor rebinds the widget's palette on every cursor move, so this re-applies each
+        // time. SetColor last: it raises the dirty flag that forces the re-resolve. Only on a
+        // successful swap, since an untouched palette would resolve color to entry 0.
+        if (pal::shop_apply_name_palette(name_w, color))
+            mod::set_text_color(name_w, color);
     }
     if (desc_w != nullptr)
         pal::shop_set_text(desc_w, mth::format_scout_desc(*si).c_str());
@@ -533,6 +538,8 @@ LocationHooks::LocationHooks(RandoBridge &bridge, ScoutRegistry *scout)
         pal::logf(pal::LogLevel::Warn, "LocationHooks: WorldQueueDestroyEntity unavailable; checked AP pickups will respawn");
     if (!mod::set_item_collected_available() || !tables::collection_resolved())
         pal::logf(pal::LogLevel::Warn, "LocationHooks: ItemsSetItemCollected/s_rItemCollection unavailable; bitfield-kind reload suppression disabled");
+    if (!mod::text_color_available() || !mod::palette_api_available())
+        pal::logf(pal::LogLevel::Warn, "LocationHooks: text color/palette entries unavailable; shop item names stay vanilla");
 
     g_save_manager = pal::resolve_game_symbol(sym::save_manager);
     if (g_save_manager == 0)
