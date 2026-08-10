@@ -453,10 +453,12 @@ void on_shop_set_cursor(void *shop_menu)
         const std::uint32_t color = mth::banner_color("item_id", "", si->item_flags, 0, si->is_self);
         pal::shop_set_text(name_w, si->item_name.c_str());
         // SetCursor rebinds the widget's palette on every cursor move, so this re-applies rather
-        // than being set up once. SetColor runs last: it raises the dirty flag that forces the
-        // re-resolve through the palette we just swapped in.
-        pal::shop_apply_name_palette(name_w, color);
-        mod::set_text_color(name_w, color);
+        // than being set up once. SetColor runs last and only on a successful swap: it raises the
+        // dirty flag that forces the re-resolve through the palette we just swapped in, and on a
+        // failed swap the widget's untouched palette does not contain color, so calling it anyway
+        // would render as palette entry 0 - the exact bug this exists to avoid.
+        if (pal::shop_apply_name_palette(name_w, color))
+            mod::set_text_color(name_w, color);
     }
     if (desc_w != nullptr)
         pal::shop_set_text(desc_w, mth::format_scout_desc(*si).c_str());

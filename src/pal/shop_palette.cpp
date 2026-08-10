@@ -1,3 +1,4 @@
+#include <cstddef>
 #include <cstdint>
 
 #include "mod/mod_api.hpp"
@@ -10,12 +11,14 @@
 namespace
 {
 
-// One clone serves every widget and every shop: only the single entry the engine selects is ever
-// read back, and it is rewritten on each application, so the clone's provenance and its other
-// entries are unobservable.
+// One clone serves every widget and every shop. The widget resolves a SECOND palette entry per
+// Update (component+0x17c, a different index of this same clone) besides the one this file writes,
+// but RenderInternal only consumes it when the flag at component+0x1ac is set - the ctor zeroes that
+// flag, which is what keeps the clone's other entries unobservable, not that only one is ever read.
 void *g_clone = nullptr;
 bool g_warned_range = false;
 bool g_warned_refcount = false;
+bool g_warned_plausibility = false;
 
 std::int32_t *field_i32(void *base, std::ptrdiff_t off)
 {
@@ -67,7 +70,7 @@ bool shop_apply_name_palette(void *name_widget, std::uint32_t rgba)
         if (!g_warned_range)
         {
             g_warned_range = true;
-            pal::logf(pal::LogLevel::Warn, "shop: palette entry out of range; item name color disabled");
+            pal::logf(pal::LogLevel::Warn, "shop: palette entry out of range; item name color skipped");
         }
         return false;
     }
@@ -75,8 +78,24 @@ bool shop_apply_name_palette(void *name_widget, std::uint32_t rgba)
 
     if (output != clone)
     {
-        // Hand-rolled SetPalette. The widget's reference to the game's palette moves to the clone.
         std::int32_t *out_rc = field_i32(output, mth::layout::kPaletteRefCountOff);
+        const std::uint32_t out_width = mod::palette_get_width(output);
+        // Tripwire: pointer_looks_valid above only proves output is a canonical address, not that it
+        // is really a ycPaletteTexture. A refcount/width outside plausible bounds means this field
+        // moved and we are about to decrement/overwrite an unrelated object; bail before touching it.
+        if (*out_rc <= 0 || *out_rc >= 0x10000 || out_width == 0 || out_width > 255)
+        {
+            if (!g_warned_plausibility)
+            {
+                g_warned_plausibility = true;
+                pal::logf(pal::LogLevel::Warn,
+                          "shop: output palette at +0x128 does not look like a ycPaletteTexture (refcount=%d width=%u); leaving it untouched", *out_rc,
+                          out_width);
+            }
+            return false;
+        }
+
+        // Hand-rolled SetPalette. The widget's reference to the game's palette moves to the clone.
         if (*out_rc > 1)
         {
             *out_rc -= 1;
