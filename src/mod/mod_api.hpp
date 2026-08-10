@@ -168,6 +168,19 @@ bool set_item_collected(int index, bool collected, void *collection, void *slot)
 bool text_color_available();
 bool set_text_color(void *text_component, std::uint32_t rgba);
 
+// ycPaletteTexture. The game's text is palette-mapped: a ycTextComponent resolves its color to an
+// index against one palette and reads the final RGBA from another, so an arbitrary color renders as
+// entry 0. Cloning a widget's palette and writing the wanted color into it is the API's own recipe
+// (see the upstream palette_select example), including the group -1 detach, which is what makes the
+// clone resolve from its own colors instead of the shared group chain.
+// rgba is packed as mth::banner_color packs it, matching MM_Color's byte order.
+bool palette_api_available();
+void *clone_palette(void *source);
+void palette_set_group(void *palette, std::int32_t group);
+void palette_write_index(void *palette, std::int32_t index, std::uint32_t rgba);
+std::int32_t palette_get_index(void *palette, std::uint32_t rgba);
+std::uint32_t palette_get_width(void *palette);
+
 // Text-widget contents. The widget pointer the menus hand us IS the ycTextComponent, so these take it
 // as-is; the old direct calls had to walk to the nested ycTextRenderObject first. text_of() returns
 // null when the string is unreadable, which callers must treat as "no original to restore".
