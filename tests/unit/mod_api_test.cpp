@@ -396,6 +396,12 @@ TEST_CASE("mod: appended entries stay unavailable on a build that predates them"
     REQUIRE(mod::text_of(&widget) == nullptr);
     REQUIRE(mth::test::recorder().text_set_calls == 0);
 
+    // Five-way gate: an old revision must refuse the whole palette entry point, no call reaching the fake.
+    int palette = 0;
+    REQUIRE_FALSE(mod::palette_api_available());
+    REQUIRE(mod::clone_palette(&palette) == nullptr);
+    REQUIRE(mth::test::recorder().clone_palette_calls == 0);
+
     int listener = 0;
     mth::test::recorder().in_deep_water = true;
     REQUIRE_FALSE(mod::water_api_available());
@@ -474,6 +480,33 @@ TEST_CASE("mod: appended entries become available on a newer build", "[mod]")
     const char *read_back = mod::text_of(&widget);
     REQUIRE(read_back != nullptr);
     REQUIRE(std::string(read_back) == "Golden Kear");
+
+    // Five-way gate: all five palette entries present -> available, and each call reaches the fake.
+    REQUIRE(mod::palette_api_available());
+    int source_palette = 0;
+    int clone_target = 0;
+    mth::test::recorder().clone_palette_result = &clone_target;
+    REQUIRE(mod::clone_palette(&source_palette) == &clone_target);
+    REQUIRE(mth::test::recorder().clone_palette_calls == 1);
+    REQUIRE(mth::test::recorder().clone_palette_source == &source_palette);
+
+    mod::palette_set_group(&clone_target, -1);
+    REQUIRE(mth::test::recorder().palette_set_group_calls == 1);
+    REQUIRE(mth::test::recorder().palette_set_group_value == -1);
+
+    mod::palette_write_index(&clone_target, 3, 0xC0806040u);
+    REQUIRE(mth::test::recorder().palette_write_index_calls == 1);
+    REQUIRE(mth::test::recorder().palette_write_index_target == &clone_target);
+    REQUIRE(mth::test::recorder().palette_write_index_index == 3);
+    REQUIRE(mth::test::recorder().palette_write_index_color[0] == 0x40); // r
+
+    mth::test::recorder().palette_get_index_result = 7;
+    REQUIRE(mod::palette_get_index(&clone_target, 0xC0806040u) == 7);
+    REQUIRE(mth::test::recorder().palette_get_index_calls == 1);
+
+    mth::test::recorder().palette_get_width_result = 16;
+    REQUIRE(mod::palette_get_width(&clone_target) == 16);
+    REQUIRE(mth::test::recorder().palette_get_width_calls == 1);
 
     int listener = 0;
     mth::test::recorder().in_deep_water = true;
