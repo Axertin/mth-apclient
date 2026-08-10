@@ -151,7 +151,8 @@ void HookManager::tick(ApState &state, SessionPolicy &policy, int save_game_slot
     // cheaper goal. When the seed does not, nothing would refuse the grant, so the machine is made inert
     // and the OnPickup backstop arms behind it.
     const bool train_gated = authed && state.train_rando();
-    const bool machine_is_check = state.is_valid_location(ap_loc_id(kTrainPassLocIdx));
+    // Through the bridge, not ApState, so a seed that prunes the donation location is seen here too.
+    const bool machine_is_check = rando_.is_ap_location(kTrainPassLocIdx);
     ability_hooks_->set_train_gate(train_gated, train_mask);
     ability_hooks_->set_ticket_machine(machine_is_check, rando_.is_checked(kTrainPassLocIdx), ticket_machine_seed(state.train_pass_cost()));
     set_train_pass_machine_blocked(train_gated && !machine_is_check);
