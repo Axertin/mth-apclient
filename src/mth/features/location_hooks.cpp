@@ -203,10 +203,12 @@ void collect_ap_location(int loc_idx)
 // Server-collected (Collect/coop) locations only get their .state marked; unlike a live collect, the native
 // durable collected-bit is never written, so a "normal" durable-bit chest (keys/bonestone/fish) reads
 // uncollected at spawn and stays closed. Re-assert the native bit for every durable-bit checked slot once a
-// save is active, so those chests spawn opened like a live collect. Cheap: re-runs only when the checked-set
-// grows or after a world teardown re-arms it (via reset_native_bit_enforcement). Guarded on a resolved
-// collection + an active save slot, so it no-ops at the title screen (connected before a save loads) and
-// retries once a save is live. Idempotent. Game-thread, per-tick.
+// save is active, so those chests spawn opened like a live collect. Locations the seed removed are covered
+// too, so a pruned dungeon's kears/bonestones/fish read as obtained to the game's own tallies, including any
+// all-of-a-kind reward. Cheap: re-runs only when the combined set's size changes or after a world teardown
+// re-arms it (via reset_native_bit_enforcement). Guarded on a resolved collection and a bound save slot,
+// retrying each tick until both exist; the title/profile-select screen already binds a slot, so this can run
+// before the player has chosen a profile. Idempotent. Game-thread, per-tick.
 int g_native_last_checked_count = -1;
 // Log filter only. WorldDestroy fires per room, so the re-arm replays the same set on every room
 // transition; without this it reported an unchanged set ~30 times a session.
@@ -218,17 +220,26 @@ void enforce_checked_native_bits()
         return;
     if (g_save_manager == 0 || pal::active_save_slot(g_save_manager) == nullptr)
         return; // no active save yet (e.g. connected at the title screen); retry next tick
+
     const std::set<int> *checked = g_bridge->checked_slots();
-    if (checked == nullptr || static_cast<int>(checked->size()) == g_native_last_checked_count)
+    const std::set<std::int64_t> &removed = g_bridge->removed_slots();
+    // Removed locations apply before a save state attaches too, so a null checked set is "empty", not "skip".
+    const int total = static_cast<int>((checked != nullptr ? checked->size() : 0) + removed.size());
+    if (total == g_native_last_checked_count)
         return; // nothing new since the last pass
 
     std::set<int> applied;
-    for (int slot : *checked)
-        if (apply_native_collected(slot))
-            applied.insert(slot);
-    g_native_last_checked_count = static_cast<int>(checked->size());
+    if (checked != nullptr)
+        for (int slot : *checked)
+            if (apply_native_collected(slot))
+                applied.insert(slot);
+    for (std::int64_t id : removed)
+        if (id >= 0 && id < mth::layout::kLocationCount && apply_native_collected(static_cast<int>(id)))
+            applied.insert(static_cast<int>(id));
+
+    g_native_last_checked_count = total;
     if (!applied.empty() && applied != g_native_applied_last)
-        pal::logf(pal::LogLevel::Info, "collect: applied native collected-bit to %d durable-bit checked location(s)", static_cast<int>(applied.size()));
+        pal::logf(pal::LogLevel::Info, "collect: applied native collected-bit to %d durable-bit location(s)", static_cast<int>(applied.size()));
     g_native_applied_last = std::move(applied);
 }
 
@@ -300,7 +311,10 @@ void repl_pickup_init(void *self, int item_type, int loc_idx, bool flag)
     // hook redirects that read, but MSVC inlines IsItemCollected into the Pickup ctor's copy of the self-kill,
     // out of the hook's reach (GCC keeps a real call, so Linux is unaffected). The ctor arms the kill via
     // Pickup+0x3ac; clearing it for these locations skips the inlined gate. Checked ones returned via QueueDestroy above.
-    if (g_bridge->is_ap_location(loc_idx) && mth::tables::is_item_keyed_collected_kind(mth::tables::native_location_kind(loc_idx)))
+    // Only for a location still worth collecting: an already-suppressed one wants the vanilla self-kill, and
+    // this is the only suppression left when QueueDestroy is unresolved.
+    if (g_bridge->is_ap_location(loc_idx) && !g_bridge->is_checked(loc_idx) &&
+        mth::tables::is_item_keyed_collected_kind(mth::tables::native_location_kind(loc_idx)))
         *reinterpret_cast<unsigned char *>(static_cast<char *>(self) + mth::layout::kPickupSaveTrackedFlagOff) = 0;
 
     // The dummy-itemType redirect is deferred to the PickupOnPickup hook, not done here: the Pickup ctor's
