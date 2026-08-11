@@ -389,6 +389,7 @@ std::uintptr_t g_addr_bounce_plant = 0;
 std::uintptr_t g_addr_bounce_launch = 0;
 std::uintptr_t g_addr_on_bounce = 0;
 std::uintptr_t g_addr_spring = 0;
+std::uintptr_t g_addr_spring_listener = 0;
 std::uintptr_t g_addr_pickup = 0;
 std::uintptr_t g_addr_train_npc = 0;
 std::uintptr_t g_addr_burrow_jump = 0; // #56
@@ -399,6 +400,7 @@ pal::HookId g_id_puff = pal::kInvalidHookId;
 pal::HookId g_id_launch = pal::kInvalidHookId;
 pal::HookId g_id_on_bounce = pal::kInvalidHookId;
 pal::HookId g_id_spring = pal::kInvalidHookId;
+pal::HookId g_id_spring_listener = pal::kInvalidHookId;
 pal::HookId g_id_carry = pal::kInvalidHookId;
 pal::HookId g_id_train = pal::kInvalidHookId;
 pal::HookId g_id_burrow_jump = pal::kInvalidHookId; // #56
@@ -409,6 +411,7 @@ void (*g_orig_bounce_plant)(void *, void *) = nullptr;
 void (*g_orig_bounce_launch)(void *, void *) = nullptr;
 void (*g_orig_on_bounce)(void *) = nullptr;
 void (*g_orig_spring)(void *, void *) = nullptr;
+void (*g_orig_spring_listener)(void *, void *) = nullptr;
 unsigned long (*g_orig_pickup)(void *, bool, bool, bool) = nullptr;
 void (*g_orig_train_npc)(void *, unsigned, void *) = nullptr;
 void (*g_orig_burrow_jump)(void *) = nullptr; // #56
@@ -512,12 +515,41 @@ void repl_on_bounce(void *player)
         g_orig_on_bounce(player);
 }
 
+// Shared by both SpringBellows::CollideWith bodies (see sym::spring_bellows_collide_listener). The tag
+// records which one physics actually dispatched to; it cannot see a build that turns the thunk into a
+// real adjustor jmp, only one that drops the thunk symbol entirely.
+//
+// Latched, not per-call: the listener sweep re-dispatches CollideWith every tick that contact persists,
+// and blocking the launch is what makes the player stay in contact, so an unlatched log would fflush at
+// frame rate for as long as Mina stands on the spring.
+bool spring_blocked(void *contact_pair, const char *body, bool &logged)
+{
+    if (!collider_is_player(contact_pair) || !ability_blocked(kAbBounceSpring))
+        return false;
+    if (!logged)
+    {
+        logged = true;
+        pal::logf(pal::LogLevel::Debug, "abilities: spring launch blocked (%s body)", body);
+    }
+    return true;
+}
+
 void repl_spring(void *self, void *contact_pair)
 {
-    if (collider_is_player(contact_pair) && ability_blocked(kAbBounceSpring))
+    static bool logged = false;
+    if (spring_blocked(contact_pair, "exported", logged))
         return;
     if (g_orig_spring)
         g_orig_spring(self, contact_pair);
+}
+
+void repl_spring_listener(void *self, void *contact_pair)
+{
+    static bool logged = false;
+    if (spring_blocked(contact_pair, "listener", logged))
+        return;
+    if (g_orig_spring_listener)
+        g_orig_spring_listener(self, contact_pair);
 }
 
 // Blocked: just refuse the grab. This used to also set Player+0x12f0, mislabelled a "low roof pose" flag:
@@ -1439,12 +1471,13 @@ bool abilities_available()
     g_addr_bounce_launch = resolve_game_symbol(mth::sym::bounce_plant_launch);
     g_addr_on_bounce = resolve_game_symbol(mth::sym::player_on_bounce);
     g_addr_spring = resolve_game_symbol(mth::sym::spring_bellows_collide);
+    g_addr_spring_listener = resolve_game_symbol(mth::sym::spring_bellows_collide_listener);
     g_addr_pickup = resolve_game_symbol(mth::sym::player_pickup_carryable);
     g_addr_train_npc = resolve_game_symbol(mth::sym::train_authority_on_npc_event);
     g_addr_burrow_jump = resolve_game_symbol(mth::sym::mina_on_burrow_jump); // #56
     g_addr_pickup != 0 || g_addr_train_npc != 0;
     g_ab_ok = g_addr_burrow_ground != 0 || g_addr_rope_climb != 0 || g_addr_bounce_plant != 0 || g_addr_bounce_launch != 0 || g_addr_on_bounce != 0 ||
-              g_addr_spring != 0 || g_addr_pickup != 0 || g_addr_train_npc != 0;
+              g_addr_spring != 0 || g_addr_spring_listener != 0 || g_addr_pickup != 0 || g_addr_train_npc != 0;
     if (!g_ab_ok)
         logf(LogLevel::Warn, "abilities: no chokepoint symbols resolved; ability gating disabled");
     return g_ab_ok;
@@ -1518,6 +1551,17 @@ bool install_ability_hooks(AbilityBlockFn block)
     else
         logf(LogLevel::Warn, "abilities: SpringBellows::CollideWith not resolved; spring gating disabled");
 
+    // The copy physics actually dispatches to; the exported one above is unreachable here (#188).
+    if (g_addr_spring_listener != 0)
+    {
+        g_id_spring_listener = hook_engine().install_hook(reinterpret_cast<void *>(g_addr_spring_listener), reinterpret_cast<void *>(&repl_spring_listener),
+                                                          reinterpret_cast<void **>(&g_orig_spring_listener));
+        if (g_id_spring_listener == kInvalidHookId)
+            logf(LogLevel::Error, "abilities: failed to hook SpringBellows::CollideWith (listener body)");
+    }
+    else
+        logf(LogLevel::Warn, "abilities: SpringBellows::CollideWith listener body not resolved; springs launch ungated");
+
     if (g_addr_pickup != 0)
     {
         g_id_carry = hook_engine().install_hook(reinterpret_cast<void *>(g_addr_pickup), reinterpret_cast<void *>(&repl_pickup),
@@ -1551,8 +1595,8 @@ bool install_ability_hooks(AbilityBlockFn block)
         logf(LogLevel::Warn, "abilities: Mina::OnBurrowJump not resolved; carry emerge-suppress disabled");
 
     const bool any = g_id_burrow != kInvalidHookId || g_id_rope != kInvalidHookId || g_id_puff != kInvalidHookId || g_id_launch != kInvalidHookId ||
-                     g_id_on_bounce != kInvalidHookId || g_id_spring != kInvalidHookId || g_id_carry != kInvalidHookId || g_id_train != kInvalidHookId ||
-                     g_id_burrow_jump != kInvalidHookId;
+                     g_id_on_bounce != kInvalidHookId || g_id_spring != kInvalidHookId || g_id_spring_listener != kInvalidHookId ||
+                     g_id_carry != kInvalidHookId || g_id_train != kInvalidHookId || g_id_burrow_jump != kInvalidHookId;
     if (any)
         logf(LogLevel::Info, "abilities: ability gating hooks installed");
     else
@@ -1562,7 +1606,8 @@ bool install_ability_hooks(AbilityBlockFn block)
 
 void remove_ability_hooks()
 {
-    for (HookId *id : {&g_id_burrow, &g_id_rope, &g_id_puff, &g_id_launch, &g_id_on_bounce, &g_id_spring, &g_id_carry, &g_id_train, &g_id_burrow_jump})
+    for (HookId *id : {&g_id_burrow, &g_id_rope, &g_id_puff, &g_id_launch, &g_id_on_bounce, &g_id_spring, &g_id_spring_listener, &g_id_carry, &g_id_train,
+                       &g_id_burrow_jump})
     {
         if (*id != kInvalidHookId)
             hook_engine().remove_hook(*id);

@@ -38,6 +38,9 @@ constexpr const char *kPlatformSymbols[] = {
     mth::sym::get_new_game_max_level_player,
     mth::sym::level_up_menu_update_state,
     mth::sym::shop_item_present,
+    // Required, not optional: it is the only reachable SpringBellows::CollideWith here, and its name
+    // carries the +376 subobject offset, so a layout change renames it and must fail loudly (#188).
+    mth::sym::spring_bellows_collide_listener,
 };
 } // namespace
 

@@ -104,6 +104,13 @@ inline constexpr const char *bounce_plant_launch = "_ZN11BouncePlant12BounceLaun
 // inlined into Player::Update / Player::SlideOutOfWall that skips both entries above (issue #168).
 inline constexpr const char *player_on_bounce = "_ZN6Player8OnBounceEv";
 inline constexpr const char *spring_bellows_collide = "_ZN13SpringBellows11CollideWithER18PhysicsContactPair";
+// SpringBellows inherits PhysicsCollisionListener as a secondary base at +376, and its ctor stores
+// that subobject into PhysicsComponent+0x118, so physics dispatch never reaches the entry above.
+// Linux compiled the secondary slot as a full duplicate body rather than an adjustor jmp, which
+// makes the exported symbol a copy nothing calls: a detour there installs and never fires (#188).
+// BouncePlant, whose listener base sits at +384, got a real thunk, so it needs no equivalent.
+// Windows emits one body taking the adjusted this, so this entry is Linux-only.
+inline constexpr const char *spring_bellows_collide_listener = "_ZThn376_N13SpringBellows11CollideWithER18PhysicsContactPair";
 inline constexpr const char *player_pickup_carryable = "_ZN6Player30PickUpAnyNearbyCarryableObjectEbbb";
 // #56: burrow-emerge commit. With carry disabled we suppress the emerge when a carryable is overhead so
 // Mina stays burrowed beneath it (no native "duck under a carryable" exists). The overhead check reuses
