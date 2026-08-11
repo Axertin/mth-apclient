@@ -15,6 +15,7 @@
 #include "mth/core/data/game_layout.hpp"
 #include "mth/core/data/game_symbols.hpp"
 #include "mth/core/fountain_lamps.hpp"
+#include "mth/core/shop_boxes.hpp"
 #include "mth/core/shop_flatten.hpp"
 #include "mth/core/sig_scan.hpp"
 #include "mth/core/stat_cap_state.hpp"
@@ -139,16 +140,34 @@ constexpr std::ptrdiff_t kShopDescWidgetOff = 0x150;
 constexpr std::ptrdiff_t kShopBoxArrayOff = 0x1c8;
 constexpr std::ptrdiff_t kShopBoxCountOff = 0x1d0;
 constexpr std::ptrdiff_t kShopCursorOff = 0x1d8;
+constexpr std::ptrdiff_t kShopModeOff = 0x23c;
 constexpr std::ptrdiff_t kShopBoxItemTypeOff = 0xcc; // ShopItem -> itemType (box's item kind)
 constexpr int kShopSkipItemType = 0x65;
-constexpr int kMaxShopBoxes = 64; // real shops hold well under this; a larger count means these are not box fields
 
-// SetCursor also fires for menus that are not a stocked shop (the custom fitting menu crashed here), where
-// +0x1c8/+0x1d0 hold unrelated data. Those values are non-null, so a null check passes and the walk
-// dereferences non-canonical garbage. Require a canonical array pointer and a sane count instead.
-[[nodiscard]] bool shop_box_list_plausible(void *const *boxes, int count) noexcept
+// ShopMenu runs in one of two modes, selected by the int at +0x23c: the ctor zeroes it, then stores 1 for
+// the shop named `Color` (the Atelier's "Custom Fitting" appearance menu). A mode-1 SetupBoxes takes the
+// palette-widget branch and returns without ever filling the box array. Gate on != 0 rather than the
+// game's own == 1 so that a mode added by a later build is excluded by default.
+[[nodiscard]] bool shop_menu_is_stocked(const void *shop_menu) noexcept
 {
-    return pal::pointer_looks_valid(boxes) && count > 0 && count <= kMaxShopBoxes;
+    return *reinterpret_cast<const int *>(static_cast<const char *>(shop_menu) + kShopModeOff) == 0;
+}
+
+// Resolve the box array plus a count that is safe to walk, or false when this menu has no walkable rows.
+// OpenShop allocates +0x1c8 and sets a real row count in +0x1d0 for every menu including a mode-1 one,
+// but SetupBoxes returns before filling that array, leaving a live, correctly sized buffer full of
+// uninitialized heap. A null check and a range check both pass on it; only the mode gate catches it.
+[[nodiscard]] bool shop_box_list(void *shop_menu, void ***out_boxes, int *out_count) noexcept
+{
+    if (!pal::pointer_looks_valid(shop_menu) || !shop_menu_is_stocked(shop_menu))
+        return false;
+    void **boxes = *reinterpret_cast<void ***>(static_cast<char *>(shop_menu) + kShopBoxArrayOff);
+    const int count = mth::shop_box_walk_count(*reinterpret_cast<int *>(static_cast<char *>(shop_menu) + kShopBoxCountOff));
+    if (!pal::pointer_looks_valid(boxes) || count <= 0)
+        return false;
+    *out_boxes = boxes;
+    *out_count = count;
+    return true;
 }
 
 void repl_set_cursor(void *self, int index, bool b)
@@ -659,12 +678,12 @@ void remove_shop_flatten_hook()
 
 int shop_selected_loc(void *shop_menu)
 {
-    if (!pal::pointer_looks_valid(shop_menu))
+    void **boxes = nullptr;
+    int count = 0;
+    if (!shop_box_list(shop_menu, &boxes, &count))
         return -1;
-    void **boxes = *reinterpret_cast<void ***>(static_cast<char *>(shop_menu) + kShopBoxArrayOff);
-    const int count = *reinterpret_cast<int *>(static_cast<char *>(shop_menu) + kShopBoxCountOff);
     const int cursor = *reinterpret_cast<int *>(static_cast<char *>(shop_menu) + kShopCursorOff);
-    if (!shop_box_list_plausible(boxes, count) || cursor < 0 || cursor >= count)
+    if (cursor < 0 || cursor >= count)
         return -1;
     void *box = boxes[cursor];
     if (!pal::pointer_looks_valid(box))
@@ -683,11 +702,9 @@ int shop_selected_loc(void *shop_menu)
 
 void shop_enumerate_locs(void *shop_menu, void (*sink)(int loc, void *ctx), void *ctx)
 {
-    if (!pal::pointer_looks_valid(shop_menu) || sink == nullptr)
-        return;
-    void **boxes = *reinterpret_cast<void ***>(static_cast<char *>(shop_menu) + kShopBoxArrayOff);
-    const int count = *reinterpret_cast<int *>(static_cast<char *>(shop_menu) + kShopBoxCountOff);
-    if (!shop_box_list_plausible(boxes, count))
+    void **boxes = nullptr;
+    int count = 0;
+    if (sink == nullptr || !shop_box_list(shop_menu, &boxes, &count))
         return;
     for (int i = 0; i < count; ++i)
     {
@@ -701,6 +718,9 @@ void shop_enumerate_locs(void *shop_menu, void (*sink)(int loc, void *ctx), void
     }
 }
 
+// Deliberately not mode-gated: SetupBoxes builds a live text widget for the appearance menu too, so these
+// return a real widget there. Safe only because on_shop_set_cursor resolves a location first and bails
+// when there is none; keep that order, or the appearance menu's title gets overwritten with an AP name.
 void *shop_name_widget(void *shop_menu)
 {
     return shop_menu != nullptr ? *reinterpret_cast<void **>(static_cast<char *>(shop_menu) + kShopNameWidgetOff) : nullptr;
