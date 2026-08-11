@@ -14,7 +14,7 @@ namespace mth
 inline constexpr int kKearCompletionLocIdx = 150;
 
 // Vanilla kears are fungible and all carry the one Universal Kear id, so the gate counts receipts.
-inline constexpr int kVanillaKearTotal = 50;
+inline constexpr int kVanillaKearTotal = 42;
 
 // Per-lock kear items (kear_rando=1). Mirrors SingleKears in the apworld's data/items/kears.py, whose
 // ITEMS_OFFSET_KEARS is 2000. 2306 is absent deliberately: it is the second engine lock the 2304 item

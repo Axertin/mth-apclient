@@ -34,9 +34,9 @@ std::vector<std::int64_t> all_area_kears()
 TEST_CASE("have_all_kears counts vanilla kear receipts", "[kear]")
 {
     const std::int64_t kear = mth::ap_item_id(mth::kUniversalKearItemType);
-    REQUIRE_FALSE(mth::have_all_kears(mth::KearMode::Vanilla, items(std::vector<std::int64_t>(49, kear))));
-    REQUIRE(mth::have_all_kears(mth::KearMode::Vanilla, items(std::vector<std::int64_t>(50, kear))));
-    REQUIRE(mth::have_all_kears(mth::KearMode::Vanilla, items(std::vector<std::int64_t>(51, kear))));
+    REQUIRE_FALSE(mth::have_all_kears(mth::KearMode::Vanilla, items(std::vector<std::int64_t>(41, kear))));
+    REQUIRE(mth::have_all_kears(mth::KearMode::Vanilla, items(std::vector<std::int64_t>(42, kear))));
+    REQUIRE(mth::have_all_kears(mth::KearMode::Vanilla, items(std::vector<std::int64_t>(43, kear))));
 }
 
 TEST_CASE("have_all_kears needs every single kear id", "[kear]")
@@ -85,5 +85,5 @@ TEST_CASE("kear set sizes match the apworld pools", "[kear]")
 {
     REQUIRE(mth::kSingleKearCount == 39);
     REQUIRE(mth::kAreaKearCount == 17);
-    REQUIRE(mth::kVanillaKearTotal == 50);
+    REQUIRE(mth::kVanillaKearTotal == 42);
 }
