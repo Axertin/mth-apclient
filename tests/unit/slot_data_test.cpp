@@ -1,5 +1,5 @@
-// Characterization of parse_slot_data: pins what the client makes of a server slot_data blob today,
-// awkward corners included. Several of these record behaviour rather than endorse it; those say so.
+// Characterization of parse_slot_data: pins what the client makes of a server slot_data blob,
+// degenerate corners included. Malformed input fails closed by design; the comments say why.
 #include <cstdint>
 #include <mutex>
 #include <string>
