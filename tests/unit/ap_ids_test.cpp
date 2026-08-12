@@ -176,8 +176,7 @@ TEST_CASE("is_valid_item_type bounds a type against the s_rItems row count", "[a
 {
     REQUIRE(mth::is_valid_item_type(0));
     REQUIRE(mth::is_valid_item_type(mth::layout::kItemTypeCount - 1));
-    // Item segment 0 runs to 999, but the table stops at kItemTypeCount rows: the tail of the segment
-    // is not an itemType at all, and indexing s_rItems with one reads past the table.
+    // Item segment 0 runs to 999, but only the first kItemTypeCount ids are itemTypes.
     REQUIRE_FALSE(mth::is_valid_item_type(mth::layout::kItemTypeCount));
     REQUIRE_FALSE(mth::is_valid_item_type(500));
     REQUIRE_FALSE(mth::is_valid_item_type(999));

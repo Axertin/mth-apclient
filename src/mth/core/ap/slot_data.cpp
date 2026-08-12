@@ -39,8 +39,7 @@ SlotDataConfig parse_slot_data(const nlohmann::json &data)
     cfg.goal_bosses = obj ? data.value("goal_bosses", 99) : 99;
     cfg.wallet_cap = obj && data.value("wallet_cap", 0) != 0;
 
-    // The fail-closed default for an absent count is silent otherwise, so a seed nobody can finish is
-    // indistinguishable from a working one. Only report the count the selected goal actually reads.
+    // The fail-closed default is silent otherwise, so a seed nobody can finish looks like a working one.
     if (cfg.goal_config == kGoalGenerators && !data.contains("goal_generators"))
         pal::logf(pal::LogLevel::Warn, "goal_generators: absent while goal_config selects the generator goal; the goal falls back to %d and cannot be reached",
                   cfg.goal_generators);
@@ -71,15 +70,13 @@ SlotDataConfig parse_slot_data(const nlohmann::json &data)
                 if (i < 0 || i >= kGeneratorLampCount)
                     pal::logf(pal::LogLevel::Warn, "broken_generators: generator index %d is outside the expected 0..%d", i, kGeneratorLampCount - 1);
             cfg.broken_generator_mask = broken_generator_mask(broken_indices);
-            // An empty (or wholly unusable) list is legitimate under any other goal, so it is only
-            // worth reporting when the generator goal is the one being counted against it.
+            // An empty (or wholly unusable) list is legitimate under any other goal.
             if (cfg.broken_generator_mask == 0 && cfg.goal_config == kGoalGenerators)
                 pal::logf(pal::LogLevel::Warn,
                           "broken_generators: lists no generator that counts while goal_config selects the generator goal; the goal cannot be reached");
         }
 
-    // Locations the apworld pruned from the pool (dungeons the generator goal never requires).
-    // Absent means nothing was pruned, so an empty result is the right default.
+    // Locations the apworld pruned from the pool (dungeons the generator goal never requires); absent means nothing was pruned.
     if (obj)
         if (auto rl = data.find("removed_locations"); rl != data.end() && rl->is_array())
         {

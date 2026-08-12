@@ -330,8 +330,7 @@ void ApLink::setup_handlers(const std::string &slot, const std::string &password
         {
             connect_deadline_.reset();
             mth::SlotDataConfig config = mth::parse_slot_data(data);
-            // slot_data "death_link" sets the default; a sticky client-side force-off (console) still wins,
-            // so the published flag is the only config field the link overrides after parsing.
+            // slot_data "death_link" sets the default; a sticky client-side force-off (console) still wins.
             slot_deathlink_.store(config.deathlink);
             config.deathlink = config.deathlink && !force_off_.load();
             deathlink_.store(config.deathlink);

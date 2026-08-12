@@ -198,8 +198,7 @@ class ApState
     int player_slot_{-1};
     SlotDataConfig config_{}; // pre-connection defaults; every reader gates on authenticated() first
     std::set<std::int64_t> valid_locations_{};
-    // config_.removed_locations filtered against valid_locations_ (see apply); the config keeps the
-    // server's unfiltered list.
+    // config_.removed_locations filtered against valid_locations_ (see apply); config_ keeps the server's unfiltered list.
     std::set<std::int64_t> removed_locations_{};
     std::vector<ReceivedItem> received_items_{};
     std::vector<std::int64_t> server_checked_pending_{}; // server-reported checks awaiting reconcile (game-thread)

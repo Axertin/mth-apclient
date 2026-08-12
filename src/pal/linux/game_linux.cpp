@@ -1737,8 +1737,7 @@ void enforce_weapon_ownership(std::uintptr_t save_manager_global, const std::uin
     std::uint32_t owned_any = 0;
     for (int fam = 0; fam < mth::kWeaponFamilyCount; ++fam)
     {
-        // Every family is checked before the first write: the clamp masks and rewrites all 40 bytes of the
-        // pair each tick, so a shifted offset would grind the save down progressively instead of faulting.
+        // Every family is checked before the first write: the clamp rewrites all 40 bytes of the pair each tick (see weapon_fields_in_domain).
         if (!mth::tables::weapon_fields_in_domain(owned[fam], active[fam]))
         {
             layout_ok = false;

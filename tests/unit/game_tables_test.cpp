@@ -149,9 +149,6 @@ TEST_CASE("weapon_clamp_ready: refuses to revoke everything on an empty receipt 
     CHECK(mth::tables::weapon_clamp_ready(0u, 0u));         // nothing granted, nothing owned: consistent
 }
 
-// The clamp masks and rewrites both weapon fields every tick, so a shifted offset would grind unrelated save
-// state down rather than fail outright. Three tiers exist and the companion field is a bit index into them,
-// so anything wider than that is not the pair we think we are looking at.
 TEST_CASE("weapon_fields_in_domain: a read wider than three tiers is not the weapon pair", "[game_tables]")
 {
     CHECK(mth::tables::weapon_fields_in_domain(/*owned=*/0b000u, /*active=*/0)); // fresh save
@@ -163,9 +160,7 @@ TEST_CASE("weapon_fields_in_domain: a read wider than three tiers is not the wea
     CHECK_FALSE(mth::tables::weapon_fields_in_domain(0b001u, -1)); // negative shifts the game's revoke UB
 }
 
-// warp_resolved_slot turns an s_rItemCollection name-scan result into the slot the unlock bit uses. It is
-// the tail every live-object resolve shares (KeyBlock, KeyBlockChain, locked Chest), so the remap rule is
-// pinned here rather than three times over live game memory.
+// warp_resolved_slot turns an s_rItemCollection name-scan result into the slot the unlock bit uses.
 
 TEST_CASE("warp_resolved_slot: a row with no remap resolves to its own index", "[game_tables]")
 {

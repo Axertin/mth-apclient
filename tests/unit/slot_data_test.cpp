@@ -1,5 +1,5 @@
-// Characterization of parse_slot_data: pins what the client makes of a server slot_data blob,
-// degenerate corners included. Malformed input fails closed by design; the comments say why.
+// Characterization of parse_slot_data: what the client makes of a server slot_data blob, degenerate
+// corners included. Malformed input fails closed by design.
 #include <cstdint>
 #include <mutex>
 #include <string>
@@ -183,8 +183,7 @@ TEST_CASE("parse_slot_data: goal fields pass through unvalidated", "[slot_data]"
     REQUIRE(cfg.goal_generators == 4);
     REQUIRE(cfg.goal_bosses == 6);
 
-    // No range check: a goal_config the goal tracker does not know still lands in the config, and a
-    // count nothing can reach is accepted as written.
+    // No range check: a goal_config the tracker does not know, or a count nothing can reach, lands as written.
     const mth::SlotDataConfig odd = mth::parse_slot_data(json{{"goal_config", 99}, {"goal_generators", -1}, {"goal_bosses", 500}});
     REQUIRE(odd.goal_config == 99);
     REQUIRE(odd.goal_generators == -1);

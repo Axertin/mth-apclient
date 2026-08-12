@@ -26,8 +26,8 @@ enum class KearMode : int
     return value == 0 ? KearMode::Vanilla : (value == 2 ? KearMode::AreaApItems : KearMode::ApItems);
 }
 
-// Everything the client derives from the server's slot_data blob. Single list: the parse below, the
-// ApConnected payload and ApState's accessors all read these fields rather than restating them.
+// Everything the client derives from the server's slot_data blob. The parse below fills it; the ApConnected
+// payload and ApState's accessors hand back these fields directly.
 struct SlotDataConfig
 {
     bool ossex_start{false};               // "ossex_start": force the Landing Done modifier (start at Ossex hub)

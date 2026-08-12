@@ -146,9 +146,8 @@ bool ItemGranter::grant(int item_type, int receipt)
         return true;
     }
 
-    // Everything downstream indexes s_rItems with this, the game included, so a type past the last row
-    // reads off the end of the table. Reachable from the socket (any seed id in the vanilla segment above
-    // the row count) and from giveapitem. Ack it so a bad id is dropped rather than retried forever.
+    // Reachable from the socket (a seed id in the vanilla segment above the row count) and from
+    // giveapitem. Ack it so a bad id is dropped rather than retried forever.
     if (!is_valid_item_type(item_type))
     {
         pal::logf(pal::LogLevel::Error, "inbound: refused item_type=%d; not a game itemType (max %d)", item_type, layout::kItemTypeCount - 1);

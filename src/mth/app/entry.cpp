@@ -5,9 +5,8 @@ namespace
 {
 
 // Intentionally leaked, and the mod exports no unload path: neither hook backend drains threads already
-// inside a detour, so reverting one while the game runs is a crash footgun. So ~App and everything it
-// tears down (HookManager, the feature hooks, their hook removals) never run today. They stay correct for
-// whatever does destroy an App later; unreachable is not the same as unneeded.
+// inside a detour, so reverting one while the game runs is a crash footgun. ~App and its teardown chain
+// (HookManager, the feature hooks, their hook removals) is kept correct but never runs today.
 mth::App *g_app = nullptr;
 
 } // namespace

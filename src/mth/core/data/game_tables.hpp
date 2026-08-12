@@ -99,9 +99,8 @@ void resolve();
 
 // Plausibility of one family's pair of durable weapon fields (SaveSlot+0xc24 owned bits, +0xc38 active tier),
 // read before the clamp masks and rewrites all 40 bytes of them. Three tiers exist and the active field is a
-// bit index into them, so a wider owned mask or a tier outside 0..2 means the offsets no longer name this
-// pair; without the check the clamp would quietly grind whatever moved into their place. Pure so it is
-// unit-testable.
+// bit index into them, so a wider mask or a tier outside 0..2 means the offsets drifted, and the unchecked
+// clamp would corrupt whatever now sits there. Pure so it is unit-testable.
 [[nodiscard]] constexpr bool weapon_fields_in_domain(std::uint32_t owned, int active) noexcept
 {
     return (owned & ~mth::layout::kWeaponTierBits) == 0 && active >= 0 && active < std::bit_width(mth::layout::kWeaponTierBits);
@@ -137,8 +136,7 @@ void resolve();
 [[nodiscard]] std::uint8_t collection_bit_index(int slot);
 
 // Effective slot of a name-scan result: a matched row's warp-remap field redirects it to another slot,
-// and <0 there means the matched index is itself the slot. Unmatched (<0) stays unresolved. Pure so it is
-// unit-testable.
+// and <0 there means the matched index is itself the slot. Unmatched (<0) stays unresolved. Pure so it is unit-testable.
 [[nodiscard]] constexpr int warp_resolved_slot(int matched_idx, int warp_remap) noexcept
 {
     if (matched_idx < 0)

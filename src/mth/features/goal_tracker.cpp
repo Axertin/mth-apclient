@@ -33,7 +33,7 @@ void GoalTracker::evaluate(const ApState &state)
     const unsigned char clear_flag = *reinterpret_cast<unsigned char *>(static_cast<char *>(slot) + layout::kSaveGameClearOff);
     if (!game_clear_flag_in_domain(clear_flag))
     {
-        disabled_ = true; // short-circuits every future poll
+        disabled_ = true;
         pal::logf(pal::LogLevel::Error, "goal: kSaveGameClearOff read=0x%x is not a boolean; offset may have shifted, goal tracking DISABLED", clear_flag);
         return;
     }
