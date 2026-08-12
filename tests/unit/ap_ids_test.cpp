@@ -46,6 +46,67 @@ TEST_CASE("weapon ids map family+tier to engine itemTypes", "[ap_ids]")
     REQUIRE(mth::weapon_itemtype(5, 1) == -1); // no such family
 }
 
+// WeaponTally turns the received-item stream into the ownership bits the seed authorized, so the per-tick
+// clamp can revoke a weapon the game handed out on its own (the intro chest and the no-weapon fallback both
+// write the SaveSlot fields directly). The Nth receipt of a family is tier N and the engine bit for an
+// itemType is (itemType - 2) % 3, so N authorized tiers is exactly the low N bits.
+TEST_CASE("weapon tally: nothing received authorizes no weapon at all", "[ap_ids]")
+{
+    const mth::WeaponTally tally;
+    for (int fam = 0; fam < mth::kWeaponFamilyCount; ++fam)
+        CHECK(tally.owned_mask(fam) == 0u);
+}
+
+TEST_CASE("weapon tally: one receipt authorizes that family's tier-1 bit only", "[ap_ids]")
+{
+    mth::WeaponTally tally;
+    CHECK(tally.add(mth::kProgWeaponBase + 1) == 1); // Hammer
+    CHECK(tally.owned_mask(1) == 0b001u);
+    CHECK(tally.owned_mask(0) == 0u); // every other family stays unauthorized
+    CHECK(tally.owned_mask(4) == 0u);
+}
+
+TEST_CASE("weapon tally: three receipts authorize all three tier bits", "[ap_ids]")
+{
+    mth::WeaponTally tally;
+    CHECK(tally.add(mth::kProgWeaponBase + 4) == 1); // Casket
+    CHECK(tally.add(mth::kProgWeaponBase + 4) == 2);
+    CHECK(tally.add(mth::kProgWeaponBase + 4) == 3);
+    CHECK(tally.owned_mask(4) == 0b111u);
+
+    // A fourth receipt grants no itemType (weapon_itemtype has no tier 4), so it authorizes no fourth bit.
+    CHECK(tally.add(mth::kProgWeaponBase + 4) == 4);
+    CHECK(tally.owned_mask(4) == 0b111u);
+}
+
+TEST_CASE("weapon tally: families count independently", "[ap_ids]")
+{
+    mth::WeaponTally tally;
+    tally.add(mth::kProgWeaponBase + 0); // Whip x1
+    tally.add(mth::kProgWeaponBase + 2); // Daggers x2
+    tally.add(mth::kProgWeaponBase + 2);
+    CHECK(tally.owned_mask(0) == 0b001u);
+    CHECK(tally.owned_mask(2) == 0b011u);
+    CHECK(tally.owned_mask(1) == 0u);
+    CHECK(tally.owned_mask(3) == 0u);
+    CHECK(tally.owned_mask(4) == 0u);
+}
+
+TEST_CASE("weapon tally: non-weapon receipts authorize nothing", "[ap_ids]")
+{
+    mth::WeaponTally tally;
+    CHECK(tally.add(mth::ap_item_id(42)) == 0);      // a vanilla game item
+    CHECK(tally.add(mth::kProgStatCapBase) == 0);    // a stat-cap chain
+    CHECK(tally.add(mth::kProgFishingRodId) == 0);   // another progressive chain
+    CHECK(tally.add(mth::kKearBlockItemBase) == 0);  // a kear block
+    CHECK(tally.add(mth::kProgWeaponBase + 3) == 1); // one real weapon in the middle of them
+    CHECK(tally.add(mth::ap_item_id(63)) == 0);      // a vanilla kear
+    CHECK(tally.owned_mask(3) == 0b001u);
+    for (int fam = 0; fam < mth::kWeaponFamilyCount; ++fam)
+        if (fam != 3)
+            CHECK(tally.owned_mask(fam) == 0u);
+}
+
 TEST_CASE("item-space segments are 1000-wide and ordered", "[ap_ids]")
 {
     REQUIRE(mth::kItemBase == 0);

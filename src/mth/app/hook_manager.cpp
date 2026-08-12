@@ -169,6 +169,7 @@ void HookManager::tick(ApState &state, SessionPolicy &policy, int save_game_slot
     // weapon stand reports a slot the seed does not carry and the other can never be checked. slot_ok alone
     // is not the bound-save test (it is true while offline) and this is a durable write, hence both.
     pal::clear_starter_weapon_swap(save_manager_, authed, slot_ok);
+    enforce_weapon_grants(state, authed, slot_ok);
 
     seed_kear_blocks(state);
 
@@ -199,6 +200,23 @@ void HookManager::seed_kear_blocks(ApState &state)
             if (it.item_id == kMMFirstDoubleKearBlockID)
                 lock_hooks_->locks().set_removed(kear_block_engine_id(kMMSecondDoubleKearBlockID));
         }
+}
+
+// The seed precollects the starting weapon, so every weapon reaches the player through the item stream. The
+// game hands one out anyway at the intro (the weapon chest's pick, and the fallback that force-grants the
+// whip), and both write the SaveSlot fields directly rather than going through Items::OnPickupDone, where the
+// vanilla-grant suppression sits. So the ownership bits are clamped to the AP grants each tick instead of
+// hooking either site.
+void HookManager::enforce_weapon_grants(ApState &state, bool authed, bool slot_ok)
+{
+    WeaponTally tally;
+    for (const auto &it : state.received_items())
+        tally.add(it.item_id);
+
+    std::uint32_t authorized[kWeaponFamilyCount]{};
+    for (int fam = 0; fam < kWeaponFamilyCount; ++fam)
+        authorized[fam] = tally.owned_mask(fam);
+    pal::enforce_weapon_ownership(save_manager_, authorized, authed, slot_ok);
 }
 
 void HookManager::drain()

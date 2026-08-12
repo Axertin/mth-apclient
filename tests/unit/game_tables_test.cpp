@@ -127,6 +127,28 @@ TEST_CASE("should_clear_starter_swap: never writes outside the bound AP save", "
     CHECK_FALSE(mth::tables::should_clear_starter_swap(false, false, 2));
 }
 
+// SaveSlot+0xc38[fam] is the companion of the +0xc24[fam] ownership bitfield: a BIT INDEX into it, not a
+// power level (the game revokes a weapon with `0xc24[fam] &= ~(1 << (0xc38[fam] & 0x1f))`). The top
+// authorized bit is what the game's own ordered grants leave there.
+TEST_CASE("weapon_active_bit: the companion field is a bit index into the ownership mask", "[game_tables]")
+{
+    CHECK(mth::tables::weapon_active_bit(0b001u) == 0); // one tier granted
+    CHECK(mth::tables::weapon_active_bit(0b011u) == 1);
+    CHECK(mth::tables::weapon_active_bit(0b111u) == 2);
+    CHECK(mth::tables::weapon_active_bit(0b100u) == 2); // the intro's own grant: one weapon, bit 2
+    CHECK(mth::tables::weapon_active_bit(0u) == 0);     // owns nothing, as a fresh save reads
+}
+
+// The clamp is destructive, so it refuses the one shape it cannot tell apart from a real revoke: an empty
+// authorized mask over a save that owns weapons is what a receipt list that has not loaded yet looks like,
+// and clamping then would delete the player's weapons permanently.
+TEST_CASE("weapon_clamp_ready: refuses to revoke everything on an empty receipt list", "[game_tables]")
+{
+    CHECK_FALSE(mth::tables::weapon_clamp_ready(/*authorized_any=*/0u, /*owned_any=*/0b100u));
+    CHECK(mth::tables::weapon_clamp_ready(0b001u, 0b100u)); // AP granted something: a real revoke
+    CHECK(mth::tables::weapon_clamp_ready(0u, 0u));         // nothing granted, nothing owned: consistent
+}
+
 TEST_CASE("collection bit index: 0xff is the table's no-bit sentinel, not drift", "[tables][gate]")
 {
     // Measured against the shipping table: rows 24 and 25 carry 0xff, meaning "this location has

@@ -191,6 +191,14 @@ bool request_deep_water_fall(void *player);
 // unavailable. Game-thread only.
 void clear_starter_weapon_swap(std::uintptr_t save_manager_global, bool authed, bool slot_ok);
 
+// Clamps the per-family weapon ownership bitfield to the tiers AP granted, and keeps the companion active-tier
+// field consistent with it. The intro hands out a weapon the seed never authorized - the chest pick and the
+// no-weapon fallback both write these SaveSlot fields directly, so the OnPickupDone suppression never sees
+// them. `authorized` has mth::kWeaponFamilyCount entries. Durable and destructive, so it writes only on the
+// bound AP save, only on a real difference, and refuses an all-empty mask over a save that owns weapons (a
+// receipt list that has not loaded yet). No-op if unavailable. Game-thread only.
+void enforce_weapon_ownership(std::uintptr_t save_manager_global, const std::uint32_t *authorized, bool authed, bool slot_ok);
+
 // ---- Pawn shop ("Pawnty") disable. Symbol/offset divergence lives in the PAL impl. ----
 
 // PawnShopNPC::OnNPCEvent suppressor. When disable() returns true the detour no-ops every event and

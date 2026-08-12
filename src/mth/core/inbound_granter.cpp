@@ -54,8 +54,8 @@ bool InboundGranter::offer(int game_type, int index)
 
 void InboundGranter::tick()
 {
-    int weapon_tier[kWeaponFamilyCount] = {0}; // running per-family receipt count -> progressive tier
-    int fishing_tier = 0;                      // running fishing-rod receipt count -> progressive tier
+    WeaponTally weapon_tally; // running per-family receipt count -> progressive tier (shared with the ownership clamp)
+    int fishing_tier = 0;     // running fishing-rod receipt count -> progressive tier
     int map_tier = 0;
 
     const bool vanilla_kear = state_.kear_mode() == KearMode::Vanilla;
@@ -113,7 +113,7 @@ void InboundGranter::tick()
         if (is_weapon_item(it.item_id))
         {
             const int fam = weapon_family(it.item_id);
-            const int tier = ++weapon_tier[fam];
+            const int tier = weapon_tally.add(it.item_id);
             if (handled(it.index))
             {
                 ++n_handled;

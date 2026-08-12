@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 
 // Build-specific struct offsets/strides for the Linux game binary, shared by the hook
 // modules. Windows divergence stays in the PAL impls. Where a runtime self-check guards
@@ -68,6 +69,14 @@ inline constexpr std::ptrdiff_t kSaveGameClearOff = 0xd30;     // u8 game-cleare
 // (16). Weapon OWNERSHIP is elsewhere (+0xc24/+0xc38 bits, name string at +0x138), so clearing this costs
 // the player nothing.
 inline constexpr std::ptrdiff_t kSaveStarterWeaponTypeOff = 0xc60; // int: starter weapon type, -1 = no swap
+
+// Weapon ownership, one entry per family (Whip, Hammer, Daggers, Buster Bat, Casket). +0xc24 is the owned-tier
+// bitfield Items::IsItemCollected reads back for a kind-1 item, bit (itemType - 2) % 3 per tier; +0xc38 is the
+// active tier, a BIT INDEX into it and not a count (the game revokes with `0xc24[fam] &= ~(1 << (0xc38[fam] &
+// 0x1f))`). Only three tiers exist, so nothing above bit 2 belongs to us.
+inline constexpr std::ptrdiff_t kSaveWeaponOwnedBitsOff = 0xc24;  // u32[5]: per-family owned-tier bitfield
+inline constexpr std::ptrdiff_t kSaveWeaponActiveTierOff = 0xc38; // int[5]: per-family active tier (a bit index into the above)
+inline constexpr std::uint32_t kWeaponTierBits = 0x7;             // the three tier bits; any other bit of the field is left alone
 
 // WeaponMerchant (Legovich) forge mold (#67): the pending weapon-upgrade index; -1 = none.
 inline constexpr std::ptrdiff_t kSaveWeaponIndexOff = 0xc70;     // int: pending weapon index the forge keys on

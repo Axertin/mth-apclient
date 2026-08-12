@@ -72,6 +72,8 @@ class HookManager
 
   private:
     void seed_kear_blocks(ApState &state); // received kear-block items -> LockRegistry removals
+    // Clamp weapon ownership to the tiers AP granted. Bound AP save only: it is a durable, destructive write.
+    void enforce_weapon_grants(ApState &state, bool authed, bool slot_ok);
 
     std::atomic<std::uint32_t> lamp_console_override_{0}; // sticky console-forced lamp mask (render thread) OR'd over slot_data in tick (game thread)
     // Set the first time a save sees an AP session, cleared only on save load. Vendors that sell outside

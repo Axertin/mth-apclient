@@ -85,6 +85,26 @@ void resolve();
     return authed && slot_ok && current != -1;
 }
 
+// Companion of the per-family weapon ownership bitfield (SaveSlot+0xc24): SaveSlot+0xc38 holds a BIT INDEX
+// into it, not a power level - the game revokes a weapon with `0xc24[fam] &= ~(1 << (0xc38[fam] & 0x1f))`,
+// and its own ordered grants leave the last tier granted there. So the consistent value for an authorized
+// mask is its top bit, and 0 for a family that owns nothing (what a fresh save reads). Pure so it is
+// unit-testable.
+[[nodiscard]] constexpr int weapon_active_bit(std::uint32_t owned_mask) noexcept
+{
+    return owned_mask == 0 ? 0 : std::bit_width(owned_mask) - 1;
+}
+
+// Gate on the weapon ownership clamp, which is a destructive write: an empty authorized mask over a save
+// that owns weapons is exactly what a receipt list that has not loaded yet looks like, and clamping then
+// would delete the player's weapons permanently. The seed always precollects a starting weapon, so an
+// authorized mask that is empty for every family is that shape and not a real "AP granted no weapon".
+// Both arguments are the OR of every family's mask. Pure so it is unit-testable.
+[[nodiscard]] constexpr bool weapon_clamp_ready(std::uint32_t authorized_any, std::uint32_t owned_any) noexcept
+{
+    return authorized_any != 0 || owned_any == 0;
+}
+
 // Armor upgrades (Vitality Vest 0x4f = +25% max HP, Damage armor 0x50) apply their effect DIRECTLY in
 // Items::OnPickup (it ORs a bit into SaveSlot+0xc68 before the conditionally-tail-called Items::OnPickupDone)
 // - so suppressing OnPickupDone alone leaks the vanilla upgrade for an AP shop buy (issue #71). The mod's
