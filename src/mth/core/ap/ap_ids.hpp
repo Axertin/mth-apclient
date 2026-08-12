@@ -1,6 +1,8 @@
 #pragma once
 
 #include <cstdint>
+#include <array>
+#include <span>
 
 namespace mth
 {
@@ -8,7 +10,8 @@ namespace mth
 //   ITEM space                          LOCATION space
 //     0  [0..999]     vanilla itemType    0  [0..999]     collection slots (kLocBase + slot)
 //     1  [1000..1999] progressive         1  [1000..1999] boss defeats (kBossLocBase + index)
-//     2  [2000..2999] kear blocks         2+ reserved
+//     2  [2000..2499] kear blocks         2+ reserved
+//     2  [2500..2999] area kear locks
 //     3  [3000..3999] abilities
 //     4  [4000..4999] blockers
 //     5  [5000..5999] traps
@@ -288,6 +291,7 @@ inline constexpr int fishing_rod_itemtype(int tier)
 
 // item-category bases
 inline constexpr std::int64_t kKearBlockItemBase = 2000; // kear-lock removals (wired)
+inline constexpr std::int64_t kAreaKearLockItemBase = 2500; // kear-lock removals (wired)
 inline constexpr std::int64_t kAbilityItemBase = 3000;   // ability gates (Ability enum; see ability_ids.hpp)
 inline constexpr std::int64_t kBlockerItemBase = 4000;   // reserved
 inline constexpr std::int64_t kTrapItemBase = 5000;      // reserved
@@ -295,6 +299,48 @@ inline constexpr std::int64_t kTrapItemBase = 5000;      // reserved
 // special Constants
 inline constexpr std::int64_t kMMFirstDoubleKearBlockID = 2304;
 inline constexpr std::int64_t kMMSecondDoubleKearBlockID = 2306;
+
+inline constexpr std::array<std::int64_t, 3> kOSLocks = {kKearBlockItemBase+151, kKearBlockItemBase+152, kKearBlockItemBase+157};
+inline constexpr std::array<std::int64_t, 2> kTrainLocks = {kKearBlockItemBase+358, kKearBlockItemBase+359};
+inline constexpr std::array<std::int64_t, 4> kLLLocks = {kKearBlockItemBase+19, kKearBlockItemBase+20, kKearBlockItemBase+21, kKearBlockItemBase+22};
+inline constexpr std::array<std::int64_t, 2> kSOLocks = {kKearBlockItemBase+260, kKearBlockItemBase+262};
+inline constexpr std::array<std::int64_t, 4> kEHLocks = {kKearBlockItemBase+225, kKearBlockItemBase+222, kKearBlockItemBase+224, kKearBlockItemBase+227};
+inline constexpr std::array<std::int64_t, 3> kWWLocks = {kKearBlockItemBase+246, kKearBlockItemBase+247, kKearBlockItemBase+244};
+inline constexpr std::array<std::int64_t, 1> kMMLocks = {kKearBlockItemBase+307};
+inline constexpr std::array<std::int64_t, 3> kQBLocks = {kMMFirstDoubleKearBlockID, kMMSecondDoubleKearBlockID,kKearBlockItemBase+55};
+inline constexpr std::array<std::int64_t, 3> kBWLocks = {kKearBlockItemBase+284,kKearBlockItemBase+283,kKearBlockItemBase+285};
+inline constexpr std::array<std::int64_t, 1> kNBLocks = {kKearBlockItemBase+33};
+inline constexpr std::array<std::int64_t, 3> kKWLocks = {kKearBlockItemBase+336,kKearBlockItemBase+338,kKearBlockItemBase+337};
+inline constexpr std::array<std::int64_t, 3> kSFLocks = {kKearBlockItemBase+320,kKearBlockItemBase+321,kKearBlockItemBase+318};
+inline constexpr std::array<std::int64_t, 1> kBBLocks = {kKearBlockItemBase+69};
+inline constexpr std::array<std::int64_t, 2> kCTPLocks = {kKearBlockItemBase+115,kKearBlockItemBase+109};
+inline constexpr std::array<std::int64_t, 3> kAOLocks = {kKearBlockItemBase+277, kKearBlockItemBase+278, kKearBlockItemBase+127};
+inline constexpr std::array<std::int64_t, 1> kRMLocks = {kKearBlockItemBase+141};
+
+struct AreaLockGroup
+{
+    std::int64_t item_id;
+    std::span<const std::int64_t> locks;
+};
+
+inline constexpr std::array<AreaLockGroup, 16> kAreaLockGroups = {{
+    {kAreaKearLockItemBase+9, kOSLocks},
+    {kAreaKearLockItemBase+10, kTrainLocks},
+    {kAreaKearLockItemBase+7, kLLLocks},
+    {kAreaKearLockItemBase+15, kSOLocks},
+    {kAreaKearLockItemBase+5, kEHLocks},
+    {kAreaKearLockItemBase+16, kWWLocks},
+    {kAreaKearLockItemBase+8, kMMLocks},
+    {kAreaKearLockItemBase+11, kQBLocks},
+    {kAreaKearLockItemBase+1, kBWLocks},
+    {kAreaKearLockItemBase+2, kNBLocks},
+    {kAreaKearLockItemBase+6, kKWLocks},
+    {kAreaKearLockItemBase+13, kSFLocks},
+    {kAreaKearLockItemBase+3, kBBLocks},
+    {kAreaKearLockItemBase+4, kCTPLocks},
+    {kAreaKearLockItemBase+0, kAOLocks},
+    {kAreaKearLockItemBase+12, kRMLocks}
+}};
 
 inline constexpr bool is_vanilla_game_item(std::int64_t ap_item_id_)
 {
@@ -314,8 +360,14 @@ inline constexpr bool is_vanilla_kear_item(std::int64_t ap_item_id_)
 // id = kKearBlockItemBase + engine id
 inline constexpr bool is_kear_block_item(std::int64_t ap_item_id_)
 {
-    return ap_item_id_ >= kKearBlockItemBase && ap_item_id_ < kAbilityItemBase;
+    return ap_item_id_ >= kKearBlockItemBase && ap_item_id_ < kAreaKearLockItemBase;
 }
+//Area Kear Locks: This pool is one item that acts like multiple kear locks.
+inline constexpr bool is_area_lock_item(std::int64_t ap_item_id_)
+{
+    return ap_item_id_ >= kAreaKearLockItemBase && ap_item_id_ < kAbilityItemBase;
+}
+
 
 inline constexpr int kear_block_engine_id(std::int64_t ap_item_id_)
 {

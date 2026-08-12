@@ -201,13 +201,22 @@ bool HookManager::credit_kear_key()
 
 void HookManager::seed_kear_blocks(ApState &state)
 {
-    for (const auto &it : state.received_items())
+    for (const auto &it : state.received_items()){
         if (is_kear_block_item(it.item_id))
         {
             lock_hooks_->locks().set_removed(kear_block_engine_id(it.item_id));
             if (it.item_id == kMMFirstDoubleKearBlockID)
                 lock_hooks_->locks().set_removed(kear_block_engine_id(kMMSecondDoubleKearBlockID));
         }
+        if(is_area_lock_item(it.item_id))
+        {
+            for (const auto &g : kAreaLockGroups)
+                if (g.item_id == it.item_id)
+                    for (const auto &lock : g.locks)
+                        lock_hooks_->locks().set_removed(kear_block_engine_id(lock));
+        }
+
+    }
 }
 
 // The seed precollects the starting weapon, so every weapon reaches the player through the item stream. The
