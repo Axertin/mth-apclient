@@ -201,6 +201,45 @@ TEST_CASE("parse_slot_data: goal counts default high when the key is absent", "[
     REQUIRE(cfg.goal_bosses == 99);
 }
 
+TEST_CASE("parse_slot_data: a missing goal count is reported when that goal is selected", "[slot_data]")
+{
+    LogCapture gens;
+    REQUIRE(mth::parse_slot_data(json{{"goal_config", mth::kGoalGenerators}, {"broken_generators", json::array({0})}}).goal_generators == 99);
+    REQUIRE(gens.sink().saw(pal::LogLevel::Warn, "goal_generators"));
+
+    LogCapture bosses;
+    REQUIRE(mth::parse_slot_data(json{{"goal_config", mth::kGoalBosses}}).goal_bosses == 99);
+    REQUIRE(bosses.sink().saw(pal::LogLevel::Warn, "goal_bosses"));
+}
+
+TEST_CASE("parse_slot_data: a missing goal count the goal does not use is quiet", "[slot_data]")
+{
+    // The unselected count and the game-clear goal both default to 99 harmlessly, so warning there
+    // would fire on nearly every seed.
+    LogCapture log;
+    REQUIRE(mth::parse_slot_data(json{{"goal_config", mth::kGoalFinish}}).goal_generators == 99);
+    REQUIRE(mth::parse_slot_data(json{{"goal_config", mth::kGoalBosses}, {"goal_bosses", 4}}).goal_generators == 99);
+    REQUIRE(mth::parse_slot_data(json{{"goal_config", mth::kGoalGenerators}, {"goal_generators", 3}, {"broken_generators", json::array({0})}}).goal_bosses ==
+            99);
+    REQUIRE(log.sink().count() == 0);
+}
+
+TEST_CASE("parse_slot_data: a generator goal with nothing broken is reported", "[slot_data]")
+{
+    LogCapture log;
+    const json data = {{"goal_config", mth::kGoalGenerators}, {"goal_generators", 1}, {"broken_generators", json::array()}};
+    REQUIRE(mth::parse_slot_data(data).broken_generator_mask == 0);
+    REQUIRE(log.sink().saw(pal::LogLevel::Warn, "broken_generators"));
+}
+
+TEST_CASE("parse_slot_data: an empty broken_generators is quiet under another goal", "[slot_data]")
+{
+    LogCapture log;
+    REQUIRE(mth::parse_slot_data(json{{"goal_config", mth::kGoalFinish}, {"broken_generators", json::array()}}).broken_generator_mask == 0);
+    REQUIRE(mth::parse_slot_data(json{{"goal_config", mth::kGoalBosses}, {"goal_bosses", 3}, {"broken_generators", json::array()}}).broken_generator_mask == 0);
+    REQUIRE(log.sink().count() == 0);
+}
+
 TEST_CASE("parse_slot_data: broken_generators indices become save bits", "[slot_data]")
 {
     // Index -> SaveSlot 0x290 bit is the kGeneratorSaveBit permutation, not identity.

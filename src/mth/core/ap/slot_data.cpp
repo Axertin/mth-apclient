@@ -39,6 +39,15 @@ SlotDataConfig parse_slot_data(const nlohmann::json &data)
     cfg.goal_bosses = obj ? data.value("goal_bosses", 99) : 99;
     cfg.wallet_cap = obj && data.value("wallet_cap", 0) != 0;
 
+    // The fail-closed default for an absent count is silent otherwise, so a seed nobody can finish is
+    // indistinguishable from a working one. Only report the count the selected goal actually reads.
+    if (cfg.goal_config == kGoalGenerators && !data.contains("goal_generators"))
+        pal::logf(pal::LogLevel::Warn, "goal_generators: absent while goal_config selects the generator goal; the goal falls back to %d and cannot be reached",
+                  cfg.goal_generators);
+    if (cfg.goal_config == kGoalBosses && !data.contains("goal_bosses"))
+        pal::logf(pal::LogLevel::Warn, "goal_bosses: absent while goal_config selects the boss goal; the goal falls back to %d and cannot be reached",
+                  cfg.goal_bosses);
+
     std::vector<int> lit_gen_indices;
     if (obj)
         if (auto lg = data.find("lit_generators"); lg != data.end() && lg->is_array())
@@ -62,6 +71,11 @@ SlotDataConfig parse_slot_data(const nlohmann::json &data)
                 if (i < 0 || i >= kGeneratorLampCount)
                     pal::logf(pal::LogLevel::Warn, "broken_generators: generator index %d is outside the expected 0..%d", i, kGeneratorLampCount - 1);
             cfg.broken_generator_mask = broken_generator_mask(broken_indices);
+            // An empty (or wholly unusable) list is legitimate under any other goal, so it is only
+            // worth reporting when the generator goal is the one being counted against it.
+            if (cfg.broken_generator_mask == 0 && cfg.goal_config == kGoalGenerators)
+                pal::logf(pal::LogLevel::Warn,
+                          "broken_generators: lists no generator that counts while goal_config selects the generator goal; the goal cannot be reached");
         }
 
     // Locations the apworld pruned from the pool (dungeons the generator goal never requires).
