@@ -191,9 +191,10 @@ TEST_CASE("parse_slot_data: goal fields pass through unvalidated", "[slot_data]"
     REQUIRE(odd.goal_bosses == 500);
 }
 
-TEST_CASE("parse_slot_data: goal counts default to an unreachable 99", "[slot_data]")
+TEST_CASE("parse_slot_data: goal counts default high when the key is absent", "[slot_data]")
 {
-    // A seed whose apworld renamed or dropped these keys silently gets a goal nothing satisfies.
+    // Defaulting high fails closed: goal completion is irreversible and releases this slot's items,
+    // so an unsatisfiable goal beats one a missing key could complete spuriously.
     const mth::SlotDataConfig cfg = mth::parse_slot_data(json{{"goal_config", 1}});
     REQUIRE(cfg.goal_config == 1);
     REQUIRE(cfg.goal_generators == 99);
@@ -216,10 +217,10 @@ TEST_CASE("parse_slot_data: an absent broken_generators counts every generator",
     REQUIRE(mth::parse_slot_data(json{{"broken_generators", nullptr}}).broken_generator_mask == mth::kAllGeneratorsMask);
 }
 
-TEST_CASE("parse_slot_data: an empty broken_generators collapses the goal mask to zero", "[slot_data]")
+TEST_CASE("parse_slot_data: an empty broken_generators counts no generator", "[slot_data]")
 {
-    // Recorded, NOT endorsed: with the mask at 0 no repaired generator is ever counted, so a
-    // generators-goal seed carrying an empty list cannot be finished. Present behaviour; see #141.
+    // Only listed generators count toward the goal (#141), so an empty list lists nothing. Distinct
+    // from absent, which counts every generator.
     REQUIRE(mth::parse_slot_data(json{{"broken_generators", json::array()}}).broken_generator_mask == 0);
 }
 
@@ -289,8 +290,8 @@ TEST_CASE("parse_slot_data: an absent or non-array removed_locations prunes noth
 
 TEST_CASE("parse_slot_data: a key of the wrong JSON type throws", "[slot_data]")
 {
-    // Recorded, NOT endorsed: an apworld that ships a string or bool where an int is read aborts the
-    // whole parse rather than falling back to the default.
+    // A wrong-typed key aborts the parse, and the connection with it, rather than substituting a
+    // default and running a seed on configuration the apworld did not actually specify.
     REQUIRE_THROWS_AS(mth::parse_slot_data(json{{"ossex_start", "yes"}}), nlohmann::json::type_error);
     REQUIRE_THROWS_AS(mth::parse_slot_data(json{{"goal_generators", "4"}}), nlohmann::json::type_error);
     REQUIRE_THROWS_AS(mth::parse_slot_data(json{{"train_pass_cost", json::array({1})}}), nlohmann::json::type_error);
