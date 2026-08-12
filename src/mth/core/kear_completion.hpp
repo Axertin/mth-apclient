@@ -14,7 +14,7 @@ namespace mth
 inline constexpr int kKearCompletionLocIdx = 150;
 
 // Vanilla kears are fungible and all carry the one Universal Kear id, so the gate counts receipts.
-inline constexpr int kVanillaKearTotal = 42;
+inline constexpr int kVanillaKearTotal = 40;
 
 // Per-lock kear items (kear_rando=1). Mirrors SingleKears in the apworld's data/items/kears.py, whose
 // ITEMS_OFFSET_KEARS is 2000. 2306 is absent deliberately: it is the second engine lock the 2304 item
@@ -22,7 +22,7 @@ inline constexpr int kVanillaKearTotal = 42;
 inline constexpr std::int64_t kSingleKearItemIds[] = {2019, 2020, 2021, 2022, 2033, 2055, 2069, 2096, 2109, 2115, 2127, 2141, 2151,
                                                       2152, 2157, 2222, 2224, 2225, 2227, 2244, 2246, 2247, 2260, 2262, 2277, 2278,
                                                       2283, 2284, 2285, 2304, 2307, 2318, 2320, 2321, 2336, 2337, 2338, 2358, 2359};
-inline constexpr int kSingleKearCount = static_cast<int>(sizeof(kSingleKearItemIds) / sizeof(kSingleKearItemIds[0]));
+inline constexpr int kSingleKearCount = 30;
 
 // Per-area kear items (kear_rando=2), contiguous.
 inline constexpr std::int64_t kAreaKearFirstItemId = 2500;
