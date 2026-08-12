@@ -3,6 +3,8 @@
 #include <bit>
 #include <cstdint>
 
+#include "mth/core/data/game_layout.hpp"
+
 namespace mth::tables
 {
 
@@ -93,6 +95,16 @@ void resolve();
 [[nodiscard]] constexpr int weapon_active_bit(std::uint32_t owned_mask) noexcept
 {
     return owned_mask == 0 ? 0 : std::bit_width(owned_mask) - 1;
+}
+
+// Plausibility of one family's pair of durable weapon fields (SaveSlot+0xc24 owned bits, +0xc38 active tier),
+// read before the clamp masks and rewrites all 40 bytes of them. Three tiers exist and the active field is a
+// bit index into them, so a wider owned mask or a tier outside 0..2 means the offsets no longer name this
+// pair; without the check the clamp would quietly grind whatever moved into their place. Pure so it is
+// unit-testable.
+[[nodiscard]] constexpr bool weapon_fields_in_domain(std::uint32_t owned, int active) noexcept
+{
+    return (owned & ~mth::layout::kWeaponTierBits) == 0 && active >= 0 && active < std::bit_width(mth::layout::kWeaponTierBits);
 }
 
 // Gate on the weapon ownership clamp, which is a destructive write: an empty authorized mask over a save

@@ -149,6 +149,20 @@ TEST_CASE("weapon_clamp_ready: refuses to revoke everything on an empty receipt 
     CHECK(mth::tables::weapon_clamp_ready(0u, 0u));         // nothing granted, nothing owned: consistent
 }
 
+// The clamp masks and rewrites both weapon fields every tick, so a shifted offset would grind unrelated save
+// state down rather than fail outright. Three tiers exist and the companion field is a bit index into them,
+// so anything wider than that is not the pair we think we are looking at.
+TEST_CASE("weapon_fields_in_domain: a read wider than three tiers is not the weapon pair", "[game_tables]")
+{
+    CHECK(mth::tables::weapon_fields_in_domain(/*owned=*/0b000u, /*active=*/0)); // fresh save
+    CHECK(mth::tables::weapon_fields_in_domain(0b100u, 2));                      // the intro's own grant
+    CHECK(mth::tables::weapon_fields_in_domain(0b111u, 2));                      // every tier owned
+    CHECK_FALSE(mth::tables::weapon_fields_in_domain(0b1000u, 0));               // a fourth tier does not exist
+    CHECK_FALSE(mth::tables::weapon_fields_in_domain(0xffffffffu, 0));
+    CHECK_FALSE(mth::tables::weapon_fields_in_domain(0b001u, 3));  // a bit index, not a count of owned tiers
+    CHECK_FALSE(mth::tables::weapon_fields_in_domain(0b001u, -1)); // negative shifts the game's revoke UB
+}
+
 TEST_CASE("collection bit index: 0xff is the table's no-bit sentinel, not drift", "[tables][gate]")
 {
     // Measured against the shipping table: rows 24 and 25 carry 0xff, meaning "this location has
