@@ -82,6 +82,8 @@ std::uintptr_t find_riprel_load(std::span<const std::uint8_t> region, std::uintp
     const std::size_t need = std::max(static_cast<std::size_t>(insn_len), op_len);
     if (region.size() < need)
         return 0;
+    bool found = false;
+    std::size_t at = 0;
     for (std::size_t i = 0; i + need <= region.size(); ++i)
     {
         bool hit = true;
@@ -91,10 +93,14 @@ std::uintptr_t find_riprel_load(std::span<const std::uint8_t> region, std::uintp
                 hit = false;
                 break;
             }
-        if (hit)
-            return read_riprel_target(region.data() + i, region_base + i, disp_off, insn_len);
+        if (!hit)
+            continue;
+        if (found)
+            return 0; // a second hit is enough to know it isn't unique
+        found = true;
+        at = i;
     }
-    return 0;
+    return found ? read_riprel_target(region.data() + at, region_base + at, disp_off, insn_len) : 0;
 }
 
 } // namespace mth::sig

@@ -42,7 +42,7 @@ class HookManager
   public:
     HookManager(IGameEvents &events, RandoBridge &rando, ScoutRegistry &scout, ApState &state, std::function<void()> send_death,
                 std::function<void *()> get_player);
-    ~HookManager();
+    ~HookManager(); // out of line: the owned hook types are only forward-declared here
 
     HookManager(const HookManager &) = delete;
     HookManager &operator=(const HookManager &) = delete;

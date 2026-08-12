@@ -4,7 +4,9 @@
 namespace
 {
 
-// Intentionally leaked: destroying Frida detours at exit is a crash footgun.
+// Intentionally leaked, and the mod exports no unload path: neither hook backend drains threads already
+// inside a detour, so reverting one while the game runs is a crash footgun. ~App and its teardown chain
+// (HookManager, the feature hooks, their hook removals) is kept correct but never runs today.
 mth::App *g_app = nullptr;
 
 } // namespace

@@ -1476,7 +1476,6 @@ bool abilities_available()
     g_addr_pickup = resolve_game_symbol(mth::sym::player_pickup_carryable);
     g_addr_train_npc = resolve_game_symbol(mth::sym::train_authority_on_npc_event);
     g_addr_burrow_jump = resolve_game_symbol(mth::sym::mina_on_burrow_jump); // #56
-    g_addr_pickup != 0 || g_addr_train_npc != 0;
     g_ab_ok = g_addr_burrow_ground != 0 || g_addr_rope_climb != 0 || g_addr_bounce_plant != 0 || g_addr_bounce_launch != 0 || g_addr_on_bounce != 0 ||
               g_addr_spring != 0 || g_addr_spring_listener != 0 || g_addr_pickup != 0 || g_addr_train_npc != 0;
     if (!g_ab_ok)
@@ -1723,6 +1722,9 @@ void enforce_weapon_ownership(std::uintptr_t save_manager_global, const std::uin
 {
     static bool logged[mth::kWeaponFamilyCount] = {}; // per family: Info on the first correction, Debug on repeats
     static bool warned = false;
+    static bool layout_ok = true;
+    if (!layout_ok)
+        return; // an implausible read already disabled the clamp for the rest of the process
     if (!authed || !slot_ok || authorized == nullptr)
         return; // durable and destructive: bound AP save only (slot_ok alone is true while offline)
     void *slot = active_save_slot(save_manager_global);
@@ -1735,6 +1737,15 @@ void enforce_weapon_ownership(std::uintptr_t save_manager_global, const std::uin
     std::uint32_t owned_any = 0;
     for (int fam = 0; fam < mth::kWeaponFamilyCount; ++fam)
     {
+        // Every family is checked before the first write: the clamp rewrites all 40 bytes of the pair each tick (see weapon_fields_in_domain).
+        if (!mth::tables::weapon_fields_in_domain(owned[fam], active[fam]))
+        {
+            layout_ok = false;
+            logf(LogLevel::Error,
+                 "weapons: family=%d owned=0x%x tier=%d outside the tier domain (mask 0x%x, tier 0..%d); offsets may have shifted, weapon writes DISABLED", fam,
+                 owned[fam], active[fam], mth::layout::kWeaponTierBits, std::bit_width(mth::layout::kWeaponTierBits) - 1);
+            return;
+        }
         authorized_any |= authorized[fam];
         owned_any |= owned[fam] & mth::layout::kWeaponTierBits;
     }

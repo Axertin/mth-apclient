@@ -62,83 +62,83 @@ class ApState
     }
     [[nodiscard]] bool ossex_start() const // slot_data flag: force the Landing Done modifier
     {
-        return ossex_start_;
+        return config_.ossex_start;
     }
     [[nodiscard]] KearMode kear_mode() const // slot_data "kear_rando": how kears are randomized
     {
-        return kear_mode_;
+        return config_.kear_mode;
     }
     // Usable keys are meaningless unless the pool carries Universal Kear items, so every mode but Vanilla
     // pins them to zero. The world-kear collect grant is neutralized in ALL modes (the spot is an AP
     // location, so the server owns its reward).
     [[nodiscard]] bool kear_keys_suppressed() const
     {
-        return kear_mode_ != KearMode::Vanilla;
+        return config_.kear_mode != KearMode::Vanilla;
     }
     // slot_data flags: the named ability is AP-randomized; gate it until its AP item is granted.
     [[nodiscard]] bool burrow_rando() const
     {
-        return burrow_rando_;
+        return config_.burrow_rando;
     }
     [[nodiscard]] bool swim_rando() const
     {
-        return swim_rando_;
+        return config_.swim_rando;
     }
     [[nodiscard]] bool rope_rando() const
     {
-        return rope_rando_;
+        return config_.rope_rando;
     }
     [[nodiscard]] bool puff_rando() const
     {
-        return puff_rando_;
+        return config_.puff_rando;
     }
     [[nodiscard]] bool spring_rando() const
     {
-        return spring_rando_;
+        return config_.spring_rando;
     }
     [[nodiscard]] bool carry_rando() const
     {
-        return carry_rando_;
+        return config_.carry_rando;
     }
     [[nodiscard]] bool train_rando() const
     {
-        return train_rando_;
+        return config_.train_rando;
     }
     [[nodiscard]] int train_pass_cost() const // bones the station's donation machine asks for
     {
-        return train_pass_cost_;
+        return config_.train_pass_cost;
     }
     [[nodiscard]] bool deathlink() const // slot_data flag: deaths bounce over the AP link
     {
-        return deathlink_;
+        return config_.deathlink;
     }
     [[nodiscard]] int max_stat_level() const // slot_data "max_stat_level": per-stat level ceiling (10..99)
     {
-        return max_stat_level_;
+        return config_.max_stat_level;
     }
     [[nodiscard]] int goal_config() const // slot_data "goal_config": 0=finish, 1=generators, 2=bosses
     {
-        return goal_config_;
+        return config_.goal_config;
     }
     [[nodiscard]] int goal_generators() const // slot_data "goal_generators": generators needed for the generators goal
     {
-        return goal_generators_;
+        return config_.goal_generators;
     }
     [[nodiscard]] int goal_bosses() const // slot_data "goal_bosses": bosses needed for the bosses goal
     {
-        return goal_bosses_;
+        return config_.goal_bosses;
     }
     [[nodiscard]] std::uint64_t broken_generator_mask() const // slot_data "broken_generators": these count toward the goal
     {
-        return broken_generator_mask_;
+        return config_.broken_generator_mask;
     }
     [[nodiscard]] bool wallet_cap() const // slot_data "wallet_cap": cap the bone wallet by received wallet items
     {
-        return wallet_cap_;
+        return config_.wallet_cap;
     }
     [[nodiscard]] std::uint32_t lit_generator_lamp_mask() const // slot_data "lit_generators": Ossex fountain lamps to force lit (visual only)
     {
-        return lit_generator_lamp_mask_;
+        return config_.lit_generator_lamp_mask;
     }
     [[nodiscard]] bool is_valid_location(std::int64_t id) const
     {
@@ -196,25 +196,9 @@ class ApState
     std::string seed_{};
     std::string slot_data_{};
     int player_slot_{-1};
-    bool ossex_start_{false};
-    KearMode kear_mode_{KearMode::ApItems};
-    bool burrow_rando_{false};
-    bool swim_rando_{false};
-    bool rope_rando_{false};
-    bool puff_rando_{false};
-    bool spring_rando_{false};
-    bool carry_rando_{false};
-    bool train_rando_{false};
-    int train_pass_cost_{kTrainPassCostDefault};
-    bool deathlink_{false};
-    int max_stat_level_{99};
-    int goal_config_{0};
-    int goal_generators_{99};
-    int goal_bosses_{99};
-    std::uint64_t broken_generator_mask_{kAllGeneratorsMask};
-    bool wallet_cap_{false};
-    std::uint32_t lit_generator_lamp_mask_{0};
+    SlotDataConfig config_{}; // pre-connection defaults; every reader gates on authenticated() first
     std::set<std::int64_t> valid_locations_{};
+    // config_.removed_locations filtered against valid_locations_ (see apply); config_ keeps the server's unfiltered list.
     std::set<std::int64_t> removed_locations_{};
     std::vector<ReceivedItem> received_items_{};
     std::vector<std::int64_t> server_checked_pending_{}; // server-reported checks awaiting reconcile (game-thread)

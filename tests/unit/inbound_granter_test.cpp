@@ -111,7 +111,7 @@ TEST_CASE("InboundGranter credits vanilla kears instead of granting itemType 63"
     std::filesystem::remove(path);
 
     mth::ApState state;
-    state.apply(mth::ApConnected{{}, "{}", 1, {}, {}, false, mth::KearMode::Vanilla});
+    state.apply(mth::ApConnected{.slot_data = "{}", .player_slot = 1, .config = {.kear_mode = mth::KearMode::Vanilla}});
     mth::ApSaveState save(path);
     FakeGranter granter;
     int credits = 0;
@@ -142,7 +142,7 @@ TEST_CASE("InboundGranter retries a vanilla kear credit that is not ready", "[in
     std::filesystem::remove(path);
 
     mth::ApState state;
-    state.apply(mth::ApConnected{{}, "{}", 1, {}, {}, false, mth::KearMode::Vanilla});
+    state.apply(mth::ApConnected{.slot_data = "{}", .player_slot = 1, .config = {.kear_mode = mth::KearMode::Vanilla}});
     mth::ApSaveState save(path);
     FakeGranter granter;
     bool ready = false;
@@ -177,7 +177,7 @@ TEST_CASE("InboundGranter does not credit kears outside vanilla mode", "[inbound
     std::filesystem::remove(path);
 
     mth::ApState state;
-    state.apply(mth::ApConnected{{}, "{}", 1, {}, {}, false, mth::KearMode::ApItems});
+    state.apply(mth::ApConnected{.slot_data = "{}", .player_slot = 1, .config = {.kear_mode = mth::KearMode::ApItems}});
     mth::ApSaveState save(path);
     FakeGranter granter;
     int credits = 0;

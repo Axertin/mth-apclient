@@ -84,6 +84,20 @@ int collection_warp_remap(int idx)
                                           layout::kCollectionWarpRemapOff);
 }
 
+int collection_slot_for_name_key(std::uint64_t name_key)
+{
+    int matched = -1;
+    for (int i = 0; i < layout::kCollectionScanCap; ++i)
+    {
+        if (collection_name_key(i) == name_key)
+        {
+            matched = i;
+            break;
+        }
+    }
+    return warp_resolved_slot(matched, collection_warp_remap(matched)); // remap read is range-guarded, so -1 is safe to pass
+}
+
 std::uint8_t collection_bit_index(int slot)
 {
     if (slot < 0 || slot >= layout::kLocationCount || g_s_r_item_collection == 0)

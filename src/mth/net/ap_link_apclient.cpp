@@ -12,9 +12,8 @@
 #include <apuuid.hpp>
 
 #include "mth/core/ap/ap_ids.hpp" // kLocBase
+#include "mth/core/ap/slot_data.hpp"
 #include "mth/core/broadcast.hpp"
-#include "mth/core/fountain_lamps.hpp"
-#include "mth/core/stat_cap_state.hpp" // clamp_max_stat_level
 #include "mth/net/deathlink.hpp"
 #include "pal/pal_cert.hpp"
 #include "pal/pal_log.hpp"
@@ -330,12 +329,13 @@ void ApLink::setup_handlers(const std::string &slot, const std::string &password
         [this](const nlohmann::json &data)
         {
             connect_deadline_.reset();
+            mth::SlotDataConfig config = mth::parse_slot_data(data);
             // slot_data "death_link" sets the default; a sticky client-side force-off (console) still wins.
-            slot_deathlink_.store(data.is_object() && data.value("death_link", 0) != 0);
-            const bool deathlink = slot_deathlink_.load() && !force_off_.load();
-            deathlink_.store(deathlink);
+            slot_deathlink_.store(config.deathlink);
+            config.deathlink = config.deathlink && !force_off_.load();
+            deathlink_.store(config.deathlink);
             std::list<std::string> tags;
-            if (deathlink)
+            if (config.deathlink)
                 tags.push_back("DeathLink");
             client_->ConnectUpdate(false, kItemHandling, true, tags);
             client_->StatusUpdate(APClient::ClientStatus::PLAYING);
@@ -357,90 +357,12 @@ void ApLink::setup_handlers(const std::string &slot, const std::string &password
 
             auto missing = client_->get_missing_locations();
             auto checked = client_->get_checked_locations();
-            const bool ossex_start = data.is_object() && data.value("ossex_start", 0) != 0;
-            // "kear_rando" is a mode, not a flag: 0 = vanilla (Universal Kear items grant real keys),
-            // 1/2 = per-lock / per-area AP items. Absent (older seeds) -> the apworld's own default.
-            const mth::KearMode kear_mode = mth::kear_mode_from_slot_data(data.is_object() ? data.value("kear_rando", 1) : 1);
-            const bool burrow_rando = data.is_object() && data.value("burrow_rando", 0) != 0;
-            const bool swim_rando = data.is_object() && data.value("swim_rando", 0) != 0;
-            const bool rope_rando = data.is_object() && data.value("rope_rando", 0) != 0;
-            const bool puff_rando = data.is_object() && data.value("puff_rando", 0) != 0;
-            const bool spring_rando = data.is_object() && data.value("spring_rando", 0) != 0;
-            const bool carry_rando = data.is_object() && data.value("carry_rando", 0) != 0;
-            // Default true until the apworld ships a train-rando option: current seeds omit the key but
-            // still shuffle the tickets/Train Pass, so gating must be on. Send train_rando=0 to opt out.
-            const bool train_rando = data.is_object() && data.value("train_rando", 1) != 0;
-            // What the station's donation machine asks for, when the apworld carries it as a location. The
-            // vanilla 10000 is a grind for a check whose reward is elsewhere in the multiworld (#162).
-            const int train_pass_cost = data.is_object() ? data.value("train_pass_cost", mth::kTrainPassCostDefault) : mth::kTrainPassCostDefault;
-            const int max_stat_level = mth::clamp_max_stat_level(data.is_object() ? data.value("max_stat_level", 99) : 99);
-            const int goal_config = data.is_object() ? data.value("goal_config", 0) : 0;
-            const int goal_generators = data.is_object() ? data.value("goal_generators", 99) : 99;
-            const int goal_bosses = data.is_object() ? data.value("goal_bosses", 99) : 99;
-            const bool wallet_cap = data.is_object() && data.value("wallet_cap", 0) != 0;
-            std::vector<int> lit_gen_indices;
-            if (data.is_object())
-                if (auto lg = data.find("lit_generators"); lg != data.end() && lg->is_array())
-                    for (const auto &v : *lg)
-                        if (v.is_number_integer())
-                            lit_gen_indices.push_back(v.get<int>());
-            for (int i : lit_gen_indices)
-                if (i < 0 || i >= mth::kGeneratorLampCount)
-                    pal::logf(pal::LogLevel::Warn, "lit_generators: ignoring out-of-range lamp index %d (valid 0..%d)", i, mth::kGeneratorLampCount - 1);
-            const std::uint32_t lit_generator_lamp_mask = mth::lit_mask_from_indices(lit_gen_indices);
-            // Absent means every generator counts, so a missing key must not collapse to an empty array.
-            std::uint64_t broken_generator_mask = mth::kAllGeneratorsMask;
-            if (data.is_object())
-                if (auto bg = data.find("broken_generators"); bg != data.end() && bg->is_array())
-                {
-                    std::vector<int> broken_indices;
-                    for (const auto &v : *bg)
-                        if (v.is_number_integer())
-                            broken_indices.push_back(v.get<int>());
-                    for (int i : broken_indices)
-                        if (i < 0 || i >= mth::kGeneratorLampCount)
-                            pal::logf(pal::LogLevel::Warn, "broken_generators: generator index %d is outside the expected 0..%d", i,
-                                      mth::kGeneratorLampCount - 1);
-                    broken_generator_mask = mth::broken_generator_mask(broken_indices);
-                }
-            // Locations the apworld pruned from the pool (dungeons the generator goal never requires).
-            // Absent means nothing was pruned, so an empty result is the right default.
-            std::vector<std::int64_t> removed_locations;
-            if (data.is_object())
-                if (auto rl = data.find("removed_locations"); rl != data.end() && rl->is_array())
-                {
-                    for (const auto &v : *rl)
-                        if (v.is_number_integer())
-                            removed_locations.push_back(v.get<std::int64_t>());
-                    if (removed_locations.size() != rl->size())
-                        pal::logf(pal::LogLevel::Warn, "removed_locations: dropped %zu non-integer entr(ies)", rl->size() - removed_locations.size());
-                }
-            if (!removed_locations.empty())
-                pal::logf(pal::LogLevel::Info, "removed_locations: seed prunes %zu location(s)", removed_locations.size());
-            push_event(mth::ApConnected{client_->get_seed(),
-                                        data.is_null() ? std::string{} : data.dump(),
-                                        client_->get_player_number(),
-                                        std::vector<std::int64_t>(checked.begin(), checked.end()),
-                                        std::vector<std::int64_t>(missing.begin(), missing.end()),
-                                        ossex_start,
-                                        kear_mode,
-                                        burrow_rando,
-                                        swim_rando,
-                                        rope_rando,
-                                        puff_rando,
-                                        spring_rando,
-                                        carry_rando,
-                                        train_rando,
-                                        train_pass_cost,
-                                        deathlink,
-                                        max_stat_level,
-                                        goal_config,
-                                        goal_generators,
-                                        broken_generator_mask,
-                                        goal_bosses,
-                                        wallet_cap,
-                                        lit_generator_lamp_mask,
-                                        std::move(removed_locations)});
+            push_event(mth::ApConnected{.seed = client_->get_seed(),
+                                        .slot_data = data.is_null() ? std::string{} : data.dump(),
+                                        .player_slot = client_->get_player_number(),
+                                        .checked_locations = std::vector<std::int64_t>(checked.begin(), checked.end()),
+                                        .missing_locations = std::vector<std::int64_t>(missing.begin(), missing.end()),
+                                        .config = std::move(config)});
 
             // Publish last. The game thread's resend gate keys on is_connected(), so flipping it
             // before ApConnected is drained lets a tick flush the previous seed's checked set to

@@ -87,9 +87,9 @@ HookManager::HookManager(IGameEvents &events, RandoBridge &rando, ScoutRegistry 
 
 HookManager::~HookManager()
 {
-    // GameHooks (the FixedUpdate/World::Update tick source) is torn down FIRST so no tick
-    // fires into partially-destroyed feature hooks; then the feature hooks in App's original
-    // relative order (chest before lock - chest references lock's registry).
+    // Unreached while the entry point leaks App (see entry.cpp). Explicit rather than reverse-declaration
+    // order: GameHooks (the FixedUpdate/World::Update tick source) FIRST so no tick fires into a
+    // half-destroyed feature hook, then App's own order (chest before lock - chest references lock's registry).
     game_hooks_.reset();
     ability_hooks_.reset();
     pawn_shop_hooks_.reset();

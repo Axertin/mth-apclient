@@ -25,6 +25,8 @@ class GoalTracker
   private:
     RandoBridge &bridge_;
     std::uintptr_t save_manager_{0};
+    bool disabled_{false}; // latched by an implausible game-clear read; never polls again
+
     // Last poll, retained for status_lines().
     int config_{0};
     int gens_done_{0};

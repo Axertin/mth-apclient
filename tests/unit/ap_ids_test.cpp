@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "mth/core/ap/ap_ids.hpp"
+#include "mth/core/data/game_layout.hpp"
 
 TEST_CASE("ap_item_id and game_item_type round-trip", "[ap_ids]")
 {
@@ -169,6 +170,17 @@ TEST_CASE("is_vanilla_game_item recognises only item segment 0", "[ap_ids]")
     REQUIRE_FALSE(mth::is_vanilla_game_item(mth::kBlockerItemBase));   // reserved (seg 4)
     REQUIRE_FALSE(mth::is_vanilla_game_item(mth::kTrapItemBase));      // reserved (seg 5)
     REQUIRE_FALSE(mth::is_vanilla_game_item(-1));
+}
+
+TEST_CASE("is_valid_item_type bounds a type against the s_rItems row count", "[ap_ids]")
+{
+    REQUIRE(mth::is_valid_item_type(0));
+    REQUIRE(mth::is_valid_item_type(mth::layout::kItemTypeCount - 1));
+    // Item segment 0 runs to 999, but only the first kItemTypeCount ids are itemTypes.
+    REQUIRE_FALSE(mth::is_valid_item_type(mth::layout::kItemTypeCount));
+    REQUIRE_FALSE(mth::is_valid_item_type(500));
+    REQUIRE_FALSE(mth::is_valid_item_type(999));
+    REQUIRE_FALSE(mth::is_valid_item_type(-1));
 }
 
 TEST_CASE("boss_location_slot maps index into the reserved range", "[boss]")

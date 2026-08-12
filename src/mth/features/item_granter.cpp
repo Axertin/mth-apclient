@@ -146,6 +146,15 @@ bool ItemGranter::grant(int item_type, int receipt)
         return true;
     }
 
+    // Reachable from the socket (a seed id in the vanilla segment above the row count) and from
+    // giveapitem. Ack it so a bad id is dropped rather than retried forever.
+    if (!is_valid_item_type(item_type))
+    {
+        pal::logf(pal::LogLevel::Error, "inbound: refused item_type=%d; not a game itemType (max %d)", item_type, layout::kItemTypeCount - 1);
+        notify_applied(receipt);
+        return true;
+    }
+
     std::lock_guard<std::mutex> lk(g_pending_mtx);
     g_pending.push_back(PendingGrant{item_type, receipt});
     return true;

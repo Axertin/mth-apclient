@@ -5,28 +5,12 @@
 #include <variant>
 #include <vector>
 
-#include "mth/core/ap/ap_ids.hpp" // kTrainPassCostDefault
+#include "mth/core/ap/slot_data.hpp"
 #include "mth/core/broadcast.hpp"
-#include "mth/core/goal_state.hpp" // kAllGeneratorsMask
 #include "mth/core/scout_registry.hpp"
 
 namespace mth
 {
-
-// slot_data "kear_rando". Vanilla puts Universal Kear items (itemType 63) in the pool and they must grant
-// real usable keys; the AP-item modes remove each lock (or each area's locks) with a dedicated AP item, so
-// usable keys carry no meaning and stay pinned at zero. Kear pickup spots are AP locations in every mode.
-enum class KearMode : int
-{
-    Vanilla = 0,
-    ApItems = 1,
-    AreaApItems = 2,
-};
-
-[[nodiscard]] constexpr KearMode kear_mode_from_slot_data(int value) noexcept
-{
-    return value == 0 ? KearMode::Vanilla : (value == 2 ? KearMode::AreaApItems : KearMode::ApItems);
-}
 
 struct ReceivedItem
 {
@@ -44,28 +28,7 @@ struct ApConnected
     int player_slot{-1};
     std::vector<std::int64_t> checked_locations;
     std::vector<std::int64_t> missing_locations;
-    bool ossex_start{false};               // slot_data "ossex_start": force the Landing Done modifier (start at Ossex hub)
-    KearMode kear_mode{KearMode::ApItems}; // slot_data "kear_rando": how kears are randomized (apworld default = ApItems)
-    // slot_data "*_rando": the named ability is AP-randomized; gate it until its AP item is granted.
-    bool burrow_rando{false};
-    bool swim_rando{false};
-    bool rope_rando{false};
-    bool puff_rando{false};
-    bool spring_rando{false};
-    bool carry_rando{false};
-    bool train_rando{true};
-    int train_pass_cost{kTrainPassCostDefault};              // slot_data "train_pass_cost": bones the station machine asks for
-    bool deathlink{false};                                   // slot_data "death_link": bounce/receive deaths over the AP link
-    int max_stat_level{99};                                  // slot_data "max_stat_level": per-stat level ceiling (clamped 10..99; 99 = game's absolute max)
-    int goal_config{0};                                      // slot_data "goal_config": 0=finish, 1=generators, 2=bosses
-    int goal_generators{99};                                 // slot_data "goal_generators": generators needed (default unreachable)
-    std::uint64_t broken_generator_mask{kAllGeneratorsMask}; // slot_data "broken_generators": these count toward the goal
-    int goal_bosses{99};                                     // slot_data "goal_bosses": bosses needed (default unreachable)
-    bool wallet_cap{false};                                  // slot_data "wallet_cap": cap the bone wallet by received wallet items
-    std::uint32_t lit_generator_lamp_mask{0};                // slot_data "lit_generators": force these Ossex fountain lamps lit (visual only)
-    // slot_data "removed_locations": ids the apworld pruned from the pool; treated as already collected.
-    // Keep this last: ap_link_apclient.cpp builds the aggregate positionally, so an earlier insertion shifts every following argument.
-    std::vector<std::int64_t> removed_locations{};
+    SlotDataConfig config{}; // everything read out of slot_data (deathlink already force-off adjusted)
 };
 struct ApItemReceived
 {

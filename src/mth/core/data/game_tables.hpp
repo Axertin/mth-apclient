@@ -3,6 +3,8 @@
 #include <bit>
 #include <cstdint>
 
+#include "mth/core/data/game_layout.hpp"
+
 namespace mth::tables
 {
 
@@ -95,6 +97,15 @@ void resolve();
     return owned_mask == 0 ? 0 : std::bit_width(owned_mask) - 1;
 }
 
+// Plausibility of one family's pair of durable weapon fields (SaveSlot+0xc24 owned bits, +0xc38 active tier),
+// read before the clamp masks and rewrites all 40 bytes of them. Three tiers exist and the active field is a
+// bit index into them, so a wider mask or a tier outside 0..2 means the offsets drifted, and the unchecked
+// clamp would corrupt whatever now sits there. Pure so it is unit-testable.
+[[nodiscard]] constexpr bool weapon_fields_in_domain(std::uint32_t owned, int active) noexcept
+{
+    return (owned & ~mth::layout::kWeaponTierBits) == 0 && active >= 0 && active < std::bit_width(mth::layout::kWeaponTierBits);
+}
+
 // Gate on the weapon ownership clamp, which is a destructive write: an empty authorized mask over a save
 // that owns weapons is exactly what a receipt list that has not loaded yet looks like, and clamping then
 // would delete the player's weapons permanently. The seed always precollects a starting weapon, so an
@@ -123,6 +134,20 @@ void resolve();
 [[nodiscard]] std::uint64_t collection_name_key(int idx);
 [[nodiscard]] int collection_warp_remap(int idx); // <0 = no remap
 [[nodiscard]] std::uint8_t collection_bit_index(int slot);
+
+// Effective slot of a name-scan result: a matched row's warp-remap field redirects it to another slot,
+// and <0 there means the matched index is itself the slot. Unmatched (<0) stays unresolved. Pure so it is unit-testable.
+[[nodiscard]] constexpr int warp_resolved_slot(int matched_idx, int warp_remap) noexcept
+{
+    if (matched_idx < 0)
+        return -1;
+    return warp_remap < 0 ? matched_idx : warp_remap;
+}
+
+// Name-hash -> effective collection slot, the resolve every live object shares (KeyBlock, KeyBlockChain,
+// locked Chest): scan s_rItemCollection for the key, then warp-resolve the hit. -1 if unmatched or
+// unresolved. Mirrors KeyBlock::SetSaveUnlocked's own scan.
+[[nodiscard]] int collection_slot_for_name_key(std::uint64_t name_key);
 
 // Patch s_rItems[kApDummyItemType]: kind 0 (no-op grant) + sprite assets from the donor row.
 // Idempotent; best-effort (skipped + logged if s_rItems unresolved or mprotect fails).

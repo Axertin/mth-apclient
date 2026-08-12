@@ -6,8 +6,13 @@
 #   mthap      : final module (mod.so / mod.dll). Composition root.
 #                Added in a later task; guarded on NOT MTHAP_BUILD_TESTS_ONLY.
 
+# Header-only, and mthap_core parses the server's slot_data blob, so it is a core
+# dependency of both lanes rather than part of the net feature.
+find_package(nlohmann_json CONFIG REQUIRED)
+
 add_library(mthap_core STATIC
     core/ap/ap_state.cpp
+    core/ap/slot_data.cpp
     core/ap_gate.cpp
     core/ap/ap_coordinator.cpp
     core/broadcast.cpp
@@ -31,6 +36,7 @@ add_library(mthap_core STATIC
 )
 
 target_include_directories(mthap_core PUBLIC "${CMAKE_SOURCE_DIR}/src")
+target_link_libraries(mthap_core PUBLIC nlohmann_json::nlohmann_json)
 target_compile_features(mthap_core PUBLIC cxx_std_23)
 set_target_properties(mthap_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
@@ -43,7 +49,6 @@ if(NOT MTHAP_BUILD_TESTS_ONLY)
         find_package(asio CONFIG REQUIRED)
         find_package(OpenSSL REQUIRED)
         find_package(ZLIB REQUIRED)
-        find_package(nlohmann_json CONFIG REQUIRED)
 
         add_library(mthap_net STATIC
             net/ap_link_apclient.cpp

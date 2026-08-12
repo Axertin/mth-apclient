@@ -42,6 +42,14 @@ inline constexpr int kGoalFinish = 0;     // beat the game (SaveSlot game-clear 
 inline constexpr int kGoalGenerators = 1; // repair >= goal_generators generators
 inline constexpr int kGoalBosses = 2;     // defeat >= goal_bosses bosses
 
+// Plausibility bound for the SaveSlot game-clear flag: the game stores it as a boolean byte, so anything
+// above 1 means the offset drifted onto unrelated memory. Reporting the goal is irreversible on the server,
+// which is why the caller fails closed on a single implausible read instead of retrying.
+[[nodiscard]] inline constexpr bool game_clear_flag_in_domain(unsigned char value) noexcept
+{
+    return value <= 1;
+}
+
 // Whether the configured goal is satisfied by the polled SaveSlot state. Pure so it is unit-testable.
 [[nodiscard]] constexpr bool goal_met(int config, int gens_needed, int bosses_needed, bool game_cleared, int gens_done, int bosses_done) noexcept
 {
