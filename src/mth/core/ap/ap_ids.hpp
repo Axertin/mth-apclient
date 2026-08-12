@@ -4,6 +4,8 @@
 #include <cstdint>
 #include <span>
 
+#include "mth/core/data/game_layout.hpp"
+
 namespace mth
 {
 
@@ -29,6 +31,14 @@ inline constexpr std::int64_t ap_item_id(int item_type)
 inline constexpr int game_item_type(std::int64_t ap_item_id_)
 {
     return static_cast<int>(ap_item_id_ - kItemBase);
+}
+
+// Whether a type is a real s_rItems row. The vanilla item segment is 1000 ids wide but the table has only
+// kItemTypeCount rows, so a server (or console) id in the tail carries no itemType and granting it would
+// index the table out of bounds.
+[[nodiscard]] inline constexpr bool is_valid_item_type(int item_type) noexcept
+{
+    return item_type >= 0 && item_type < layout::kItemTypeCount;
 }
 
 // Capacity upgrades: vanilla itemTypes 68..72 (Magic, Health, Spark, Vial, Trinket), stored as a
