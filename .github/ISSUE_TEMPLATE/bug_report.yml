@@ -42,8 +42,8 @@ body:
         Attach the log file by dragging it into this box (preferred). Pasting the contents works too. 
         If GitHub rejects the .log extension, zip it or rename it to .txt.
         The mod logs can be found in the following locations:
-        - Windows: `%LOCALAPPDATA%\mth-apclient\mthap-<timestamp>.log`
-        - Linux: `~/.local/share/mth-apclient/mthap-<timestamp>.log`
+        - Windows: `%LOCALAPPDATA%\mth-apclient\mthap_<timestamp>.log`
+        - Linux: `~/.local/share/mth-apclient/mthap_<timestamp>.log`
         Also upload the crash dump if the game crashed (in the same directory as the log).
     validations:
       required: true

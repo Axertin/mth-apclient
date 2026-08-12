@@ -75,9 +75,9 @@ close it.
 | `connect <server> <slot> [pw]` | Connect to an Archipelago server.   |
 | `disconnect`                   | Disconnect from the server.         |
 
-`help` also lists diagnostic commands (`deathlink`, `giveapitem`, `caps`,
-`ability`, `modifier`, `litlamps`) used for testing. Normal play needs none of
-them.
+`help` also lists diagnostic commands (`gate`, `deathlink`, `giveapitem`,
+`removelock`, `caps`, `ability`, `modifier`, `modifiers`, `litlamps`, `savetest`)
+used for testing. Normal play needs none of them.
 
 ## Features
 
@@ -92,7 +92,7 @@ item set.
 
 ### Items
 
-Abilities (Burrow, Carry, Swim, Climb, Spring, Bounce), progressive Weapon
+Abilities (Burrow, Carry, Swim, Climb, Spring, Bounce, Train), progressive Weapon
 upgrades, Trinkets, Trinket Bags, Health / Spark / Magic (Sidearm) / Vial /
 Underlab upgrades, Kear Locks (one lock per item), Bone-Up stat caps, Bonestone
 and Bones (various quantities), and Magic / Health / Plasma / Vial refills.
@@ -129,9 +129,11 @@ Check the loader `mod.log`. Common causes:
   directory's `mods/`, not the Steam install folder, and must contain both the
   library and `mod.yc`.
 - **Wrong binary for the platform.** Linux uses `mod.so`. Windows uses `mod.dll`.
-- **Game-version mismatch.** `mod.yc` declares a supported game-version range. A
-  beta build outside it fails the loader's version check (logged in `mod.log`).
-  Update the game, or use a matching mod release.
+- **Game build too old.** `mod.yc` declares a minimum supported game build, and an
+  older one fails the loader's version check (logged in `mod.log`). Update the
+  game, or use a matching mod release. There is no upper bound, so a newer build
+  always loads; if it broke something, the mod says so in its own log and in an
+  in-game banner rather than refusing to run.
 
 ### Connection fails
 

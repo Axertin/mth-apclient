@@ -1,10 +1,12 @@
 # mth-apclient: pure game logic (mthap_core) + final mod module (mthap).
 #
-#   mthap_core : pure, cross-platform logic. The unit tests link ONLY this.
-#                No PAL-impl, backend, or OS headers - header includes from
-#                src/pal/ are fine, but nothing that needs linking.
+#   mthap_core : pure, cross-platform logic. The unit tests link this without the
+#                module or a hook backend, so: no PAL-impl, backend, or OS headers
+#                - header includes from src/pal/ are fine, but nothing that needs
+#                linking. (See tests/CMakeLists.txt for the rest of the test link.)
+#   mthap_net  : Archipelago link, guarded on MTHAP_ENABLE_NET.
 #   mthap      : final module (mod.so / mod.dll). Composition root.
-#                Added in a later task; guarded on NOT MTHAP_BUILD_TESTS_ONLY.
+#                Guarded on NOT MTHAP_BUILD_TESTS_ONLY.
 
 # Header-only, and mthap_core parses the server's slot_data blob, so it is a core
 # dependency of both lanes rather than part of the net feature.
@@ -161,13 +163,14 @@ if(NOT MTHAP_BUILD_TESTS_ONLY)
             "LINKER:-z,now"
             "LINKER:--exclude-libs,ALL"
         )
-        # Guard against the .so requiring glibc symbol versions newer than the
-        # Steam Linux Runtime provides (which makes the mod fail to load in-game
-        # silently: no log, no window). Turns that into a loud build failure.
+        # Guard against the .so requiring glibc symbol versions newer than the oldest
+        # supported host distro (which makes the mod fail to load in-game silently:
+        # no log, no window). Turns that into a loud build failure. See the script's
+        # header for why the ceiling is not the sniper container's own glibc.
         add_custom_command(TARGET mthap POST_BUILD
             COMMAND "${CMAKE_SOURCE_DIR}/scripts/check-glibc-max.sh" "$<TARGET_FILE:mthap>"
             VERBATIM
-            COMMENT "Checking max required glibc symbol version (Steam Runtime compat)")
+            COMMENT "Checking max required glibc symbol version (host glibc floor)")
     endif()
 
     # Mod manifest: packed semver + configured game-version range. add_git_version_info

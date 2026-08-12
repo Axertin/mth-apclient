@@ -4,7 +4,7 @@ How the client locates and hooks game functions, and how to add a Windows
 signature by hand when the game updates. Read [architecture.md](architecture.md)
 first for the target layout and the PAL boundary.
 
-The game runs on a custom engine (`Propeller`). It renders with Vulkan on Linux and
+The game runs on a custom engine (`yc`). It renders with Vulkan on Linux and
 Direct3D 12 on Windows. Game-logic classes appear as `Player::`, `Mina::`,
 `CombatCore::`, boss classes, and `*Component::`. The engine layer is `yc*`. The
 update system is queue-based (`X::Update(ycUpdateQueueContext*)`).
@@ -17,15 +17,23 @@ The client intercepts game code two ways. It prefers the first.
 
 The game's mod loader exposes named hook points. Register a callback with
 `mm->InstallHook("<name>", ...)`. It fires wherever the game runs that hook site,
-on both platforms, and from every inlined copy of the target. Documented hook
-points include `FixedUpdate`, `WorldUpdate`, `WorldConstruct`, `WorldDestroy`,
-`GameStateTransition`, `GameShutdown`, and `IsItemCollected`.
+on both platforms, and from every inlined copy of the target. The client installs
+`IsItemCollected`, `WorldUpdate`, `WorldUpdateEnd`, `WorldDestroy`,
+`ItemsOnPickup`, `ItemsOnPickupDone`, `PickupOnPickup`, `ShopItemRefresh`,
+`AreaManagerNewArea`, and `ChestConstruct`.
 
 Prefer a named hook wherever the game exposes one. It is platform-agnostic and
 survives inlining. Confirm a named hook fires in-game before trusting it over a
 working detour. If `GetGameRevision()` returns 0 at startup, the native hooks are
 inert on that build. Any grant or collection redirect built on them then silently
 does nothing.
+
+A named hook cannot replace a detour where the mod has to run *after* the
+original, or call the target itself: the hook contexts hand back no callable
+original. `FixedUpdate` is such a case. The client detours it and uses the hook
+name only as an address anchor, because a hook name's 64-bit hash is compiled
+into its dispatch site, which pins the enclosing function without a carved
+signature (see `src/mth/core/data/native_sym_names.hpp`).
 
 ### Signature and symbol detours
 
@@ -38,13 +46,18 @@ On Linux the shipping build is not stripped and ships DWARF. Functions resolve b
 mangled symbol name via Frida's symbol table. Frida also provides Stalker and
 MemoryAccessMonitor for runtime RE against the unstripped binary.
 
-On Windows the shipping PE is stripped. Functions are located by scanning the
-loaded module's `.text` section for masked byte signatures, described below.
+On Windows the shipping PE is stripped, so there is no symbol table to resolve
+against. Functions are located by the fallback chain described below.
 
 ## Windows signatures
 
-On Windows, `pal::resolve_game_symbol(name)` scans `.text` for a masked byte
-signature instead of resolving by name. The pure matcher is
+On Windows, `pal::resolve_game_symbol(name)` cannot resolve by name, so it tries
+three sources in order. First the mod API's `GetSymAddr`, for the names the game
+itself exposes (mapped from mangled to plain in
+`src/mth/core/data/native_sym_names.hpp`); those addresses come from the game and
+cannot drift. Then a hook anchor, where a hook name's 64-bit hash is compiled
+into the dispatch site inside the target function. Only then the carved signature
+table, scanning `.text` for a masked byte pattern. The pure matcher is
 `src/mth/core/sig_scan.cpp` (`mth::sig::find_masked` / `resolve`), linked into
 `mthap_core` and unit-tested in `tests/unit/sig_scan_test.cpp`. There are two
 entry kinds. A `Code` entry resolves to the function address directly. A

@@ -25,7 +25,7 @@ enum class CommandKind
     Disconnect,
     Deathlink, // args: [on|off]
     LitLamps,  // args: [lamp indices 0..5 | off] (force Ossex fountain lamps lit; offline test)
-    SaveTest   // args: dump|write|noflush|flush|launch|activate (save-takeover validation; dev only)
+    SaveTest   // args: dump|write|noflush|flush (save-takeover validation; dev only)
 };
 
 struct ParsedCommand

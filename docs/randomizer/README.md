@@ -13,12 +13,13 @@ shows them `+0x100000`).
 
 **These addresses are build-specific.** Function addresses move between revisions
 (confirmed: `r147980` -> `r148053`, same semver, functions shifted, data tables
-byte-identical), and the shipping Windows binary is a stripped PE. So the client
-does **not** resolve by symbol name -- it keys a per-build offset table on the
-Steam build id (`ISteamApps::GetAppBuildId()` == the in-game `[r]` revision) and
-fails closed on an unknown build; a signature scanner replaces the table later.
-See `PLAN.md`. The un-stripped Linux build (and the preserved `r147980` backup) is
-a development reference only.
+byte-identical), so the client never keys on an absolute address at runtime. On
+Linux it resolves by mangled symbol name, the shipping build being un-stripped. On
+Windows, where the shipping binary is a stripped PE, it asks the game's mod API
+first, falls back to a hook-name-hash anchor, and only then to a carved byte
+signature. See [../reverse-engineering.md](../reverse-engineering.md). The
+un-stripped Linux build (and the preserved `r147980` backup) is a development
+reference only.
 
 ---
 
