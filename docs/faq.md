@@ -135,7 +135,7 @@ The mod did not load. Check the loader log (`mod.log` in the game's save directo
 
 ### It worked yesterday and broke after a game update
 
-The mod declares a supported game-version range in `mod.yc`, and the loader refuses it outside that range. The beta branch moves; grab a matching mod release, and check `mod.log` for the version-check line.
+`mod.yc` declares a minimum supported game build and the loader refuses anything older, but the upper bound is deliberately left open, so a newer beta build always loads whether or not the mod was tested against it. The mod checks itself at startup instead: it reports the verdict to its log (the `gate:` lines) and, when something it depends on has moved, shows an in-game banner. That report is not enforced by default, so the client keeps running in a degraded state rather than switching itself off. The beta branch moves; grab a matching mod release, and check `mod.log` for the loader's version-check line.
 
 ### How do I report a bug?
 
