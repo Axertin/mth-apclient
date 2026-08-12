@@ -327,7 +327,7 @@ TEST_CASE("rando_bridge: a removed location reads as a checked AP location", "[m
     mth::test::FakeApLink link;
     link.connected = true;
     mth::ApState state;
-    state.apply(mth::ApConnected{.slot_data = "{}", .player_slot = 1, .missing_locations = {ap_loc_id(5)}, .removed_locations = {ap_loc_id(40)}});
+    state.apply(mth::ApConnected{.slot_data = "{}", .player_slot = 1, .missing_locations = {ap_loc_id(5)}, .config = {.removed_locations = {ap_loc_id(40)}}});
     mth::RandoBridge bridge(link, state);
 
     REQUIRE(bridge.is_ap_location(40)); // opens the suppression gates
@@ -348,7 +348,7 @@ TEST_CASE("rando_bridge: a removed location is never persisted, sent, or flushed
     mth::test::FakeApLink link;
     link.connected = true;
     mth::ApState state;
-    state.apply(mth::ApConnected{.slot_data = "{}", .player_slot = 1, .missing_locations = {ap_loc_id(5)}, .removed_locations = {ap_loc_id(40)}});
+    state.apply(mth::ApConnected{.slot_data = "{}", .player_slot = 1, .missing_locations = {ap_loc_id(5)}, .config = {.removed_locations = {ap_loc_id(40)}}});
     mth::RandoBridge bridge(link, state);
     bridge.attach_save_state(save);
 
@@ -371,7 +371,7 @@ TEST_CASE("rando_bridge: a removed location is not reconciled or scouted", "[mth
     mth::test::FakeApLink link;
     link.connected = true;
     mth::ApState state;
-    state.apply(mth::ApConnected{.slot_data = "{}", .player_slot = 1, .missing_locations = {ap_loc_id(5)}, .removed_locations = {ap_loc_id(40)}});
+    state.apply(mth::ApConnected{.slot_data = "{}", .player_slot = 1, .missing_locations = {ap_loc_id(5)}, .config = {.removed_locations = {ap_loc_id(40)}}});
     mth::RandoBridge bridge(link, state);
     bridge.attach_save_state(save);
 
@@ -389,7 +389,7 @@ TEST_CASE("rando_bridge: a removed location suppresses without a save attached",
     mth::test::FakeApLink link;
     link.connected = true;
     mth::ApState state;
-    state.apply(mth::ApConnected{.slot_data = "{}", .player_slot = 1, .missing_locations = {ap_loc_id(5)}, .removed_locations = {ap_loc_id(40)}});
+    state.apply(mth::ApConnected{.slot_data = "{}", .player_slot = 1, .missing_locations = {ap_loc_id(5)}, .config = {.removed_locations = {ap_loc_id(40)}}});
     mth::RandoBridge bridge(link, state); // no attach_save_state
 
     REQUIRE(bridge.is_checked(40)); // session fallback must not shadow the removed set
@@ -413,7 +413,7 @@ TEST_CASE("rando_bridge: flush excludes a removed id even from a stale statefile
     mth::test::FakeApLink link;
     link.connected = true;
     mth::ApState state;
-    state.apply(mth::ApConnected{.slot_data = "{}", .player_slot = 1, .missing_locations = {ap_loc_id(5)}, .removed_locations = {ap_loc_id(40)}});
+    state.apply(mth::ApConnected{.slot_data = "{}", .player_slot = 1, .missing_locations = {ap_loc_id(5)}, .config = {.removed_locations = {ap_loc_id(40)}}});
     mth::RandoBridge bridge(link, state);
     bridge.attach_save_state(save);
 

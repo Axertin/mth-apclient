@@ -56,24 +56,7 @@ void ApState::apply(const ApEvent &ev)
                 seed_ = e.seed;
                 slot_data_ = e.slot_data;
                 player_slot_ = e.player_slot;
-                ossex_start_ = e.ossex_start;
-                kear_mode_ = e.kear_mode;
-                burrow_rando_ = e.burrow_rando;
-                swim_rando_ = e.swim_rando;
-                rope_rando_ = e.rope_rando;
-                puff_rando_ = e.puff_rando;
-                spring_rando_ = e.spring_rando;
-                carry_rando_ = e.carry_rando;
-                train_rando_ = e.train_rando;
-                train_pass_cost_ = e.train_pass_cost;
-                deathlink_ = e.deathlink;
-                max_stat_level_ = e.max_stat_level;
-                goal_config_ = e.goal_config;
-                goal_generators_ = e.goal_generators;
-                goal_bosses_ = e.goal_bosses;
-                broken_generator_mask_ = e.broken_generator_mask;
-                wallet_cap_ = e.wallet_cap;
-                lit_generator_lamp_mask_ = e.lit_generator_lamp_mask;
+                config_ = e.config;
                 valid_locations_.clear();
                 valid_locations_.insert(e.checked_locations.begin(), e.checked_locations.end());
                 valid_locations_.insert(e.missing_locations.begin(), e.missing_locations.end());
@@ -82,7 +65,7 @@ void ApState::apply(const ApEvent &ev)
                 // AP expects and make the seed uncompletable, so the server's view wins and it stays real.
                 removed_locations_.clear();
                 std::size_t removed_overlap = 0;
-                for (std::int64_t id : e.removed_locations)
+                for (std::int64_t id : e.config.removed_locations)
                 {
                     if (valid_locations_.contains(id))
                         ++removed_overlap;
@@ -101,9 +84,9 @@ void ApState::apply(const ApEvent &ev)
                 pal::logf(pal::LogLevel::Info,
                           "ap_state: CONNECTED slot=%d seed=%s slot_data=%zuB ossex_start=%d kear_rando=%d train_rando=%d train_pass_cost=%d "
                           "max_stat_level=%d; valid_locations=%zu (checked=%zu missing=%zu) id_range=[%lld..%lld]",
-                          player_slot_, seed_.c_str(), slot_data_.size(), ossex_start_, static_cast<int>(kear_mode_), train_rando_, train_pass_cost_,
-                          max_stat_level_, valid_locations_.size(), e.checked_locations.size(), e.missing_locations.size(), static_cast<long long>(lo),
-                          static_cast<long long>(hi));
+                          player_slot_, seed_.c_str(), slot_data_.size(), config_.ossex_start, static_cast<int>(config_.kear_mode), config_.train_rando,
+                          config_.train_pass_cost, config_.max_stat_level, valid_locations_.size(), e.checked_locations.size(), e.missing_locations.size(),
+                          static_cast<long long>(lo), static_cast<long long>(hi));
                 if (!removed_locations_.empty())
                     pal::logf(pal::LogLevel::Info, "ap_state: %zu location(s) removed by slot_data; treated as already collected", removed_locations_.size());
                 if (removed_overlap != 0)

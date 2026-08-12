@@ -358,30 +358,12 @@ void ApLink::setup_handlers(const std::string &slot, const std::string &password
 
             auto missing = client_->get_missing_locations();
             auto checked = client_->get_checked_locations();
-            push_event(mth::ApConnected{client_->get_seed(),
-                                        data.is_null() ? std::string{} : data.dump(),
-                                        client_->get_player_number(),
-                                        std::vector<std::int64_t>(checked.begin(), checked.end()),
-                                        std::vector<std::int64_t>(missing.begin(), missing.end()),
-                                        config.ossex_start,
-                                        config.kear_mode,
-                                        config.burrow_rando,
-                                        config.swim_rando,
-                                        config.rope_rando,
-                                        config.puff_rando,
-                                        config.spring_rando,
-                                        config.carry_rando,
-                                        config.train_rando,
-                                        config.train_pass_cost,
-                                        config.deathlink,
-                                        config.max_stat_level,
-                                        config.goal_config,
-                                        config.goal_generators,
-                                        config.broken_generator_mask,
-                                        config.goal_bosses,
-                                        config.wallet_cap,
-                                        config.lit_generator_lamp_mask,
-                                        std::move(config.removed_locations)});
+            push_event(mth::ApConnected{.seed = client_->get_seed(),
+                                        .slot_data = data.is_null() ? std::string{} : data.dump(),
+                                        .player_slot = client_->get_player_number(),
+                                        .checked_locations = std::vector<std::int64_t>(checked.begin(), checked.end()),
+                                        .missing_locations = std::vector<std::int64_t>(missing.begin(), missing.end()),
+                                        .config = std::move(config)});
 
             // Publish last. The game thread's resend gate keys on is_connected(), so flipping it
             // before ApConnected is drained lets a tick flush the previous seed's checked set to

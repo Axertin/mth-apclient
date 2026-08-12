@@ -29,22 +29,21 @@ TEST_CASE("ap_state: ApConnected populates slot/locations and authenticates", "[
 TEST_CASE("ap_state: ossex_start flows from ApConnected", "[mth][ap_state]")
 {
     mth::ApState s;
-    s.apply(mth::ApConnected{{}, "{}", 1, {}, {}, true});
+    s.apply(mth::ApConnected{.slot_data = "{}", .player_slot = 1, .config = {.ossex_start = true}});
     REQUIRE(s.ossex_start());
 }
 
 TEST_CASE("ap_state: deathlink flows from ApConnected", "[mth][ap_state]")
 {
     mth::ApState s;
-    s.apply(mth::ApConnected{
-        {}, "{}", 1, {}, {}, false, mth::KearMode::ApItems, false, false, false, false, false, false, false, mth::kTrainPassCostDefault, true});
+    s.apply(mth::ApConnected{.slot_data = "{}", .player_slot = 1, .config = {.deathlink = true}});
     REQUIRE(s.deathlink());
 }
 
 TEST_CASE("ap_state: kear_rando flows from ApConnected", "[mth][ap_state]")
 {
     mth::ApState s;
-    s.apply(mth::ApConnected{{}, "{}", 1, {}, {}, false, mth::KearMode::ApItems});
+    s.apply(mth::ApConnected{.slot_data = "{}", .player_slot = 1, .config = {.kear_mode = mth::KearMode::ApItems}});
     REQUIRE(s.kear_mode() == mth::KearMode::ApItems);
 }
 
@@ -55,7 +54,7 @@ TEST_CASE("ap_state: kear_rando flows from ApConnected", "[mth][ap_state]")
 TEST_CASE("ap_state: vanilla kear mode does not suppress usable keys", "[mth][ap_state]")
 {
     mth::ApState s;
-    s.apply(mth::ApConnected{{}, "{}", 1, {}, {}, false, mth::KearMode::Vanilla});
+    s.apply(mth::ApConnected{.slot_data = "{}", .player_slot = 1, .config = {.kear_mode = mth::KearMode::Vanilla}});
     REQUIRE(s.kear_mode() == mth::KearMode::Vanilla);
     REQUIRE_FALSE(s.kear_keys_suppressed());
 }
@@ -63,11 +62,11 @@ TEST_CASE("ap_state: vanilla kear mode does not suppress usable keys", "[mth][ap
 TEST_CASE("ap_state: AP-item kear modes suppress usable keys", "[mth][ap_state]")
 {
     mth::ApState s;
-    s.apply(mth::ApConnected{{}, "{}", 1, {}, {}, false, mth::KearMode::ApItems});
+    s.apply(mth::ApConnected{.slot_data = "{}", .player_slot = 1, .config = {.kear_mode = mth::KearMode::ApItems}});
     REQUIRE(s.kear_keys_suppressed());
 
     mth::ApState area;
-    area.apply(mth::ApConnected{{}, "{}", 1, {}, {}, false, mth::KearMode::AreaApItems});
+    area.apply(mth::ApConnected{.slot_data = "{}", .player_slot = 1, .config = {.kear_mode = mth::KearMode::AreaApItems}});
     REQUIRE(area.kear_keys_suppressed());
 }
 
@@ -155,7 +154,7 @@ TEST_CASE("ApState exposes lit_generator_lamp_mask from ApConnected", "[ap_state
     mth::ApState state;
     mth::ApConnected ev;
     ev.player_slot = 1;
-    ev.lit_generator_lamp_mask = 0x2A;
+    ev.config.lit_generator_lamp_mask = 0x2A;
     state.apply(mth::ApEvent{ev});
     REQUIRE(state.lit_generator_lamp_mask() == 0x2Au);
 }
@@ -200,7 +199,7 @@ TEST_CASE("ap_state: an item index reused by the next server is not swallowed as
 TEST_CASE("ap_state: removed locations are tracked and cleared on session reset", "[mth][ap_state]")
 {
     mth::ApState s;
-    s.apply(mth::ApConnected{.slot_data = "{}", .player_slot = 1, .missing_locations = {5, 6}, .removed_locations = {40, 41}});
+    s.apply(mth::ApConnected{.slot_data = "{}", .player_slot = 1, .missing_locations = {5, 6}, .config = {.removed_locations = {40, 41}}});
     REQUIRE(s.is_removed_location(40));
     REQUIRE(s.is_removed_location(41));
     REQUIRE_FALSE(s.is_removed_location(5));
@@ -214,7 +213,8 @@ TEST_CASE("ap_state: removed locations are tracked and cleared on session reset"
 TEST_CASE("ap_state: a removed id the server still lists stays a real check", "[mth][ap_state]")
 {
     mth::ApState s;
-    s.apply(mth::ApConnected{.slot_data = "{}", .player_slot = 1, .checked_locations = {7}, .missing_locations = {5, 6}, .removed_locations = {5, 7, 40}});
+    s.apply(mth::ApConnected{
+        .slot_data = "{}", .player_slot = 1, .checked_locations = {7}, .missing_locations = {5, 6}, .config = {.removed_locations = {5, 7, 40}}});
 
     REQUIRE_FALSE(s.is_removed_location(5)); // in missing_locations, so the server's view wins
     REQUIRE_FALSE(s.is_removed_location(7)); // in checked_locations, likewise
@@ -226,7 +226,7 @@ TEST_CASE("ap_state: a removed id the server still lists stays a real check", "[
 TEST_CASE("ap_state: a disconnect keeps the removed set", "[mth][ap_state]")
 {
     mth::ApState s;
-    s.apply(mth::ApConnected{.slot_data = "{}", .player_slot = 1, .missing_locations = {5}, .removed_locations = {40}});
+    s.apply(mth::ApConnected{.slot_data = "{}", .player_slot = 1, .missing_locations = {5}, .config = {.removed_locations = {40}}});
     s.apply(mth::ApDisconnected{});
 
     REQUIRE_FALSE(s.authenticated());
