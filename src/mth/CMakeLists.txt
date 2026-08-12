@@ -41,6 +41,7 @@ add_library(mthap_core STATIC
     core/area_reporter.cpp
     core/save/ap_save_store.cpp
     core/save/zip_archive.cpp
+    core/save/ap_save_bundle.cpp
     core/save/takeover_state.cpp
 )
 
