@@ -149,7 +149,7 @@ std::uintptr_t scan_resolve(const char *mangled_name)
     // `cmove r9,[rip+g_saveManager]` (4c 0f 44 0d, 8-byte) - the "default a null SaveSlot* to the
     // active slot" idiom - is UNIQUE in .text, so scan the whole section for it and read its RIP
     // target. Survives function moves across builds (no anchor symbol needed); a future build that
-    // adds a second such cmov would shift this to the first match (caught by the logged address).
+    // adds a second such cmov makes the scan ambiguous, and it fails rather than picking one.
     if (std::strcmp(mangled_name, "g_saveManager") == 0)
     {
         std::uintptr_t addr = 0;
@@ -162,7 +162,7 @@ std::uintptr_t scan_resolve(const char *mangled_name)
             addr = mth::sig::find_riprel_load(text, text_base, kCmove, sizeof(kCmove), /*disp_off=*/4, /*insn_len=*/8);
         }
         if (addr == 0)
-            logf(LogLevel::Error, "sig: g_saveManager not resolved (no `cmov r9,[rip]` in .text)");
+            logf(LogLevel::Error, "sig: g_saveManager not resolved (no unique `cmov r9,[rip]` in .text)");
         cache[mangled_name] = addr;
         return addr;
     }

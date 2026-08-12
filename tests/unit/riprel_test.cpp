@@ -31,6 +31,23 @@ TEST_CASE("find_riprel_load returns 0 when no opcode matches", "[sig]")
     REQUIRE(mth::sig::find_riprel_load({small, sizeof(small)}, 0x1000, op, sizeof(op), /*disp_off=*/4, /*insn_len=*/8) == 0ULL);
 }
 
+TEST_CASE("find_riprel_load fails on an ambiguous match", "[sig]")
+{
+    // Two identical loads in the window: nothing says which global the fingerprint meant, and picking one
+    // would silently point g_saveManager at a foreign global. Fail like find_masked/resolve do.
+    std::uint8_t buf[32] = {};
+    const std::uint8_t op[] = {0x4c, 0x0f, 0x44, 0x0d};
+    for (std::size_t at : {std::size_t{1}, std::size_t{16}})
+    {
+        buf[at + 0] = 0x4c;
+        buf[at + 1] = 0x0f;
+        buf[at + 2] = 0x44;
+        buf[at + 3] = 0x0d;
+        buf[at + 5] = 0x10; // disp32 = 0x1000
+    }
+    REQUIRE(mth::sig::find_riprel_load({buf, sizeof(buf)}, 0x1000, op, sizeof(op), /*disp_off=*/4, /*insn_len=*/8) == 0ULL);
+}
+
 TEST_CASE("find_riprel_load locates the first matching opcode in a window", "[sig]")
 {
     std::uint8_t buf[32] = {};

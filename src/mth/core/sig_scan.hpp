@@ -48,8 +48,9 @@ std::uintptr_t resolve(std::span<const std::uint8_t> region, std::uintptr_t regi
 // disp_off = byte offset of the disp32 within the instruction; insn_len = total length.
 [[nodiscard]] std::uintptr_t read_riprel_target(const std::uint8_t *insn, std::uintptr_t insn_addr, int disp_off, int insn_len);
 
-// Scan up to region.size() bytes for the first instruction whose first `op_len` bytes
-// equal `op`, then return its RIP-relative target. Returns 0 if not found.
+// Scan region.size() bytes for the instruction whose first `op_len` bytes equal `op`, then
+// return its RIP-relative target. Returns 0 on a miss or an ambiguous (non-unique) match,
+// like resolve(): a second site means nothing identifies which global was meant.
 [[nodiscard]] std::uintptr_t find_riprel_load(std::span<const std::uint8_t> region, std::uintptr_t region_base, const std::uint8_t *op, std::size_t op_len,
                                               int disp_off, int insn_len);
 
