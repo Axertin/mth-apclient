@@ -64,10 +64,10 @@ inline constexpr std::ptrdiff_t kPlayerKearSpentOff = 0x11b0; // int spent-count
 inline constexpr std::ptrdiff_t kSaveGeneratorBitsOff = 0x290; // u64 generator-fixed bitfield (BossComponent::SetGeneratorFixed sets a bit per generator)
 inline constexpr std::ptrdiff_t kSaveGameClearOff = 0xd30;     // u8 game-cleared flag (set by GigaLionelBoss::EndingTransition)
 
-// Chosen starting weapon (the SaveSlot constructor writes -1 = none). Weapons::GetStarterReplacement keys
-// its collection-slot remap on this, so anything but -1 rewrites that weapon's tier-3 slot to the whip's
-// (16). Weapon OWNERSHIP is elsewhere (+0xc24/+0xc38 bits, name string at +0x138), so clearing this costs
-// the player nothing.
+// Chosen starting weapon (the SaveSlot constructor writes -1 = none); Weapons::GetStarterReplacement keys
+// its collection-slot remap on this (see tables::should_clear_starter_swap for what the remap breaks). Weapon
+// OWNERSHIP is elsewhere (+0xc24/+0xc38 bits, name string at +0x138), so clearing this costs the player
+// nothing.
 inline constexpr std::ptrdiff_t kSaveStarterWeaponTypeOff = 0xc60; // int: starter weapon type, -1 = no swap
 
 // Weapon ownership, one entry per family (Whip, Hammer, Daggers, Buster Bat, Casket). +0xc24 is the owned-tier
@@ -146,13 +146,12 @@ inline constexpr std::ptrdiff_t kSaveSlotStride = 0x11c8;
 inline constexpr std::ptrdiff_t kTicketMachineInteractOff = 0x1b0; // TicketMachine -> InteractComponent*
 inline constexpr std::ptrdiff_t kInteractDisabledOff = 0x23a;      // u8: nonzero = never interactable
 
-// CheckpointChest and the WeaponsChestMenu it builds when opened. The chest's starter-mode byte is set
-// only by NPCBehavior_IntroWeaponSelect and is copied into the menu at build time; it is what turns one
-// shared menu class into the intro's grant-a-starting-weapon chest instead of the ordinary weapon-change
-// chest, which lists owned weapons only, equips the pick and grants nothing. Clearing it on both objects
-// is what demotes the intro offer. All three verified identical on Linux and Windows (Ghidra decompiles the
-// Windows chest against this+0x170 and the menu against this+0x38, so add those back to what it reports).
-// The menu hop is validated by RTTI at use, since it is null except while the chest is open.
+// CheckpointChest and the WeaponsChestMenu it builds when opened. The starter-mode byte is what turns the
+// one shared menu class into the intro's grant-a-starting-weapon chest rather than the ordinary
+// weapon-change chest; only NPCBehavior_IntroWeaponSelect ever sets it, and the chest copies it into the
+// menu at build time. All three verified identical on Linux and Windows (Ghidra decompiles the Windows chest
+// against this+0x170 and the menu against this+0x38, so add those to the offsets it reports). The menu hop
+// is validated by RTTI at use, since it is null except while the chest is open.
 inline constexpr std::ptrdiff_t kCheckpointChestMenuOff = 0x1e0;     // CheckpointChest -> WeaponsChestMenu*, null while closed
 inline constexpr std::ptrdiff_t kCheckpointChestStarterOff = 0x1ec;  // u8: nonzero = intro starter chest
 inline constexpr std::ptrdiff_t kWeaponsChestMenuStarterOff = 0x279; // u8: the menu's copy of the above

@@ -31,10 +31,9 @@ void IntroChestGate::set_armed(bool on)
     armed_ = on;
 }
 
-// Writes only on a real transition, so a demotion is one log line rather than one per walk, and the gate
-// speaks up again if the NPC re-arms the byte - which is worth knowing. The menu is cleared as well as the
-// chest: the chest byte is copied into the menu when the chest opens, and the NPC writes the menu's copy
-// directly too, so clearing the chest alone leaves an already-open menu still in starter mode.
+// Writes only on a real transition, so a demotion costs one log line rather than one per walk, and a re-arm
+// by the NPC is reported again. The menu is cleared as well as the chest: the NPC writes the menu's copy of
+// the byte directly, so clearing the chest alone leaves an already-open menu in starter mode.
 void IntroChestGate::demote_chest(void *chest)
 {
     auto *starter = reinterpret_cast<std::uint8_t *>(static_cast<char *>(chest) + mth::layout::kCheckpointChestStarterOff);
@@ -51,9 +50,9 @@ void IntroChestGate::demote_chest(void *chest)
     *starter = 0;
     if (menu_starter != nullptr)
         *menu_starter = 0;
-    const pal::LogLevel level = logged_forced_ ? pal::LogLevel::Debug : pal::LogLevel::Info;
-    logged_forced_ = true;
-    pal::logf(level, "starter: intro weapon chest %p demoted to weapon-change mode (chest starter %u -> 0, menu %p starter %u -> 0)", chest, prev_chest, menu,
+    const pal::LogLevel level = logged_demoted_ ? pal::LogLevel::Debug : pal::LogLevel::Info;
+    logged_demoted_ = true;
+    pal::logf(level, "intro: weapon chest %p demoted to weapon-change mode (chest starter %u -> 0, menu %p starter %u -> 0)", chest, prev_chest, menu,
               prev_menu);
 }
 
@@ -101,7 +100,7 @@ void IntroChestGate::tick()
         if (count > kMaxChildren && !warned_capped_)
         {
             warned_capped_ = true;
-            pal::logf(pal::LogLevel::Warn, "starter: scene node %p has %zu children; walking the first %zu", entity, count, kMaxChildren);
+            pal::logf(pal::LogLevel::Warn, "intro: scene node %p has %zu children; walking the first %zu", entity, count, kMaxChildren);
         }
         mod::entity_children(entity, buffer_.data(), buffer_.size());
 
@@ -124,7 +123,7 @@ void IntroChestGate::tick()
     if (visited >= kMaxNodes && !warned_capped_)
     {
         warned_capped_ = true;
-        pal::logf(pal::LogLevel::Warn, "starter: scene walk hit the %zu node cap; the intro chest may be past it", kMaxNodes);
+        pal::logf(pal::LogLevel::Warn, "intro: scene walk hit the %zu node cap; the weapon chest may be past it", kMaxNodes);
     }
     // The failure mode of this walk is silence: a broken traversal finds no chest, which is also what every
     // room without one looks like. Reaching zero components off a valid root is the one reading that can
@@ -134,14 +133,14 @@ void IntroChestGate::tick()
         if (!warned_empty_)
         {
             warned_empty_ = true;
-            pal::logf(pal::LogLevel::Warn, "starter: scene walk reached no components; the intro weapon chest cannot be found");
+            pal::logf(pal::LogLevel::Warn, "intro: scene walk reached no components; the weapon chest cannot be found");
         }
         return;
     }
     if (!logged_extent_)
     {
         logged_extent_ = true;
-        pal::logf(pal::LogLevel::Debug, "starter: scene walk reached %zu components", visited);
+        pal::logf(pal::LogLevel::Debug, "intro: scene walk covered %zu components (node cap %zu)", visited, kMaxNodes);
     }
 }
 

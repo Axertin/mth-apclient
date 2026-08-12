@@ -210,9 +210,9 @@ struct WeaponTally
     }
 };
 
-// Whether the seed has handed out any weapon at all, over the same per-family masks the ownership clamp
-// enforces. The intro chest is only safe to demote to its equip-only mode once this holds: that mode lists
-// only weapons the player owns, so demoting it earlier offers an empty chest and no way to arm at all.
+// True once any family has an authorized tier, over the same per-family masks the ownership clamp enforces.
+// The intro chest gate arms on this: its equip-only mode lists owned weapons only, so demoting the chest
+// before a grant lands leaves the player with nothing to arm.
 [[nodiscard]] constexpr bool any_weapon_authorized(const std::uint32_t (&authorized)[kWeaponFamilyCount])
 {
     for (int fam = 0; fam < kWeaponFamilyCount; ++fam)

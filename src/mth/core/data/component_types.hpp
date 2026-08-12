@@ -25,8 +25,8 @@ inline constexpr std::uint64_t kInteractComponent = type_id("InteractComponent")
 inline constexpr std::uint64_t kProfileSelectMenu = type_id("ProfileSelectMenu");
 // The sewer-cat fetch vendor ("Panino"). The game itself tests this id in NPCEntity's ctor.
 inline constexpr std::uint64_t kNpcBehaviorSewerCat = type_id("NPCBehavior_SewerCat");
-// The chest body the intro weapon choice is offered from, and the menu it builds. The intro NPC itself
-// tests the chest id, which is what pins this one to the right class.
+// The chest the intro weapon choice is offered from, and the menu it builds. NPCBehavior_IntroWeaponSelect
+// tests the chest id itself, which is what pins it to this class.
 inline constexpr std::uint64_t kCheckpointChest = type_id("CheckpointChest");
 inline constexpr std::uint64_t kWeaponsChestMenu = type_id("WeaponsChestMenu");
 

@@ -107,9 +107,9 @@ TEST_CASE("weapon tally: non-weapon receipts authorize nothing", "[ap_ids]")
             CHECK(tally.owned_mask(fam) == 0u);
 }
 
-// The intro weapon chest is forced into its normal (equip-only) mode so it stops handing out a free
-// starting weapon. Normal mode lists only weapons the player already OWNS, so forcing it before any
-// weapon grant lands would present an empty chest and leave the player unarmed. This is the guard.
+// The intro weapon chest is demoted to its equip-only mode so it stops handing out a free starting weapon.
+// That mode lists only weapons the player already OWNS, so demoting it before any weapon grant lands would
+// present an empty chest and leave the player unarmed. This is the guard.
 TEST_CASE("weapon authorization: an empty mask authorizes nothing", "[ap_ids]")
 {
     const mth::WeaponTally tally;

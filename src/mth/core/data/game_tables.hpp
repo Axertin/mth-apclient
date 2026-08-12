@@ -98,8 +98,8 @@ void resolve();
 // Gate on the weapon ownership clamp, which is a destructive write: an empty authorized mask over a save
 // that owns weapons is exactly what a receipt list that has not loaded yet looks like, and clamping then
 // would delete the player's weapons permanently. The seed always precollects a starting weapon, so an
-// authorized mask that is empty for every family is that shape and not a real "AP granted no weapon".
-// Both arguments are the OR of every family's mask. Pure so it is unit-testable.
+// all-empty mask is never a real "AP granted no weapon". Both arguments are the OR of every family's mask.
+// Pure so it is unit-testable.
 [[nodiscard]] constexpr bool weapon_clamp_ready(std::uint32_t authorized_any, std::uint32_t owned_any) noexcept
 {
     return authorized_any != 0 || owned_any == 0;

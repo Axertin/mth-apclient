@@ -8,11 +8,10 @@ namespace mth
 {
 
 // Demotes the intro weapon chest from its starter mode to the ordinary weapon-change mode. Vanilla, the
-// chest offers all three default weapons and its confirm writes the SaveSlot ownership fields directly.
-// The seed precollects the starting weapon, so that offer is a free extra weapon; clamping ownership
-// afterwards revokes the bits but still leaves the player equipped with, and the chest still offering, a
-// weapon AP never routed. In the ordinary mode the same menu class lists only weapons already owned,
-// equips the pick and grants nothing, which is exactly the intended behaviour once AP owns the weapon.
+// chest offers all three default weapons and its confirm writes the SaveSlot ownership fields directly, so
+// on top of the seed's precollected starting weapon it is a free extra one. Clamping ownership after the
+// fact revokes the bits but leaves the player equipped with a weapon AP never routed, and the chest still
+// offering it. The ordinary mode lists owned weapons only, equips the pick and grants nothing.
 //
 // The mode is one byte on the chest, copied into the menu when the chest is opened, so both are cleared.
 // There is no named mod hook for a CheckpointChest (it is an UnderlabUpgrade, not a Chest) and no carved
@@ -24,9 +23,8 @@ namespace mth
 class IntroChestGate
 {
   public:
-    // Bound AP save AND at least one weapon granted. The second half is not optional: the ordinary mode
-    // lists owned weapons only, so demoting the chest before a grant lands offers an empty chest and
-    // leaves the player unable to arm at all.
+    // Bound AP save AND at least one weapon granted; the second half is not optional, since the ordinary
+    // mode has nothing to list until a grant lands.
     void set_armed(bool on);
 
     void tick();             // game thread; walks nothing unless armed
@@ -37,7 +35,7 @@ class IntroChestGate
 
     bool armed_{false}; // published by the game-thread tick, read by the game-thread drain
     int cooldown_{0};
-    bool logged_forced_{false};  // Info on the first demotion, Debug after: this is a silent write otherwise
+    bool logged_demoted_{false}; // Info on the first demotion, Debug after: this is a silent write otherwise
     bool logged_extent_{false};  // one-shot scale log: a walk that sees nothing is how this breaks
     bool warned_empty_{false};   // ... and reaching nothing at all is how it breaks silently
     bool warned_capped_{false};  // either runaway guard tripping, reported once rather than per walk

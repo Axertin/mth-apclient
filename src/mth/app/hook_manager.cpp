@@ -69,7 +69,7 @@ HookManager::HookManager(IGameEvents &events, RandoBridge &rando, ScoutRegistry 
     };
     pawn_shop_hooks_ = std::make_unique<PawnShopHooks>(vendor_locked);
     sewer_cat_gate_ = std::make_unique<SewerCatGate>(vendor_locked);
-    intro_chest_gate_ = std::make_unique<IntroChestGate>(); // armed from enforce_weapon_grants, which owns the mask it needs
+    intro_chest_gate_ = std::make_unique<IntroChestGate>(); // armed from enforce_weapon_grants, which builds the mask
     modifier_hooks_ = std::make_unique<ModifierHooks>(ModifierRequest{});
     level_cap_hooks_ = std::make_unique<LevelCapHooks>();
     fountain_lamp_hooks_ = std::make_unique<FountainLampHooks>();
@@ -80,7 +80,7 @@ HookManager::HookManager(IGameEvents &events, RandoBridge &rando, ScoutRegistry 
     title_gate_ = std::make_unique<TitleGate>(connected, [this] { return save_takeover_->begin(); });
     save_manager_ = pal::resolve_game_symbol(sym::save_manager);
     if (save_manager_ == 0)
-        pal::logf(pal::LogLevel::Warn, "starter: g_saveManager not resolved; the starter-weapon-swap clear is disabled");
+        pal::logf(pal::LogLevel::Warn, "starter: g_saveManager not resolved; the starter-swap clear and the weapon ownership clamp are disabled");
 }
 
 HookManager::~HookManager()
@@ -168,9 +168,8 @@ void HookManager::tick(ApState &state, SessionPolicy &policy, int save_game_slot
     const bool armed = policy.enforce_abilities(authed);
     const bool slot_ok = !authed ? true : (save_game_slot >= 0 && modifier_hooks_->captured_ap_slot() == save_game_slot);
     ability_hooks_->set_enforce(armed && slot_ok);
-    // The starter weapon the player picked remaps its tier-3 collection slot to the whip's, so one belowdecks
-    // weapon stand reports a slot the seed does not carry and the other can never be checked. slot_ok alone
-    // is not the bound-save test (it is true while offline) and this is a durable write, hence both.
+    // Both calls write durable save fields, so both take authed as well: slot_ok on its own is true while
+    // offline and is not the bound-save test.
     pal::clear_starter_weapon_swap(save_manager_, authed, slot_ok);
     enforce_weapon_grants(state, authed, slot_ok);
 
@@ -208,8 +207,8 @@ void HookManager::seed_kear_blocks(ApState &state)
 // The seed precollects the starting weapon, so every weapon reaches the player through the item stream. The
 // game hands one out anyway at the intro (the weapon chest's pick, and the fallback that force-grants the
 // whip), and both write the SaveSlot fields directly rather than going through Items::OnPickupDone, where the
-// vanilla-grant suppression sits. So the ownership bits are clamped to the AP grants each tick instead of
-// hooking either site.
+// vanilla-grant suppression sits. So ownership is clamped to the AP grants each tick instead of hooking
+// either site.
 void HookManager::enforce_weapon_grants(ApState &state, bool authed, bool slot_ok)
 {
     WeaponTally tally;
@@ -220,10 +219,10 @@ void HookManager::enforce_weapon_grants(ApState &state, bool authed, bool slot_o
     for (int fam = 0; fam < kWeaponFamilyCount; ++fam)
         authorized[fam] = tally.owned_mask(fam);
     pal::enforce_weapon_ownership(save_manager_, authorized, authed, slot_ok);
-    // The clamp only corrects the bits after the fact, so the intro chest still offers all three starters
-    // and still equips the pick. Demote it to the weapon-change chest, which offers owned weapons only -
-    // hence the wait for a grant, and hence the bound-save gate: on a vanilla run this would leave the
-    // player with no starting weapon at all.
+    // The clamp corrects the bits after the fact; the chest itself still offers all three starters and still
+    // equips the pick, so it is demoted as well. Both extra conditions are load-bearing: the weapon-change
+    // mode lists owned weapons only, so demoting before a grant lands, or on a save AP does not own, leaves
+    // the player with nothing to arm.
     intro_chest_gate_->set_armed(authed && slot_ok && any_weapon_authorized(authorized));
 }
 
