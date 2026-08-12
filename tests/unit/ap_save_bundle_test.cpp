@@ -165,6 +165,31 @@ TEST_CASE("bundle rotates a backup on rewrite", "[bundle]")
     REQUIRE(reader.load_state("S", "2").value() == "c 1\nc 2\n");
 }
 
+TEST_CASE("bundle backs up once per session, not once per write", "[bundle]")
+{
+    Fixture f;
+    auto store = f.make();
+    REQUIRE(store.store_state("S", "2", "c 1\n"));
+    REQUIRE(store.store_state("S", "2", "c 1\nc 2\n")); // rotates the first generation out
+    const auto backup = f.saves / "ap_S_2.zip.bak";
+    REQUIRE(std::filesystem::exists(backup));
+
+    std::ifstream in(backup, std::ios::binary);
+    const std::string pinned((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>{});
+
+    // Further writes in the same session must leave that generation alone, or the backup decays to
+    // "one location check ago" and protects nothing.
+    REQUIRE(store.store_state("S", "2", "c 1\nc 2\nc 3\n"));
+    REQUIRE(store.store_state("S", "2", "c 1\nc 2\nc 3\nc 4\n"));
+
+    std::ifstream after(backup, std::ios::binary);
+    const std::string still((std::istreambuf_iterator<char>(after)), std::istreambuf_iterator<char>{});
+    REQUIRE(still == pinned);
+
+    auto reader = f.make();
+    REQUIRE(reader.load_state("S", "2").value() == "c 1\nc 2\nc 3\nc 4\n");
+}
+
 TEST_CASE("bundle recovers from the backup when the container is missing", "[bundle]")
 {
     Fixture f;

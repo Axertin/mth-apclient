@@ -54,6 +54,10 @@ class ApSaveBundleStore
         std::optional<std::string> ap_state;
         // A container at our path that names another run. Persisting would destroy it, so we refuse.
         bool foreign{false};
+        // The backup is taken once per session, not per write. Rotating on every checked location
+        // would leave it a few seconds old and worth nothing; this keeps the run as it was when the
+        // session opened, which is what someone recovering by hand actually wants.
+        bool backed_up{false};
         std::map<std::string, zip::Blob> blobs; // compressed form, reused for unchanged entries
     };
 

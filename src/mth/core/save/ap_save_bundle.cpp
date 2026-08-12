@@ -279,11 +279,15 @@ bool ApSaveBundleStore::persist() const
     }
 
     // Rotate before the replace: a crash in between leaves a good .bak and no container, which the
-    // load path recovers from.
-    if (std::filesystem::exists(final_path, ec))
+    // load path recovers from. Once per session only, so the backup keeps the run as it was at
+    // launch rather than as it was one location check ago.
+    // Latched only once a rotation actually happens: the first write of a brand-new run has nothing
+    // to back up, and burning the flag there would leave the session with no backup at all.
+    if (!cache_.backed_up && std::filesystem::exists(final_path, ec))
     {
         std::filesystem::rename(final_path, bak_path, ec);
         ec.clear(); // a failed rotation must not block the write
+        cache_.backed_up = true;
     }
 
     std::filesystem::rename(tmp_path, final_path, ec);
