@@ -25,11 +25,17 @@ inline constexpr std::uint64_t kInteractComponent = type_id("InteractComponent")
 inline constexpr std::uint64_t kProfileSelectMenu = type_id("ProfileSelectMenu");
 // The sewer-cat fetch vendor ("Panino"). The game itself tests this id in NPCEntity's ctor.
 inline constexpr std::uint64_t kNpcBehaviorSewerCat = type_id("NPCBehavior_SewerCat");
+// The chest the intro weapon choice is offered from, and the menu it builds. NPCBehavior_IntroWeaponSelect
+// tests the chest id itself, which is what pins it to this class.
+inline constexpr std::uint64_t kCheckpointChest = type_id("CheckpointChest");
+inline constexpr std::uint64_t kWeaponsChestMenu = type_id("WeaponsChestMenu");
 
 static_assert(kYcEntity == 0x8a1d0d54bd371fe0ULL, "ycEntity::GetTypeId()");
 static_assert(kTicketMachine == 0xca27866425643ac0ULL, "TicketMachine::GetTypeId()");
 static_assert(kInteractComponent == 0x7998225abfacd663ULL, "InteractComponent::GetTypeId()");
 static_assert(kProfileSelectMenu == 0xd583afd6328982feULL, "ProfileSelectMenu::GetTypeId()");
 static_assert(kNpcBehaviorSewerCat == 0xdb075389d6ad4044ULL, "NPCBehavior_SewerCat::GetTypeId()");
+static_assert(kCheckpointChest == 0xf14d539e533485feULL, "CheckpointChest::GetTypeId()");
+static_assert(kWeaponsChestMenu == 0x7e089555de4a516eULL, "WeaponsChestMenu::GetTypeId()");
 
 } // namespace mth::rtti

@@ -181,6 +181,46 @@ inline constexpr int weapon_itemtype(int family, int tier)
     return kWeaponItemTypes[family][tier - 1];
 }
 
+// Running per-family receipt count, shared by the granter (which tier does this receipt hand out) and by
+// the ownership clamp (which weapon bits did the seed authorize). Both must count the same way or the
+// clamp revokes a weapon the granter legitimately handed out.
+struct WeaponTally
+{
+    int tiers[kWeaponFamilyCount]{};
+
+    // Counts one received item and returns the tier it grants, 0 for a non-weapon id. Every receipt counts,
+    // already-granted ones included, so the tier survives a reload.
+    constexpr int add(std::int64_t ap_item_id_)
+    {
+        if (!is_weapon_item(ap_item_id_))
+            return 0;
+        return ++tiers[weapon_family(ap_item_id_)];
+    }
+
+    // SaveSlot ownership bits the tally authorizes for `family`. The granter hands out tiers in order and
+    // the engine bit for an itemType is (itemType - 2) % 3, so tier N sets bit N-1 and N tiers is exactly
+    // the low N bits. Saturates at the top tier: nothing beyond it is ever granted (weapon_itemtype fails),
+    // so a surplus receipt must not authorize a fourth bit.
+    [[nodiscard]] constexpr std::uint32_t owned_mask(int family) const
+    {
+        if (family < 0 || family >= kWeaponFamilyCount)
+            return 0;
+        const int owned = tiers[family] < kWeaponTiers ? tiers[family] : kWeaponTiers;
+        return (1u << owned) - 1u;
+    }
+};
+
+// True once any family has an authorized tier, over the same per-family masks the ownership clamp enforces.
+// The intro chest gate arms on this: its equip-only mode lists owned weapons only, so demoting the chest
+// before a grant lands leaves the player with nothing to arm.
+[[nodiscard]] constexpr bool any_weapon_authorized(const std::uint32_t (&authorized)[kWeaponFamilyCount])
+{
+    for (int fam = 0; fam < kWeaponFamilyCount; ++fam)
+        if (authorized[fam] != 0)
+            return true;
+    return false;
+}
+
 inline constexpr std::int64_t kMapItem = kProgressiveItemBase + 10;
 inline constexpr int kMapTiers = 2;
 // world_map (75), enhanced_map (76) granted in tier order.

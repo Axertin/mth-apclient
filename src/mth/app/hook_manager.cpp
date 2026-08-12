@@ -4,6 +4,7 @@
 
 #include "mth/core/ap/ap_ids.hpp"
 #include "mth/core/ap/ap_state.hpp"
+#include "mth/core/data/game_symbols.hpp"
 #include "mth/core/game_events.hpp"
 #include "mth/core/modifier_config.hpp"
 #include "mth/core/rando_bridge.hpp"
@@ -15,6 +16,7 @@
 #include "mth/features/death_hooks.hpp"
 #include "mth/features/fountain_lamp_hooks.hpp"
 #include "mth/features/goal_tracker.hpp"
+#include "mth/features/intro_chest_gate.hpp"
 #include "mth/features/item_granter.hpp"
 #include "mth/features/levelcap_hooks.hpp"
 #include "mth/features/location_hooks.hpp"
@@ -26,6 +28,8 @@
 #include "mth/features/title_gate.hpp"
 #include "mth/hooks/game_hooks.hpp"
 #include "pal/pal_game.hpp"
+#include "pal/pal_log.hpp"
+#include "pal/pal_module.hpp"
 
 namespace mth
 {
@@ -65,6 +69,7 @@ HookManager::HookManager(IGameEvents &events, RandoBridge &rando, ScoutRegistry 
     };
     pawn_shop_hooks_ = std::make_unique<PawnShopHooks>(vendor_locked);
     sewer_cat_gate_ = std::make_unique<SewerCatGate>(vendor_locked);
+    intro_chest_gate_ = std::make_unique<IntroChestGate>(); // armed from enforce_weapon_grants, which builds the mask
     modifier_hooks_ = std::make_unique<ModifierHooks>(ModifierRequest{});
     level_cap_hooks_ = std::make_unique<LevelCapHooks>();
     fountain_lamp_hooks_ = std::make_unique<FountainLampHooks>();
@@ -73,6 +78,9 @@ HookManager::HookManager(IGameEvents &events, RandoBridge &rando, ScoutRegistry 
     save_takeover_ = std::make_unique<SaveTakeover>(ApSaveStore(pal::mod_save_dir()),
                                                     [&state] { return std::make_pair(state.seed(), std::to_string(state.player_slot())); });
     title_gate_ = std::make_unique<TitleGate>(connected, [this] { return save_takeover_->begin(); });
+    save_manager_ = pal::resolve_game_symbol(sym::save_manager);
+    if (save_manager_ == 0)
+        pal::logf(pal::LogLevel::Warn, "starter: g_saveManager not resolved; the starter-swap clear and the weapon ownership clamp are disabled");
 }
 
 HookManager::~HookManager()
@@ -84,6 +92,7 @@ HookManager::~HookManager()
     ability_hooks_.reset();
     pawn_shop_hooks_.reset();
     sewer_cat_gate_.reset();
+    intro_chest_gate_.reset();
     death_hooks_.reset();
     modifier_hooks_.reset();
     level_cap_hooks_.reset();
@@ -159,6 +168,10 @@ void HookManager::tick(ApState &state, SessionPolicy &policy, int save_game_slot
     const bool armed = policy.enforce_abilities(authed);
     const bool slot_ok = !authed ? true : (save_game_slot >= 0 && modifier_hooks_->captured_ap_slot() == save_game_slot);
     ability_hooks_->set_enforce(armed && slot_ok);
+    // Both calls write durable save fields, so both take authed as well: slot_ok on its own is true while
+    // offline and is not the bound-save test.
+    pal::clear_starter_weapon_swap(save_manager_, authed, slot_ok);
+    enforce_weapon_grants(state, authed, slot_ok);
 
     seed_kear_blocks(state);
 
@@ -191,6 +204,28 @@ void HookManager::seed_kear_blocks(ApState &state)
         }
 }
 
+// The seed precollects the starting weapon, so every weapon reaches the player through the item stream. The
+// game hands one out anyway at the intro (the weapon chest's pick, and the fallback that force-grants the
+// whip), and both write the SaveSlot fields directly rather than going through Items::OnPickupDone, where the
+// vanilla-grant suppression sits. So ownership is clamped to the AP grants each tick instead of hooking
+// either site.
+void HookManager::enforce_weapon_grants(ApState &state, bool authed, bool slot_ok)
+{
+    WeaponTally tally;
+    for (const auto &it : state.received_items())
+        tally.add(it.item_id);
+
+    std::uint32_t authorized[kWeaponFamilyCount]{};
+    for (int fam = 0; fam < kWeaponFamilyCount; ++fam)
+        authorized[fam] = tally.owned_mask(fam);
+    pal::enforce_weapon_ownership(save_manager_, authorized, authed, slot_ok);
+    // The clamp corrects the bits after the fact; the chest itself still offers all three starters and still
+    // equips the pick, so it is demoted as well. Both extra conditions are load-bearing: the weapon-change
+    // mode lists owned weapons only, so demoting before a grant lands, or on a save AP does not own, leaves
+    // the player with nothing to arm.
+    intro_chest_gate_->set_armed(authed && slot_ok && any_weapon_authorized(authorized));
+}
+
 void HookManager::drain()
 {
     lock_hooks_->seed_removed_locks();
@@ -198,7 +233,8 @@ void HookManager::drain()
     chest_hooks_->sweep();      // clear the kear-lock on already-spawned chests
     ability_hooks_->enforce_train_tick();
     ability_hooks_->enforce_burrow_tick(get_player_ ? get_player_() : nullptr);
-    sewer_cat_gate_->tick(); // self-gated on the vendor lockout; walks nothing when it is clear
+    sewer_cat_gate_->tick();   // self-gated on the vendor lockout; walks nothing when it is clear
+    intro_chest_gate_->tick(); // self-gated on the armed flag; walks nothing when it is clear
 }
 
 void HookManager::on_world_update_end(void *world)
@@ -212,6 +248,7 @@ void HookManager::on_world_destroy()
     ability_hooks_->on_world_destroy();
     chest_hooks_->on_world_destroy(); // the tracked chests died with the world
     sewer_cat_gate_->on_world_destroy();
+    intro_chest_gate_->on_world_destroy();
 }
 
 void HookManager::kill_player()

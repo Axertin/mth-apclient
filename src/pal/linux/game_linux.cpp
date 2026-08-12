@@ -14,6 +14,7 @@
 #include "mth/core/ap/ap_ids.hpp"
 #include "mth/core/data/game_layout.hpp"
 #include "mth/core/data/game_symbols.hpp"
+#include "mth/core/data/game_tables.hpp"
 #include "mth/core/fountain_lamps.hpp"
 #include "mth/core/shop_boxes.hpp"
 #include "mth/core/shop_flatten.hpp"
@@ -1699,6 +1700,67 @@ void enforce_train_boarding(std::uintptr_t save_manager_global)
     // cannot be boarded. Once the pass is received (OnPickupDone sets +0x1c0) leave the story-set presence.
     if (*reinterpret_cast<std::uint8_t *>(static_cast<char *>(slot) + kSaveTrainPassOwnedOff) == 0)
         *reinterpret_cast<char *>(static_cast<char *>(slot) + kSaveTrainPresentOff) = 0;
+}
+
+void clear_starter_weapon_swap(std::uintptr_t save_manager_global, bool authed, bool slot_ok)
+{
+    static bool logged = false;
+    void *slot = active_save_slot(save_manager_global);
+    if (slot == nullptr)
+        return;
+    auto &type = *reinterpret_cast<int *>(static_cast<char *>(slot) + mth::layout::kSaveStarterWeaponTypeOff);
+    if (!mth::tables::should_clear_starter_swap(authed, slot_ok, type))
+        return;
+    const int prev = type;
+    type = -1;
+    // A save load re-seeds the field, so this can fire more than once per session; only the first is Info.
+    const LogLevel level = logged ? LogLevel::Debug : LogLevel::Info;
+    logged = true;
+    logf(level, "starter: cleared weapon swap (was type=%d); belowdecks weapon stands restored to vanilla slots", prev);
+}
+
+void enforce_weapon_ownership(std::uintptr_t save_manager_global, const std::uint32_t *authorized, bool authed, bool slot_ok)
+{
+    static bool logged[mth::kWeaponFamilyCount] = {}; // per family: Info on the first correction, Debug on repeats
+    static bool warned = false;
+    if (!authed || !slot_ok || authorized == nullptr)
+        return; // durable and destructive: bound AP save only (slot_ok alone is true while offline)
+    void *slot = active_save_slot(save_manager_global);
+    if (slot == nullptr)
+        return;
+    auto *owned = reinterpret_cast<std::uint32_t *>(static_cast<char *>(slot) + mth::layout::kSaveWeaponOwnedBitsOff);
+    auto *active = reinterpret_cast<int *>(static_cast<char *>(slot) + mth::layout::kSaveWeaponActiveTierOff);
+
+    std::uint32_t authorized_any = 0;
+    std::uint32_t owned_any = 0;
+    for (int fam = 0; fam < mth::kWeaponFamilyCount; ++fam)
+    {
+        authorized_any |= authorized[fam];
+        owned_any |= owned[fam] & mth::layout::kWeaponTierBits;
+    }
+    if (!mth::tables::weapon_clamp_ready(authorized_any, owned_any))
+    {
+        if (!warned)
+            logf(LogLevel::Warn, "weapons: save owns 0x%x but AP has granted nothing yet; ownership clamp skipped until the receipts load", owned_any);
+        warned = true;
+        return;
+    }
+    warned = false;
+
+    for (int fam = 0; fam < mth::kWeaponFamilyCount; ++fam)
+    {
+        const std::uint32_t cur = owned[fam];
+        const std::uint32_t want = authorized[fam];
+        const int want_tier = mth::tables::weapon_active_bit(want);
+        if ((cur & mth::layout::kWeaponTierBits) == want && active[fam] == want_tier)
+            continue; // the common case is a pure read
+        const LogLevel level = logged[fam] ? LogLevel::Debug : LogLevel::Info;
+        logged[fam] = true;
+        logf(level, "weapons: family=%d owned 0x%x -> 0x%x, tier %d -> %d (clamped to the AP grants)", fam, cur & mth::layout::kWeaponTierBits, want,
+             active[fam], want_tier);
+        owned[fam] = (cur & ~mth::layout::kWeaponTierBits) | want; // anything outside the three tier bits is not ours
+        active[fam] = want_tier;
+    }
 }
 
 void seed_ticket_machine_progress(std::uintptr_t save_manager_global, std::uint32_t seed)

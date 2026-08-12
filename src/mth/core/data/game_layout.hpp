@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 
 // Build-specific struct offsets/strides for the Linux game binary, shared by the hook
 // modules. Windows divergence stays in the PAL impls. Where a runtime self-check guards
@@ -62,6 +63,20 @@ inline constexpr std::ptrdiff_t kPlayerKearSpentOff = 0x11b0; // int spent-count
 // Goal-completion SaveSlot state (polled; the bitfields are popcounted for the count goals).
 inline constexpr std::ptrdiff_t kSaveGeneratorBitsOff = 0x290; // u64 generator-fixed bitfield (BossComponent::SetGeneratorFixed sets a bit per generator)
 inline constexpr std::ptrdiff_t kSaveGameClearOff = 0xd30;     // u8 game-cleared flag (set by GigaLionelBoss::EndingTransition)
+
+// Chosen starting weapon (the SaveSlot constructor writes -1 = none); Weapons::GetStarterReplacement keys
+// its collection-slot remap on this (see tables::should_clear_starter_swap for what the remap breaks). Weapon
+// OWNERSHIP is elsewhere (+0xc24/+0xc38 bits, name string at +0x138), so clearing this costs the player
+// nothing.
+inline constexpr std::ptrdiff_t kSaveStarterWeaponTypeOff = 0xc60; // int: starter weapon type, -1 = no swap
+
+// Weapon ownership, one entry per family (Whip, Hammer, Daggers, Buster Bat, Casket). +0xc24 is the owned-tier
+// bitfield Items::IsItemCollected reads back for a kind-1 item, bit (itemType - 2) % 3 per tier; +0xc38 is the
+// active tier, a BIT INDEX into it and not a count (the game revokes with `0xc24[fam] &= ~(1 << (0xc38[fam] &
+// 0x1f))`). Only three tiers exist, so nothing above bit 2 belongs to us.
+inline constexpr std::ptrdiff_t kSaveWeaponOwnedBitsOff = 0xc24;  // u32[5]: per-family owned-tier bitfield
+inline constexpr std::ptrdiff_t kSaveWeaponActiveTierOff = 0xc38; // int[5]: per-family active tier (a bit index into the above)
+inline constexpr std::uint32_t kWeaponTierBits = 0x7;             // the three tier bits; any other bit of the field is left alone
 
 // WeaponMerchant (Legovich) forge mold (#67): the pending weapon-upgrade index; -1 = none.
 inline constexpr std::ptrdiff_t kSaveWeaponIndexOff = 0xc70;     // int: pending weapon index the forge keys on
@@ -130,6 +145,16 @@ inline constexpr std::ptrdiff_t kSaveSlotStride = 0x11c8;
 // at +0x231, which TicketMachine::UpdateState rewrites every tick from IsItemCollected(149).
 inline constexpr std::ptrdiff_t kTicketMachineInteractOff = 0x1b0; // TicketMachine -> InteractComponent*
 inline constexpr std::ptrdiff_t kInteractDisabledOff = 0x23a;      // u8: nonzero = never interactable
+
+// CheckpointChest and the WeaponsChestMenu it builds when opened. The starter-mode byte is what turns the
+// one shared menu class into the intro's grant-a-starting-weapon chest rather than the ordinary
+// weapon-change chest; only NPCBehavior_IntroWeaponSelect ever sets it, and the chest copies it into the
+// menu at build time. All three verified identical on Linux and Windows (Ghidra decompiles the Windows chest
+// against this+0x170 and the menu against this+0x38, so add those to the offsets it reports). The menu hop
+// is validated by RTTI at use, since it is null except while the chest is open.
+inline constexpr std::ptrdiff_t kCheckpointChestMenuOff = 0x1e0;     // CheckpointChest -> WeaponsChestMenu*, null while closed
+inline constexpr std::ptrdiff_t kCheckpointChestStarterOff = 0x1ec;  // u8: nonzero = intro starter chest
+inline constexpr std::ptrdiff_t kWeaponsChestMenuStarterOff = 0x279; // u8: the menu's copy of the above
 
 // NPCEntity holds its InteractComponent at the same offset as TicketMachine (shared base). Linux-derived
 // only: NPCBehavior_SewerCat is multiply inherited (four vptrs), so MSVC need not place +0x50 where

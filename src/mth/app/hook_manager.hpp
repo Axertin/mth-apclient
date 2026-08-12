@@ -27,6 +27,7 @@ class DeathHooks;
 class AbilityHooks;
 class PawnShopHooks;
 class SewerCatGate;
+class IntroChestGate;
 class ModifierHooks;
 class LevelCapHooks;
 class FountainLampHooks;
@@ -72,12 +73,15 @@ class HookManager
 
   private:
     void seed_kear_blocks(ApState &state); // received kear-block items -> LockRegistry removals
+    // Clamp weapon ownership to the tiers AP granted. Bound AP save only: it is a durable, destructive write.
+    void enforce_weapon_grants(ApState &state, bool authed, bool slot_ok);
 
     std::atomic<std::uint32_t> lamp_console_override_{0}; // sticky console-forced lamp mask (render thread) OR'd over slot_data in tick (game thread)
     // Set the first time a save sees an AP session, cleared only on save load. Vendors that sell outside
     // AP logic latch on this rather than the live phase, so a mid-run disconnect cannot reopen them.
     std::atomic<bool> vendor_lockout_{false};
 
+    std::uintptr_t save_manager_{0};     // g_saveManager, for the per-tick starter-swap clear and ownership clamp
     RandoBridge &rando_;                 // checked-location state; the donation machine reads it (#162)
     std::function<void *()> get_player_; // live Player* accessor (shared with DeathHooks + kear credit)
     std::unique_ptr<GameHooks> game_hooks_;
@@ -90,6 +94,7 @@ class HookManager
     std::unique_ptr<AbilityHooks> ability_hooks_;
     std::unique_ptr<PawnShopHooks> pawn_shop_hooks_;
     std::unique_ptr<SewerCatGate> sewer_cat_gate_;
+    std::unique_ptr<IntroChestGate> intro_chest_gate_;
     std::unique_ptr<ModifierHooks> modifier_hooks_;
     std::unique_ptr<LevelCapHooks> level_cap_hooks_;
     std::unique_ptr<FountainLampHooks> fountain_lamp_hooks_;
