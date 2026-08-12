@@ -29,6 +29,7 @@ add_executable(mthap_unit_tests
     unit/login_prefs_test.cpp
     unit/ap_ids_test.cpp
     unit/ap_save_state_test.cpp
+    unit/slot_data_test.cpp
     unit/inbound_granter_test.cpp
     unit/sig_scan_test.cpp
     unit/native_sym_names_test.cpp

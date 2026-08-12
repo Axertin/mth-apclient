@@ -1,15 +1,16 @@
 {
   "name": "mth-apclient",
   "version-string": "0.1.0-dev",
-  "dependencies": [],
+  "dependencies": [
+    "nlohmann-json"
+  ],
   "features": {
     "net": {
       "description": "Archipelago networking (apclientpp transport + TLS)",
       "dependencies": [
         "asio",
         "openssl",
-        "zlib",
-        "nlohmann-json"
+        "zlib"
       ]
     },
     "overlay": {

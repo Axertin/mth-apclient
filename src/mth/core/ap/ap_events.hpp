@@ -6,27 +6,13 @@
 #include <vector>
 
 #include "mth/core/ap/ap_ids.hpp" // kTrainPassCostDefault
+#include "mth/core/ap/slot_data.hpp"
 #include "mth/core/broadcast.hpp"
 #include "mth/core/goal_state.hpp" // kAllGeneratorsMask
 #include "mth/core/scout_registry.hpp"
 
 namespace mth
 {
-
-// slot_data "kear_rando". Vanilla puts Universal Kear items (itemType 63) in the pool and they must grant
-// real usable keys; the AP-item modes remove each lock (or each area's locks) with a dedicated AP item, so
-// usable keys carry no meaning and stay pinned at zero. Kear pickup spots are AP locations in every mode.
-enum class KearMode : int
-{
-    Vanilla = 0,
-    ApItems = 1,
-    AreaApItems = 2,
-};
-
-[[nodiscard]] constexpr KearMode kear_mode_from_slot_data(int value) noexcept
-{
-    return value == 0 ? KearMode::Vanilla : (value == 2 ? KearMode::AreaApItems : KearMode::ApItems);
-}
 
 struct ReceivedItem
 {
