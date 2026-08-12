@@ -179,8 +179,9 @@ if(NOT MTHAP_BUILD_TESTS_ONLY)
         @ONLY
     )
 
-    # Assemble the drop-in: mods/apclient/{mod.yc, mod.<dll|so>}. The library is
-    # self-contained (static runtime + deps), so no sidecar libraries ship.
+    # Assemble the drop-in: mods/apclient/{mod.yc, mod.<dll|so>, LICENSE,
+    # third_party_notices/}. The library is self-contained (static runtime + deps), so no
+    # sidecar libraries ship, but the licences of what is linked in travel with it.
     # These are declared OUTPUTs of a target rather than a POST_BUILD step because a POST_BUILD is
     # invisible to the generator: deleting mods/ (the directory you copy into the game) left the
     # build reporting "no work to do" and shipping nothing. As real outputs they get restored.
@@ -199,6 +200,17 @@ if(NOT MTHAP_BUILD_TESTS_ONLY)
         DEPENDS "${CMAKE_BINARY_DIR}/generated/mod.yc"
         VERBATIM
         COMMENT "Staging mods/apclient/mod.yc")
+    add_custom_command(
+        OUTPUT "${_mthap_dropin}/LICENSE"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${CMAKE_SOURCE_DIR}/LICENSE" "${_mthap_dropin}/LICENSE"
+        DEPENDS "${CMAKE_SOURCE_DIR}/LICENSE"
+        VERBATIM
+        COMMENT "Staging mods/apclient/LICENSE")
+
+    include(Notices)
+    mthap_stage_notices("${_mthap_dropin}" _mthap_notices)
+
     add_custom_target(mthap_dropin ALL
-        DEPENDS "${_mthap_dropin}/${_mthap_mod_name}" "${_mthap_dropin}/mod.yc")
+        DEPENDS "${_mthap_dropin}/${_mthap_mod_name}" "${_mthap_dropin}/mod.yc" "${_mthap_dropin}/LICENSE"
+                ${_mthap_notices})
 endif()

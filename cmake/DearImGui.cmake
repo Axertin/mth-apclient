@@ -4,6 +4,11 @@
 # silenced, not held to our -Werror policy.
 include_guard(GLOBAL)
 include(FetchContent)
+include(VerifyGitPin)
+
+# Commit v1.91.5 resolves to; checked after populate so an upstream retag fails
+# configure instead of silently changing what ships.
+set(DEARIMGUI_COMMIT "f401021d5a5d56fe2304056c391e78f81c8d4b8f")
 
 FetchContent_Declare(
     dearimgui
@@ -12,6 +17,7 @@ FetchContent_Declare(
     GIT_SHALLOW    TRUE
 )
 FetchContent_MakeAvailable(dearimgui)
+mthap_verify_git_pin(DearImGui "${dearimgui_SOURCE_DIR}" "${DEARIMGUI_COMMIT}")
 
 if(WIN32)
     # Windows: stock D3D12 + Win32 backends. They include only <d3d12.h>,

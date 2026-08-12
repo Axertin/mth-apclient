@@ -100,7 +100,7 @@ jobs:
       - uses: actions/download-artifact@v8
         with:
           path: dist
-      # Each artifact extracts to dist/<name>/apclient/{mod.{so,dll},mod.yc}; re-zip per platform
+      # Each artifact extracts to dist/<name>/apclient/ (the binary, mod.yc and the licence files); re-zip per platform
       # so the release asset unpacks to an apclient/ drop-in folder.
       - name: Package drop-in zips
         run: |
