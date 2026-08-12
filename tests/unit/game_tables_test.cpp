@@ -104,6 +104,29 @@ TEST_CASE("is_small_treasure_collect_rewrite: anything else is real drift", "[ga
     CHECK_FALSE(mth::tables::is_small_treasure_collect_rewrite(172, 40)); // bones itemType, but loc not cleared
 }
 
+// should_clear_starter_swap decides whether the per-tick starter-weapon-swap clear runs. The chosen
+// starter weapon makes Weapons::GetStarterReplacement remap its tier-3 collection slot to the whip's (16),
+// so a boat-hold chest reports a slot no seed contains and its sibling location becomes uncollectable.
+// -1 is the field's "no swap" value, so clearing it restores vanilla slot identity. It is a durable save
+// field, so it is only written to the bound AP save (the AP-slot check is false when not authenticated).
+TEST_CASE("should_clear_starter_swap: a swapped bound AP save is cleared", "[game_tables]")
+{
+    CHECK(mth::tables::should_clear_starter_swap(/*authed=*/true, /*slot_ok=*/true, /*current=*/2)); // hammer start
+    CHECK(mth::tables::should_clear_starter_swap(true, true, 0));                                    // whip start still carries a type
+}
+
+TEST_CASE("should_clear_starter_swap: an unswapped save is left alone", "[game_tables]")
+{
+    CHECK_FALSE(mth::tables::should_clear_starter_swap(/*authed=*/true, /*slot_ok=*/true, /*current=*/-1)); // already vanilla
+}
+
+TEST_CASE("should_clear_starter_swap: never writes outside the bound AP save", "[game_tables]")
+{
+    CHECK_FALSE(mth::tables::should_clear_starter_swap(/*authed=*/false, /*slot_ok=*/true, /*current=*/2)); // slot_ok is true when offline
+    CHECK_FALSE(mth::tables::should_clear_starter_swap(true, false, 2));                                    // authed, but a different save
+    CHECK_FALSE(mth::tables::should_clear_starter_swap(false, false, 2));
+}
+
 TEST_CASE("collection bit index: 0xff is the table's no-bit sentinel, not drift", "[tables][gate]")
 {
     // Measured against the shipping table: rows 24 and 25 carry 0xff, meaning "this location has

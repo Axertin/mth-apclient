@@ -78,6 +78,7 @@ class HookManager
     // AP logic latch on this rather than the live phase, so a mid-run disconnect cannot reopen them.
     std::atomic<bool> vendor_lockout_{false};
 
+    std::uintptr_t save_manager_{0};     // g_saveManager, for the per-tick starter-weapon-swap clear
     RandoBridge &rando_;                 // checked-location state; the donation machine reads it (#162)
     std::function<void *()> get_player_; // live Player* accessor (shared with DeathHooks + kear credit)
     std::unique_ptr<GameHooks> game_hooks_;

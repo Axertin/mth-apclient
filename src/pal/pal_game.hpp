@@ -183,6 +183,14 @@ bool force_burrow_emerge(void *player);
 // player_is_burrowing() check; the range check here only covers a caller that skipped it. Game-thread only.
 bool request_deep_water_fall(void *player);
 
+// ---- Starter weapon swap. Offset is shared (see mth::layout); only symbol resolution diverges. ----
+
+// Clears the chosen-starter-weapon field so Weapons::GetStarterReplacement stops remapping that weapon's
+// tier-3 collection slot onto the whip's, which desyncs the boat-hold chests from their AP location ids.
+// Writes only when should_clear_starter_swap allows it (durable field: bound AP save only). No-op if
+// unavailable. Game-thread only.
+void clear_starter_weapon_swap(std::uintptr_t save_manager_global, bool authed, bool slot_ok);
+
 // ---- Pawn shop ("Pawnty") disable. Symbol/offset divergence lives in the PAL impl. ----
 
 // PawnShopNPC::OnNPCEvent suppressor. When disable() returns true the detour no-ops every event and

@@ -73,6 +73,18 @@ void resolve();
     return true;
 }
 
+// The starting weapon the player picked (SaveSlot+0xc60, -1 = none) makes Weapons::GetStarterReplacement
+// hand back the whip's collection slot (16) in place of that weapon's tier-3 slot, everywhere the game asks
+// - pickups, shops, IsOutOfStock, FillChecklist, KeyBlock, WarpDoor. The apworld pins the two belowdecks
+// weapon stands to fixed ids, so after a non-whip start one stand reports a slot no seed contains and the
+// other id has no stand left to check it. -1 is the field's "no swap" value (the remap guard is an equality
+// test it can never match), so clearing it restores vanilla slot identity; weapon ownership lives in other
+// fields and is untouched. Durable save field, hence the bound-save gate. Pure so it is unit-testable.
+[[nodiscard]] constexpr bool should_clear_starter_swap(bool authed, bool slot_ok, int current) noexcept
+{
+    return authed && slot_ok && current != -1;
+}
+
 // Armor upgrades (Vitality Vest 0x4f = +25% max HP, Damage armor 0x50) apply their effect DIRECTLY in
 // Items::OnPickup (it ORs a bit into SaveSlot+0xc68 before the conditionally-tail-called Items::OnPickupDone)
 // - so suppressing OnPickupDone alone leaks the vanilla upgrade for an AP shop buy (issue #71). The mod's

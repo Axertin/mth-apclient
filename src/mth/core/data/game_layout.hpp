@@ -63,6 +63,12 @@ inline constexpr std::ptrdiff_t kPlayerKearSpentOff = 0x11b0; // int spent-count
 inline constexpr std::ptrdiff_t kSaveGeneratorBitsOff = 0x290; // u64 generator-fixed bitfield (BossComponent::SetGeneratorFixed sets a bit per generator)
 inline constexpr std::ptrdiff_t kSaveGameClearOff = 0xd30;     // u8 game-cleared flag (set by GigaLionelBoss::EndingTransition)
 
+// Chosen starting weapon (the SaveSlot constructor writes -1 = none). Weapons::GetStarterReplacement keys
+// its collection-slot remap on this, so anything but -1 rewrites that weapon's tier-3 slot to the whip's
+// (16). Weapon OWNERSHIP is elsewhere (+0xc24/+0xc38 bits, name string at +0x138), so clearing this costs
+// the player nothing.
+inline constexpr std::ptrdiff_t kSaveStarterWeaponTypeOff = 0xc60; // int: starter weapon type, -1 = no swap
+
 // WeaponMerchant (Legovich) forge mold (#67): the pending weapon-upgrade index; -1 = none.
 inline constexpr std::ptrdiff_t kSaveWeaponIndexOff = 0xc70;     // int: pending weapon index the forge keys on
 inline constexpr std::ptrdiff_t kSaveWeaponMoldLatchOff = 0xc74; // byte: "mold pending pickup" latch

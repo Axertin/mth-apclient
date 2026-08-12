@@ -4,6 +4,7 @@
 
 #include "mth/core/ap/ap_ids.hpp"
 #include "mth/core/ap/ap_state.hpp"
+#include "mth/core/data/game_symbols.hpp"
 #include "mth/core/game_events.hpp"
 #include "mth/core/modifier_config.hpp"
 #include "mth/core/rando_bridge.hpp"
@@ -26,6 +27,8 @@
 #include "mth/features/title_gate.hpp"
 #include "mth/hooks/game_hooks.hpp"
 #include "pal/pal_game.hpp"
+#include "pal/pal_log.hpp"
+#include "pal/pal_module.hpp"
 
 namespace mth
 {
@@ -73,6 +76,9 @@ HookManager::HookManager(IGameEvents &events, RandoBridge &rando, ScoutRegistry 
     save_takeover_ = std::make_unique<SaveTakeover>(ApSaveStore(pal::mod_save_dir()),
                                                     [&state] { return std::make_pair(state.seed(), std::to_string(state.player_slot())); });
     title_gate_ = std::make_unique<TitleGate>(connected, [this] { return save_takeover_->begin(); });
+    save_manager_ = pal::resolve_game_symbol(sym::save_manager);
+    if (save_manager_ == 0)
+        pal::logf(pal::LogLevel::Warn, "starter: g_saveManager not resolved; the starter-weapon-swap clear is disabled");
 }
 
 HookManager::~HookManager()
@@ -159,6 +165,10 @@ void HookManager::tick(ApState &state, SessionPolicy &policy, int save_game_slot
     const bool armed = policy.enforce_abilities(authed);
     const bool slot_ok = !authed ? true : (save_game_slot >= 0 && modifier_hooks_->captured_ap_slot() == save_game_slot);
     ability_hooks_->set_enforce(armed && slot_ok);
+    // The starter weapon the player picked remaps its tier-3 collection slot to the whip's, so one belowdecks
+    // weapon stand reports a slot the seed does not carry and the other can never be checked. slot_ok alone
+    // is not the bound-save test (it is true while offline) and this is a durable write, hence both.
+    pal::clear_starter_weapon_swap(save_manager_, authed, slot_ok);
 
     seed_kear_blocks(state);
 

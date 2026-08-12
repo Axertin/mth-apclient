@@ -14,6 +14,7 @@
 #include "mth/core/ap/ap_ids.hpp"
 #include "mth/core/data/game_layout.hpp"
 #include "mth/core/data/game_symbols.hpp"
+#include "mth/core/data/game_tables.hpp"
 #include "mth/core/fountain_lamps.hpp"
 #include "mth/core/shop_boxes.hpp"
 #include "mth/core/shop_flatten.hpp"
@@ -1718,6 +1719,23 @@ void enforce_train_boarding(std::uintptr_t save_manager_global)
     // cannot be boarded. Once the pass is received (OnPickupDone sets +0x1c0) leave the story-set presence.
     if (*reinterpret_cast<std::uint8_t *>(static_cast<char *>(slot) + kSaveTrainPassOwnedOff) == 0)
         *reinterpret_cast<char *>(static_cast<char *>(slot) + kSaveTrainPresentOff) = 0;
+}
+
+void clear_starter_weapon_swap(std::uintptr_t save_manager_global, bool authed, bool slot_ok)
+{
+    static bool logged = false;
+    void *slot = active_save_slot(save_manager_global);
+    if (slot == nullptr)
+        return;
+    auto &type = *reinterpret_cast<int *>(static_cast<char *>(slot) + mth::layout::kSaveStarterWeaponTypeOff);
+    if (!mth::tables::should_clear_starter_swap(authed, slot_ok, type))
+        return;
+    const int prev = type;
+    type = -1;
+    // A save load re-seeds the field, so this can fire more than once per session; only the first is Info.
+    const LogLevel level = logged ? LogLevel::Debug : LogLevel::Info;
+    logged = true;
+    logf(level, "starter: cleared weapon swap (was type=%d); belowdecks weapon stands restored to vanilla slots", prev);
 }
 
 void seed_ticket_machine_progress(std::uintptr_t save_manager_global, std::uint32_t seed)
