@@ -23,6 +23,15 @@ TEST_CASE("bosses goal compares boss count to the threshold", "[goal]")
     REQUIRE(mth::goal_met(mth::kGoalBosses, 99, 10, false, 0, 12));      // above
 }
 
+TEST_CASE("game-clear flag is in domain only as a boolean byte", "[goal]")
+{
+    REQUIRE(mth::game_clear_flag_in_domain(0));
+    REQUIRE(mth::game_clear_flag_in_domain(1));
+    REQUIRE_FALSE(mth::game_clear_flag_in_domain(2));
+    REQUIRE_FALSE(mth::game_clear_flag_in_domain(0xab));
+    REQUIRE_FALSE(mth::game_clear_flag_in_domain(0xff));
+}
+
 TEST_CASE("unknown goal_config falls back to finish", "[goal]")
 {
     REQUIRE(mth::goal_met(7, 0, 0, true, 0, 0));

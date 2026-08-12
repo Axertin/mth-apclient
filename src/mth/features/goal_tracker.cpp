@@ -24,16 +24,24 @@ GoalTracker::GoalTracker(RandoBridge &bridge) : bridge_(bridge)
 
 void GoalTracker::evaluate(const ApState &state)
 {
-    if (save_manager_ == 0)
+    if (save_manager_ == 0 || disabled_)
         return;
     void *slot = pal::active_save_slot(save_manager_);
     if (slot == nullptr)
         return;
 
+    const unsigned char clear_flag = *reinterpret_cast<unsigned char *>(static_cast<char *>(slot) + layout::kSaveGameClearOff);
+    if (!game_clear_flag_in_domain(clear_flag))
+    {
+        disabled_ = true; // short-circuits every future poll
+        pal::logf(pal::LogLevel::Error, "goal: kSaveGameClearOff read=0x%x is not a boolean; offset may have shifted, goal tracking DISABLED", clear_flag);
+        return;
+    }
+
     config_ = state.goal_config();
     gens_needed_ = state.goal_generators();
     bosses_needed_ = state.goal_bosses();
-    game_cleared_ = *reinterpret_cast<unsigned char *>(static_cast<char *>(slot) + layout::kSaveGameClearOff) != 0;
+    game_cleared_ = clear_flag != 0;
     broken_mask_ = state.broken_generator_mask();
     gens_done_ = generators_done(*reinterpret_cast<std::uint64_t *>(static_cast<char *>(slot) + layout::kSaveGeneratorBitsOff), broken_mask_);
     bosses_done_ = std::popcount(mod::player_bosses_defeated());
