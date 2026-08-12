@@ -35,7 +35,7 @@ class FountainLampHooks;
 class TitleGate;
 class SaveTakeover;
 
-// Owns the game-hook plumbing (GameHooks) + the 12 feature hooks, and drives their slice
+// Owns the game-hook plumbing (GameHooks) + the 16 feature hooks, and drives their slice
 // of the per-frame tick. Thin: wiring + lifetime + enforcement dispatch, no new logic.
 class HookManager
 {

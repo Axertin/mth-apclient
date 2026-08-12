@@ -177,7 +177,7 @@ void DevConsole::run_input()
         println("          deathlink on|off  (enable/disable deathlink, must also be enabled in yaml)");
         println("          litlamps <0..5 ...>|off  (force Ossex fountain lamps lit; offline test)");
         println("          gate [enforce on|off]  (AP safety gate verdict; enforce blocks AP when refused)");
-        println("          savetest dump|write|noflush|flush|launch|activate  (save-takeover validation; dev only)");
+        println("          savetest dump|write|noflush|flush  (save-takeover validation; dev only)");
         break;
     case CommandKind::Clear:
         log_.clear();
@@ -360,7 +360,7 @@ void DevConsole::run_input()
     }
     case CommandKind::SaveTest:
         if (cmd.args.empty())
-            println("usage: savetest dump|write|noflush|flush|launch|activate");
+            println("usage: savetest dump|write|noflush|flush");
         else
         {
             sink_.save_test(cmd.args[0]);
