@@ -16,6 +16,7 @@
 #include "mth/features/death_hooks.hpp"
 #include "mth/features/fountain_lamp_hooks.hpp"
 #include "mth/features/goal_tracker.hpp"
+#include "mth/features/intro_chest_gate.hpp"
 #include "mth/features/item_granter.hpp"
 #include "mth/features/levelcap_hooks.hpp"
 #include "mth/features/location_hooks.hpp"
@@ -68,6 +69,7 @@ HookManager::HookManager(IGameEvents &events, RandoBridge &rando, ScoutRegistry 
     };
     pawn_shop_hooks_ = std::make_unique<PawnShopHooks>(vendor_locked);
     sewer_cat_gate_ = std::make_unique<SewerCatGate>(vendor_locked);
+    intro_chest_gate_ = std::make_unique<IntroChestGate>(); // armed from enforce_weapon_grants, which owns the mask it needs
     modifier_hooks_ = std::make_unique<ModifierHooks>(ModifierRequest{});
     level_cap_hooks_ = std::make_unique<LevelCapHooks>();
     fountain_lamp_hooks_ = std::make_unique<FountainLampHooks>();
@@ -90,6 +92,7 @@ HookManager::~HookManager()
     ability_hooks_.reset();
     pawn_shop_hooks_.reset();
     sewer_cat_gate_.reset();
+    intro_chest_gate_.reset();
     death_hooks_.reset();
     modifier_hooks_.reset();
     level_cap_hooks_.reset();
@@ -217,6 +220,11 @@ void HookManager::enforce_weapon_grants(ApState &state, bool authed, bool slot_o
     for (int fam = 0; fam < kWeaponFamilyCount; ++fam)
         authorized[fam] = tally.owned_mask(fam);
     pal::enforce_weapon_ownership(save_manager_, authorized, authed, slot_ok);
+    // The clamp only corrects the bits after the fact, so the intro chest still offers all three starters
+    // and still equips the pick. Demote it to the weapon-change chest, which offers owned weapons only -
+    // hence the wait for a grant, and hence the bound-save gate: on a vanilla run this would leave the
+    // player with no starting weapon at all.
+    intro_chest_gate_->set_armed(authed && slot_ok && any_weapon_authorized(authorized));
 }
 
 void HookManager::drain()
@@ -226,7 +234,8 @@ void HookManager::drain()
     chest_hooks_->sweep();      // clear the kear-lock on already-spawned chests
     ability_hooks_->enforce_train_tick();
     ability_hooks_->enforce_burrow_tick(get_player_ ? get_player_() : nullptr);
-    sewer_cat_gate_->tick(); // self-gated on the vendor lockout; walks nothing when it is clear
+    sewer_cat_gate_->tick();   // self-gated on the vendor lockout; walks nothing when it is clear
+    intro_chest_gate_->tick(); // self-gated on the armed flag; walks nothing when it is clear
 }
 
 void HookManager::on_world_update_end(void *world)
@@ -240,6 +249,7 @@ void HookManager::on_world_destroy()
     ability_hooks_->on_world_destroy();
     chest_hooks_->on_world_destroy(); // the tracked chests died with the world
     sewer_cat_gate_->on_world_destroy();
+    intro_chest_gate_->on_world_destroy();
 }
 
 void HookManager::kill_player()

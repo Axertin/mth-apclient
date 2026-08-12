@@ -107,6 +107,43 @@ TEST_CASE("weapon tally: non-weapon receipts authorize nothing", "[ap_ids]")
             CHECK(tally.owned_mask(fam) == 0u);
 }
 
+// The intro weapon chest is forced into its normal (equip-only) mode so it stops handing out a free
+// starting weapon. Normal mode lists only weapons the player already OWNS, so forcing it before any
+// weapon grant lands would present an empty chest and leave the player unarmed. This is the guard.
+TEST_CASE("weapon authorization: an empty mask authorizes nothing", "[ap_ids]")
+{
+    const mth::WeaponTally tally;
+    std::uint32_t authorized[mth::kWeaponFamilyCount]{};
+    for (int fam = 0; fam < mth::kWeaponFamilyCount; ++fam)
+        authorized[fam] = tally.owned_mask(fam);
+    CHECK_FALSE(mth::any_weapon_authorized(authorized));
+}
+
+TEST_CASE("weapon authorization: one receipt in any family is enough", "[ap_ids]")
+{
+    for (int fam = 0; fam < mth::kWeaponFamilyCount; ++fam)
+    {
+        mth::WeaponTally tally;
+        tally.add(mth::kProgWeaponBase + fam);
+        std::uint32_t authorized[mth::kWeaponFamilyCount]{};
+        for (int f = 0; f < mth::kWeaponFamilyCount; ++f)
+            authorized[f] = tally.owned_mask(f);
+        CHECK(mth::any_weapon_authorized(authorized));
+    }
+}
+
+TEST_CASE("weapon authorization: non-weapon receipts still authorize nothing", "[ap_ids]")
+{
+    mth::WeaponTally tally;
+    tally.add(mth::ap_item_id(42));    // a vanilla game item
+    tally.add(mth::kProgStatCapBase);  // a stat-cap chain
+    tally.add(mth::kProgFishingRodId); // another progressive chain
+    std::uint32_t authorized[mth::kWeaponFamilyCount]{};
+    for (int fam = 0; fam < mth::kWeaponFamilyCount; ++fam)
+        authorized[fam] = tally.owned_mask(fam);
+    CHECK_FALSE(mth::any_weapon_authorized(authorized));
+}
+
 TEST_CASE("item-space segments are 1000-wide and ordered", "[ap_ids]")
 {
     REQUIRE(mth::kItemBase == 0);

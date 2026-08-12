@@ -27,6 +27,7 @@ class DeathHooks;
 class AbilityHooks;
 class PawnShopHooks;
 class SewerCatGate;
+class IntroChestGate;
 class ModifierHooks;
 class LevelCapHooks;
 class FountainLampHooks;
@@ -93,6 +94,7 @@ class HookManager
     std::unique_ptr<AbilityHooks> ability_hooks_;
     std::unique_ptr<PawnShopHooks> pawn_shop_hooks_;
     std::unique_ptr<SewerCatGate> sewer_cat_gate_;
+    std::unique_ptr<IntroChestGate> intro_chest_gate_;
     std::unique_ptr<ModifierHooks> modifier_hooks_;
     std::unique_ptr<LevelCapHooks> level_cap_hooks_;
     std::unique_ptr<FountainLampHooks> fountain_lamp_hooks_;

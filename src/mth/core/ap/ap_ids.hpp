@@ -210,6 +210,17 @@ struct WeaponTally
     }
 };
 
+// Whether the seed has handed out any weapon at all, over the same per-family masks the ownership clamp
+// enforces. The intro chest is only safe to demote to its equip-only mode once this holds: that mode lists
+// only weapons the player owns, so demoting it earlier offers an empty chest and no way to arm at all.
+[[nodiscard]] constexpr bool any_weapon_authorized(const std::uint32_t (&authorized)[kWeaponFamilyCount])
+{
+    for (int fam = 0; fam < kWeaponFamilyCount; ++fam)
+        if (authorized[fam] != 0)
+            return true;
+    return false;
+}
+
 inline constexpr std::int64_t kMapItem = kProgressiveItemBase + 10;
 inline constexpr int kMapTiers = 2;
 // world_map (75), enhanced_map (76) granted in tier order.

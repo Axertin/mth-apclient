@@ -146,6 +146,17 @@ inline constexpr std::ptrdiff_t kSaveSlotStride = 0x11c8;
 inline constexpr std::ptrdiff_t kTicketMachineInteractOff = 0x1b0; // TicketMachine -> InteractComponent*
 inline constexpr std::ptrdiff_t kInteractDisabledOff = 0x23a;      // u8: nonzero = never interactable
 
+// CheckpointChest and the WeaponsChestMenu it builds when opened. The chest's starter-mode byte is set
+// only by NPCBehavior_IntroWeaponSelect and is copied into the menu at build time; it is what turns one
+// shared menu class into the intro's grant-a-starting-weapon chest instead of the ordinary weapon-change
+// chest, which lists owned weapons only, equips the pick and grants nothing. Clearing it on both objects
+// is what demotes the intro offer. All three verified identical on Linux and Windows (Ghidra decompiles the
+// Windows chest against this+0x170 and the menu against this+0x38, so add those back to what it reports).
+// The menu hop is validated by RTTI at use, since it is null except while the chest is open.
+inline constexpr std::ptrdiff_t kCheckpointChestMenuOff = 0x1e0;     // CheckpointChest -> WeaponsChestMenu*, null while closed
+inline constexpr std::ptrdiff_t kCheckpointChestStarterOff = 0x1ec;  // u8: nonzero = intro starter chest
+inline constexpr std::ptrdiff_t kWeaponsChestMenuStarterOff = 0x279; // u8: the menu's copy of the above
+
 // NPCEntity holds its InteractComponent at the same offset as TicketMachine (shared base). Linux-derived
 // only: NPCBehavior_SewerCat is multiply inherited (four vptrs), so MSVC need not place +0x50 where
 // Itanium does. Both hops are validated at use, so a Windows mismatch degrades to the gate's sibling
