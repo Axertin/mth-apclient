@@ -18,6 +18,7 @@
 #include "mth/features/goal_tracker.hpp"
 #include "mth/features/intro_chest_gate.hpp"
 #include "mth/features/item_granter.hpp"
+#include "mth/features/kear_completion_tracker.hpp"
 #include "mth/features/levelcap_hooks.hpp"
 #include "mth/features/location_hooks.hpp"
 #include "mth/features/lock_hooks.hpp"
@@ -50,6 +51,7 @@ HookManager::HookManager(IGameEvents &events, RandoBridge &rando, ScoutRegistry 
             vendor_lockout_.store(false, std::memory_order_relaxed);
         });
     goal_tracker_ = std::make_unique<GoalTracker>(rando);
+    kear_completion_ = std::make_unique<KearCompletionTracker>();
     lock_hooks_ = std::make_unique<LockHooks>();
     chest_hooks_ = std::make_unique<ChestHooks>(lock_hooks_->locks()); // shares the lock registry + seed
     get_player_ = get_player;                                          // shared with the vanilla-kear credit (credit_kear_key)
@@ -102,6 +104,7 @@ HookManager::~HookManager()
     goal_tracker_.reset();
     pal::set_save_loaded(nullptr); // the callback captures this; drop it before the tracker dies
     boss_tracker_.reset();
+    kear_completion_.reset();
     location_hooks_.reset();
     chest_hooks_.reset();
     lock_hooks_.reset();
@@ -135,7 +138,10 @@ void HookManager::tick(ApState &state, SessionPolicy &policy, int save_game_slot
     boss_tracker_->poll();
 
     if (authed)
-        goal_tracker_->evaluate(state); // poll SaveSlot; fires the AP goal when the slot_data condition is met
+    {
+        goal_tracker_->evaluate(state);    // poll SaveSlot; fires the AP goal when the slot_data condition is met
+        kear_completion_->evaluate(state); // latches the KeyMiser trade flag once every kear is held (#174)
+    }
 
     if (authed)
     {

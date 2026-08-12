@@ -48,6 +48,7 @@ add_executable(mthap_unit_tests
     unit/ability_gate_test.cpp
     unit/game_tables_test.cpp
     unit/goal_state_test.cpp
+    unit/kear_completion_test.cpp
     unit/mod_api_test.cpp
     unit/pal_text_range_test.cpp
     unit/connect_resend_gate_test.cpp
