@@ -32,16 +32,26 @@ void RandoBridge::detach_save_state()
     pal::logf(pal::LogLevel::Info, "bridge: save state detached");
 }
 
+bool RandoBridge::is_removed(int collection_slot) const
+{
+    return collection_slot >= 0 && state_.is_removed_location(ap_loc_id(collection_slot));
+}
+
 bool RandoBridge::is_ap_location(int collection_slot) const
 {
     // No per-call logging here: this is queried for every location every frame (it floods the log).
-    return collection_slot >= 0 && state_.is_valid_location(ap_loc_id(collection_slot));
+    if (collection_slot < 0)
+        return false;
+    const std::int64_t id = ap_loc_id(collection_slot);
+    return state_.is_valid_location(id) || state_.is_removed_location(id);
 }
 
 bool RandoBridge::is_checked(int collection_slot) const
 {
     if (collection_slot < 0)
         return false;
+    if (state_.is_removed_location(ap_loc_id(collection_slot)))
+        return true; // pruned by the seed, not a check the player actually made
     if (save_ != nullptr)
         return save_->is_checked(collection_slot);
     return sent_.count(ap_loc_id(collection_slot)) != 0;
@@ -52,6 +62,11 @@ const std::set<int> *RandoBridge::checked_slots() const
     return save_ != nullptr ? &save_->checked() : nullptr;
 }
 
+const std::set<std::int64_t> &RandoBridge::removed_slots() const
+{
+    return state_.removed_locations();
+}
+
 void RandoBridge::on_location_collected(int collection_slot)
 {
     const std::int64_t id = ap_loc_id(collection_slot);
@@ -59,6 +74,13 @@ void RandoBridge::on_location_collected(int collection_slot)
     {
         pal::logf(pal::LogLevel::Warn, "bridge: on_location_collected slot=%d id=%lld is NOT a valid AP location; not sent", collection_slot,
                   static_cast<long long>(id));
+        return;
+    }
+
+    if (is_removed(collection_slot))
+    {
+        // The dedup below reads the save directly, so the widened is_checked() does not cover this path.
+        pal::logf(pal::LogLevel::Debug, "bridge: slot=%d id=%lld removed by slot_data; not persisted or sent", collection_slot, static_cast<long long>(id));
         return;
     }
 
@@ -90,6 +112,8 @@ bool RandoBridge::reconcile_server_checked(int collection_slot)
         return false; // App reconciles only once inbound is ready; ids stay pending in ApState until then
     if (!is_ap_location(collection_slot))
         return false;
+    if (is_removed(collection_slot))
+        return false; // never enters checked_, so flush() cannot resend an id the server dropped
     if (save_->is_checked(collection_slot))
         return false;
     save_->mark_checked(collection_slot); // no send; caller batches the save()
@@ -107,10 +131,19 @@ void RandoBridge::flush()
 
     std::vector<std::int64_t> ids;
     if (save_ != nullptr)
+    {
+        // A stale statefile (written before the slot_data prune, or by any future checked_ writer) must
+        // not resend an id the server has never heard of.
         for (int slot : save_->checked())
-            ids.push_back(ap_loc_id(slot));
+            if (!is_removed(slot))
+                ids.push_back(ap_loc_id(slot));
+    }
     else
-        ids.assign(sent_.begin(), sent_.end());
+    {
+        for (std::int64_t id : sent_)
+            if (!state_.is_removed_location(id))
+                ids.push_back(id);
+    }
 
     pal::logf(pal::LogLevel::Info, "bridge: flush resending %zu checked location id(s)", ids.size());
     if (!ids.empty())
@@ -121,7 +154,7 @@ void RandoBridge::request_scouts(const std::vector<int> &collection_slots)
 {
     std::vector<std::int64_t> ids;
     for (int slot : collection_slots)
-        if (is_ap_location(slot))
+        if (is_ap_location(slot) && !is_removed(slot))
             ids.push_back(ap_loc_id(slot));
     if (!ids.empty())
         link_.scout_locations(ids);

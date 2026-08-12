@@ -53,6 +53,14 @@ class RandoBridge
     [[nodiscard]] bool is_ap_location(int collection_slot) const;
     [[nodiscard]] bool is_checked(int collection_slot) const; // false for negative/non-location slots
 
+    // slot_data pruned this location out of the pool. Reads as an already-checked AP location so the
+    // in-world suppression fires, but is excluded from every outbound path.
+    [[nodiscard]] bool is_removed(int collection_slot) const;
+
+    // The slot_data removed-location ids. Game-thread; used by the native collected-bit enforcement so a
+    // pruned dungeon's kears/bonestones/fish read as obtained to the game's own tallies.
+    [[nodiscard]] const std::set<std::int64_t> &removed_slots() const;
+
     // The persisted checked-location slots, or nullptr before a save attaches. Game-thread; used by the
     // native collected-bit enforcement to render server-collected (Collect/coop) chests opened on reload.
     [[nodiscard]] const std::set<int> *checked_slots() const;

@@ -63,6 +63,9 @@ struct ApConnected
     int goal_bosses{99};                                     // slot_data "goal_bosses": bosses needed (default unreachable)
     bool wallet_cap{false};                                  // slot_data "wallet_cap": cap the bone wallet by received wallet items
     std::uint32_t lit_generator_lamp_mask{0};                // slot_data "lit_generators": force these Ossex fountain lamps lit (visual only)
+    // slot_data "removed_locations": ids the apworld pruned from the pool; treated as already collected.
+    // Keep this last: ap_link_apclient.cpp builds the aggregate positionally, so an earlier insertion shifts every following argument.
+    std::vector<std::int64_t> removed_locations{};
 };
 struct ApItemReceived
 {

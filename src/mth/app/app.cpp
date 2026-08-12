@@ -474,6 +474,8 @@ std::vector<std::string> App::status_lines() const
     out.push_back("ap status: " + state_.status());
     out.push_back("player slot: " + std::to_string(state_.player_slot()));
     out.push_back("received items: " + std::to_string(state_.received_items().size()));
+    if (const auto removed = state_.removed_locations().size(); removed != 0)
+        out.push_back("removed locations: " + std::to_string(removed));
 
     // A named hook cannot be feature-detected, so firing is the only evidence it exists on this
     // build. Anything still listed after real play is a dead path.
