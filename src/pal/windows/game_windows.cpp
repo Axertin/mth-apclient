@@ -1507,7 +1507,6 @@ bool abilities_available()
     g_addr_pickup = resolve_game_symbol(mth::sym::player_pickup_carryable);
     g_addr_train_npc = resolve_game_symbol(mth::sym::train_authority_on_npc_event);
     g_addr_burrow_jump = resolve_game_symbol(mth::sym::mina_on_burrow_jump); // #56
-    g_addr_pickup != 0 || g_addr_train_npc != 0;
     g_ab_ok = g_addr_burrow_ground != 0 || g_addr_rope_climb != 0 || g_addr_bounce_plant != 0 || g_addr_bounce_launch != 0 || g_addr_on_bounce != 0 ||
               g_addr_spring != 0 || g_addr_pickup != 0 || g_addr_train_npc != 0;
     if (!g_ab_ok)
