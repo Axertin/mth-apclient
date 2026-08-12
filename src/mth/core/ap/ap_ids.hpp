@@ -317,6 +317,7 @@ inline constexpr std::array<std::int64_t, 1> kBBLocks = {kKearBlockItemBase + 69
 inline constexpr std::array<std::int64_t, 2> kCTPLocks = {kKearBlockItemBase + 115, kKearBlockItemBase + 109};
 inline constexpr std::array<std::int64_t, 3> kAOLocks = {kKearBlockItemBase + 277, kKearBlockItemBase + 278, kKearBlockItemBase + 127};
 inline constexpr std::array<std::int64_t, 1> kRMLocks = {kKearBlockItemBase + 141};
+inline constexpr std::array<std::int64_t, 1> kSBLocks = {kKearBlockItemBase + 96};
 
 struct AreaLockGroup
 {
@@ -324,7 +325,7 @@ struct AreaLockGroup
     std::span<const std::int64_t> locks;
 };
 
-inline constexpr std::array<AreaLockGroup, 16> kAreaLockGroups = {{{kAreaKearLockItemBase + 9, kOSLocks},
+inline constexpr std::array<AreaLockGroup, 17> kAreaLockGroups = {{{kAreaKearLockItemBase + 9, kOSLocks},
                                                                    {kAreaKearLockItemBase + 10, kTrainLocks},
                                                                    {kAreaKearLockItemBase + 7, kLLLocks},
                                                                    {kAreaKearLockItemBase + 15, kSOLocks},
@@ -339,6 +340,7 @@ inline constexpr std::array<AreaLockGroup, 16> kAreaLockGroups = {{{kAreaKearLoc
                                                                    {kAreaKearLockItemBase + 3, kBBLocks},
                                                                    {kAreaKearLockItemBase + 4, kCTPLocks},
                                                                    {kAreaKearLockItemBase + 0, kAOLocks},
+                                                                   {kAreaKearLockItemBase + 14, kSBLocks},
                                                                    {kAreaKearLockItemBase + 12, kRMLocks}}};
 
 inline constexpr bool is_vanilla_game_item(std::int64_t ap_item_id_)
