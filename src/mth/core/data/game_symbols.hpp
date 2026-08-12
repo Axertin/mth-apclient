@@ -10,9 +10,9 @@ namespace mth::sym
 // hooks; ycWorld::QueueDestroy, Items::SetItemCollected, Player::UpdateStats, PhysicsComponent::GetAABB,
 // CarryManager::GetClosestCarryableObject, WaterListener::IsInDeepWaterInternal and the ycTextComponent
 // text/color mutators are native API entries; KeyBlock::Update and KeyBlockChain::UpdateState are a sweep
-// over the world's own entity lists.
+// over the world's own entity lists; ycUpdateQueue::Update was only ever a tick source and Game::FixedUpdate
+// covers that.
 inline constexpr const char *game_fixed_update = "_ZN4Game11FixedUpdateEv"; // Game::FixedUpdate()
-inline constexpr const char *update_queue = "_ZN13ycUpdateQueue6UpdateEf";  // ycUpdateQueue::Update(float)
 // Items::OnPickupDone(...): resolved for its ADDRESS only (inbound AP grants call it directly); its
 // pre-hook runs through the native "ItemsOnPickupDone" mod hook.
 inline constexpr const char *on_pickup_done = "_ZN5Items12OnPickupDoneEiiP6PlayerRK6ycVec3iijb";
