@@ -1,0 +1,9 @@
+# Third-party notices
+
+@PROJECT_NAME@ is MIT licensed; see LICENSE in the folder above. It statically links
+the libraries below, and each directory here holds that library's own licence file,
+copied verbatim from the revision this build used.
+
+Several of these libraries vendor further components of their own. Those are not
+copied here; they are covered by, and traceable from, the upstream project whose
+directory you find them under.
