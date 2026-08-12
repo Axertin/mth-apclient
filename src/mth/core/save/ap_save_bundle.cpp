@@ -111,9 +111,18 @@ void ApSaveBundleStore::ensure_loaded(std::string_view seed, std::string_view sl
         for (const zip::Entry &e : *entries)
         {
             if (e.name == kEntrySave)
-                cache_.game_save = e.data;
+            {
+                // Validated on the way out as well as in: a container is user-writable, and staging a
+                // malformed blob into a vanilla slot is worse than starting a new file.
+                if (looks_like_save_blob(e.data))
+                    cache_.game_save = e.data;
+                else
+                    pal::logf(pal::LogLevel::Warn, "save: container %s holds a malformed game save; ignoring it", path.string().c_str());
+            }
             else if (e.name == kEntryState)
+            {
                 cache_.ap_state = e.data;
+            }
         }
     }
     else if (std::filesystem::exists(path))

@@ -225,6 +225,29 @@ TEST_CASE("bundle ignores an unsafe legacy state name", "[bundle]")
     REQUIRE_FALSE(store.load_state("../../etc/passwd", "2").has_value());
 }
 
+TEST_CASE("bundle ignores a malformed save entry inside a container", "[bundle]")
+{
+    Fixture f;
+    {
+        auto store = f.make();
+        REQUIRE(store.store("S", "2", kBlob));
+        REQUIRE(store.store_state("S", "2", "c 1\n"));
+    }
+
+    // Rewrite the container by hand with a corrupt save entry but an intact state entry, the way a
+    // user editing the zip could.
+    const std::string image = mth::zip::write({
+        mth::zip::compress("manifest.json", "{\"format\":1,\"seed\":\"S\",\"slot\":\"2\"}"),
+        mth::zip::compress("save.ycsave", "not a save at all"),
+        mth::zip::compress("ap.state", "c 1\n"),
+    });
+    f.write_file(f.saves / "ap_S_2.zip", image);
+
+    auto reader = f.make();
+    REQUIRE_FALSE(reader.load("S", "2").has_value()); // refused, not staged into the game
+    REQUIRE(reader.load_state("S", "2").value() == "c 1\n");
+}
+
 TEST_CASE("bundle rewrites the save blob when it changes", "[bundle]")
 {
     Fixture f;
