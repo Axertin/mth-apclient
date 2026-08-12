@@ -4,6 +4,7 @@
 #include <functional>
 #include <limits>
 #include <optional>
+#include <string_view>
 #include <vector>
 
 #include "mod/mod_api.hpp"
@@ -77,7 +78,7 @@ class AppTickSink final : public mth::IGameEvents
 namespace mth
 {
 
-App::App() : login_prefs_(pal::log_dir() / "login.prefs")
+App::App() : bundle_store_(pal::mod_save_dir(), {pal::log_dir(), pal::mod_save_dir()}), login_prefs_(pal::log_dir() / "login.prefs")
 {
     pal::logf(pal::LogLevel::Info, "mth-apclient %.*s (%.*s) loaded", static_cast<int>(version::string.size()), version::string.data(),
               static_cast<int>(version::hash.size()), version::hash.data());
@@ -160,7 +161,7 @@ App::App() : login_prefs_(pal::log_dir() / "login.prefs")
 
     // Built last: GameHooks needs *events_, and the manager's hooks tick into all managers.
     hooks_ = std::make_unique<HookManager>(
-        *events_, net_->rando(), scout_registry_, state_, [this] { net_->link().send_death("Mina the Hollower"); },
+        *events_, net_->rando(), scout_registry_, state_, bundle_store_, [this] { net_->link().send_death("Mina the Hollower"); },
         [this]() -> void * { return tracker_->player(); });
 #ifdef MTHAP_HAS_OVERLAY
     {
@@ -390,8 +391,11 @@ void App::ensure_inbound_ready()
     if (grants_->inbound_ready() || !state_.authenticated())
         return;
     remember_successful_login(); // first tick after authentication: this target worked
-    const std::string key = "ap_" + state_.seed() + "_" + std::to_string(state_.player_slot()) + ".state";
-    save_state_.emplace(pal::log_dir() / key);
+    const std::string seed = state_.seed();
+    const std::string slot = std::to_string(state_.player_slot());
+    const std::string key = bundle_store_.path_for(seed, slot).string();
+    save_state_.emplace([this, seed, slot] { return bundle_store_.load_state(seed, slot); },
+                        [this, seed, slot](std::string_view text) { bundle_store_.store_state(seed, slot, text); });
     grants_->build_inbound(state_, *save_state_, [this] { return hooks_->credit_kear_key(); }); // vanilla-kear key grant (#130)
     pal::logf(pal::LogLevel::Info, "inbound: state loaded (%s); granter live", key.c_str());
     hooks_->set_ap_slot(save_state_->game_slot()); // restore the AP-game slot (skip capture if known)

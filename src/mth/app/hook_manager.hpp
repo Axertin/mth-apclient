@@ -34,13 +34,14 @@ class LevelCapHooks;
 class FountainLampHooks;
 class TitleGate;
 class SaveTakeover;
+class ApSaveBundleStore;
 
 // Owns the game-hook plumbing (GameHooks) + the 16 feature hooks, and drives their slice
 // of the per-frame tick. Thin: wiring + lifetime + enforcement dispatch, no new logic.
 class HookManager
 {
   public:
-    HookManager(IGameEvents &events, RandoBridge &rando, ScoutRegistry &scout, ApState &state, std::function<void()> send_death,
+    HookManager(IGameEvents &events, RandoBridge &rando, ScoutRegistry &scout, ApState &state, ApSaveBundleStore &bundle, std::function<void()> send_death,
                 std::function<void *()> get_player);
     ~HookManager(); // out of line: the owned hook types are only forward-declared here
 

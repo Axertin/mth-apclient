@@ -9,6 +9,7 @@
 #include <nlohmann/json.hpp>
 
 #include "mth/core/save/ap_save_store.hpp"
+#include "pal/pal_log.hpp"
 
 namespace mth
 {
@@ -115,19 +116,32 @@ void ApSaveBundleStore::ensure_loaded(std::string_view seed, std::string_view sl
                 cache_.ap_state = e.data;
         }
     }
+    else if (std::filesystem::exists(path))
+    {
+        // Present but unreadable: keep it (persist rotates it to .bak) and fall through to the old
+        // layout rather than treating the run as absent.
+        pal::logf(pal::LogLevel::Warn, "save: container %s is unreadable or belongs to another session; falling back to the previous layout",
+                  path.string().c_str());
+    }
 
     // Per entry, so a container holding only one payload still picks the other up from the old layout.
     if (!cache_.game_save)
     {
         if (auto blob = read_file(legacy_.ycsave_dir / ap_save_filename(seed, slot)); blob && looks_like_save_blob(*blob))
+        {
             cache_.game_save = std::move(*blob);
+            pal::logf(pal::LogLevel::Info, "save: adopted the previous-layout game save for seed=%s slot=%s", cache_.seed.c_str(), cache_.slot.c_str());
+        }
     }
     if (!cache_.ap_state)
     {
         if (const auto name = legacy_state_filename(seed, slot))
         {
             if (auto text = read_file(legacy_.state_dir / *name))
+            {
                 cache_.ap_state = std::move(*text);
+                pal::logf(pal::LogLevel::Info, "save: adopted the previous-layout AP state for seed=%s slot=%s", cache_.seed.c_str(), cache_.slot.c_str());
+            }
         }
     }
 }
@@ -139,7 +153,10 @@ bool ApSaveBundleStore::persist() const
     {
         std::filesystem::create_directories(dir_, ec);
         if (ec)
+        {
+            pal::logf(pal::LogLevel::Error, "save: cannot create %s: %s", dir_.string().c_str(), ec.message().c_str());
             return false;
+        }
         dir_ready_ = true;
     }
 
@@ -152,13 +169,15 @@ bool ApSaveBundleStore::persist() const
     blobs.push_back(zip::compress(kEntryManifest, manifest.dump()));
 
     // Re-emit an unchanged entry from its cached compressed form: a state write must not pay deflate
-    // on the save blob, which is far larger and rewritten far less often.
+    // on the save blob, which is far larger and rewritten far less often. The cache is only valid
+    // because every mutator erases its own entry before persisting; the size check is a cheap guard
+    // against a future one that forgets.
     const auto emit = [this, &blobs](const char *name, const std::optional<std::string> &value)
     {
         if (!value)
             return;
         const auto it = cache_.blobs.find(name);
-        if (it != cache_.blobs.end())
+        if (it != cache_.blobs.end() && it->second.uncompressed_size == value->size())
         {
             blobs.push_back(it->second);
             return;
@@ -173,7 +192,10 @@ bool ApSaveBundleStore::persist() const
     // Dropping a payload we are holding is always a bug, never an intended state.
     const std::size_t expected = 1 + (cache_.game_save ? 1u : 0u) + (cache_.ap_state ? 1u : 0u);
     if (blobs.size() != expected)
+    {
+        pal::logf(pal::LogLevel::Error, "save: refusing to write a container with %zu of %zu entries", blobs.size(), expected);
         return false;
+    }
 
     const std::string image = zip::write(blobs);
     const auto final_path = path_for(cache_.seed, cache_.slot);
@@ -185,10 +207,16 @@ bool ApSaveBundleStore::persist() const
     {
         std::ofstream out(tmp_path, std::ios::binary | std::ios::trunc);
         if (!out)
+        {
+            pal::logf(pal::LogLevel::Error, "save: cannot open %s for writing", tmp_path.string().c_str());
             return false;
+        }
         out.write(image.data(), static_cast<std::streamsize>(image.size()));
         if (!out)
+        {
+            pal::logf(pal::LogLevel::Error, "save: short write to %s", tmp_path.string().c_str());
             return false;
+        }
     }
 
     // Rotate before the replace: a crash in between leaves a good .bak and no container, which the
@@ -202,6 +230,7 @@ bool ApSaveBundleStore::persist() const
     std::filesystem::rename(tmp_path, final_path, ec);
     if (ec)
     {
+        pal::logf(pal::LogLevel::Error, "save: cannot replace %s: %s", final_path.string().c_str(), ec.message().c_str());
         std::filesystem::remove(tmp_path, ec);
         return false;
     }
