@@ -9,6 +9,7 @@
 #include "mth/core/data/game_layout.hpp"
 #include "mth/core/data/game_symbols.hpp"
 #include "mth/core/data/game_tables.hpp"
+#include "mth/features/name_key.hpp"
 #include "pal/pal_game.hpp"
 #include "pal/pal_log.hpp"
 #include "pal/pal_module.hpp"
@@ -41,33 +42,10 @@ std::set<int> g_logged_chain_slots; // identity log dedup for KeyBlockChain (gam
         return cached;
 
     // Derive the name-hash compare key from the entity (SetSaveUnlocked b4a81b..b4a849).
-    void *rcx = *reinterpret_cast<void **>(static_cast<char *>(self) + mth::layout::kKeyBlockEntityRefOff);
-    void *rax = rcx != nullptr ? *reinterpret_cast<void **>(static_cast<char *>(rcx) + 0x40) : nullptr;
-    std::uint64_t key = rax != nullptr ? *reinterpret_cast<std::uint64_t *>(static_cast<char *>(rax) + 0xd0) : 0;
-    if (key == 0)
-    {
-        void *r = rax != nullptr ? *reinterpret_cast<void **>(rax) : nullptr;
-        key = r != nullptr ? *reinterpret_cast<std::uint64_t *>(static_cast<char *>(r) + 0x28) : 0;
-    }
+    const std::uint64_t key = mth::component_name_key(self);
     if (out_key != nullptr)
         *out_key = key;
-
-    // Linear scan s_rItemCollection for the match.
-    int matched = -1;
-    for (int i = 0; i < mth::layout::kCollectionScanCap; ++i)
-    {
-        if (mth::tables::collection_name_key(i) == key)
-        {
-            matched = i;
-            break;
-        }
-    }
-    if (matched < 0)
-        return -1;
-
-    // Apply the warp remap; if no remap (<0), the matched index itself is the slot.
-    const int warp = mth::tables::collection_warp_remap(matched);
-    return warp < 0 ? matched : warp;
+    return mth::tables::collection_slot_for_name_key(key);
 }
 
 // A lock already spawned solid when its slot was removed won't self-open (the unlock bit is only
@@ -103,32 +81,10 @@ void open_key_block(void *self)
         return -1;
 
     void *sp = *reinterpret_cast<void **>(static_cast<char *>(self) + mth::layout::kChainSpawnPointOff);
-    if (sp == nullptr)
-        return -1;
-
-    std::uint64_t key = *reinterpret_cast<std::uint64_t *>(static_cast<char *>(sp) + mth::layout::kSpawnPointNameKeyOff);
-    if (key == 0)
-    {
-        void *r = *reinterpret_cast<void **>(sp);
-        key = r != nullptr ? *reinterpret_cast<std::uint64_t *>(static_cast<char *>(r) + 0x28) : 0;
-    }
+    const std::uint64_t key = mth::object_name_key(sp); // 0 for a chain that gates no SpawnPoint
     if (key == 0)
         return -1;
-
-    int matched = -1;
-    for (int i = 0; i < mth::layout::kCollectionScanCap; ++i)
-    {
-        if (mth::tables::collection_name_key(i) == key)
-        {
-            matched = i;
-            break;
-        }
-    }
-    if (matched < 0)
-        return -1;
-
-    const int warp = mth::tables::collection_warp_remap(matched);
-    return warp < 0 ? matched : warp;
+    return mth::tables::collection_slot_for_name_key(key);
 }
 
 // An already-spawned chain reads its unlock bit only at ctor time, so drive the state machine to the

@@ -136,6 +136,21 @@ void resolve();
 [[nodiscard]] int collection_warp_remap(int idx); // <0 = no remap
 [[nodiscard]] std::uint8_t collection_bit_index(int slot);
 
+// Effective slot of a name-scan result: a matched row's warp-remap field redirects it to another slot,
+// and <0 there means the matched index is itself the slot. Unmatched (<0) stays unresolved. Pure so it is
+// unit-testable.
+[[nodiscard]] constexpr int warp_resolved_slot(int matched_idx, int warp_remap) noexcept
+{
+    if (matched_idx < 0)
+        return -1;
+    return warp_remap < 0 ? matched_idx : warp_remap;
+}
+
+// Name-hash -> effective collection slot, the resolve every live object shares (KeyBlock, KeyBlockChain,
+// locked Chest): scan s_rItemCollection for the key, then warp-resolve the hit. -1 if unmatched or
+// unresolved. Mirrors KeyBlock::SetSaveUnlocked's own scan.
+[[nodiscard]] int collection_slot_for_name_key(std::uint64_t name_key);
+
 // Patch s_rItems[kApDummyItemType]: kind 0 (no-op grant) + sprite assets from the donor row.
 // Idempotent; best-effort (skipped + logged if s_rItems unresolved or mprotect fails).
 void repurpose_dummy_item();

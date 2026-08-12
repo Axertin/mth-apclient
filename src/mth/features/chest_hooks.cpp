@@ -8,6 +8,7 @@
 #include "mod/mod_api.hpp"
 #include "mth/core/data/game_layout.hpp"
 #include "mth/core/data/game_tables.hpp"
+#include "mth/features/name_key.hpp"
 #include "pal/pal_log.hpp"
 
 namespace
@@ -27,38 +28,17 @@ constexpr std::size_t kMaxTrackedChests = 512;
 bool g_overflow_logged = false;
 
 // Resolve a live locked Chest's effective s_rItemCollection slot. A chest has no cached slot; its
-// identity is the SpawnPoint name-key (Chest +0xa8 -> +0x40 -> +0xd0, fallback *(sp)+0x28), scanned
-// against s_rItemCollection + warp-remapped exactly as the chest ctor's own gate does. -1 if unmatched.
+// identity is the SpawnPoint name-key reached through its entity ref, scanned against s_rItemCollection +
+// warp-remapped exactly as the chest ctor's own gate does. -1 if unmatched.
 [[nodiscard]] int resolve_chest_slot(void *self)
 {
     if (!mth::tables::collection_resolved() || self == nullptr)
         return -1;
 
-    void *rcx = *reinterpret_cast<void **>(static_cast<char *>(self) + mth::layout::kKeyBlockEntityRefOff);
-    void *rax = rcx != nullptr ? *reinterpret_cast<void **>(static_cast<char *>(rcx) + 0x40) : nullptr;
-    std::uint64_t key = rax != nullptr ? *reinterpret_cast<std::uint64_t *>(static_cast<char *>(rax) + 0xd0) : 0;
-    if (key == 0)
-    {
-        void *r = rax != nullptr ? *reinterpret_cast<void **>(rax) : nullptr;
-        key = r != nullptr ? *reinterpret_cast<std::uint64_t *>(static_cast<char *>(r) + 0x28) : 0;
-    }
+    const std::uint64_t key = mth::component_name_key(self);
     if (key == 0)
         return -1;
-
-    int matched = -1;
-    for (int i = 0; i < mth::layout::kCollectionScanCap; ++i)
-    {
-        if (mth::tables::collection_name_key(i) == key)
-        {
-            matched = i;
-            break;
-        }
-    }
-    if (matched < 0)
-        return -1;
-
-    const int warp = mth::tables::collection_warp_remap(matched);
-    return warp < 0 ? matched : warp;
+    return mth::tables::collection_slot_for_name_key(key);
 }
 
 // Clear the locked flag for a registered slot so the chest opens with no kear; the ctor only reads the

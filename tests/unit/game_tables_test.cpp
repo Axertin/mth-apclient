@@ -163,6 +163,29 @@ TEST_CASE("weapon_fields_in_domain: a read wider than three tiers is not the wea
     CHECK_FALSE(mth::tables::weapon_fields_in_domain(0b001u, -1)); // negative shifts the game's revoke UB
 }
 
+// warp_resolved_slot turns an s_rItemCollection name-scan result into the slot the unlock bit uses. It is
+// the tail every live-object resolve shares (KeyBlock, KeyBlockChain, locked Chest), so the remap rule is
+// pinned here rather than three times over live game memory.
+
+TEST_CASE("warp_resolved_slot: a row with no remap resolves to its own index", "[game_tables]")
+{
+    CHECK(mth::tables::warp_resolved_slot(/*matched=*/17, /*warp=*/-1) == 17);
+    CHECK(mth::tables::warp_resolved_slot(0, -1) == 0);
+    CHECK(mth::tables::warp_resolved_slot(360, -2) == 360); // any negative is "no remap", as the game reads it
+}
+
+TEST_CASE("warp_resolved_slot: a remapped row resolves to the remap target", "[game_tables]")
+{
+    CHECK(mth::tables::warp_resolved_slot(/*matched=*/17, /*warp=*/42) == 42);
+    CHECK(mth::tables::warp_resolved_slot(3, 0) == 0); // slot 0 is a real target, not a "no remap" sentinel
+}
+
+TEST_CASE("warp_resolved_slot: an unmatched scan stays unresolved", "[game_tables]")
+{
+    CHECK(mth::tables::warp_resolved_slot(/*matched=*/-1, /*warp=*/-1) == -1);
+    CHECK(mth::tables::warp_resolved_slot(-1, 42) == -1); // nothing matched, so a remap field read anyway means nothing
+}
+
 TEST_CASE("collection bit index: 0xff is the table's no-bit sentinel, not drift", "[tables][gate]")
 {
     // Measured against the shipping table: rows 24 and 25 carry 0xff, meaning "this location has
