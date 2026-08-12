@@ -70,8 +70,8 @@ To build on Windows:
 ```powershell
 git clone --recurse-submodules https://github.com/Axertin/mth-apclient
 cd mth-apclient
-cmake --preset clang-cl-x64-debug
-cmake --build --preset clang-cl-x64-debug
+cmake --preset clang-cl-x64-release
+cmake --build --preset clang-cl-x64-release
 ```
 
 Full instructions are in [CONTRIBUTING.md](CONTRIBUTING.md).

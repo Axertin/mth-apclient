@@ -8,16 +8,22 @@ The game runs on a custom engine (`yc`), rendering with Vulkan on Linux and Dire
 
 ## Targets
 
-The build produces three layers with a strict dependency direction (`core` <- `pal` <- `mthap`):
+The build has a strict dependency direction (`core` <- `pal` <- `mthap`):
 
 | Target       | Kind       | Contents                                                                                                                                                                                                                       |
 | ------------ | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `mthap_core` | static lib | Pure, cross-platform logic: AP state/coordinator, the location/item bridge, inbound granter, save state, ID mapping, startup config, enforcement policy, and the signature matcher. No OS/backend headers that require linking. **The unit tests link only this.** |
+| `mthap_core` | static lib | Pure, cross-platform logic: AP state/coordinator, the location/item bridge, inbound granter, save state, ID mapping, startup config, enforcement policy, and the signature matcher. No OS/backend headers that require linking. |
+| `mthap_mod`  | static lib | The wrapper over the game's own mod API (`src/mod/`): named hook installation, symbol lookup, and the save/item entry points. Cross-platform; the live `MinaModAPI*` is injected, so tests can substitute a fake.               |
+| `mthap_net`  | static lib | The Archipelago link (apclientpp / wswrap / websocketpp over OpenSSL) and deathlink. Built only when `MTHAP_ENABLE_NET` is on.                                                                                                 |
 | `mthap_pal`  | object lib | The Platform Abstraction Layer: process entry points and the hook backend, under `src/pal/{linux,windows}/`. Built as an OBJECT library so loader-injected entry points are never dropped by the linker.                       |
-| `mthap`      | module     | The final shared object (`mod.so` / `mod.dll`). The composition root (`mth::App`) wires `core` to `pal`.                                                                                                        |
+| `mthap`      | module     | The final shared object (`mod.so` / `mod.dll`). The composition root (`mth::App`) wires it all together, and owns the per-feature hooks under `src/mth/features/`.                                                             |
 
 `mth::App` owns the runtime. The logger and the hook engine are PAL globals exposed through
 interfaces with injectable seams, so the core can be unit-tested without a real platform.
+
+The unit tests link `mthap_core` and `mthap_mod`, and additionally compile in the Linux file-log
+and certificate-store PAL sources plus `features/death_hooks.cpp` to exercise them directly. That
+makes the test lane Linux-only: it does not build on Windows.
 
 ## Loading
 
@@ -32,10 +38,11 @@ interfaces with injectable seams, so the core can be unit-tested without a real 
 Both files (`mod.so`/`mod.dll` and `mod.yc`) belong in a per-mod folder under the game's mods
 directory, which lives in its save dir (the SDL pref path). On Linux that is
 `~/.local/share/Yacht Club Games/Mina the Hollower/mods/apclient/`. On Windows it is
-`%APPDATA%\Yacht Club Games\Mina the Hollower\mods\apclient\`. Loading the code library requires
-the `mod-allow-code` Steam launch option on the modding beta branch. The loader matches it as a
-case-insensitive substring of the launch command line. There is no separate `-mod` switch. The
-loader always runs and writes `mod.log` in that save dir.
+`%APPDATA%\Yacht Club Games\Mina the Hollower\mods\apclient\`. Both `-mod` and `-mod-allow-code`
+are needed on the modding beta branch: `-mod` turns the loader on, `-mod-allow-code` lets it load
+a mod's compiled library. Each is matched as a whole argument, case-insensitively, with a leading
+`-` or `--` stripped. Without `-mod` the loader returns before doing anything, so no `mod.log` is
+written at all; with it, the loader writes `mod.log` in that save dir every run.
 
 ## Resolving game functions
 
@@ -44,9 +51,11 @@ Hooks target specific game functions, resolved differently per platform behind a
 
 - **Linux**: As of Mina v1.0.6, the game binary is not stripped (it ships DWARF), so functions are
   resolved by their mangled symbol name via Frida's symbol table.
-- **Windows**: the shipping PE is stripped, so functions are located by scanning the `.text`
-  section for masked byte signatures. The pure matcher lives in `core` and is unit-tested. The
-  signature table is produced by standalone tooling and validated against the shipping build.
+- **Windows**: the shipping PE is stripped, so there is no name to resolve. Addresses come from
+  the mod API's `GetSymAddr` where the game exposes the name, then from a hook-name-hash anchor,
+  and only then from scanning the `.text` section for masked byte signatures. The pure matcher
+  lives in `core` and is unit-tested. The signature table is produced by standalone tooling and
+  validated against the shipping build.
 
 The hook mechanisms and the signature-table workflow are documented in
 [reverse-engineering.md](reverse-engineering.md).
@@ -115,9 +124,12 @@ few symbols that would otherwise raise it.
 
 ```
 src/mth/core/     pure logic (test-linked)
-src/mth/hooks/    per-feature game hooks (pickups/shop, bosses, locks, player tracking, item grants)
+src/mth/app/      composition root: App, HookManager, ApSession, grant pipeline, startup gate probes
+src/mth/features/ per-feature game hooks (pickups/shop, bosses, locks, player tracking, item grants)
+src/mth/hooks/    the shared detour plumbing the feature hooks install through
 src/mth/net/      Archipelago link implementation
-src/mth/ui/       dev console
+src/mth/ui/       dev console, login window, banners
+src/mod/          wrapper over the game's native mod API
 src/pal/linux/    Linux PAL (Frida, Vulkan/SDL overlay, entry point)
 src/pal/windows/  Windows PAL (MinHook, D3D12 overlay, native mod entry)
 cmake/            dependency + toolchain modules

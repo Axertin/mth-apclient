@@ -7,11 +7,13 @@ conventions the project follows.
 
 - CMake >= 3.25, Ninja, and a C++23 compiler (the presets use `clang`/`clang++` (`clang-cl` / `clang++-cl` on Windows)).
 - Dependencies are pulled automatically:
-  - **vcpkg**: the only git submodule (`external/vcpkg`). It provides the networking deps
-    (asio, OpenSSL, zlib, nlohmann-json) and the overlay deps (Vulkan headers, SDL2).
-  - **Frida-Gum** (Linux hook backend), **MinHook** (Windows hook backend), **Catch2** (tests),
-    and the Archipelago client headers (apclientpp / wswrap / websocketpp) are fetched at configure
-    time via CMake `FetchContent`.
+  - **vcpkg**: the only git submodule (`external/vcpkg`). It provides nlohmann-json, the
+    networking deps (asio, OpenSSL, zlib), and, on Linux only, the overlay deps (Vulkan headers,
+    SDL2 headers). The Windows overlay needs no vcpkg packages: its Dear ImGui backends build
+    against the D3D12/Win32 headers the platform SDK already ships.
+  - **Dear ImGui** (overlay), **Frida-Gum** (Linux hook backend), **MinHook** (Windows hook
+    backend), **Catch2** (tests), and the Archipelago client headers (apclientpp / wswrap /
+    websocketpp) are fetched at configure time via CMake `FetchContent`.
 
 ## Getting the source
 
@@ -36,8 +38,8 @@ cmake --build --preset clang-x64-debug
 
 ### Tests only (fastest loop)
 
-The unit tests link only the pure-logic core, so this needs none of the game-adjacent
-dependencies:
+The unit tests skip the module and the hook backends, so this needs none of the game-adjacent
+dependencies. They do compile in a couple of Linux PAL sources, so the test lane is Linux-only:
 
 ```bash
 cmake --preset clang-x64-tests
@@ -61,7 +63,7 @@ Linux box. It is a development aid only. It produces a MinGW-ABI binary, not a s
 
 Copy `build/clang-x64-debug/mods/apclient/` (`mod.so` and `mod.yc`) into the game's mods
 directory at `~/.local/share/Yacht Club Games/Mina the Hollower/mods/apclient/` (the SDL pref
-path, not the install dir). Launch via Steam with the `mod-allow-code` option. The game loader
+path, not the install dir). Launch via Steam with the `-mod -mod-allow-code` options. The game loader
 writes `~/.local/share/Yacht Club Games/Mina the Hollower/mod.log` with load diagnostics. The
 mod's own runtime log is `~/.local/share/mth-apclient/mthap_*.log`.
 
@@ -83,13 +85,15 @@ CI gates merges on formatting with a pinned clang-format version.
 
 ## Code layout & the platform boundary
 
-The codebase is split into three targets (see [docs/architecture.md](docs/architecture.md)):
+The codebase is split into these targets (see [docs/architecture.md](docs/architecture.md)):
 
 - `mthap_core`: pure, cross-platform logic. **It must not include platform, OS, or hook-backend
-  headers that require linking**, because the unit tests link only this target.
+  headers that require linking**, because the unit tests link it without the module or a backend.
+- `mthap_mod`: the wrapper over the game's own mod API, under `src/mod/`. Also test-linked.
+- `mthap_net`: the Archipelago link, built only when networking is enabled.
 - `mthap_pal`: the platform abstraction layer (process entry points and hook backend) under
   `src/pal/{linux,windows}/`.
-- `mthap`: the final module that composes the two.
+- `mthap`: the final module that composes them.
 
 When you add platform-specific behavior, put it behind a PAL interface rather than `#ifdef`-ing it
 into the core or the higher-level logic.
