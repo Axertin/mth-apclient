@@ -88,7 +88,9 @@ CI gates merges on formatting with a pinned clang-format version.
 The codebase is split into these targets (see [docs/architecture.md](docs/architecture.md)):
 
 - `mthap_core`: pure, cross-platform logic. **It must not include platform, OS, or hook-backend
-  headers that require linking**, because the unit tests link it without the module or a backend.
+  headers**, because the unit tests link it without the module or a backend. Portable third-party
+  libraries are allowed provided they resolve with no vcpkg feature selected, since the tests lane
+  requests none.
 - `mthap_mod`: the wrapper over the game's own mod API, under `src/mod/`. Also test-linked.
 - `mthap_net`: the Archipelago link, built only when networking is enabled.
 - `mthap_pal`: the platform abstraction layer (process entry points and hook backend) under

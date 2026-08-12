@@ -63,6 +63,7 @@ add_executable(mthap_unit_tests
     unit/death_hooks_test.cpp
     unit/fountain_lamps_test.cpp
     unit/ap_save_store_test.cpp
+    unit/zip_archive_test.cpp
     unit/takeover_state_test.cpp
     unit/title_menu_test.cpp
     unit/palette_index_test.cpp

@@ -2,8 +2,10 @@
 #
 #   mthap_core : pure, cross-platform logic. The unit tests link this without the
 #                module or a hook backend, so: no PAL-impl, backend, or OS headers
-#                - header includes from src/pal/ are fine, but nothing that needs
-#                linking. (See tests/CMakeLists.txt for the rest of the test link.)
+#                - header includes from src/pal/ are fine. Portable third-party
+#                libraries are allowed provided they resolve with no vcpkg feature
+#                selected, since the tests lane requests none.
+#                (See tests/CMakeLists.txt for the rest of the test link.)
 #   mthap_net  : Archipelago link, guarded on MTHAP_ENABLE_NET.
 #   mthap      : final module (mod.so / mod.dll). Composition root.
 #                Guarded on NOT MTHAP_BUILD_TESTS_ONLY.
@@ -11,6 +13,10 @@
 # Header-only, and mthap_core parses the server's slot_data blob, so it is a core
 # dependency of both lanes rather than part of the net feature.
 find_package(nlohmann_json CONFIG REQUIRED)
+
+# crc32 + raw deflate for the save container. Base vcpkg dependency, so the tests
+# lane resolves it with no features selected.
+find_package(ZLIB REQUIRED)
 
 add_library(mthap_core STATIC
     core/ap/ap_state.cpp
@@ -34,11 +40,12 @@ add_library(mthap_core STATIC
     core/wallet_cap_state.cpp
     core/area_reporter.cpp
     core/save/ap_save_store.cpp
+    core/save/zip_archive.cpp
     core/save/takeover_state.cpp
 )
 
 target_include_directories(mthap_core PUBLIC "${CMAKE_SOURCE_DIR}/src")
-target_link_libraries(mthap_core PUBLIC nlohmann_json::nlohmann_json)
+target_link_libraries(mthap_core PUBLIC nlohmann_json::nlohmann_json ZLIB::ZLIB)
 target_compile_features(mthap_core PUBLIC cxx_std_23)
 set_target_properties(mthap_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
@@ -50,7 +57,6 @@ if(NOT MTHAP_BUILD_TESTS_ONLY)
     if(MTHAP_ENABLE_NET)
         find_package(asio CONFIG REQUIRED)
         find_package(OpenSSL REQUIRED)
-        find_package(ZLIB REQUIRED)
 
         add_library(mthap_net STATIC
             net/ap_link_apclient.cpp
