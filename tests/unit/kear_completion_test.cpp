@@ -34,9 +34,9 @@ std::vector<std::int64_t> all_area_kears()
 TEST_CASE("have_all_kears counts vanilla kear receipts", "[kear]")
 {
     const std::int64_t kear = mth::ap_item_id(mth::kUniversalKearItemType);
-    REQUIRE_FALSE(mth::have_all_kears(mth::KearMode::Vanilla, items(std::vector<std::int64_t>(29, kear))));
-    REQUIRE(mth::have_all_kears(mth::KearMode::Vanilla, items(std::vector<std::int64_t>(30, kear))));
-    REQUIRE(mth::have_all_kears(mth::KearMode::Vanilla, items(std::vector<std::int64_t>(31, kear))));
+    REQUIRE_FALSE(mth::have_all_kears(mth::KearMode::Vanilla, items(std::vector<std::int64_t>(39, kear))));
+    REQUIRE(mth::have_all_kears(mth::KearMode::Vanilla, items(std::vector<std::int64_t>(40, kear))));
+    REQUIRE(mth::have_all_kears(mth::KearMode::Vanilla, items(std::vector<std::int64_t>(41, kear))));
 }
 
 TEST_CASE("have_all_kears needs every single kear id", "[kear]")
