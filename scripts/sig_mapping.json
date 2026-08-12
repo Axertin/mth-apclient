@@ -2,10 +2,6 @@
  "_comment": "Per-symbol carving inputs. RVA = address minus image base. For DataRef, ref_site_rva is the address of the instruction that references the global; disp_off/next_insn are byte offsets within that instruction.",
  "symbols": [
   {
-   "name": "_ZN13ycUpdateQueue6UpdateEf",
-   "kind": "Code"
-  },
-  {
    "name": "_ZN12_GLOBAL__N_18s_rItemsE",
    "kind": "DataRef"
   },
@@ -69,9 +65,6 @@
   }
  },
  "linux": {
-  "_ZN13ycUpdateQueue6UpdateEf": {
-   "rva": 3276656
-  },
   "_ZN8SaveSlot5ClearEb": {
    "rva": 14271120
   },
