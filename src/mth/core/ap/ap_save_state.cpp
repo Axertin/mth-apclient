@@ -40,8 +40,14 @@ ApSaveState::ApSaveState(std::filesystem::path path)
                   if (!out)
                       return;
                   out.write(text.data(), static_cast<std::streamsize>(text.size()));
+                  // Explicit: the buffer is only flushed on close, so the destructor would swallow a
+                  // failed write and the rename would publish a truncated file.
+                  out.close();
                   if (!out)
+                  {
+                      std::filesystem::remove(tmp, ec);
                       return;
+                  }
               }
               std::filesystem::rename(tmp, path, ec); // atomic replace
           })
@@ -62,6 +68,11 @@ std::string ApSaveState::serialize() const
 
 void ApSaveState::deserialize(std::string_view text)
 {
+    // Replaces rather than merges, so it is the inverse of serialize() however many times it runs.
+    checked_.clear();
+    granted_.clear();
+    game_slot_ = -1;
+
     std::istringstream in{std::string(text)};
     char tag = 0;
     int value = 0;

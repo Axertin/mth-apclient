@@ -47,8 +47,13 @@ class ApSaveBundleStore
         bool loaded{false};
         std::string seed;
         std::string slot;
+        // Whatever the container held, preserved verbatim even when we decline to USE it: load()
+        // does the validating. Anything dropped here is dropped from the next write, which is how a
+        // save the mod does not recognise would get deleted.
         std::optional<std::string> game_save;
         std::optional<std::string> ap_state;
+        // A container at our path that names another run. Persisting would destroy it, so we refuse.
+        bool foreign{false};
         std::map<std::string, zip::Blob> blobs; // compressed form, reused for unchanged entries
     };
 

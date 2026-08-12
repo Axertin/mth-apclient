@@ -71,7 +71,9 @@ No. While connected, the mod owns its own save files and suppresses the game's w
 - **Linux**: `~/.local/share/mth-apclient/saves/`
 - **Windows**: `%LOCALAPPDATA%\mth-apclient\saves\`
 
-One file per seed and slot name, so two slots on the same seed, or the same slot on a new seed, each get their own save and never collide.
+One `ap_<seed>_<slot>.zip` per seed and slot, holding both the game save and the randomizer's progress so the two can never disagree. It is an ordinary zip: you can open it to inspect or back it up, but the mod rewrites it as a whole, so edit it at your own risk. A `.zip.bak` alongside it holds the previous version.
+
+Saves from before this layout are picked up automatically the first time a run saves, and the old loose files are left where they are.
 
 ### Can I use an existing save file?
 

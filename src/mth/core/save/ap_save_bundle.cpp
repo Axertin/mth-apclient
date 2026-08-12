@@ -44,31 +44,53 @@ std::optional<std::string> legacy_state_filename(std::string_view seed, std::str
     return "ap_" + std::string(seed) + "_" + std::string(slot) + ".state";
 }
 
-// nullopt unless the container parses AND claims this exact raw identity, so two seeds that
-// sanitize to one filename never read each other's run.
-std::optional<std::vector<zip::Entry>> read_container(const std::filesystem::path &path, std::string_view seed, std::string_view slot)
+// Absent/unreadable and "belongs to a different run" must be told apart: the first is safe to
+// overwrite, the second never is.
+enum class ContainerVerdict
+{
+    Absent,  // no file, or nothing we can parse
+    Foreign, // parsed, but its manifest names another (seed, slot)
+    Ours,
+};
+
+struct ContainerRead
+{
+    ContainerVerdict verdict{ContainerVerdict::Absent};
+    std::vector<zip::Entry> entries;
+};
+
+ContainerRead read_container(const std::filesystem::path &path, std::string_view seed, std::string_view slot)
 {
     const auto image = read_file(path);
     if (!image)
-        return std::nullopt;
+        return {};
     auto entries = zip::read(*image);
     if (!entries)
-        return std::nullopt;
+        return {};
 
     for (const zip::Entry &e : *entries)
     {
         if (e.name != kEntryManifest)
             continue;
-        const auto doc = nlohmann::json::parse(e.data, nullptr, false);
-        if (doc.is_discarded() || !doc.is_object())
-            return std::nullopt;
-        if (doc.value("format", 0) != kFormatVersion)
-            return std::nullopt;
-        if (doc.value("seed", std::string{}) != seed || doc.value("slot", std::string{}) != slot)
-            return std::nullopt;
-        return entries;
+        // nlohmann throws on a type mismatch, and this runs under a native game hook with no catch
+        // between here and the game's C ABI, so an odd manifest must not become a terminate.
+        try
+        {
+            const auto doc = nlohmann::json::parse(e.data, nullptr, false);
+            if (doc.is_discarded() || !doc.is_object())
+                return {};
+            if (doc.value("format", 0) != kFormatVersion)
+                return {};
+            if (doc.value("seed", std::string{}) != seed || doc.value("slot", std::string{}) != slot)
+                return {ContainerVerdict::Foreign, {}};
+        }
+        catch (...)
+        {
+            return {};
+        }
+        return {ContainerVerdict::Ours, std::move(*entries)};
     }
-    return std::nullopt; // no manifest: not one of ours
+    return {}; // no manifest: not one of ours
 }
 } // namespace
 
@@ -97,40 +119,42 @@ void ApSaveBundleStore::ensure_loaded(std::string_view seed, std::string_view sl
     cache_.slot = std::string(slot);
 
     const auto path = path_for(seed, slot);
-    auto entries = read_container(path, seed, slot);
-    if (!entries)
+    auto read = read_container(path, seed, slot);
+    if (read.verdict == ContainerVerdict::Absent)
     {
         // A crash between the backup rotation and the replace leaves the previous generation here.
         auto bak = path;
         bak += ".bak";
-        entries = read_container(bak, seed, slot);
+        auto from_bak = read_container(bak, seed, slot);
+        if (from_bak.verdict == ContainerVerdict::Ours)
+            read = std::move(from_bak);
     }
 
-    if (entries)
+    if (read.verdict == ContainerVerdict::Foreign)
     {
-        for (const zip::Entry &e : *entries)
+        // Sanitizing is lossy, so two raw seeds can land on one filename. Writing here would destroy
+        // whichever run got there first; persist() refuses while this holds.
+        cache_.foreign = true;
+        pal::logf(pal::LogLevel::Error, "save: %s belongs to a different seed/slot; this session will not persist (move or delete that file)",
+                  path.string().c_str());
+        return;
+    }
+
+    if (read.verdict == ContainerVerdict::Ours)
+    {
+        // Preserved verbatim, valid or not. load() decides what is usable; dropping it here would
+        // delete it on the next write.
+        for (const zip::Entry &e : read.entries)
         {
             if (e.name == kEntrySave)
-            {
-                // Validated on the way out as well as in: a container is user-writable, and staging a
-                // malformed blob into a vanilla slot is worse than starting a new file.
-                if (looks_like_save_blob(e.data))
-                    cache_.game_save = e.data;
-                else
-                    pal::logf(pal::LogLevel::Warn, "save: container %s holds a malformed game save; ignoring it", path.string().c_str());
-            }
+                cache_.game_save = e.data;
             else if (e.name == kEntryState)
-            {
                 cache_.ap_state = e.data;
-            }
         }
     }
     else if (std::filesystem::exists(path))
     {
-        // Present but unreadable: keep it (persist rotates it to .bak) and fall through to the old
-        // layout rather than treating the run as absent.
-        pal::logf(pal::LogLevel::Warn, "save: container %s is unreadable or belongs to another session; falling back to the previous layout",
-                  path.string().c_str());
+        pal::logf(pal::LogLevel::Warn, "save: container %s is unreadable; falling back to the previous layout", path.string().c_str());
     }
 
     // Per entry, so a container holding only one payload still picks the other up from the old layout.
@@ -157,6 +181,13 @@ void ApSaveBundleStore::ensure_loaded(std::string_view seed, std::string_view sl
 
 bool ApSaveBundleStore::persist() const
 {
+    if (cache_.foreign)
+    {
+        pal::logf(pal::LogLevel::Error, "save: refusing to overwrite %s, which belongs to a different seed/slot",
+                  path_for(cache_.seed, cache_.slot).string().c_str());
+        return false;
+    }
+
     std::error_code ec;
     if (!dir_ready_)
     {
@@ -221,11 +252,30 @@ bool ApSaveBundleStore::persist() const
             return false;
         }
         out.write(image.data(), static_cast<std::streamsize>(image.size()));
+        // close() explicitly: a container this small lives entirely in the stream buffer, so the
+        // write above only fills memory and the real I/O (and its ENOSPC) happens here. Letting the
+        // destructor do it would report success for a file that never landed, and the rotation below
+        // would then destroy the good copy.
+        out.close();
         if (!out)
         {
-            pal::logf(pal::LogLevel::Error, "save: short write to %s", tmp_path.string().c_str());
+            pal::logf(pal::LogLevel::Error, "save: failed to write %s", tmp_path.string().c_str());
+            std::filesystem::remove(tmp_path, ec);
+            ec.clear();
             return false;
         }
+    }
+
+    // Second guard on the same failure: a short write that somehow reported success must not reach
+    // the rotation, because that is the step that consumes the only other copy.
+    const auto written = std::filesystem::file_size(tmp_path, ec);
+    if (ec || written != image.size())
+    {
+        pal::logf(pal::LogLevel::Error, "save: %s is %llu bytes, expected %zu; not replacing the container", tmp_path.string().c_str(),
+                  static_cast<unsigned long long>(written), image.size());
+        std::filesystem::remove(tmp_path, ec);
+        ec.clear();
+        return false;
     }
 
     // Rotate before the replace: a crash in between leaves a good .bak and no container, which the
@@ -249,6 +299,14 @@ bool ApSaveBundleStore::persist() const
 std::optional<std::string> ApSaveBundleStore::load(std::string_view seed, std::string_view slot) const
 {
     ensure_loaded(seed, slot);
+    // A container is user-writable, and staging a malformed blob into a vanilla slot is worse than
+    // starting a new file. The bytes stay in the cache either way, so declining does not delete them.
+    if (cache_.game_save && !looks_like_save_blob(*cache_.game_save))
+    {
+        pal::logf(pal::LogLevel::Warn, "save: the stored game save for seed=%s slot=%s is not a save blob; ignoring it but keeping it on disk",
+                  cache_.seed.c_str(), cache_.slot.c_str());
+        return std::nullopt;
+    }
     return cache_.game_save;
 }
 

@@ -18,6 +18,12 @@ constexpr std::uint16_t kVersionNeeded = 20;    // 2.0: the deflate floor
 constexpr std::uint16_t kDosEpochDate = 0x0021; // 1980-01-01
 constexpr std::uint16_t kDosEpochTime = 0x0000;
 
+// A header's uncompressed size is attacker-controlled up to 4 GB, and it is what we resize to before
+// inflating. Bound it two ways: an absolute ceiling far above any save, and deflate's best possible
+// ratio, so a few corrupt bytes cannot ask for a gigabyte.
+constexpr std::uint32_t kMaxEntrySize = 256u * 1024u * 1024u;
+constexpr std::uint32_t kMaxDeflateRatio = 1032;
+
 void put16(std::string &out, std::uint16_t v)
 {
     out.push_back(static_cast<char>(v & 0xFF));
@@ -260,6 +266,12 @@ std::optional<std::vector<Entry>> read(std::string_view image)
 
         if (comp_size == 0xFFFFFFFFu || raw_size == 0xFFFFFFFFu || local_off == 0xFFFFFFFFu)
             return std::nullopt; // zip64
+        if (raw_size > kMaxEntrySize || comp_size > kMaxEntrySize)
+            return std::nullopt;
+        if (raw_size != 0 && comp_size == 0)
+            return std::nullopt;
+        if (raw_size / kMaxDeflateRatio > comp_size)
+            return std::nullopt; // claims a ratio deflate cannot produce
         if (p + kCentralHeaderSize + name_len > image.size())
             return std::nullopt;
 

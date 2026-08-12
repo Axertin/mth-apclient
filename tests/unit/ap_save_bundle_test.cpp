@@ -228,24 +228,101 @@ TEST_CASE("bundle ignores an unsafe legacy state name", "[bundle]")
 TEST_CASE("bundle ignores a malformed save entry inside a container", "[bundle]")
 {
     Fixture f;
-    {
-        auto store = f.make();
-        REQUIRE(store.store("S", "2", kBlob));
-        REQUIRE(store.store_state("S", "2", "c 1\n"));
-    }
-
-    // Rewrite the container by hand with a corrupt save entry but an intact state entry, the way a
-    // user editing the zip could.
-    const std::string image = mth::zip::write({
-        mth::zip::compress("manifest.json", "{\"format\":1,\"seed\":\"S\",\"slot\":\"2\"}"),
-        mth::zip::compress("save.ycsave", "not a save at all"),
-        mth::zip::compress("ap.state", "c 1\n"),
-    });
-    f.write_file(f.saves / "ap_S_2.zip", image);
+    // A container with a corrupt save entry but an intact state entry, the way a user editing the
+    // zip could produce.
+    f.write_file(f.saves / "ap_S_2.zip", mth::zip::write({
+                                             mth::zip::compress("manifest.json", "{\"format\":1,\"seed\":\"S\",\"slot\":\"2\"}"),
+                                             mth::zip::compress("save.ycsave", "not a save at all"),
+                                             mth::zip::compress("ap.state", "c 1\n"),
+                                         }));
 
     auto reader = f.make();
     REQUIRE_FALSE(reader.load("S", "2").has_value()); // refused, not staged into the game
     REQUIRE(reader.load_state("S", "2").value() == "c 1\n");
+}
+
+TEST_CASE("bundle never deletes a save entry it declined to use", "[bundle]")
+{
+    Fixture f;
+    // A structurally valid container whose save blob the mod does not recognise: exactly what a game
+    // update bumping the ycData header version would produce. Ordinary play must not delete it.
+    const std::string future = "[YCD Version: 2]\nSaveSlot\n{ m_iFoo: 1 }";
+    f.write_file(f.saves / "ap_S_2.zip", mth::zip::write({
+                                             mth::zip::compress("manifest.json", "{\"format\":1,\"seed\":\"S\",\"slot\":\"2\"}"),
+                                             mth::zip::compress("save.ycsave", future),
+                                             mth::zip::compress("ap.state", "c 1\n"),
+                                         }));
+
+    auto store = f.make();
+    REQUIRE_FALSE(store.load("S", "2").has_value()); // not usable
+    REQUIRE(store.store_state("S", "2", "c 1\nc 2\n"));
+    REQUIRE(store.store_state("S", "2", "c 1\nc 2\nc 3\n"));
+
+    // Both generations must still carry the unrecognised blob verbatim.
+    for (const char *file : {"ap_S_2.zip", "ap_S_2.zip.bak"})
+    {
+        std::ifstream in(f.saves / file, std::ios::binary);
+        REQUIRE(in.good());
+        const std::string image((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>{});
+        const auto entries = mth::zip::read(image);
+        REQUIRE(entries.has_value());
+        bool found = false;
+        for (const auto &e : *entries)
+            if (e.name == "save.ycsave" && e.data == future)
+                found = true;
+        REQUIRE(found);
+    }
+}
+
+TEST_CASE("bundle refuses to overwrite a container belonging to another run", "[bundle]")
+{
+    Fixture f;
+    {
+        auto store = f.make();
+        REQUIRE(store.store("a b", "2", kBlob)); // sanitizes to ap_a_b_2.zip
+        REQUIRE(store.store_state("a b", "2", "c 1\n"));
+    }
+
+    const auto container = f.saves / "ap_a_b_2.zip";
+    const auto backup = f.saves / "ap_a_b_2.zip.bak";
+    const auto slurp = [](const std::filesystem::path &p)
+    {
+        std::ifstream in(p, std::ios::binary);
+        return std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>{});
+    };
+    const std::string before = slurp(container);
+    const std::string backup_before = slurp(backup);
+
+    // "a_b" collides on the sanitized filename. It must not clobber the other run.
+    auto other = f.make();
+    REQUIRE_FALSE(other.load("a_b", "2").has_value());
+    REQUIRE_FALSE(other.store_state("a_b", "2", "c 9\n"));
+    REQUIRE_FALSE(other.store("a_b", "2", kBlob));
+
+    // Byte-identical: the refusal happens before any rotation or write.
+    REQUIRE(slurp(container) == before);
+    REQUIRE(slurp(backup) == backup_before);
+
+    auto reader = f.make();
+    REQUIRE(reader.load("a b", "2").value() == kBlob);
+    REQUIRE(reader.load_state("a b", "2").value() == "c 1\n");
+}
+
+TEST_CASE("bundle survives a manifest with wrong field types", "[bundle]")
+{
+    Fixture f;
+    // nlohmann throws on a type mismatch, and this runs under a native game hook.
+    for (const char *manifest : {"{\"format\":\"1\",\"seed\":\"S\",\"slot\":\"2\"}", "{\"format\":1,\"seed\":7,\"slot\":\"2\"}",
+                                 "{\"format\":1,\"seed\":\"S\",\"slot\":[]}", "{\"format\":null}", "not json at all"})
+    {
+        f.write_file(f.saves / "ap_S_2.zip", mth::zip::write({
+                                                 mth::zip::compress("manifest.json", manifest),
+                                                 mth::zip::compress("save.ycsave", kBlob),
+                                             }));
+        auto store = f.make();
+        REQUIRE_NOTHROW(store.load("S", "2"));
+        REQUIRE_FALSE(store.load("S", "2").has_value()); // unreadable, not adopted
+    }
 }
 
 TEST_CASE("bundle rewrites the save blob when it changes", "[bundle]")

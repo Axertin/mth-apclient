@@ -152,6 +152,22 @@ TEST_CASE("zip rejects unsafe entry names on read", "[zip]")
     }
 }
 
+TEST_CASE("zip rejects an implausible uncompressed size without allocating it", "[zip]")
+{
+    std::string image = mth::zip::write({mth::zip::compress("ap.state", "c 1\n")});
+    const std::size_t eocd = image.size() - 22;
+    const std::uint32_t cd_off = u32at(image, eocd + 16);
+
+    // Claim 2 GB uncompressed in the central directory. The reader must reject on the header rather
+    // than resize a buffer to it.
+    const std::size_t raw_at = cd_off + 24;
+    image[raw_at + 0] = static_cast<char>(0x00);
+    image[raw_at + 1] = static_cast<char>(0x00);
+    image[raw_at + 2] = static_cast<char>(0x00);
+    image[raw_at + 3] = static_cast<char>(0x7F);
+    REQUIRE_FALSE(mth::zip::read(image).has_value());
+}
+
 TEST_CASE("zip accepts nested-looking but safe names", "[zip]")
 {
     auto blob = mth::zip::compress("sub/dir/file.txt", "x");
