@@ -75,7 +75,7 @@ bool menu_request_state(void *menu, int state)
 }
 } // namespace
 
-SaveTakeover::SaveTakeover(ApSaveStore store, IdentityFn identity) : store_(std::move(store)), identity_(std::move(identity))
+SaveTakeover::SaveTakeover(ApSaveBundleStore &store, IdentityFn identity) : store_(store), identity_(std::move(identity))
 {
     if (!pal::install_save_request_hook([this] { on_game_save_requested(); }))
         pal::logf(pal::LogLevel::Warn, "takeover: save-request hook unavailable; mod saves will not flush");

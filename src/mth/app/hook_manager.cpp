@@ -35,8 +35,8 @@
 namespace mth
 {
 
-HookManager::HookManager(IGameEvents &events, RandoBridge &rando, ScoutRegistry &scout, ApState &state, std::function<void()> send_death,
-                         std::function<void *()> get_player)
+HookManager::HookManager(IGameEvents &events, RandoBridge &rando, ScoutRegistry &scout, ApState &state, ApSaveBundleStore &bundle,
+                         std::function<void()> send_death, std::function<void *()> get_player)
     : rando_(rando)
 {
     game_hooks_ = std::make_unique<GameHooks>(events);
@@ -77,8 +77,7 @@ HookManager::HookManager(IGameEvents &events, RandoBridge &rando, ScoutRegistry 
     fountain_lamp_hooks_ = std::make_unique<FountainLampHooks>();
     // Before TitleGate, which takes the claim callback: TitleGate owns the only StartGame detour, and
     // reverse-order destruction then tears that detour down before the takeover it calls into.
-    save_takeover_ = std::make_unique<SaveTakeover>(ApSaveStore(pal::mod_save_dir()),
-                                                    [&state] { return std::make_pair(state.seed(), std::to_string(state.player_slot())); });
+    save_takeover_ = std::make_unique<SaveTakeover>(bundle, [&state] { return std::make_pair(state.seed(), std::to_string(state.player_slot())); });
     title_gate_ = std::make_unique<TitleGate>(connected, [this] { return save_takeover_->begin(); });
     save_manager_ = pal::resolve_game_symbol(sym::save_manager);
     if (save_manager_ == 0)

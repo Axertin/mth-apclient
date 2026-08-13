@@ -7,7 +7,7 @@
 #include <utility>
 #include <vector>
 
-#include "mth/core/save/ap_save_store.hpp"
+#include "mth/core/save/ap_save_bundle.hpp"
 #include "mth/core/save/takeover_state.hpp"
 
 namespace mth
@@ -23,7 +23,8 @@ class SaveTakeover
   public:
     using IdentityFn = std::function<std::pair<std::string, std::string>()>; // (seed, slot)
 
-    SaveTakeover(ApSaveStore store, IdentityFn identity);
+    // The store outlives this: App owns it and declares it ahead of the hook manager.
+    SaveTakeover(ApSaveBundleStore &store, IdentityFn identity);
     ~SaveTakeover();
 
     SaveTakeover(const SaveTakeover &) = delete;
@@ -57,7 +58,7 @@ class SaveTakeover
     void fail(const char *why);
     void set_step(TakeoverStep next);
 
-    ApSaveStore store_;
+    ApSaveBundleStore &store_;
     IdentityFn identity_;
     TakeoverStep step_{TakeoverStep::Idle};
     int frames_in_step_{0};

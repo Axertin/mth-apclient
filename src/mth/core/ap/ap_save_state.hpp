@@ -1,7 +1,11 @@
 #pragma once
 
 #include <filesystem>
+#include <functional>
+#include <optional>
 #include <set>
+#include <string>
+#include <string_view>
 
 namespace mth
 {
@@ -12,8 +16,18 @@ namespace mth
 class ApSaveState
 {
   public:
-    // Loads from `path` immediately; missing/corrupt file => empty state.
+    // IO seam: the save container owns the file, so this class owns only the format. Loads through
+    // `load` immediately; missing/corrupt content => empty state.
+    using LoadFn = std::function<std::optional<std::string>()>;
+    using StoreFn = std::function<void(std::string_view)>;
+
+    ApSaveState(LoadFn load, StoreFn store);
+
+    // Direct-to-file, for callers with no container.
     explicit ApSaveState(std::filesystem::path path);
+
+    [[nodiscard]] std::string serialize() const;
+    void deserialize(std::string_view text);
 
     [[nodiscard]] bool is_checked(int location_index) const;
     [[nodiscard]] bool is_granted(int item_index) const;
@@ -38,9 +52,8 @@ class ApSaveState
     void save() const; // write-tmp-then-rename
 
   private:
-    void load();
-
-    std::filesystem::path path_;
+    LoadFn load_fn_;
+    StoreFn store_fn_;
     std::set<int> checked_;
     std::set<int> granted_;
     int game_slot_{-1};

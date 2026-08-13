@@ -14,6 +14,7 @@
 #include "mth/core/connect_resend_gate.hpp"
 #include "mth/core/data/ability_ids.hpp"
 #include "mth/core/login_prefs.hpp"
+#include "mth/core/save/ap_save_bundle.hpp"
 #include "mth/core/scout_registry.hpp"
 #include "mth/core/session_policy.hpp"
 #include "mth/core/upgrade_state.hpp"
@@ -102,6 +103,9 @@ class App : public ICommandSink
     // Destruction order: overlay first, then hooks_ (game hooks stop first inside the manager),
     // grants_, tracker_/room_tracker_, events_ (AppTickSink, after hooks_), net_ (stops net thread last).
     ApState state_;
+    // Ahead of hooks_ and save_state_: both hold references into it, and members are destroyed in
+    // reverse declaration order.
+    ApSaveBundleStore bundle_store_;
     std::unique_ptr<ApSession> net_;
     std::unique_ptr<IGameEvents> events_;
     std::unique_ptr<PlayerTracker> tracker_;

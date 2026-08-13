@@ -1,22 +1,79 @@
 #include "mth/core/ap/ap_save_state.hpp"
 
 #include <fstream>
+#include <iterator>
+#include <sstream>
 #include <string>
+#include <system_error>
+#include <utility>
 
 namespace mth
 {
 
 // File format: "c <int>" = checked location, "g <int>" = granted item, "s <int>" = game save slot
-ApSaveState::ApSaveState(std::filesystem::path path) : path_(std::move(path))
+ApSaveState::ApSaveState(LoadFn load, StoreFn store) : load_fn_(std::move(load)), store_fn_(std::move(store))
 {
-    load();
+    if (load_fn_)
+    {
+        if (const auto text = load_fn_())
+            deserialize(*text);
+    }
 }
 
-void ApSaveState::load()
+ApSaveState::ApSaveState(std::filesystem::path path)
+    : ApSaveState(
+          [path]() -> std::optional<std::string>
+          {
+              std::ifstream in(path, std::ios::binary);
+              if (!in)
+                  return std::nullopt;
+              return std::string(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>{});
+          },
+          [path](std::string_view text)
+          {
+              std::error_code ec;
+              std::filesystem::create_directories(path.parent_path(), ec);
+              auto tmp = path;
+              tmp += ".tmp";
+              {
+                  std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
+                  if (!out)
+                      return;
+                  out.write(text.data(), static_cast<std::streamsize>(text.size()));
+                  // Explicit: the buffer is only flushed on close, so the destructor would swallow a
+                  // failed write and the rename would publish a truncated file.
+                  out.close();
+                  if (!out)
+                  {
+                      std::filesystem::remove(tmp, ec);
+                      return;
+                  }
+              }
+              std::filesystem::rename(tmp, path, ec); // atomic replace
+          })
 {
-    std::ifstream in(path_);
-    if (!in)
-        return;
+}
+
+std::string ApSaveState::serialize() const
+{
+    std::string out;
+    for (int v : checked_)
+        out += "c " + std::to_string(v) + "\n";
+    for (int v : granted_)
+        out += "g " + std::to_string(v) + "\n";
+    if (game_slot_ >= 0)
+        out += "s " + std::to_string(game_slot_) + "\n";
+    return out;
+}
+
+void ApSaveState::deserialize(std::string_view text)
+{
+    // Replaces rather than merges, so it is the inverse of serialize() however many times it runs.
+    checked_.clear();
+    granted_.clear();
+    game_slot_ = -1;
+
+    std::istringstream in{std::string(text)};
     char tag = 0;
     int value = 0;
     while (in >> tag >> value)
@@ -52,23 +109,8 @@ void ApSaveState::mark_granted(int item_index)
 
 void ApSaveState::save() const
 {
-    std::error_code ec;
-    std::filesystem::create_directories(path_.parent_path(), ec);
-
-    auto tmp = path_;
-    tmp += ".tmp";
-    {
-        std::ofstream out(tmp, std::ios::trunc);
-        if (!out)
-            return;
-        for (int v : checked_)
-            out << "c " << v << '\n';
-        for (int v : granted_)
-            out << "g " << v << '\n';
-        if (game_slot_ >= 0)
-            out << "s " << game_slot_ << '\n';
-    }
-    std::filesystem::rename(tmp, path_, ec); // atomic replace
+    if (store_fn_)
+        store_fn_(serialize());
 }
 
 } // namespace mth
