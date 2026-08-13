@@ -18,11 +18,15 @@ struct BannerSegment
     std::uint32_t rgba{};
 };
 
-// Relevant when our slot is the message actor (`slot`), the item receiver (`receiving`), or the item
-// finder (`item_player`, i.e. a check we sent) and the team matches. Absent team passes (single-team
-// default); only a present, different team filters out.
-[[nodiscard]] bool broadcast_relevant(int our_team, int our_slot, std::optional<int> team, std::optional<int> slot, std::optional<int> receiving,
-                                      std::optional<int> item_player);
+// PrintJSON types addressed to the room rather than to one slot (chat, /say, countdowns, command
+// replies). They carry no slot to match against, so the slot gate below would drop them all.
+[[nodiscard]] bool broadcast_is_announcement(std::string_view print_type);
+
+// Relevant when the message is an announcement, or our slot is the message actor (`slot`), the item
+// receiver (`receiving`), or the item finder (`item_player`, i.e. a check we sent). The team must match
+// either way. Absent team passes (single-team default); only a present, different team filters out.
+[[nodiscard]] bool broadcast_relevant(std::string_view print_type, int our_team, int our_slot, std::optional<int> team, std::optional<int> slot,
+                                      std::optional<int> receiving, std::optional<int> item_player);
 
 // AP-palette color for a PrintJSON node, mirroring apclientpp render_json (explicit color wins, else by
 // type/flags). Alpha is 255; the fade scales it.
