@@ -39,21 +39,6 @@ TEST_CASE("have_all_kears counts vanilla kear receipts", "[kear]")
     REQUIRE(mth::have_all_kears(mth::KearMode::Vanilla, items(std::vector<std::int64_t>(41, kear))));
 }
 
-TEST_CASE("have_all_kears needs every single kear id", "[kear]")
-{
-    const auto ids = all_single_kears();
-    REQUIRE(mth::have_all_kears(mth::KearMode::ApItems, items(ids)));
-
-    auto missing = ids;
-    missing.pop_back();
-    REQUIRE_FALSE(mth::have_all_kears(mth::KearMode::ApItems, items(missing)));
-
-    // A duplicate must not stand in for the absent one: this mode counts distinct ids, not receipts.
-    missing.push_back(ids.front());
-    REQUIRE(missing.size() == ids.size());
-    REQUIRE_FALSE(mth::have_all_kears(mth::KearMode::ApItems, items(missing)));
-}
-
 TEST_CASE("have_all_kears needs every area kear id", "[kear]")
 {
     const auto ids = all_area_kears();
@@ -83,7 +68,27 @@ TEST_CASE("have_all_kears ignores unrelated items", "[kear]")
 // fail here rather than silently making the check unobtainable or firing it early.
 TEST_CASE("kear set sizes match the apworld pools", "[kear]")
 {
-    REQUIRE(mth::kSingleKearCount == 30);
+    REQUIRE(mth::kSingleKearCount == 39);
+    REQUIRE(mth::kSingleKearRequired == 30);
     REQUIRE(mth::kAreaKearCount == 17);
     REQUIRE(mth::kVanillaKearTotal == 40);
+}
+
+// HasAllKears() clears at 30 of the 39 single kears, so the gate must fire short of the full set.
+TEST_CASE("have_all_kears needs 30 distinct single kears", "[kear]")
+{
+    const auto ids = all_single_kears();
+    REQUIRE(mth::have_all_kears(mth::KearMode::ApItems, items(ids)));
+
+    const std::vector<std::int64_t> exact(ids.begin(), ids.begin() + mth::kSingleKearRequired);
+    REQUIRE(mth::have_all_kears(mth::KearMode::ApItems, items(exact)));
+
+    auto missing = exact;
+    missing.pop_back();
+    REQUIRE_FALSE(mth::have_all_kears(mth::KearMode::ApItems, items(missing)));
+
+    // A duplicate must not stand in for the absent one: this mode counts distinct ids, not receipts.
+    missing.push_back(exact.front());
+    REQUIRE(missing.size() == exact.size());
+    REQUIRE_FALSE(mth::have_all_kears(mth::KearMode::ApItems, items(missing)));
 }

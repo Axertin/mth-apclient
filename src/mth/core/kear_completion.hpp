@@ -22,7 +22,9 @@ inline constexpr int kVanillaKearTotal = 40;
 inline constexpr std::int64_t kSingleKearItemIds[] = {2019, 2020, 2021, 2022, 2033, 2055, 2069, 2096, 2109, 2115, 2127, 2141, 2151,
                                                       2152, 2157, 2222, 2224, 2225, 2227, 2244, 2246, 2247, 2260, 2262, 2277, 2278,
                                                       2283, 2284, 2285, 2304, 2307, 2318, 2320, 2321, 2336, 2337, 2338, 2358, 2359};
-inline constexpr int kSingleKearCount = 30;
+inline constexpr int kSingleKearCount = static_cast<int>(sizeof(kSingleKearItemIds) / sizeof(kSingleKearItemIds[0]));
+// HasAllKears() clears at 30 of the 39, not the full set.
+inline constexpr int kSingleKearRequired = 30;
 
 // Per-area kear items (kear_rando=2), contiguous.
 inline constexpr std::int64_t kAreaKearFirstItemId = 2500;
@@ -38,7 +40,7 @@ namespace detail
 } // namespace detail
 
 // twin: mth/features/kear_completion_tracker.hpp latches the save flag off this.
-// True once the run holds every kear the active mode defines (#174). The apworld gates location 150 on
+// True once the run holds the kears the active mode demands (#174). The apworld gates location 150 on
 // the same condition, so this must track HasAllKears() in its data/rules/state_rules.py.
 [[nodiscard]] inline bool have_all_kears(KearMode mode, const std::vector<ReceivedItem> &received) noexcept
 {
@@ -50,8 +52,12 @@ namespace detail
     }
 
     if (mode == KearMode::ApItems)
-        return std::all_of(std::begin(kSingleKearItemIds), std::end(kSingleKearItemIds),
-                           [&received](std::int64_t id) { return detail::received_has(received, id); });
+    {
+        // Distinct ids held, not receipts: a duplicate must not stand in for a kear that never arrived.
+        const auto n = std::count_if(std::begin(kSingleKearItemIds), std::end(kSingleKearItemIds),
+                                     [&received](std::int64_t id) { return detail::received_has(received, id); });
+        return n >= kSingleKearRequired;
+    }
 
     for (std::int64_t id = kAreaKearFirstItemId; id <= kAreaKearLastItemId; ++id)
         if (!detail::received_has(received, id))
