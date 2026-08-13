@@ -18,6 +18,9 @@ find_package(nlohmann_json CONFIG REQUIRED)
 # lane resolves it with no features selected.
 find_package(ZLIB REQUIRED)
 
+# The save container writes on its own thread so the game thread never waits on disk.
+find_package(Threads REQUIRED)
+
 add_library(mthap_core STATIC
     core/ap/ap_state.cpp
     core/ap/slot_data.cpp
@@ -46,7 +49,7 @@ add_library(mthap_core STATIC
 )
 
 target_include_directories(mthap_core PUBLIC "${CMAKE_SOURCE_DIR}/src")
-target_link_libraries(mthap_core PUBLIC nlohmann_json::nlohmann_json ZLIB::ZLIB)
+target_link_libraries(mthap_core PUBLIC nlohmann_json::nlohmann_json ZLIB::ZLIB Threads::Threads)
 target_compile_features(mthap_core PUBLIC cxx_std_23)
 set_target_properties(mthap_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 

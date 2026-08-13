@@ -1,10 +1,15 @@
 #pragma once
 
+#include <condition_variable>
 #include <filesystem>
 #include <map>
+#include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <thread>
+#include <vector>
 
 #include "mth/core/save/zip_archive.hpp"
 
@@ -19,6 +24,12 @@ std::string ap_bundle_filename(std::string_view seed, std::string_view slot);
 // One container per (seed, slot) holding the game save blob and the AP state together, so the two
 // can never disagree about where a run got to. Reads fall back to the pre-container layout and the
 // first write migrates forward; the old files are left in place.
+//
+// The in-memory copy is the source of truth. Mutations update it and hand a snapshot to a writer
+// thread, so the game thread never waits on the disk and a burst of grants collapses into one write.
+// store() is the exception: the game saving is a durability point, so it blocks until the container
+// is on disk. That matters because the mod is leaked by design and never runs its destructor, so
+// nothing queued at process exit would otherwise land.
 class ApSaveBundleStore
 {
   public:
@@ -29,19 +40,42 @@ class ApSaveBundleStore
     };
 
     ApSaveBundleStore(std::filesystem::path dir, LegacyDirs legacy);
+    ~ApSaveBundleStore();
+
+    ApSaveBundleStore(const ApSaveBundleStore &) = delete;
+    ApSaveBundleStore &operator=(const ApSaveBundleStore &) = delete;
 
     [[nodiscard]] std::filesystem::path path_for(std::string_view seed, std::string_view slot) const;
 
     // The game save blob. Named to match the superseded ApSaveStore so the takeover call sites did
-    // not have to change.
+    // not have to change. store() blocks until the container is written.
     [[nodiscard]] std::optional<std::string> load(std::string_view seed, std::string_view slot) const;
     bool store(std::string_view seed, std::string_view slot, std::string_view blob);
 
+    // Queued: returns as soon as the in-memory copy is updated. Read-back through load_state() is
+    // immediately consistent regardless, because reads come from memory.
     [[nodiscard]] std::optional<std::string> load_state(std::string_view seed, std::string_view slot) const;
     bool store_state(std::string_view seed, std::string_view slot, std::string_view text);
 
+    // Blocks until every queued write has been attempted. False if the last one failed.
+    bool flush() const;
+
   private:
-    // One session is live at a time, so a key change reloads rather than growing a map.
+    // Self-contained so the writer never reaches back into game-thread state. Payloads are shared
+    // rather than copied: the save blob is large and every checked location would otherwise copy it
+    // whole just to hand the writer a snapshot. Immutable once published, so sharing is safe.
+    using Payload = std::shared_ptr<const std::string>;
+
+    struct Snapshot
+    {
+        std::string seed;
+        std::string slot;
+        Payload game_save;
+        Payload ap_state;
+    };
+
+    // Game thread only. One session is live at a time, so a key change reloads rather than growing
+    // a map.
     struct Cache
     {
         bool loaded{false};
@@ -49,25 +83,38 @@ class ApSaveBundleStore
         std::string slot;
         // Whatever the container held, preserved verbatim even when we decline to USE it: load()
         // does the validating. Anything dropped here is dropped from the next write, which is how a
-        // save the mod does not recognise would get deleted.
-        std::optional<std::string> game_save;
-        std::optional<std::string> ap_state;
-        // A container at our path that names another run. Persisting would destroy it, so we refuse.
+        // save the mod does not recognise would get deleted. Null means absent.
+        Payload game_save;
+        Payload ap_state;
+        // A container at our path that names another run. Writing would destroy it, so we refuse.
         bool foreign{false};
-        // The backup is taken once per session, not per write. Rotating on every checked location
-        // would leave it a few seconds old and worth nothing; this keeps the run as it was when the
-        // session opened, which is what someone recovering by hand actually wants.
-        bool backed_up{false};
-        std::map<std::string, zip::Blob> blobs; // compressed form, reused for unchanged entries
     };
 
     void ensure_loaded(std::string_view seed, std::string_view slot) const;
-    bool persist() const;
+    void post() const; // queue the current in-memory state for the writer
+    void writer_loop();
+    bool write_snapshot(const Snapshot &snap);
 
     std::filesystem::path dir_;
     LegacyDirs legacy_;
     mutable Cache cache_;
-    mutable bool dir_ready_{false};
+
+    // Writer thread only, so none of it needs guarding.
+    std::string writer_key_;
+    std::map<std::string, zip::Blob> writer_blobs_; // compressed form, reused for unchanged entries
+    // The backup is taken once per session, not per write. Rotating on every checked location would
+    // leave it seconds old and worth nothing; this keeps the run as it was when the session opened.
+    bool writer_backed_up_{false};
+    bool dir_ready_{false};
+
+    mutable std::mutex mutex_;
+    mutable std::condition_variable queued_cv_;
+    mutable std::condition_variable drained_cv_;
+    mutable std::vector<Snapshot> queue_;
+    mutable bool writing_{false};
+    mutable bool last_write_ok_{true};
+    bool stop_{false};
+    std::thread writer_;
 };
 
 } // namespace mth

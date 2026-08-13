@@ -1,10 +1,11 @@
 #include "mth/core/save/ap_save_bundle.hpp"
 
+#include <exception>
 #include <fstream>
 #include <iterator>
+#include <memory>
 #include <system_error>
 #include <utility>
-#include <vector>
 
 #include <nlohmann/json.hpp>
 
@@ -101,6 +102,18 @@ std::string ap_bundle_filename(std::string_view seed, std::string_view slot)
 
 ApSaveBundleStore::ApSaveBundleStore(std::filesystem::path dir, LegacyDirs legacy) : dir_(std::move(dir)), legacy_(std::move(legacy))
 {
+    writer_ = std::thread([this] { writer_loop(); });
+}
+
+ApSaveBundleStore::~ApSaveBundleStore()
+{
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        stop_ = true;
+    }
+    queued_cv_.notify_all();
+    if (writer_.joinable())
+        writer_.join(); // drains what is queued first
 }
 
 std::filesystem::path ApSaveBundleStore::path_for(std::string_view seed, std::string_view slot) const
@@ -112,6 +125,11 @@ void ApSaveBundleStore::ensure_loaded(std::string_view seed, std::string_view sl
 {
     if (cache_.loaded && cache_.seed == seed && cache_.slot == slot)
         return;
+
+    // Reading a session we may still owe a write to would see stale bytes and then persist them
+    // back over the newer ones, so settle the queue before switching keys.
+    if (cache_.loaded)
+        flush();
 
     cache_ = Cache{};
     cache_.loaded = true;
@@ -133,7 +151,7 @@ void ApSaveBundleStore::ensure_loaded(std::string_view seed, std::string_view sl
     if (read.verdict == ContainerVerdict::Foreign)
     {
         // Sanitizing is lossy, so two raw seeds can land on one filename. Writing here would destroy
-        // whichever run got there first; persist() refuses while this holds.
+        // whichever run got there first.
         cache_.foreign = true;
         pal::logf(pal::LogLevel::Error, "save: %s belongs to a different seed/slot; this session will not persist (move or delete that file)",
                   path.string().c_str());
@@ -147,9 +165,9 @@ void ApSaveBundleStore::ensure_loaded(std::string_view seed, std::string_view sl
         for (const zip::Entry &e : read.entries)
         {
             if (e.name == kEntrySave)
-                cache_.game_save = e.data;
+                cache_.game_save = std::make_shared<const std::string>(e.data);
             else if (e.name == kEntryState)
-                cache_.ap_state = e.data;
+                cache_.ap_state = std::make_shared<const std::string>(e.data);
         }
     }
     else if (std::filesystem::exists(path))
@@ -162,7 +180,7 @@ void ApSaveBundleStore::ensure_loaded(std::string_view seed, std::string_view sl
     {
         if (auto blob = read_file(legacy_.ycsave_dir / ap_save_filename(seed, slot)); blob && looks_like_save_blob(*blob))
         {
-            cache_.game_save = std::move(*blob);
+            cache_.game_save = std::make_shared<const std::string>(std::move(*blob));
             pal::logf(pal::LogLevel::Info, "save: adopted the previous-layout game save for seed=%s slot=%s", cache_.seed.c_str(), cache_.slot.c_str());
         }
     }
@@ -172,20 +190,83 @@ void ApSaveBundleStore::ensure_loaded(std::string_view seed, std::string_view sl
         {
             if (auto text = read_file(legacy_.state_dir / *name))
             {
-                cache_.ap_state = std::move(*text);
+                cache_.ap_state = std::make_shared<const std::string>(std::move(*text));
                 pal::logf(pal::LogLevel::Info, "save: adopted the previous-layout AP state for seed=%s slot=%s", cache_.seed.c_str(), cache_.slot.c_str());
             }
         }
     }
 }
 
-bool ApSaveBundleStore::persist() const
+void ApSaveBundleStore::post() const
 {
-    if (cache_.foreign)
+    Snapshot snap{cache_.seed, cache_.slot, cache_.game_save, cache_.ap_state};
     {
-        pal::logf(pal::LogLevel::Error, "save: refusing to overwrite %s, which belongs to a different seed/slot",
-                  path_for(cache_.seed, cache_.slot).string().c_str());
-        return false;
+        std::lock_guard<std::mutex> lock(mutex_);
+        // Coalesce: a burst of grants in one tick becomes one write. Only against the tail, so a
+        // pending write for a previous session is never dropped.
+        if (!queue_.empty() && queue_.back().seed == snap.seed && queue_.back().slot == snap.slot)
+            queue_.back() = std::move(snap);
+        else
+            queue_.push_back(std::move(snap));
+    }
+    queued_cv_.notify_one();
+}
+
+bool ApSaveBundleStore::flush() const
+{
+    std::unique_lock<std::mutex> lock(mutex_);
+    drained_cv_.wait(lock, [this] { return queue_.empty() && !writing_; });
+    return last_write_ok_;
+}
+
+void ApSaveBundleStore::writer_loop()
+{
+    for (;;)
+    {
+        Snapshot snap;
+        {
+            std::unique_lock<std::mutex> lock(mutex_);
+            queued_cv_.wait(lock, [this] { return !queue_.empty() || stop_; });
+            if (queue_.empty())
+                return; // stopping, and nothing left owed
+            snap = std::move(queue_.front());
+            queue_.erase(queue_.begin());
+            writing_ = true;
+        }
+
+        // An escaping exception here would terminate the game and strand every flush() waiter, so
+        // a failed write stays a failed write.
+        bool ok = false;
+        try
+        {
+            ok = write_snapshot(snap);
+        }
+        catch (const std::exception &e)
+        {
+            pal::logf(pal::LogLevel::Error, "save: writing the container threw: %s", e.what());
+        }
+        catch (...)
+        {
+            pal::logf(pal::LogLevel::Error, "save: writing the container threw");
+        }
+
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            writing_ = false;
+            last_write_ok_ = ok;
+        }
+        drained_cv_.notify_all();
+    }
+}
+
+bool ApSaveBundleStore::write_snapshot(const Snapshot &snap)
+{
+    const std::string key = snap.seed + '\0' + snap.slot;
+    if (key != writer_key_)
+    {
+        writer_key_ = key;
+        writer_blobs_.clear();
+        writer_backed_up_ = false;
     }
 
     std::error_code ec;
@@ -202,35 +283,34 @@ bool ApSaveBundleStore::persist() const
 
     nlohmann::json manifest;
     manifest["format"] = kFormatVersion;
-    manifest["seed"] = cache_.seed;
-    manifest["slot"] = cache_.slot;
+    manifest["seed"] = snap.seed;
+    manifest["slot"] = snap.slot;
 
     std::vector<zip::Blob> blobs;
     blobs.push_back(zip::compress(kEntryManifest, manifest.dump()));
 
     // Re-emit an unchanged entry from its cached compressed form: a state write must not pay deflate
-    // on the save blob, which is far larger and rewritten far less often. The cache is only valid
-    // because every mutator erases its own entry before persisting; the size check is a cheap guard
-    // against a future one that forgets.
-    const auto emit = [this, &blobs](const char *name, const std::optional<std::string> &value)
+    // on the save blob, which is far larger and rewritten far less often. The size check guards the
+    // cache against an entry that changed without the key changing.
+    const auto emit = [this, &blobs](const char *name, const Payload &value)
     {
         if (!value)
             return;
-        const auto it = cache_.blobs.find(name);
-        if (it != cache_.blobs.end() && it->second.uncompressed_size == value->size())
+        const auto it = writer_blobs_.find(name);
+        if (it != writer_blobs_.end() && it->second.uncompressed_size == value->size())
         {
             blobs.push_back(it->second);
             return;
         }
         auto blob = zip::compress(name, *value);
-        cache_.blobs[name] = blob;
+        writer_blobs_[name] = blob;
         blobs.push_back(std::move(blob));
     };
-    emit(kEntrySave, cache_.game_save);
-    emit(kEntryState, cache_.ap_state);
+    emit(kEntrySave, snap.game_save);
+    emit(kEntryState, snap.ap_state);
 
     // Dropping a payload we are holding is always a bug, never an intended state.
-    const std::size_t expected = 1 + (cache_.game_save ? 1u : 0u) + (cache_.ap_state ? 1u : 0u);
+    const std::size_t expected = 1 + (snap.game_save ? 1u : 0u) + (snap.ap_state ? 1u : 0u);
     if (blobs.size() != expected)
     {
         pal::logf(pal::LogLevel::Error, "save: refusing to write a container with %zu of %zu entries", blobs.size(), expected);
@@ -238,7 +318,7 @@ bool ApSaveBundleStore::persist() const
     }
 
     const std::string image = zip::write(blobs);
-    const auto final_path = path_for(cache_.seed, cache_.slot);
+    const auto final_path = path_for(snap.seed, snap.slot);
     auto tmp_path = final_path;
     tmp_path += ".tmp";
     auto bak_path = final_path;
@@ -279,15 +359,13 @@ bool ApSaveBundleStore::persist() const
     }
 
     // Rotate before the replace: a crash in between leaves a good .bak and no container, which the
-    // load path recovers from. Once per session only, so the backup keeps the run as it was at
-    // launch rather than as it was one location check ago.
-    // Latched only once a rotation actually happens: the first write of a brand-new run has nothing
-    // to back up, and burning the flag there would leave the session with no backup at all.
-    if (!cache_.backed_up && std::filesystem::exists(final_path, ec))
+    // load path recovers from. Latched only once a rotation actually happens, since the first write
+    // of a brand-new run has nothing to back up.
+    if (!writer_backed_up_ && std::filesystem::exists(final_path, ec))
     {
         std::filesystem::rename(final_path, bak_path, ec);
         ec.clear(); // a failed rotation must not block the write
-        cache_.backed_up = true;
+        writer_backed_up_ = true;
     }
 
     std::filesystem::rename(tmp_path, final_path, ec);
@@ -305,13 +383,15 @@ std::optional<std::string> ApSaveBundleStore::load(std::string_view seed, std::s
     ensure_loaded(seed, slot);
     // A container is user-writable, and staging a malformed blob into a vanilla slot is worse than
     // starting a new file. The bytes stay in the cache either way, so declining does not delete them.
-    if (cache_.game_save && !looks_like_save_blob(*cache_.game_save))
+    if (!cache_.game_save)
+        return std::nullopt;
+    if (!looks_like_save_blob(*cache_.game_save))
     {
         pal::logf(pal::LogLevel::Warn, "save: the stored game save for seed=%s slot=%s is not a save blob; ignoring it but keeping it on disk",
                   cache_.seed.c_str(), cache_.slot.c_str());
         return std::nullopt;
     }
-    return cache_.game_save;
+    return *cache_.game_save;
 }
 
 bool ApSaveBundleStore::store(std::string_view seed, std::string_view slot, std::string_view blob)
@@ -319,23 +399,34 @@ bool ApSaveBundleStore::store(std::string_view seed, std::string_view slot, std:
     if (!looks_like_save_blob(blob))
         return false;
     ensure_loaded(seed, slot);
-    cache_.game_save = std::string(blob);
-    cache_.blobs.erase(kEntrySave);
-    return persist();
+    if (cache_.foreign)
+    {
+        pal::logf(pal::LogLevel::Error, "save: refusing to overwrite %s, which belongs to a different seed/slot", path_for(seed, slot).string().c_str());
+        return false;
+    }
+    cache_.game_save = std::make_shared<const std::string>(blob);
+    post();
+    // The game saving is the durability point: the mod never runs its destructor, so this is the
+    // moment that has to be on disk rather than merely queued.
+    return flush();
 }
 
 std::optional<std::string> ApSaveBundleStore::load_state(std::string_view seed, std::string_view slot) const
 {
     ensure_loaded(seed, slot);
-    return cache_.ap_state;
+    if (!cache_.ap_state)
+        return std::nullopt;
+    return *cache_.ap_state;
 }
 
 bool ApSaveBundleStore::store_state(std::string_view seed, std::string_view slot, std::string_view text)
 {
     ensure_loaded(seed, slot);
-    cache_.ap_state = std::string(text);
-    cache_.blobs.erase(kEntryState);
-    return persist();
+    if (cache_.foreign)
+        return false;
+    cache_.ap_state = std::make_shared<const std::string>(text);
+    post();
+    return true;
 }
 
 } // namespace mth
