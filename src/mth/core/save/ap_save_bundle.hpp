@@ -52,8 +52,10 @@ class ApSaveBundleStore
     [[nodiscard]] std::optional<std::string> load(std::string_view seed, std::string_view slot) const;
     bool store(std::string_view seed, std::string_view slot, std::string_view blob);
 
-    // Queued: returns as soon as the in-memory copy is updated. Read-back through load_state() is
-    // immediately consistent regardless, because reads come from memory.
+    // Queued: returns as soon as the in-memory copy is updated, so the bool says the state was
+    // accepted, NOT that it reached disk - use flush() for that. Read-back through load_state() is
+    // consistent either way, because reads come from memory. Note load_state() and load() block on a
+    // pending write when they are the first call for a new (seed, slot).
     [[nodiscard]] std::optional<std::string> load_state(std::string_view seed, std::string_view slot) const;
     bool store_state(std::string_view seed, std::string_view slot, std::string_view text);
 
@@ -99,9 +101,20 @@ class ApSaveBundleStore
     LegacyDirs legacy_;
     mutable Cache cache_;
 
+    // Compressed form of an entry, kept next to the exact payload it came from. Identity is the
+    // pointer, not the size: the save is a text format, so a bool flipping or a digit changing keeps
+    // its length, and matching on size would re-emit the previous generation. Holding the payload
+    // strongly is what makes the pointer test sound, since a freed address could otherwise be
+    // recycled into a false match.
+    struct CachedBlob
+    {
+        Payload source;
+        zip::Blob blob;
+    };
+
     // Writer thread only, so none of it needs guarding.
     std::string writer_key_;
-    std::map<std::string, zip::Blob> writer_blobs_; // compressed form, reused for unchanged entries
+    std::map<std::string, CachedBlob> writer_blobs_;
     // The backup is taken once per session, not per write. Rotating on every checked location would
     // leave it seconds old and worth nothing; this keeps the run as it was when the session opened.
     bool writer_backed_up_{false};

@@ -428,6 +428,51 @@ TEST_CASE("bundle drains what it owes when destroyed", "[bundle]")
     REQUIRE(reader.load_state("S", "2").value() == "c 1\nc 2\n");
 }
 
+TEST_CASE("bundle rewrites a save blob that changed without changing length", "[bundle]")
+{
+    Fixture f;
+    auto store = f.make();
+    const std::string first = "[YCD Version: 1]\nSaveSlot\n{ m_iFoo: 1 }";
+    const std::string second = "[YCD Version: 1]\nSaveSlot\n{ m_iFoo: 2 }";
+    REQUIRE(first.size() == second.size()); // the save is a text format; this is the common case
+
+    REQUIRE(store.store("S", "2", first));
+    REQUIRE(store.store("S", "2", second));
+
+    auto reader = f.make();
+    REQUIRE(reader.load("S", "2").value() == second);
+}
+
+TEST_CASE("bundle rewrites ap state that changed without changing length", "[bundle]")
+{
+    Fixture f;
+    auto store = f.make();
+    // Exactly what capturing the AP game slot does: "s 0" becomes "s 1".
+    REQUIRE(store.store_state("S", "2", "c 1\ng 2\ns 0\n"));
+    REQUIRE(store.flush());
+    REQUIRE(store.store_state("S", "2", "c 1\ng 2\ns 1\n"));
+    REQUIRE(store.flush());
+
+    auto reader = f.make();
+    REQUIRE(reader.load_state("S", "2").value() == "c 1\ng 2\ns 1\n");
+}
+
+TEST_CASE("bundle keeps the save blob intact across same-length state writes", "[bundle]")
+{
+    Fixture f;
+    auto store = f.make();
+    REQUIRE(store.store("S", "2", kBlob));
+    // A state write must reuse the save's compressed form (that is the point of the cache) without
+    // ever confusing it for a changed one.
+    for (int i = 0; i < 5; ++i)
+        REQUIRE(store.store_state("S", "2", "c " + std::to_string(i) + "\n"));
+    REQUIRE(store.flush());
+
+    auto reader = f.make();
+    REQUIRE(reader.load("S", "2").value() == kBlob);
+    REQUIRE(reader.load_state("S", "2").value() == "c 4\n");
+}
+
 TEST_CASE("bundle rewrites the save blob when it changes", "[bundle]")
 {
     Fixture f;

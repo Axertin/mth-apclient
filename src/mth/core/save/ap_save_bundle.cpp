@@ -290,20 +290,21 @@ bool ApSaveBundleStore::write_snapshot(const Snapshot &snap)
     blobs.push_back(zip::compress(kEntryManifest, manifest.dump()));
 
     // Re-emit an unchanged entry from its cached compressed form: a state write must not pay deflate
-    // on the save blob, which is far larger and rewritten far less often. The size check guards the
-    // cache against an entry that changed without the key changing.
+    // on the save blob, which is far larger and rewritten far less often. Reuse only on pointer
+    // identity - every mutation publishes a fresh payload, so an unchanged entry is the same object
+    // and a changed one never is, whatever its length.
     const auto emit = [this, &blobs](const char *name, const Payload &value)
     {
         if (!value)
             return;
         const auto it = writer_blobs_.find(name);
-        if (it != writer_blobs_.end() && it->second.uncompressed_size == value->size())
+        if (it != writer_blobs_.end() && it->second.source == value)
         {
-            blobs.push_back(it->second);
+            blobs.push_back(it->second.blob);
             return;
         }
         auto blob = zip::compress(name, *value);
-        writer_blobs_[name] = blob;
+        writer_blobs_[name] = CachedBlob{value, blob};
         blobs.push_back(std::move(blob));
     };
     emit(kEntrySave, snap.game_save);
@@ -423,7 +424,10 @@ bool ApSaveBundleStore::store_state(std::string_view seed, std::string_view slot
 {
     ensure_loaded(seed, slot);
     if (cache_.foreign)
+    {
+        pal::logf(pal::LogLevel::Error, "save: refusing to overwrite %s, which belongs to a different seed/slot", path_for(seed, slot).string().c_str());
         return false;
+    }
     cache_.ap_state = std::make_shared<const std::string>(text);
     post();
     return true;
