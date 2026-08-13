@@ -41,12 +41,19 @@ std::uint32_t name_to_rgba(std::string_view name)
 
 } // namespace
 
-bool broadcast_relevant(int our_team, int our_slot, std::optional<int> team, std::optional<int> slot, std::optional<int> receiving,
+bool broadcast_is_announcement(std::string_view print_type)
+{
+    // Chat carries the sender's slot, so the slot gate would show only our own messages back to us.
+    return print_type == "ServerChat" || print_type == "Chat" || print_type == "Countdown" || print_type == "CommandResult" ||
+           print_type == "AdminCommandResult" || print_type == "Tutorial";
+}
+
+bool broadcast_relevant(std::string_view print_type, int our_team, int our_slot, std::optional<int> team, std::optional<int> slot, std::optional<int> receiving,
                         std::optional<int> item_player)
 {
     const bool team_ok = !team.has_value() || *team == our_team;
-    const bool slot_ok =
-        (slot.has_value() && *slot == our_slot) || (receiving.has_value() && *receiving == our_slot) || (item_player.has_value() && *item_player == our_slot);
+    const bool slot_ok = broadcast_is_announcement(print_type) || (slot.has_value() && *slot == our_slot) ||
+                         (receiving.has_value() && *receiving == our_slot) || (item_player.has_value() && *item_player == our_slot);
     return team_ok && slot_ok;
 }
 

@@ -441,8 +441,8 @@ void ApLink::setup_handlers(const std::string &slot, const std::string &password
             const auto opt = [](const int *p) { return p ? std::optional<int>(*p) : std::nullopt; };
             // args.item->player is the finder: relevant when we sent the check (item destined for another slot).
             const std::optional<int> item_player = args.item ? std::optional<int>(args.item->player) : std::nullopt;
-            if (!mth::broadcast_relevant(client_->get_team_number(), client_->get_player_number(), opt(args.team), opt(args.slot), opt(args.receiving),
-                                         item_player))
+            if (!mth::broadcast_relevant(args.type, client_->get_team_number(), client_->get_player_number(), opt(args.team), opt(args.slot),
+                                         opt(args.receiving), item_player))
                 return;
 
             std::vector<mth::BannerSegment> segments;
