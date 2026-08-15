@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.25)
 # PROJECT_VERSION is not read anywhere; the build's real version comes from git describe in
 # cmake/SimpleGitVersion.cmake. release-please keeps this line honest rather than stale.
 project(mth-apclient
-    VERSION 1.0.0 # x-release-please-version
+    VERSION 1.0.1 # x-release-please-version
     LANGUAGES C CXX
 )
 
