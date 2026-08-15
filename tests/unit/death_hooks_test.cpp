@@ -644,3 +644,44 @@ TEST_CASE("deathlink: a bounce that applies at once clears an already-latched de
 
     mod::set_api(nullptr);
 }
+
+// The apply path unsettles us on the spot, so a rapid second bounce is refused and latched rather than
+// dropped. The death already underway serves it, so the latch has to be cancelled: kill() checks
+// death_in_progress(), but a latch outlives that check and the guard byte takes ~0.7s to appear, so the
+// bounce is latched while death_in_progress() is still false.
+TEST_CASE("deathlink: a death in progress cancels a latched bounce instead of killing again", "[deathlink][retry]")
+{
+    mth::test::recorder().reset();
+    auto fake = mth::test::make_fake_api();
+    mod::set_api(&fake);
+
+    FakePlayer player;
+    mth::DeathHooks hooks([] {}, [&] { return player.base(); });
+    settle(hooks, player);
+
+    hooks.kill(); // first bounce -> applied from a settled state, which unsettles us at once
+    REQUIRE(mth::test::recorder().deaths == 1);
+
+    // A paused world: frozen ticks age nothing and we are no longer settled, so the second bounce cannot be
+    // applied. It is latched for retry, and the death it belongs to has not registered yet.
+    mth::test::recorder().paused = true;
+    hooks.poll();
+    hooks.kill();
+    REQUIRE(mth::test::recorder().deaths == 1);
+
+    // The first PlayerDie now registers: from here the latched bounce is served by the death in progress.
+    mth::test::recorder().paused = false;
+    mth::test::recorder().health = 0.0f;
+    player.set_dying(true);
+    hooks.poll();
+
+    // Respawn and play well past a full grace + settle. The latch must have been cancelled, not merely delayed.
+    mth::test::recorder().health = 1.0f;
+    player.set_dying(false);
+    for (int i = 0; i < (mth::DeathBroadcastGate::kInboundDeathGraceTicks + mth::DeathBroadcastGate::kStableAliveTicks) * 2; ++i)
+        hooks.poll();
+
+    REQUIRE(mth::test::recorder().deaths == 1); // one exchange, one death
+
+    mod::set_api(nullptr);
+}

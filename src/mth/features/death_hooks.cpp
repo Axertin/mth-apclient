@@ -125,6 +125,15 @@ void DeathHooks::drive_pending_death(bool advanced)
 {
     if (pending_kill_ticks_ <= 0)
         return;
+    // A death that registered after the bounce was latched serves it. kill() checks this too, but the guard
+    // byte takes ~0.7s to appear, so a bounce can be latched while the death is still invisible; without this
+    // the latch outlives the respawn and kills the player a second time for one exchange.
+    if (gate_.death_in_progress())
+    {
+        pal::logf(pal::LogLevel::Info, "deathlink: latched inbound death served by the death already in progress");
+        pending_kill_ticks_ = 0;
+        return;
+    }
     if (try_apply_inbound_death())
     {
         pending_kill_ticks_ = 0;
@@ -158,7 +167,10 @@ void DeathHooks::kill()
         return;
     }
     const bool no_player = (get_player_ ? get_player_() : nullptr) == nullptr;
-    pal::logf(pal::LogLevel::Info, "deathlink: inbound death deferred (%s), retrying", no_player ? "no player captured" : "player not settled");
+    pal::logf(pal::LogLevel::Info, "deathlink: inbound death deferred (%s), retrying",
+              no_player             ? "no player captured"
+              : room_clock_stalled_ ? "room clock stalled: mid-transition"
+                                    : "player not settled");
     pending_kill_ticks_ = kPendingInboundDeathTicks;
 }
 
