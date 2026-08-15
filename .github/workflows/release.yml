@@ -5,7 +5,7 @@ name: release
 #   beta lane   (.github/prerelease-*.json) keeps "chore: release vX.Y.Z-beta.N" open whenever master
 #               has releasable commits. Merging it tags and publishes a pre-release.
 #   stable lane (.github/release-*.json) runs right after a beta tag and opens "chore: release
-#               vX.Y.Z". Merging THAT graduates: the beta lane recognises the PR by the shared
+#               vX.Y.Z". Merging the stable PR graduates: the beta lane recognises it by the shared
 #               pull-request-title-pattern and tags the stable version on the next run.
 #
 # So the only manual step in either lane is merging a PR. The stable lane's extra-files write the

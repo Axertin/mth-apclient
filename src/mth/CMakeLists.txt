@@ -157,6 +157,9 @@ if(NOT MTHAP_BUILD_TESTS_ONLY)
             OUTPUT_NAME "mod"
             PREFIX ""
             SUFFIX ".dll"
+            # Without this the PDB is named after the target (mthap.pdb) and mod.dll's debug
+            # directory points at the wrong file.
+            PDB_NAME "mod"
         )
     else()
         set(_mthap_mod_name "mod.so")
@@ -220,10 +223,25 @@ if(NOT MTHAP_BUILD_TESTS_ONLY)
         VERBATIM
         COMMENT "Staging mods/apclient/LICENSE")
 
+    # mod.pdb ships beside mod.dll so the crash handler's SymFromAddr finds it and resolves frames
+    # in-process. MSVC-like frontends only: the MinGW cross-check emits DWARF and no PDB, so
+    # TARGET_PDB_FILE would not resolve there.
+    set(_mthap_pdb "")
+    if(WIN32 AND MSVC)
+        add_custom_command(
+            OUTPUT "${_mthap_dropin}/mod.pdb"
+            COMMAND "${CMAKE_COMMAND}" -E make_directory "${_mthap_dropin}"
+            COMMAND "${CMAKE_COMMAND}" -E copy "$<TARGET_PDB_FILE:mthap>" "${_mthap_dropin}/mod.pdb"
+            DEPENDS mthap
+            VERBATIM
+            COMMENT "Staging mods/apclient/mod.pdb")
+        set(_mthap_pdb "${_mthap_dropin}/mod.pdb")
+    endif()
+
     include(Notices)
     mthap_stage_notices("${_mthap_dropin}" _mthap_notices)
 
     add_custom_target(mthap_dropin ALL
         DEPENDS "${_mthap_dropin}/${_mthap_mod_name}" "${_mthap_dropin}/mod.yc" "${_mthap_dropin}/LICENSE"
-                ${_mthap_notices})
+        ${_mthap_pdb} ${_mthap_notices})
 endif()

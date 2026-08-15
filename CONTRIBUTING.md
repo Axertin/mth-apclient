@@ -67,6 +67,25 @@ path, not the install dir). Launch via Steam with the `-mod -mod-allow-code` opt
 writes `~/.local/share/Yacht Club Games/Mina the Hollower/mod.log` with load diagnostics. The
 mod's own runtime log is `~/.local/share/mth-apclient/mthap_*.log`.
 
+## Reading a crash report
+
+The mod logs a backtrace on a fatal signal (Linux) or an unhandled exception (Windows), appended to the runtime log above. Windows also writes a minidump next to it. Release builds carry their own debug info, so there is no separate symbol file to match up.
+
+Windows frames come out already named: `mod.pdb` ships beside `mod.dll`, and the handler resolves them in-process.
+
+Linux frames are raw `module(+0xRVA)`, because the handler has to stay async-signal-safe. Resolve them afterwards with `addr2line`, which reads the compressed DWARF in `mod.so` directly:
+
+```bash
+# one frame; the offset is the value in the parentheses
+addr2line -e mods/apclient/mod.so -f -C 0x4a1c0
+
+# every mod frame in a reported log
+grep -o 'mod\.so(+0x[0-9a-f]*' report.log | cut -d+ -f2 |
+    addr2line -e mods/apclient/mod.so -f -C
+```
+
+Use the `mod.so` from the release the reporter was running, or the offsets land on the wrong lines. The version is in the startup log and the release asset's filename. Game frames resolve the same way against the Linux game binary, which is unstripped.
+
 ## Formatting
 
 Formatting is enforced (Allman style, `.clang-format`). Run it before committing:
