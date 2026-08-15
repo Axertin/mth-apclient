@@ -156,6 +156,91 @@ TEST_CASE("deathlink: respawn re-arms; a mid-death guard-byte pulse does not ove
     mod::set_api(nullptr);
 }
 
+namespace
+{
+// Stably alive with no sparks: the state an inbound death may be applied from.
+void settle(mth::DeathHooks &hooks, FakePlayer &player)
+{
+    mth::test::recorder().health = 1.0f;
+    mth::test::recorder().spark = 0;
+    player.set_dying(false);
+    for (int i = 0; i < mth::DeathBroadcastGate::kStableAliveTicks; ++i)
+        hooks.poll();
+}
+} // namespace
+
+// Two bounces landed 142ms apart in the field and both issued PlayerDie into a single death sequence: no
+// advancing poll ran in between, so the gate kept reporting the state it had before the first. PlayerDie
+// reaches Player::DeathEvent through the vtable, bypassing the damage pipeline, so the second call re-runs the
+// death teardown on a player already in it. Suspected cause of the camera losing the player.
+TEST_CASE("deathlink: a second inbound death arriving during the first is deferred", "[deathlink][echo]")
+{
+    mth::test::recorder().reset();
+    auto fake = mth::test::make_fake_api();
+    mod::set_api(&fake);
+
+    FakePlayer player;
+    mth::DeathHooks hooks([] {}, [&] { return player.base(); });
+    settle(hooks, player);
+
+    hooks.kill(); // first bounce -> applied from a settled state
+    REQUIRE(mth::test::recorder().deaths == 1);
+
+    // Only frozen polls follow, so nothing ages the gate's timers. The player still reads alive throughout
+    // (the death takes ~0.7s to register), and the freeze is a paused world rather than a stalled room clock,
+    // so the in-flight death is the only thing that can defer the second bounce.
+    mth::test::recorder().paused = true;
+    for (int i = 0; i < 17; ++i) // 142ms of 120 Hz ticks, as measured in the field
+        hooks.poll();
+
+    hooks.kill();
+    REQUIRE(mth::test::recorder().deaths == 1);
+
+    mod::set_api(nullptr);
+}
+
+// The two freezes are not equally safe. A paused world holds a queued death and runs it when the menu closes;
+// a stalled room clock with the world unpaused is a screen transition, where PlayerDie lands unpredictably.
+TEST_CASE("deathlink: an inbound death during a screen transition is deferred", "[deathlink][echo]")
+{
+    mth::test::recorder().reset();
+    auto fake = mth::test::make_fake_api();
+    mod::set_api(&fake);
+
+    FakePlayer player;
+    mth::DeathHooks hooks([] {}, [&] { return player.base(); });
+    settle(hooks, player);
+
+    // The room clock stalls while WorldIsPaused stays false: mid-transition, not a menu.
+    mth::test::recorder().game_paused = true;
+    hooks.poll();
+
+    hooks.kill();
+    REQUIRE(mth::test::recorder().deaths == 0);
+
+    mod::set_api(nullptr);
+}
+
+TEST_CASE("deathlink: an inbound death during a menu is still applied", "[deathlink][echo]")
+{
+    mth::test::recorder().reset();
+    auto fake = mth::test::make_fake_api();
+    mod::set_api(&fake);
+
+    FakePlayer player;
+    mth::DeathHooks hooks([] {}, [&] { return player.base(); });
+    settle(hooks, player);
+
+    // A paused world: the game queues the death and holds it until the menu closes, so it must keep applying.
+    mth::test::recorder().paused = true;
+    hooks.poll();
+
+    hooks.kill();
+    REQUIRE(mth::test::recorder().deaths == 1);
+
+    mod::set_api(nullptr);
+}
+
 // An inbound death received while a menu is open: PlayerDie is applied from a settled state, but the game
 // holds the death until the menu closes, which can be minutes. Every poll in between reads alive && !dying,
 // and none of them may lift the suppression armed for that still-pending death.

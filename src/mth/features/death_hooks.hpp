@@ -28,8 +28,9 @@ class DeathHooks
     DeathBroadcastGate gate_;
     std::function<void()> on_local_death_;
     std::function<void *()> get_player_;
-    int last_alive_spark_{0};    // spark sampled on the last alive tick; the death drop zeroes the live value before the edge
-    float last_room_time_{0.0f}; // previous room clock; unchanged means the world did not update this tick
+    int last_alive_spark_{0};        // spark sampled on the last alive tick; the death drop zeroes the live value before the edge
+    float last_room_time_{0.0f};     // previous room clock; unchanged means the world did not update this tick
+    bool room_clock_stalled_{false}; // last tick froze with the world unpaused: a transition, not a menu
 };
 
 } // namespace mth

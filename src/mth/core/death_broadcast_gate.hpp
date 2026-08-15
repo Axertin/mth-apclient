@@ -35,7 +35,8 @@ inline constexpr int kMaxFixedUpdateHz = 120;
 // gameplay ticks because a menu holds a requested death for as long as it stays open: spent on frozen ticks it
 // lapses mid-menu, and the queued death broadcasts the moment it lands.
 // stably_alive() is the settled-respawn signal DeathHooks gates an inbound PlayerDie on (never mid-death or
-// mid-transition), which also stops the storm from the receiving side.
+// mid-transition), which also stops the storm from the receiving side. note_inbound_death() unsettles it
+// immediately, so a caller must read it before arming.
 class DeathBroadcastGate
 {
   public:
@@ -101,6 +102,7 @@ class DeathBroadcastGate
     {
         suppress_ = true;
         inbound_grace_ = kInboundDeathGraceTicks; // hold "not settled" until the death lands, or the grace lapses
+        alive_streak_ = 0;                        // in flight now, not from the next poll
     }
 
     // Log only: true once per death edge swallowed as an inbound echo.
@@ -112,7 +114,9 @@ class DeathBroadcastGate
     }
 
     // True once the player has been stably alive (alive && !dying) for kStableAliveTicks polls: a settled
-    // state where applying an inbound PlayerDie is safe (not mid-death, not mid-transition).
+    // state where applying an inbound PlayerDie is safe (not mid-death, not mid-transition). Carries no
+    // freeze reason: a menu safely holds a queued death and a stalled room clock does not, and only
+    // DeathHooks can tell those apart.
     [[nodiscard]] bool stably_alive() const
     {
         return alive_streak_ >= kStableAliveTicks;
