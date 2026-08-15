@@ -34,8 +34,8 @@ inline constexpr int kMaxFixedUpdateHz = 120;
 // armed for that very death. The grace counts gameplay ticks because a menu holds a requested death open for
 // as long as it stays open; spent on frozen ticks it would lapse mid-menu.
 // stably_alive() is the settled-respawn signal DeathHooks gates an inbound PlayerDie on (never mid-death or
-// mid-transition), which also stops the storm from the receiving side. note_inbound_death() unsettles it
-// immediately, so a caller must read it before arming.
+// mid-transition), which also stops the storm from the receiving side. note_inbound_death_applied() unsettles
+// it immediately, so a caller must read it before arming.
 class DeathBroadcastGate
 {
   public:

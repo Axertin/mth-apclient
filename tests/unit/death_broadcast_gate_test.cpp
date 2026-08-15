@@ -132,17 +132,17 @@ TEST_CASE("death_broadcast_gate: a requested death is not settled the instant it
     mth::DeathBroadcastGate g;
     settle(g);
     REQUIRE(g.stably_alive());
-    g.note_inbound_death();
+    g.note_inbound_death_applied();
     REQUIRE_FALSE(g.stably_alive()); // a death is already in flight; another must not be applied on top
 }
 
 TEST_CASE("death_broadcast_gate: a requested death stays unsettled across a freeze", "[mth][death]")
 {
-    // Frozen polls age no timer, so without the zeroing in note_inbound_death() the streak keeps its
+    // Frozen polls age no timer, so without the zeroing in note_inbound_death_applied() the streak keeps its
     // pre-freeze value for as long as the freeze lasts. Two bounces 142ms apart both applied in the field.
     mth::DeathBroadcastGate g;
     settle(g);
-    g.note_inbound_death(); // first inbound death -> applied
+    g.note_inbound_death_applied(); // first inbound death -> applied
     for (int i = 0; i < mth::DeathBroadcastGate::kStableAliveTicks * 4; ++i)
     {
         (void)g.observe(false, true, false); // the death sequence freezes gameplay
