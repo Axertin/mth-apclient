@@ -3,9 +3,18 @@
   "packages": {
     ".": {
       "release-type": "simple",
+      "prerelease": false,
       "include-v-in-tag": true,
       "changelog-path": "CHANGELOG.md",
-      "extra-files": ["CMakeLists.txt"],
+      "pull-request-title-pattern": "chore: release v${version}",
+      "extra-files": [
+        "CMakeLists.txt",
+        {
+          "type": "json",
+          "path": ".github/prerelease-manifest.json",
+          "jsonpath": "$[\".\"]"
+        }
+      ],
       "changelog-sections": [
         { "type": "feat", "section": "Features" },
         { "type": "fix", "section": "Bug fixes" },
