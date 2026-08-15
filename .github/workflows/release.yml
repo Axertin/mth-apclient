@@ -1,8 +1,17 @@
 name: release
 
-# release-please keeps a release PR open against master; merging it cuts the tag and the GitHub
-# release. The build jobs below run only on that merge, so the tag exists by the time they check
-# out and git describe stamps the drop-in with the released version rather than a -dev one.
+# Two release-please lanes share this workflow.
+#
+#   beta lane   (.github/prerelease-*.json) keeps "chore: release vX.Y.Z-beta.N" open whenever master
+#               has releasable commits. Merging it tags and publishes a pre-release.
+#   stable lane (.github/release-*.json) runs right after a beta tag and opens "chore: release
+#               vX.Y.Z". Merging THAT graduates: the beta lane recognises the PR by the shared
+#               pull-request-title-pattern and tags the stable version on the next run.
+#
+# So the only manual step in either lane is merging a PR. The stable lane's extra-files write the
+# graduated version back into the beta manifest, which restarts the beta counter from the new base.
+#
+# Nothing is tagged or published unless the test lane is green.
 
 on:
   push:
@@ -11,12 +20,58 @@ on:
 permissions:
   contents: read
 
+# Two pushes close together would otherwise race to create the same release PR.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 env:
   VCPKG_BINARY_SOURCES: "clear;files,${{ github.workspace }}/.vcpkg-cache,readwrite"
 
 jobs:
-  release-please:
-    name: Maintain the release PR
+  labels:
+    name: Ensure the autorelease labels exist
+    runs-on: ubuntu-24.04
+    permissions:
+      issues: write
+    steps:
+      # release-please fails rather than creating these itself. Never --force: that would clobber the
+      # colour/description of labels that already exist.
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          for label in "autorelease: pending" "autorelease: tagged" "autorelease: snapshot"; do
+            gh label create "$label" --color ededed --description "release-please" 2>/dev/null || true
+          done
+
+  tests:
+    name: Native tests (release gate)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with: { submodules: recursive, fetch-depth: 0 }
+      - name: Install toolchain
+        run: sudo apt-get update && sudo apt-get install -y clang ninja-build
+      - name: Cache vcpkg binaries
+        uses: actions/cache@v6
+        with:
+          path: .vcpkg-cache
+          key: vcpkg-native-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}-${{ github.run_id }}
+          restore-keys: |
+            vcpkg-native-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}-
+      - name: Bootstrap vcpkg
+        run: ./external/vcpkg/bootstrap-vcpkg.sh -disableMetrics
+      - name: Configure
+        run: cmake --preset clang-x64-tests
+      - name: Build
+        run: cmake --build --preset clang-x64-tests
+      - name: Test
+        run: ctest --preset clang-x64-tests --output-on-failure
+
+  beta:
+    name: Maintain the prerelease PR
+    needs: [labels, tests]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -28,13 +83,30 @@ jobs:
       - uses: googleapis/release-please-action@v5
         id: rp
         with:
-          config-file: release-please-config.json
-          manifest-file: .release-please-manifest.json
+          config-file: .github/prerelease-config.json
+          manifest-file: .github/prerelease-manifest.json
+
+  graduate:
+    name: Open the stable release PR
+    needs: beta
+    if: needs.beta.outputs.released == 'true' && contains(needs.beta.outputs.tag, '-beta.')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      # PR only. The beta lane owns tagging and adopts this PR once it is merged, so letting this run
+      # cut releases too would tag the same version twice.
+      - uses: googleapis/release-please-action@v5
+        with:
+          config-file: .github/release-config.json
+          manifest-file: .github/release-manifest.json
+          skip-github-release: true
 
   build-linux:
     name: Build mod (Linux x86_64, Frida)
-    needs: release-please
-    if: needs.release-please.outputs.released == 'true'
+    needs: beta
+    if: needs.beta.outputs.released == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -61,7 +133,7 @@ jobs:
             exit 1
           fi
         env:
-          TAG: ${{ needs.release-please.outputs.tag }}
+          TAG: ${{ needs.beta.outputs.tag }}
       - name: Build
         run: cmake --build --preset clang-x64-release
       - name: Upload mod drop-in (Linux)
@@ -73,8 +145,8 @@ jobs:
 
   build-windows:
     name: Build mod (Windows clang-cl x64)
-    needs: release-please
-    if: needs.release-please.outputs.released == 'true'
+    needs: beta
+    if: needs.beta.outputs.released == 'true'
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v7
@@ -105,7 +177,7 @@ jobs:
             exit 1
           fi
         env:
-          TAG: ${{ needs.release-please.outputs.tag }}
+          TAG: ${{ needs.beta.outputs.tag }}
       - name: Build
         run: cmake --build --preset clang-cl-x64-release
       - name: Upload mod drop-in (Windows)
@@ -117,7 +189,7 @@ jobs:
 
   publish:
     name: Attach the drop-ins to the release
-    needs: [release-please, build-linux, build-windows]
+    needs: [beta, build-linux, build-windows]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -129,7 +201,7 @@ jobs:
       # so the release asset unpacks to an apclient/ drop-in folder.
       - name: Package drop-in zips
         env:
-          TAG: ${{ needs.release-please.outputs.tag }}
+          TAG: ${{ needs.beta.outputs.tag }}
         run: |
           ( cd dist/release-linux && zip -r "$GITHUB_WORKSPACE/mth-apclient-${TAG}-linux.zip" apclient )
           ( cd dist/release-windows && zip -r "$GITHUB_WORKSPACE/mth-apclient-${TAG}-windows.zip" apclient )
@@ -137,12 +209,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }} # this job has no checkout; tell gh the repo
-          TAG: ${{ needs.release-please.outputs.tag }}
+          TAG: ${{ needs.beta.outputs.tag }}
         run: |
           gh release upload "$TAG" \
             "mth-apclient-${TAG}-linux.zip" \
             "mth-apclient-${TAG}-windows.zip" --clobber
-          # Any tag carrying a prerelease suffix ships as a pre-release.
+          # Set both flags explicitly from the tag. The beta lane is what tags a graduated stable
+          # release too, and it runs with prerelease:true, so without this a stable release would ship
+          # flagged as a pre-release and never become "latest".
           if [[ "$TAG" == *-* ]]; then
-            gh release edit "$TAG" --prerelease
+            gh release edit "$TAG" --prerelease=true --latest=false
+          else
+            gh release edit "$TAG" --prerelease=false --latest=true
           fi

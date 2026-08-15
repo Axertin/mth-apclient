@@ -1,11 +1,14 @@
 cmake_minimum_required(VERSION 3.25)
 
-# PROJECT_VERSION is not read anywhere; the build's real version comes from git describe in
-# cmake/SimpleGitVersion.cmake. release-please keeps this line honest rather than stale.
+# No VERSION on project(): release-please stamps prerelease versions like 1.0.1-beta.1 and project()
+# rejects those outright ("VERSION format invalid"), which would break configure on every beta. The
+# build's real version comes from git describe in cmake/SimpleGitVersion.cmake; the variable below is
+# just the last released version, kept honest by release-please and read by nothing.
 project(mth-apclient
-    VERSION 1.0.0 # x-release-please-version
     LANGUAGES C CXX
 )
+
+set(MTHAP_RELEASE_VERSION "1.0.0") # x-release-please-version
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
