@@ -428,9 +428,10 @@ void ApLink::setup_handlers(const std::string &slot, const std::string &password
             auto dl = mth::net::parse_deathlink_payload(payload);
             if (dl && dl->source == slot_name_)
                 return; // our own death echoed back by the server; ignore
+            std::string source = dl ? dl->source : std::string{};
             std::string cause = dl ? dl->cause : std::string{};
-            push_event(mth::ApDeathReceived{cause});
-            pal::logf(pal::LogLevel::Info, "deathlink: received bounce (cause=%s)", cause.c_str());
+            pal::logf(pal::LogLevel::Info, "deathlink: received bounce (source=%s cause=%s)", source.c_str(), cause.c_str());
+            push_event(mth::ApDeathReceived{std::move(source), std::move(cause)});
         });
 
     // Relevant PrintJSON -> banner. Resolve names/colors here (apclientpp resolution is net-thread-only),

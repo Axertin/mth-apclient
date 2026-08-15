@@ -56,6 +56,7 @@ struct ApStatusChanged
 };
 struct ApDeathReceived
 {
+    std::string source; // sending slot name, for attributing the death to a player
     std::string cause;
 };
 // Filtered + pre-rendered on the net thread (apclientpp resolution is net-thread-only); the

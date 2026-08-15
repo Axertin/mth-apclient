@@ -136,4 +136,13 @@ std::vector<BannerFrame> BannerQueue::update(double now)
     return frames;
 }
 
+std::string deathlink_banner_text(std::string_view source, std::string_view cause)
+{
+    if (!cause.empty())
+        return std::string(cause);
+    if (!source.empty())
+        return "Killed by " + std::string(source);
+    return "Killed by a deathlink";
+}
+
 } // namespace mth

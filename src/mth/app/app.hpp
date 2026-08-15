@@ -114,6 +114,10 @@ class App : public ICommandSink
     std::optional<ApSaveState> save_state_;
     std::unique_ptr<GrantPipeline> grants_;
     std::atomic<bool> pending_inbound_death_{false};
+    // Attribution line for the death pending_inbound_death_ arms. Written by the coordinator drain and read
+    // later in the same game-thread tick, so it needs no lock; it is deliberately not cleared alongside the
+    // flag, because it is only ever read when the flag was set, and the next deathlink overwrites it.
+    std::string pending_death_text_;
     // Gates the tick entry points until construction finishes. The game-thread tick hooks go live mid-ctor
     // (GameHooks installs Game::FixedUpdate before hooks_ is even assigned), so on a fast-initializing host
     // the first tick can land on a half-built App and deref a null member. Release on the last ctor line,

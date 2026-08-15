@@ -7,6 +7,7 @@ using Catch::Approx;
 using mth::banner_color;
 using mth::BannerQueue;
 using mth::broadcast_relevant;
+using mth::deathlink_banner_text;
 
 TEST_CASE("broadcast_relevant: matches on our slot or receiving", "[mth][broadcast]")
 {
@@ -124,4 +125,24 @@ TEST_CASE("BannerQueue: a queued message waits until a visible slot frees, in or
     REQUIRE(after.size() == 1);
     REQUIRE(after[0].segments[0].text == "overflow");
     REQUIRE(q.update(2.0 * life + 0.2).empty()); // overflow expired too
+}
+
+TEST_CASE("deathlink_banner_text: a cause is already a full sentence naming the sender", "[mth][broadcast][deathlink]")
+{
+    REQUIRE(deathlink_banner_text("Amaterasu", "Amaterasu was crushed by a spike trap") == "Amaterasu was crushed by a spike trap");
+}
+
+TEST_CASE("deathlink_banner_text: falls back to the sender when the cause is empty", "[mth][broadcast][deathlink]")
+{
+    REQUIRE(deathlink_banner_text("Amaterasu", "") == "Killed by Amaterasu");
+}
+
+TEST_CASE("deathlink_banner_text: a cause without a sender still stands alone", "[mth][broadcast][deathlink]")
+{
+    REQUIRE(deathlink_banner_text("", "somebody blew up") == "somebody blew up");
+}
+
+TEST_CASE("deathlink_banner_text: neither field leaves a generic attribution", "[mth][broadcast][deathlink]")
+{
+    REQUIRE(deathlink_banner_text("", "") == "Killed by a deathlink");
 }

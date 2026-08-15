@@ -14,6 +14,7 @@
 #include "mth/app/hook_manager.hpp"
 #include "mth/core/ap/ap_ids.hpp"
 #include "mth/core/ap/ap_link.hpp"
+#include "mth/core/broadcast.hpp"
 #include "mth/core/data/ability_ids.hpp"
 #include "mth/core/game_events.hpp"
 #include "mth/core/rando_bridge.hpp"
@@ -115,7 +116,13 @@ App::App() : bundle_store_(pal::mod_save_dir(), {pal::log_dir(), pal::mod_save_d
     pal::logf(pal::LogLevel::Info, "gate: verdict=%s enforcing=0 (console: `gate enforce on`)", verdict_name(gate_verdict_.load()));
 
     net_ = std::make_unique<ApSession>(
-        state_, [this] { pending_inbound_death_.store(true); },
+        state_,
+        // Runs on the game thread (coordinator tick), same as the consumer in tick().
+        [this](const std::string &source, const std::string &cause)
+        {
+            pending_death_text_ = deathlink_banner_text(source, cause);
+            pending_inbound_death_.store(true);
+        },
         // on_scout: fill the registry on the game thread (coordinator tick runs there).
         [this](const std::vector<mth::ScoutInfo> &locs)
         {
@@ -243,7 +250,14 @@ void App::drive_tick()
     enforce_vial_capacity();
     enforce_wallet_cap();
     if (pending_inbound_death_.exchange(false))
+    {
         hooks_->kill_player();
+        pal::logf(pal::LogLevel::Info, "deathlink: applying inbound death (%s)", pending_death_text_.c_str());
+#ifdef MTHAP_HAS_OVERLAY
+        // Salmon is the AP palette's trap color, which is what a deathlink is from the receiver's side.
+        net_->banner_queue().push({{pending_death_text_, banner_color("", "salmon", 0, 0, false)}});
+#endif
+    }
     ensure_inbound_ready();
     reconcile_server_checked();
     if (resend_gate_.fire(net_->link().is_connected(), grants_->inbound_ready()))
