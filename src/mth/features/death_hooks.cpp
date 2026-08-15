@@ -33,15 +33,25 @@ DeathHooks::~DeathHooks() = default;
 // menu; World::Update then runs only its pause queue), and a paused game (the whole world queue is skipped,
 // which stalls the room clock). A build whose API lacks both accessors falls back to wall ticks rather than
 // freezing the gate.
+// They are not equally safe to kill through, so record which one this was: a paused world holds a requested
+// death until the menu closes and then runs it, while a stalled room clock is a transition or an in-progress
+// death sequence, where it lands at an unpredictable point.
 bool DeathHooks::gameplay_advanced()
 {
     if (mod::pause_api_available() && mod::world_is_paused())
+    {
+        room_clock_stalled_ = false;
         return false;
+    }
     if (!mod::room_time_api_available())
+    {
+        room_clock_stalled_ = false;
         return true;
+    }
     const float now = mod::room_time();
     const bool moved = now != last_room_time_;
     last_room_time_ = now;
+    room_clock_stalled_ = !moved;
     return moved;
 }
 
@@ -85,6 +95,9 @@ void DeathHooks::poll()
 
 void DeathHooks::kill()
 {
+    // Read both verdicts before note_inbound_death() below arms the hold for the next death.
+    const bool settled = gate_.stably_alive();
+    const bool stalled = room_clock_stalled_;
     // Every received inbound death suppresses our own outbound until we settle, even if we defer applying it
     // below: this is what breaks the multiworld echo storm (#125).
     gate_.note_inbound_death();
@@ -94,12 +107,14 @@ void DeathHooks::kill()
         pal::logf(pal::LogLevel::Warn, "deathlink: inbound death not applied (player not captured yet)");
         return;
     }
-    // Only apply PlayerDie from a settled state (stably alive, not mid-death/mid-transition). Applying it
-    // during the Underlab->overworld transition softlocks, and applying it while already dying just no-ops;
-    // a death that arrives before we settle is dropped (deathlink is best-effort). #125.
-    if (!gate_.stably_alive())
+    // Only apply PlayerDie from a settled state: stably alive, no death already in flight, and not mid-screen
+    // transition. Applying it during the Underlab->overworld transition softlocks, and applying it while
+    // already dying just no-ops; a death that arrives before we settle is dropped (deathlink is best-effort).
+    // #125.
+    if (!settled || stalled)
     {
-        pal::logf(pal::LogLevel::Info, "deathlink: inbound death deferred (player not settled: mid-death/transition)");
+        pal::logf(pal::LogLevel::Info, "deathlink: inbound death deferred (%s)",
+                  stalled ? "room clock stalled: mid-transition" : "player not settled: mid-death/in flight");
         return;
     }
     if (!mod::player_die())
