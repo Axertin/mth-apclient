@@ -68,6 +68,7 @@ add_executable(mthap_unit_tests
     unit/takeover_state_test.cpp
     unit/title_menu_test.cpp
     unit/palette_index_test.cpp
+    unit/deathlink_payload_test.cpp
 )
 
 target_include_directories(mthap_unit_tests PRIVATE
@@ -89,7 +90,10 @@ target_sources(mthap_unit_tests PRIVATE
     "${CMAKE_SOURCE_DIR}/src/pal/linux/cert_linux.cpp"
     # DeathHooks lives in the mthap module (not linked by tests); compile it in directly so its
     # sparkless-demise gating can be unit-tested against mthap_mod (mod::) + mthap_core (the gate).
-    "${CMAKE_SOURCE_DIR}/src/mth/features/death_hooks.cpp")
+    "${CMAKE_SOURCE_DIR}/src/mth/features/death_hooks.cpp"
+    # Same trick for the deathlink payload codec: it lives in mthap_net, which the test lane does not
+    # link, but it only needs nlohmann (already exposed by mthap_core).
+    "${CMAKE_SOURCE_DIR}/src/mth/net/deathlink.cpp")
 
 enable_strict_warnings(mthap_unit_tests)
 
