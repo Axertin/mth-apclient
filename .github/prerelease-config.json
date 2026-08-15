@@ -9,7 +9,14 @@
       "skip-changelog": true,
       "include-v-in-tag": true,
       "pull-request-title-pattern": "chore: release v${version}",
-      "extra-files": ["CMakeLists.txt"],
+      "extra-files": [
+        "CMakeLists.txt",
+        {
+          "type": "json",
+          "path": "vcpkg.json",
+          "jsonpath": "$[\"version-string\"]"
+        }
+      ],
       "changelog-sections": [
         { "type": "feat", "section": "Features" },
         { "type": "fix", "section": "Bug fixes" },

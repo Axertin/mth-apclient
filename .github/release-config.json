@@ -11,6 +11,11 @@
         "CMakeLists.txt",
         {
           "type": "json",
+          "path": "vcpkg.json",
+          "jsonpath": "$[\"version-string\"]"
+        },
+        {
+          "type": "json",
           "path": ".github/prerelease-manifest.json",
           "jsonpath": "$[\".\"]"
         }
