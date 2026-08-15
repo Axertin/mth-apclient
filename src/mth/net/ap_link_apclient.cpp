@@ -165,14 +165,17 @@ void ApLink::enable_deathlink(bool on)
         });
 }
 
-void ApLink::send_death(const std::string &cause)
+void ApLink::send_death(const std::string &detail)
 {
     enqueue(
-        [this, cause]
+        [this, detail]
         {
             if (!client_ || !deathlink_.load())
                 return;
             const double now = static_cast<double>(std::time(nullptr));
+            // slot_name_ is only known on the net thread, so the sentence is composed here rather than by
+            // the caller: receivers show the cause verbatim and it has to name us.
+            const std::string cause = mth::net::deathlink_cause(slot_name_, detail);
             nlohmann::json data = nlohmann::json::parse(mth::net::make_deathlink_payload(slot_name_, cause, now));
             std::list<std::string> tags{"DeathLink"};
             try
@@ -428,10 +431,10 @@ void ApLink::setup_handlers(const std::string &slot, const std::string &password
             auto dl = mth::net::parse_deathlink_payload(payload);
             if (dl && dl->source == slot_name_)
                 return; // our own death echoed back by the server; ignore
-            std::string source = dl ? dl->source : std::string{};
-            std::string cause = dl ? dl->cause : std::string{};
+            std::string source = dl ? std::move(dl->source) : std::string{};
+            std::string cause = dl ? std::move(dl->cause) : std::string{};
             pal::logf(pal::LogLevel::Info, "deathlink: received bounce (source=%s cause=%s)", source.c_str(), cause.c_str());
-            push_event(mth::ApDeathReceived{std::move(source), std::move(cause)});
+            push_event(mth::ApDeathReceived{.source = std::move(source), .cause = std::move(cause)});
         });
 
     // Relevant PrintJSON -> banner. Resolve names/colors here (apclientpp resolution is net-thread-only),

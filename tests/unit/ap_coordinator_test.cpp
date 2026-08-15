@@ -43,7 +43,7 @@ TEST_CASE("ap_coordinator: on_death called when ApDeathReceived event drained", 
     bool death_called = false;
     mth::ApCoordinator coord(link, state, [&death_called](const std::string &, const std::string &) { death_called = true; });
 
-    link.pending.push_back(mth::ApDeathReceived{"a rival", "a rival player died"});
+    link.pending.push_back(mth::ApDeathReceived{.source = "Amaterasu", .cause = "Amaterasu died"});
 
     coord.tick();
 
@@ -64,12 +64,12 @@ TEST_CASE("ap_coordinator: on_death forwards the sender and cause for attributio
                                  got_cause = cause;
                              });
 
-    link.pending.push_back(mth::ApDeathReceived{"Skylar", "Skylar was crushed by a spike trap"});
+    link.pending.push_back(mth::ApDeathReceived{.source = "Amaterasu", .cause = "Amaterasu was crushed by a spike trap"});
 
     coord.tick();
 
-    REQUIRE(got_source == "Skylar");
-    REQUIRE(got_cause == "Skylar was crushed by a spike trap");
+    REQUIRE(got_source == "Amaterasu");
+    REQUIRE(got_cause == "Amaterasu was crushed by a spike trap");
 }
 
 TEST_CASE("ap_coordinator: on_broadcast forwards segments from ApPrintBroadcast", "[mth][ap_coordinator]")

@@ -173,7 +173,7 @@ App::App() : bundle_store_(pal::mod_save_dir(), {pal::log_dir(), pal::mod_save_d
 
     // Built last: GameHooks needs *events_, and the manager's hooks tick into all managers.
     hooks_ = std::make_unique<HookManager>(
-        *events_, net_->rando(), scout_registry_, state_, bundle_store_, [this] { net_->link().send_death("Mina the Hollower"); },
+        *events_, net_->rando(), scout_registry_, state_, bundle_store_, [this] { net_->link().send_death("was hollowed out"); },
         [this]() -> void * { return tracker_->player(); });
 #ifdef MTHAP_HAS_OVERLAY
     {
@@ -251,8 +251,10 @@ void App::drive_tick()
     enforce_wallet_cap();
     if (pending_inbound_death_.exchange(false))
     {
+        // No log line here: DeathHooks::kill() is the one that knows whether the death actually landed, and
+        // it logs either outcome itself. The banner is best-effort by comparison, and can name a sender for
+        // a death kill() went on to decline.
         hooks_->kill_player();
-        pal::logf(pal::LogLevel::Info, "deathlink: applying inbound death (%s)", pending_death_text_.c_str());
 #ifdef MTHAP_HAS_OVERLAY
         // Salmon is the AP palette's trap color, which is what a deathlink is from the receiver's side.
         net_->banner_queue().push({{pending_death_text_, banner_color("", "salmon", 0, 0, false)}});

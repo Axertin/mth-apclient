@@ -5,6 +5,13 @@
 namespace mth::net
 {
 
+std::string deathlink_cause(const std::string &slot_name, const std::string &detail)
+{
+    if (slot_name.empty())
+        return detail;
+    return slot_name + " " + detail;
+}
+
 std::string make_deathlink_payload(const std::string &source, const std::string &cause, double time_epoch_s)
 {
     nlohmann::json j;
