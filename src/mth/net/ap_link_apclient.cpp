@@ -180,9 +180,8 @@ void ApLink::send_death(const std::string &detail)
             std::list<std::string> tags{"DeathLink"};
             try
             {
-                // Bounce refuses by return value while the link is still coming up, and every layer under it
-                // swallows the socket write result, so logging the send unconditionally reports a death that
-                // never left.
+                // Bounce returns false while the link is still coming up. Below it the socket write result is
+                // lost: wswrap returns the asio error and apclientpp discards it, returning true either way.
                 if (!client_->Bounce(data, {}, {}, tags))
                 {
                     pal::logf(pal::LogLevel::Warn, "deathlink: bounce refused (link not ready); death not sent");
@@ -436,11 +435,12 @@ void ApLink::setup_handlers(const std::string &slot, const std::string &password
                 return;
             std::string payload = cmd.contains("data") ? cmd["data"].dump() : std::string{};
             auto dl = mth::net::parse_deathlink_payload(payload);
-            if (dl && dl->source == slot_name_)
+            // The server relays a tagged Bounce to every same-team client holding that tag, sender included, so
+            // our own death comes back to us; the echo is the only evidence it reached the room. `source` is
+            // optional in the parse, so guard on a non-empty slot name, or a sourceless bounce from someone else
+            // gets swallowed as our echo.
+            if (dl && !slot_name_.empty() && dl->source == slot_name_)
             {
-                // A tagged Bounce is relayed to every same-team client carrying that tag, the sender included,
-                // so this echo is the only confirmation available that our own death reached the server and
-                // was fanned out. Dropping it silently leaves an outbound deathlink unfalsifiable from a log.
                 pal::logf(pal::LogLevel::Info, "deathlink: own bounce echoed back by server (relayed to the room)");
                 return;
             }
