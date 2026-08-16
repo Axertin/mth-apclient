@@ -1,4 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
+#include <nlohmann/json.hpp>
 
 #include "mth/net/deathlink.hpp"
 
@@ -47,4 +48,13 @@ TEST_CASE("deathlink payload: source survives a round trip", "[mth][deathlink]")
     REQUIRE(dl.has_value());
     REQUIRE(dl->source == "Mina");
     REQUIRE(dl->cause == "Mina fell in a pit");
+}
+
+TEST_CASE("deathlink payload: time survives with sub-second precision", "[mth][deathlink]")
+{
+    // Receivers dedupe on exact equality with the last timestamp they saw, so truncating to whole seconds
+    // would collapse two players dying in the same second into one death.
+    const auto j = nlohmann::json::parse(make_deathlink_payload("Mina", "Mina fell in a pit", 1786866611.25));
+
+    REQUIRE(j.at("time").get<double>() == 1786866611.25);
 }

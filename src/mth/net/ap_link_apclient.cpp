@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <chrono>
-#include <ctime>
 #include <exception>
 #include <list>
 #include <string>
@@ -172,7 +171,9 @@ void ApLink::send_death(const std::string &detail)
         {
             if (!client_ || !deathlink_.load())
                 return;
-            const double now = static_cast<double>(std::time(nullptr));
+            // Sub-second, per the spec's float timestamp: receivers dedupe on exact equality against the last
+            // deathlink they saw, so whole seconds would collapse two players dying in the same second into one.
+            const double now = std::chrono::duration<double>(std::chrono::system_clock::now().time_since_epoch()).count();
             // slot_name_ is only known on the net thread, so the sentence is composed here rather than by
             // the caller: receivers show the cause verbatim and it has to name us.
             const std::string cause = mth::net::deathlink_cause(slot_name_, detail);
