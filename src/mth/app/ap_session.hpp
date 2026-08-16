@@ -4,6 +4,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <string>
 #include <vector>
 
 namespace mth
@@ -24,8 +25,10 @@ struct ScoutInfo;
 class ApSession
 {
   public:
-    ApSession(ApState &state, std::function<void()> on_inbound_death, std::function<void(const std::vector<ScoutInfo> &)> on_scout = {},
-              std::function<void()> on_session_reset = {}, std::function<void()> on_session_end = {});
+    // on_inbound_death carries the bounce's source (who died) and cause, for attributing the death on screen.
+    ApSession(ApState &state, std::function<void(const std::string &source, const std::string &cause)> on_inbound_death,
+              std::function<void(const std::vector<ScoutInfo> &)> on_scout = {}, std::function<void()> on_session_reset = {},
+              std::function<void()> on_session_end = {});
     ~ApSession();
 
     ApSession(const ApSession &) = delete;

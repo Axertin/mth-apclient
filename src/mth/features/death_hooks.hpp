@@ -1,6 +1,7 @@
 #pragma once
 
 #include <functional>
+#include <string>
 
 #include "mth/core/death_broadcast_gate.hpp"
 
@@ -20,7 +21,9 @@ class DeathHooks
     // menu freezes the game, and a frozen tick must not burn the window (#164).
     static constexpr int kPendingInboundDeathTicks = ticks_for_seconds(10.0); // 1200: 10s at 120 Hz, 20s at 60 Hz
 
-    DeathHooks(std::function<void()> on_local_death, std::function<void *()> get_player);
+    // on_local_death receives the detail for the outbound cause (the predicate only; ApLink prefixes our slot
+    // name), so the manner of death can vary once the death path can tell them apart.
+    DeathHooks(std::function<void(const std::string &)> on_local_death, std::function<void *()> get_player);
     ~DeathHooks();
     DeathHooks(const DeathHooks &) = delete;
     DeathHooks &operator=(const DeathHooks &) = delete;
@@ -35,7 +38,7 @@ class DeathHooks
     void drive_pending_death(bool advanced);
 
     DeathBroadcastGate gate_;
-    std::function<void()> on_local_death_;
+    std::function<void(const std::string &)> on_local_death_;
     std::function<void *()> get_player_;
     int last_alive_spark_{0};        // spark sampled on the last alive tick; the death drop zeroes the live value before the edge
     float last_room_time_{0.0f};     // previous room clock; unchanged means the world did not update this tick

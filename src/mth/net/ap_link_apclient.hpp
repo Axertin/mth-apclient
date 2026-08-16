@@ -35,7 +35,7 @@ class ApLink final : public mth::IApLink
     void scout_locations(const std::vector<std::int64_t> &location_ids) override;
     void set_goal() override;
     void enable_deathlink(bool on) override;
-    void send_death(const std::string &cause) override;
+    void send_death(const std::string &detail) override;
     void report_area(int game_state) override;
     [[nodiscard]] std::vector<mth::ApEvent> drain_events() override;
 

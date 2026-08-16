@@ -56,7 +56,8 @@ struct ApStatusChanged
 };
 struct ApDeathReceived
 {
-    std::string cause;
+    std::string source; // who died: a slot name, or a character name from within the sender's game
+    std::string cause;  // full sentence already naming the dead player; empty when the sender supplied none
 };
 // Filtered + pre-rendered on the net thread (apclientpp resolution is net-thread-only); the
 // coordinator forwards it to the banner.

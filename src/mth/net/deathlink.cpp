@@ -5,10 +5,19 @@
 namespace mth::net
 {
 
+std::string deathlink_cause(const std::string &slot_name, const std::string &detail)
+{
+    if (slot_name.empty())
+        return detail;
+    return slot_name + " " + detail;
+}
+
 std::string make_deathlink_payload(const std::string &source, const std::string &cause, double time_epoch_s)
 {
     nlohmann::json j;
     j["time"] = time_epoch_s;
+    // `source` goes out even when empty. Receivers read it unguarded whenever the cause is absent, and the
+    // KeyError there drops that player from the multiworld rather than skipping one death.
     j["source"] = source;
     if (!cause.empty())
         j["cause"] = cause;

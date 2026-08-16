@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <chrono>
-#include <ctime>
 #include <exception>
 #include <list>
 #include <string>
@@ -165,19 +164,30 @@ void ApLink::enable_deathlink(bool on)
         });
 }
 
-void ApLink::send_death(const std::string &cause)
+void ApLink::send_death(const std::string &detail)
 {
     enqueue(
-        [this, cause]
+        [this, detail]
         {
             if (!client_ || !deathlink_.load())
                 return;
-            const double now = static_cast<double>(std::time(nullptr));
+            // Sub-second, per the spec's float timestamp: receivers dedupe on exact equality against the last
+            // deathlink they saw, so whole seconds would collapse two players dying in the same second into one.
+            const double now = std::chrono::duration<double>(std::chrono::system_clock::now().time_since_epoch()).count();
+            // slot_name_ is only known on the net thread, so the sentence is composed here rather than by
+            // the caller: receivers show the cause verbatim and it has to name us.
+            const std::string cause = mth::net::deathlink_cause(slot_name_, detail);
             nlohmann::json data = nlohmann::json::parse(mth::net::make_deathlink_payload(slot_name_, cause, now));
             std::list<std::string> tags{"DeathLink"};
             try
             {
-                client_->Bounce(data, {}, {}, tags);
+                // Bounce returns false while the link is still coming up. Below it the socket write result is
+                // lost: wswrap returns the asio error and apclientpp discards it, returning true either way.
+                if (!client_->Bounce(data, {}, {}, tags))
+                {
+                    pal::logf(pal::LogLevel::Warn, "deathlink: bounce refused (link not ready); death not sent");
+                    return;
+                }
                 pal::logf(pal::LogLevel::Info, "deathlink: sent bounce (cause=%s)", cause.c_str());
             }
             catch (const std::exception &e)
@@ -426,11 +436,19 @@ void ApLink::setup_handlers(const std::string &slot, const std::string &password
                 return;
             std::string payload = cmd.contains("data") ? cmd["data"].dump() : std::string{};
             auto dl = mth::net::parse_deathlink_payload(payload);
-            if (dl && dl->source == slot_name_)
-                return; // our own death echoed back by the server; ignore
-            std::string cause = dl ? dl->cause : std::string{};
-            push_event(mth::ApDeathReceived{cause});
-            pal::logf(pal::LogLevel::Info, "deathlink: received bounce (cause=%s)", cause.c_str());
+            // The server relays a tagged Bounce to every same-team client holding that tag, sender included, so
+            // our own death comes back to us; the echo is the only evidence it reached the room. `source` is
+            // optional in the parse, so guard on a non-empty slot name, or a sourceless bounce from someone else
+            // gets swallowed as our echo.
+            if (dl && !slot_name_.empty() && dl->source == slot_name_)
+            {
+                pal::logf(pal::LogLevel::Info, "deathlink: own bounce echoed back by server (relayed to the room)");
+                return;
+            }
+            std::string source = dl ? std::move(dl->source) : std::string{};
+            std::string cause = dl ? std::move(dl->cause) : std::string{};
+            pal::logf(pal::LogLevel::Info, "deathlink: received bounce (source=%s cause=%s)", source.c_str(), cause.c_str());
+            push_event(mth::ApDeathReceived{.source = std::move(source), .cause = std::move(cause)});
         });
 
     // Relevant PrintJSON -> banner. Resolve names/colors here (apclientpp resolution is net-thread-only),

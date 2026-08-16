@@ -59,9 +59,9 @@ class FakeApLink final : public mth::IApLink
     {
         deathlink_enabled = on;
     }
-    void send_death(const std::string &cause) override
+    void send_death(const std::string &detail) override
     {
-        sent_deaths.push_back(cause);
+        sent_deaths.push_back(detail);
     }
     void report_area(int game_state) override
     {

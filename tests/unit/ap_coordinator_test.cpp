@@ -1,3 +1,5 @@
+#include <string>
+
 #include <catch2/catch_test_macros.hpp>
 
 #include "mocks/fake_ap_link.hpp"
@@ -39,14 +41,35 @@ TEST_CASE("ap_coordinator: on_death called when ApDeathReceived event drained", 
     mth::test::FakeApLink link;
     mth::ApState state;
     bool death_called = false;
-    mth::ApCoordinator coord(link, state, [&death_called] { death_called = true; });
+    mth::ApCoordinator coord(link, state, [&death_called](const std::string &, const std::string &) { death_called = true; });
 
-    link.pending.push_back(mth::ApDeathReceived{"a rival player died"});
+    link.pending.push_back(mth::ApDeathReceived{.source = "Amaterasu", .cause = "Amaterasu died"});
 
     coord.tick();
 
     REQUIRE(death_called);
     REQUIRE(link.pending.empty());
+}
+
+TEST_CASE("ap_coordinator: on_death forwards the sender and cause for attribution", "[mth][ap_coordinator]")
+{
+    mth::test::FakeApLink link;
+    mth::ApState state;
+    std::string got_source;
+    std::string got_cause;
+    mth::ApCoordinator coord(link, state,
+                             [&](const std::string &source, const std::string &cause)
+                             {
+                                 got_source = source;
+                                 got_cause = cause;
+                             });
+
+    link.pending.push_back(mth::ApDeathReceived{.source = "Amaterasu", .cause = "Amaterasu was crushed by a spike trap"});
+
+    coord.tick();
+
+    REQUIRE(got_source == "Amaterasu");
+    REQUIRE(got_cause == "Amaterasu was crushed by a spike trap");
 }
 
 TEST_CASE("ap_coordinator: on_broadcast forwards segments from ApPrintBroadcast", "[mth][ap_coordinator]")

@@ -21,7 +21,7 @@ namespace
 namespace mth
 {
 
-DeathHooks::DeathHooks(std::function<void()> on_local_death, std::function<void *()> get_player)
+DeathHooks::DeathHooks(std::function<void(const std::string &)> on_local_death, std::function<void *()> get_player)
     : on_local_death_(std::move(on_local_death)), get_player_(std::move(get_player))
 {
 }
@@ -90,7 +90,8 @@ void DeathHooks::poll()
             return;
         }
         pal::logf(pal::LogLevel::Info, "deathlink: sparkless local death -> broadcasting");
-        on_local_death_();
+        // One detail for every death until the death path can distinguish them.
+        on_local_death_("had a skill issue");
     }
 }
 

@@ -32,6 +32,11 @@ struct BannerSegment
 // type/flags). Alpha is 255; the fade scales it.
 [[nodiscard]] std::uint32_t banner_color(std::string_view type, std::string_view explicit_color, unsigned item_flags, unsigned hint_status, bool is_self);
 
+// Attribution line for an inbound deathlink. The AP convention is that `cause` is already a full
+// sentence naming the dead player, so it is shown verbatim; `source` (who died, by slot name or by a
+// character name from within the sender's game) only carries the line when the sender supplied no cause.
+[[nodiscard]] std::string deathlink_banner_text(std::string_view source, std::string_view cause);
+
 struct BannerFrame
 {
     std::vector<BannerSegment> segments;
