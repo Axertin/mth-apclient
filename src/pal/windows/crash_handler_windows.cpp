@@ -150,13 +150,25 @@ void report_crash(EXCEPTION_POINTERS *ep, const char *source)
     char modname[64] = {0};
     const std::uintptr_t base = module_for(addr, modname, sizeof(modname));
     const unsigned long long rva = base ? reinterpret_cast<std::uintptr_t>(addr) - base : 0;
-    pal::logf(pal::LogLevel::Error, "crash: ==== fatal exception (%s) ====", source);
+    pal::logf(pal::LogLevel::Error, "crash: ==== %s ====", source);
     pal::logf(pal::LogLevel::Error, "crash: code=0x%08lx at %s+0x%llx (%p)", code, modname, rva, addr);
     if (code == EXCEPTION_ACCESS_VIOLATION && er && er->NumberParameters >= 2)
     {
-        const ULONG_PTR rw = er->ExceptionInformation[0];
-        const char *op = rw == 0 ? "read" : (rw == 1 ? "write" : "execute");
-        pal::logf(pal::LogLevel::Error, "crash: access violation (%s) of 0x%p", op, reinterpret_cast<void *>(er->ExceptionInformation[1]));
+        const ULONG_PTR at = er->ExceptionInformation[1];
+        // -1 means "no address available": a general-protection fault, not a page fault.
+        // ExceptionInformation[0] still reads 0 there, so pairing the two reports a phantom
+        // read of 0xFFFFFFFFFFFFFFFF.
+        if (at == static_cast<ULONG_PTR>(-1))
+        {
+            pal::logf(pal::LogLevel::Error, "crash: general-protection fault, no faulting address");
+            pal::logf(pal::LogLevel::Error, "crash: likely misaligned SSE (movaps/movdqa on a stack slot not 16-byte aligned) or a non-canonical pointer");
+        }
+        else
+        {
+            const ULONG_PTR kind = er->ExceptionInformation[0];
+            const char *op = kind == 0 ? "read" : (kind == 1 ? "write" : (kind == 8 ? "execute" : "unknown-access"));
+            pal::logf(pal::LogLevel::Error, "crash: access violation (%s) of 0x%p", op, reinterpret_cast<void *>(at));
+        }
     }
 
     write_minidump(ep); // overwrites crash_<pid>.dmp; the final crash leaves the relevant dump
@@ -171,17 +183,19 @@ void report_crash(EXCEPTION_POINTERS *ep, const char *source)
 // game may replace it (SetUnhandledExceptionFilter is last-writer-wins).
 LONG WINAPI crash_filter(EXCEPTION_POINTERS *ep)
 {
-    report_crash(ep, "unhandled-filter");
+    report_crash(ep, "unhandled exception (process is terminating)");
     return EXCEPTION_CONTINUE_SEARCH; // let the default handler terminate normally
 }
 
 // Vectored handler: cannot be overridden by SetUnhandledExceptionFilter and runs
 // before the SEH chain, so it catches crashes even if the game replaced our
-// filter. Gated to fatal codes to avoid acting on benign first-chance exceptions.
+// filter. Gated to fatal codes to skip C++ EH throws and debugger notifications,
+// but even a fatal code is first-chance here, so a report is not proof the process
+// died: injected overlays (RTSS, Steam) raise and handle their own access violations.
 LONG CALLBACK veh_handler(EXCEPTION_POINTERS *ep)
 {
     if (ep && ep->ExceptionRecord && is_fatal_code(ep->ExceptionRecord->ExceptionCode))
-        report_crash(ep, "vectored");
+        report_crash(ep, "first-chance exception (vectored; may still be handled downstream)");
     return EXCEPTION_CONTINUE_SEARCH; // never swallow; let normal handling proceed
 }
 
