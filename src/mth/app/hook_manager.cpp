@@ -191,6 +191,12 @@ void HookManager::clear_session_state()
     // keep being written into the next AP game's unlock bitfield.
     lock_hooks_->locks().clear();
     modifier_hooks_->set_ap_slot(-1); // unknown again: the next AP game captures its own slot
+    death_hooks_->reset();            // a death latched for retry belongs to the connection being dropped
+}
+
+void HookManager::clear_pending_death()
+{
+    death_hooks_->reset();
 }
 
 bool HookManager::credit_kear_key()

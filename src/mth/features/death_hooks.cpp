@@ -58,6 +58,7 @@ bool DeathHooks::gameplay_advanced()
 void DeathHooks::poll()
 {
     const bool advanced = gameplay_advanced(); // sampled every tick: last_room_time_ must not go stale
+    drive_pending_death(advanced);
     void *p = get_player_ ? get_player_() : nullptr;
     if (p == nullptr)
     {
@@ -93,36 +94,89 @@ void DeathHooks::poll()
     }
 }
 
-void DeathHooks::kill()
+// Returns false only for a block that clears on its own (no player yet, or not settled), which is the caller's
+// cue to retry. A missing PlayerDie API cannot clear, so it counts as handled rather than retried forever.
+bool DeathHooks::try_apply_inbound_death()
 {
-    // Read both verdicts before note_inbound_death() below arms the hold for the next death.
-    const bool settled = gate_.stably_alive();
-    const bool stalled = room_clock_stalled_;
-    // Every received inbound death suppresses our own outbound until we settle, even if we defer applying it
-    // below: this is what breaks the multiworld echo storm (#125).
-    gate_.note_inbound_death();
     void *p = get_player_ ? get_player_() : nullptr;
     if (p == nullptr)
-    {
-        pal::logf(pal::LogLevel::Warn, "deathlink: inbound death not applied (player not captured yet)");
-        return;
-    }
-    // Only apply PlayerDie from a settled state: stably alive, no death already in flight, and not mid-screen
-    // transition. Applying it during the Underlab->overworld transition softlocks, and applying it while
-    // already dying just no-ops; a death that arrives before we settle is dropped (deathlink is best-effort).
-    // #125.
-    if (!settled || stalled)
-    {
-        pal::logf(pal::LogLevel::Info, "deathlink: inbound death deferred (%s)",
-                  stalled ? "room clock stalled: mid-transition" : "player not settled: mid-death/in flight");
-        return;
-    }
+        return false; // world/screen transition: the next room's player is moments away
+    // Only apply PlayerDie from a settled state (stably alive, not mid-death). Applying it during the
+    // Underlab->overworld transition softlocks, and applying it while already dying just no-ops. A stalled
+    // room clock with the world unpaused is a transition or a death already in flight, where PlayerDie lands
+    // at an unpredictable point; a paused world is a menu, which holds the death safely. #125.
+    if (!gate_.stably_alive() || room_clock_stalled_)
+        return false;
     if (!mod::player_die())
     {
         pal::logf(pal::LogLevel::Warn, "deathlink: inbound death not applied (PlayerDie API unavailable)");
+        return true;
+    }
+    // Arm the grace on the tick the death actually goes out, not the tick it was received: the alive polls
+    // that follow belong to THIS request and must not settle us before it lands.
+    gate_.note_inbound_death_applied();
+    pal::logf(pal::LogLevel::Info, "deathlink: applying inbound death (PlayerDie)");
+    return true;
+}
+
+// Retry a latched inbound death, and age the window it has to land in. Ages on gameplay ticks only: a menu
+// stops the game, and the pause must not spend a window meant for gameplay time (#164).
+void DeathHooks::drive_pending_death(bool advanced)
+{
+    if (pending_kill_ticks_ <= 0)
+        return;
+    // A death that registered after the bounce was latched serves it. kill() checks this too, but the guard
+    // byte takes ~0.7s to appear, so a bounce can be latched while the death is still invisible; without this
+    // the latch outlives the respawn and kills the player a second time for one exchange.
+    if (gate_.death_in_progress())
+    {
+        pal::logf(pal::LogLevel::Info, "deathlink: latched inbound death served by the death already in progress");
+        pending_kill_ticks_ = 0;
         return;
     }
-    pal::logf(pal::LogLevel::Info, "deathlink: applying inbound death (PlayerDie)");
+    if (try_apply_inbound_death())
+    {
+        pending_kill_ticks_ = 0;
+        return;
+    }
+    if (advanced && --pending_kill_ticks_ == 0)
+        pal::logf(pal::LogLevel::Warn, "deathlink: inbound death dropped (player never settled within the retry window)");
+}
+
+void DeathHooks::kill()
+{
+    // Suppress our outbound from the moment a bounce arrives, even when applying it is deferred below: this
+    // is what breaks the multiworld echo storm (#125).
+    gate_.note_inbound_death_received();
+    if (gate_.death_in_progress())
+    {
+        pal::logf(pal::LogLevel::Info, "deathlink: inbound death served by the death already in progress");
+        return;
+    }
+    if (try_apply_inbound_death())
+    {
+        pending_kill_ticks_ = 0; // a queued-but-unlanded death is the game's problem now, not ours to retry
+        return;
+    }
+    // One latch however many bounces arrive: a storm must not chain-kill the player through several
+    // respawns. The window runs from the FIRST deferral, so a steady stream cannot push the deadline out
+    // forever (#164).
+    if (pending_kill_ticks_ > 0)
+    {
+        pal::logf(pal::LogLevel::Debug, "deathlink: inbound death arrived while one is already pending (coalesced)");
+        return;
+    }
+    const bool no_player = (get_player_ ? get_player_() : nullptr) == nullptr;
+    pal::logf(pal::LogLevel::Info, "deathlink: inbound death deferred (%s), retrying",
+              no_player             ? "no player captured"
+              : room_clock_stalled_ ? "room clock stalled: mid-transition"
+                                    : "player not settled");
+    pending_kill_ticks_ = kPendingInboundDeathTicks;
+}
+
+void DeathHooks::reset()
+{
+    pending_kill_ticks_ = 0;
 }
 
 } // namespace mth

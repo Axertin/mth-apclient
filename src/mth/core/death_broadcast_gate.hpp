@@ -28,15 +28,14 @@ inline constexpr int kMaxFixedUpdateHz = 120;
 //   - `gameplay_advanced`  false on a tick where the world's gameplay queues did not run (a paused world or a
 //              paused game). Nothing the game has queued can progress on such a tick, so no timer here ages on
 //              it. A death edge still counts: one can only mean the death did land.
-// note_inbound_death() is called for every received inbound death: suppress our outbound until we settle. The
-// death it requests takes many polls to register (the game reads alive throughout), so it also holds us
-// "not settled" for kInboundDeathGraceTicks or until the death lands - otherwise those alive polls settle us
-// and lift the suppression before the death they were meant to suppress ever arrives. That grace counts
-// gameplay ticks because a menu holds a requested death for as long as it stays open: spent on frozen ticks it
-// lapses mid-menu, and the queued death broadcasts the moment it lands.
+// note_inbound_death_received() suppresses our outbound the moment a bounce arrives, since applying it may be
+// deferred. note_inbound_death_applied() also holds us "not settled" for kInboundDeathGraceTicks: the game
+// reads alive for many polls after PlayerDie returns, and those polls would otherwise lift the suppression
+// armed for that very death. The grace counts gameplay ticks because a menu holds a requested death open for
+// as long as it stays open; spent on frozen ticks it would lapse mid-menu.
 // stably_alive() is the settled-respawn signal DeathHooks gates an inbound PlayerDie on (never mid-death or
-// mid-transition), which also stops the storm from the receiving side. note_inbound_death() unsettles it
-// immediately, so a caller must read it before arming.
+// mid-transition), which also stops the storm from the receiving side. note_inbound_death_applied() unsettles
+// it immediately, so a caller must read it before arming.
 class DeathBroadcastGate
 {
   public:
@@ -98,11 +97,23 @@ class DeathBroadcastGate
 
     // A received inbound death: suppress our own outbound broadcasts until we settle (stably respawn), so the
     // death we take from it - or any death during the exchange - is not echoed back into the multiworld.
-    void note_inbound_death()
+    // No grace here: nothing is in flight until the death is applied, and arming it would pin alive_streak_
+    // at 0, which is the settling the retry waits on (#164).
+    void note_inbound_death_received()
     {
         suppress_ = true;
-        inbound_grace_ = kInboundDeathGraceTicks; // hold "not settled" until the death lands, or the grace lapses
-        alive_streak_ = 0;                        // in flight now, not from the next poll
+    }
+
+    // The PlayerDie for a received death just went out. NOW hold "not settled" until it lands or the grace
+    // lapses: the game reads alive for many polls after PlayerDie returns, and counting those as a settled
+    // respawn would lift the suppression armed for this very death and echo it back (#125). Unsettle on this
+    // tick rather than from the next poll: a frozen tick ages nothing, so the pre-freeze verdict would
+    // otherwise let a second bounce apply a second PlayerDie into this same death sequence.
+    void note_inbound_death_applied()
+    {
+        suppress_ = true;
+        inbound_grace_ = kInboundDeathGraceTicks;
+        alive_streak_ = 0;
     }
 
     // Log only: true once per death edge swallowed as an inbound echo.
@@ -111,6 +122,14 @@ class DeathBroadcastGate
         const bool v = suppressed_death_;
         suppressed_death_ = false;
         return v;
+    }
+
+    // True from a death edge until the next settled respawn. A bounce arriving in that window is served by
+    // the death already underway, so it is neither applied nor latched: dying twice for one exchange reads as
+    // a bug to the player.
+    [[nodiscard]] bool death_in_progress() const
+    {
+        return latched_;
     }
 
     // True once the player has been stably alive (alive && !dying) for kStableAliveTicks polls: a settled

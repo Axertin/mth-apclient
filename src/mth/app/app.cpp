@@ -138,6 +138,11 @@ App::App() : bundle_store_(pal::mod_save_dir(), {pal::log_dir(), pal::mod_save_d
             pal::logf(pal::LogLevel::Info, "save: vanilla save writes suppressed (save api=%s, enabled=%d)", mod::save_api_available() ? "ok" : "MISSING",
                       mod::save_write_enabled() ? 1 : 0);
             scout_registry_.clear();
+            // A disconnect reaches here but NOT on_session_end, so a deathlink still latched for retry would
+            // otherwise land seconds after the player left the multiworld.
+            pending_inbound_death_.store(false);
+            if (hooks_)
+                hooks_->clear_pending_death();
         },
         // on_session_end: a different (seed, slot) authenticated. Ordered ahead of that connection's
         // ApConnected, so it is the one safe point to drop the previous session wholesale.

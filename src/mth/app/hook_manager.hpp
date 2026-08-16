@@ -52,6 +52,7 @@ class HookManager
     // Session boundary: drop the feature state seeded from one connection's received items (lock removals)
     // and the captured AP-game slot, so none of it carries into the next connection's save.
     void clear_session_state();
+    void clear_pending_death();            // drop a deathlink latched for retry; also on plain disconnect, not just a new session
     void drain();                          // World::Update pre-hook window
     void on_world_update_end(void *world); // menu-world scene walk for the save takeover
     void on_world_destroy();               // re-arm native collected-bit enforcement (save reload clears it)

@@ -350,3 +350,338 @@ TEST_CASE("deathlink: a rejected inbound death heals and the next genuine death 
 
     mod::set_api(nullptr);
 }
+
+// A bounce that arrives while we are already dying is served by the death we are already taking. Dying a
+// second time for one exchange, after the respawn, reads as a bug to the player.
+TEST_CASE("deathlink: a bounce arriving during our own death does not kill us again", "[deathlink][retry]")
+{
+    mth::test::recorder().reset();
+    auto fake = mth::test::make_fake_api();
+    mod::set_api(&fake);
+
+    FakePlayer player;
+    int broadcasts = 0;
+    mth::DeathHooks hooks([&] { ++broadcasts; }, [&] { return player.base(); });
+
+    // Settle, then die locally: the gate is no longer stably alive.
+    mth::test::recorder().health = 1.0f;
+    mth::test::recorder().spark = 0;
+    player.set_dying(false);
+    for (int i = 0; i < mth::DeathBroadcastGate::kStableAliveTicks; ++i)
+        hooks.poll();
+    mth::test::recorder().health = 0.0f;
+    player.set_dying(true);
+    hooks.poll();
+    REQUIRE(broadcasts == 1);
+
+    hooks.kill(); // the bounce lands while we are dying
+    REQUIRE(mth::test::recorder().deaths == 0);
+
+    // Respawn and play well past a full grace + settle: nothing may be waiting to fire.
+    mth::test::recorder().health = 1.0f;
+    player.set_dying(false);
+    for (int i = 0; i < (mth::DeathBroadcastGate::kInboundDeathGraceTicks + mth::DeathBroadcastGate::kStableAliveTicks) * 2; ++i)
+        hooks.poll();
+
+    REQUIRE(mth::test::recorder().deaths == 0);
+
+    mod::set_api(nullptr);
+}
+
+// The other #164 drop: a bounce during a world/screen transition, when no Player is captured. This is the
+// "transitioning screens can avoid deathlinks" half of the report.
+TEST_CASE("deathlink: an inbound death arriving during a transition is applied when the player returns", "[deathlink][retry]")
+{
+    mth::test::recorder().reset();
+    auto fake = mth::test::make_fake_api();
+    mod::set_api(&fake);
+
+    FakePlayer player;
+    void *live = nullptr; // mid-transition: no player captured
+    int broadcasts = 0;
+    mth::DeathHooks hooks([&] { ++broadcasts; }, [&] { return live; });
+
+    hooks.kill();
+    REQUIRE(mth::test::recorder().deaths == 0);
+
+    mth::test::recorder().health = 1.0f;
+    mth::test::recorder().spark = 0;
+    player.set_dying(false);
+    live = player.base(); // the new room's player exists
+    for (int i = 0; i < mth::DeathBroadcastGate::kInboundDeathGraceTicks + mth::DeathBroadcastGate::kStableAliveTicks + 2; ++i)
+        hooks.poll();
+
+    REQUIRE(mth::test::recorder().deaths == 1);
+
+    mod::set_api(nullptr);
+}
+
+// The latch is bounded: a bounce that never finds a settled player is dropped, not banked indefinitely to
+// kill the player at some unrelated moment much later.
+TEST_CASE("deathlink: a latched inbound death expires if the player never settles", "[deathlink][retry]")
+{
+    mth::test::recorder().reset();
+    auto fake = mth::test::make_fake_api();
+    mod::set_api(&fake);
+
+    FakePlayer player;
+    void *live = nullptr;
+    int broadcasts = 0;
+    mth::DeathHooks hooks([&] { ++broadcasts; }, [&] { return live; });
+
+    hooks.kill();
+    for (int i = 0; i < mth::DeathHooks::kPendingInboundDeathTicks + 1; ++i)
+        hooks.poll(); // still no player: the window burns down
+
+    mth::test::recorder().health = 1.0f;
+    mth::test::recorder().spark = 0;
+    player.set_dying(false);
+    live = player.base();
+    for (int i = 0; i < mth::DeathBroadcastGate::kInboundDeathGraceTicks + mth::DeathBroadcastGate::kStableAliveTicks + 2; ++i)
+        hooks.poll();
+
+    REQUIRE(mth::test::recorder().deaths == 0); // expired, not applied late
+
+    mod::set_api(nullptr);
+}
+
+// One pending death, however many bounces arrive while it is pending: a multiworld storm must not chain-kill
+// the player through several respawns.
+TEST_CASE("deathlink: several inbound deaths arriving before the player settles apply once", "[deathlink][retry]")
+{
+    mth::test::recorder().reset();
+    auto fake = mth::test::make_fake_api();
+    mod::set_api(&fake);
+
+    FakePlayer player;
+    void *live = nullptr;
+    int broadcasts = 0;
+    mth::DeathHooks hooks([&] { ++broadcasts; }, [&] { return live; });
+
+    // Three bounces spread across the unsettled window, not stacked on one tick: a counter would queue all
+    // three rather than collapsing them.
+    hooks.kill();
+    for (int i = 0; i < mth::DeathBroadcastGate::kStableAliveTicks; ++i)
+        hooks.poll();
+    hooks.kill();
+    for (int i = 0; i < mth::DeathBroadcastGate::kStableAliveTicks; ++i)
+        hooks.poll();
+    hooks.kill();
+
+    mth::test::recorder().health = 1.0f;
+    mth::test::recorder().spark = 0;
+    player.set_dying(false);
+    live = player.base();
+    // Long enough that a second queued death would have its own full grace + settle to land in, so this
+    // fails against a counter that chain-kills through respawns.
+    for (int i = 0; i < (mth::DeathBroadcastGate::kInboundDeathGraceTicks + mth::DeathBroadcastGate::kStableAliveTicks) * 3; ++i)
+        hooks.poll();
+
+    REQUIRE(mth::test::recorder().deaths == 1);
+
+    mod::set_api(nullptr);
+}
+
+// The retry window counts GAMEPLAY ticks for the same reason every other timer here does: a menu holds the
+// game still, so it must not burn the window and drop the death the player is about to take.
+TEST_CASE("deathlink: a menu does not burn the pending-death retry window", "[deathlink][retry]")
+{
+    mth::test::recorder().reset();
+    auto fake = mth::test::make_fake_api();
+    mod::set_api(&fake);
+
+    FakePlayer player;
+    void *live = nullptr;
+    int broadcasts = 0;
+    mth::DeathHooks hooks([&] { ++broadcasts; }, [&] { return live; });
+
+    hooks.kill();
+
+    mth::test::recorder().paused = true; // menu open far longer than the retry window
+    for (int i = 0; i < mth::DeathHooks::kPendingInboundDeathTicks * 2; ++i)
+        hooks.poll();
+    mth::test::recorder().paused = false;
+
+    mth::test::recorder().health = 1.0f;
+    mth::test::recorder().spark = 0;
+    player.set_dying(false);
+    live = player.base();
+    for (int i = 0; i < mth::DeathBroadcastGate::kInboundDeathGraceTicks + mth::DeathBroadcastGate::kStableAliveTicks + 2; ++i)
+        hooks.poll();
+
+    REQUIRE(mth::test::recorder().deaths == 1);
+
+    mod::set_api(nullptr);
+}
+
+// The inbound grace covers a PlayerDie that is already in flight. Arming it at RECEIVE time instead pins the
+// alive streak at zero for its whole length, so a latched death cannot land until the grace lapses even
+// though the player settled immediately. It must land off the ordinary settle debounce.
+TEST_CASE("deathlink: a latched death lands as soon as the player settles, not a grace later", "[deathlink][retry]")
+{
+    mth::test::recorder().reset();
+    auto fake = mth::test::make_fake_api();
+    mod::set_api(&fake);
+
+    FakePlayer player;
+    void *live = nullptr;
+    int broadcasts = 0;
+    mth::DeathHooks hooks([&] { ++broadcasts; }, [&] { return live; });
+
+    hooks.kill(); // no player yet: latched
+
+    mth::test::recorder().health = 1.0f;
+    mth::test::recorder().spark = 0;
+    player.set_dying(false);
+    live = player.base();
+    for (int i = 0; i < mth::DeathBroadcastGate::kStableAliveTicks + 3; ++i)
+        hooks.poll();
+
+    REQUIRE(mth::test::recorder().deaths == 1);
+
+    mod::set_api(nullptr);
+}
+
+// A busy multiworld: bounces keep arriving while one is latched. An arrival must not restart the settling
+// clock, or the latched death never lands AND the retry window never expires - the player simply stops
+// taking deathlinks for as long as the storm lasts.
+TEST_CASE("deathlink: a steady stream of bounces still lands a death", "[deathlink][retry]")
+{
+    mth::test::recorder().reset();
+    auto fake = mth::test::make_fake_api();
+    mod::set_api(&fake);
+
+    FakePlayer player;
+    void *live = nullptr;
+    int broadcasts = 0;
+    mth::DeathHooks hooks([&] { ++broadcasts; }, [&] { return live; });
+
+    hooks.kill(); // first bounce arrives mid-transition
+
+    mth::test::recorder().health = 1.0f;
+    mth::test::recorder().spark = 0;
+    player.set_dying(false);
+    live = player.base(); // player available and alive from here on
+
+    for (int i = 0; i < mth::ticks_for_seconds(10.0) && mth::test::recorder().deaths == 0; ++i)
+    {
+        if (i % mth::ticks_for_seconds(1.0) == 0)
+            hooks.kill(); // another player dies every second
+        hooks.poll();
+    }
+
+    REQUIRE(mth::test::recorder().deaths >= 1);
+
+    mod::set_api(nullptr);
+}
+
+// The window runs from the FIRST deferral. If each arriving bounce re-armed it, a steady stream would push
+// the deadline out indefinitely and the bound would never fire.
+TEST_CASE("deathlink: a stream of bounces does not extend the retry window", "[deathlink][retry]")
+{
+    mth::test::recorder().reset();
+    auto fake = mth::test::make_fake_api();
+    mod::set_api(&fake);
+
+    FakePlayer player;
+    void *live = nullptr;
+    int broadcasts = 0;
+    mth::DeathHooks hooks([&] { ++broadcasts; }, [&] { return live; });
+
+    const int window = mth::DeathHooks::kPendingInboundDeathTicks;
+    hooks.kill();
+    for (int i = 0; i < window; ++i)
+    {
+        if (i < window / 2 && i % mth::ticks_for_seconds(0.5) == 0)
+            hooks.kill(); // more bounces, but only through the first half of the window
+        hooks.poll();     // no player the whole time
+    }
+
+    mth::test::recorder().health = 1.0f;
+    mth::test::recorder().spark = 0;
+    player.set_dying(false);
+    live = player.base();
+    for (int i = 0; i < mth::DeathBroadcastGate::kInboundDeathGraceTicks + mth::DeathBroadcastGate::kStableAliveTicks + 2; ++i)
+        hooks.poll();
+
+    REQUIRE(mth::test::recorder().deaths == 0); // expired on schedule despite the stream
+
+    mod::set_api(nullptr);
+}
+
+// A bounce that applies immediately must consume the one already latched, or the latched one fires again
+// after the respawn and chain-kills.
+TEST_CASE("deathlink: a bounce that applies at once clears an already-latched death", "[deathlink][retry]")
+{
+    mth::test::recorder().reset();
+    auto fake = mth::test::make_fake_api();
+    mod::set_api(&fake);
+
+    FakePlayer player;
+    int broadcasts = 0;
+    void *live = nullptr;
+    mth::DeathHooks hooks([&] { ++broadcasts; }, [&] { return live; });
+
+    mth::test::recorder().health = 1.0f;
+    mth::test::recorder().spark = 0;
+    player.set_dying(false);
+    live = player.base();
+    for (int i = 0; i < mth::DeathBroadcastGate::kStableAliveTicks; ++i)
+        hooks.poll();
+
+    live = nullptr; // one tick of transition
+    hooks.kill();   // bounce A: latched
+    REQUIRE(mth::test::recorder().deaths == 0);
+
+    live = player.base();
+    hooks.kill(); // bounce B: still settled, so it applies right away
+    REQUIRE(mth::test::recorder().deaths == 1);
+
+    for (int i = 0; i < (mth::DeathBroadcastGate::kInboundDeathGraceTicks + mth::DeathBroadcastGate::kStableAliveTicks) * 2; ++i)
+        hooks.poll();
+
+    REQUIRE(mth::test::recorder().deaths == 1); // A did not survive to fire after the respawn
+
+    mod::set_api(nullptr);
+}
+
+// The apply path unsettles us on the spot, so a rapid second bounce is refused and latched rather than
+// dropped. The death already underway serves it, so the latch has to be cancelled: kill() checks
+// death_in_progress(), but a latch outlives that check and the guard byte takes ~0.7s to appear, so the
+// bounce is latched while death_in_progress() is still false.
+TEST_CASE("deathlink: a death in progress cancels a latched bounce instead of killing again", "[deathlink][retry]")
+{
+    mth::test::recorder().reset();
+    auto fake = mth::test::make_fake_api();
+    mod::set_api(&fake);
+
+    FakePlayer player;
+    mth::DeathHooks hooks([] {}, [&] { return player.base(); });
+    settle(hooks, player);
+
+    hooks.kill(); // first bounce -> applied from a settled state, which unsettles us at once
+    REQUIRE(mth::test::recorder().deaths == 1);
+
+    // A paused world: frozen ticks age nothing and we are no longer settled, so the second bounce cannot be
+    // applied. It is latched for retry, and the death it belongs to has not registered yet.
+    mth::test::recorder().paused = true;
+    hooks.poll();
+    hooks.kill();
+    REQUIRE(mth::test::recorder().deaths == 1);
+
+    // The first PlayerDie now registers: from here the latched bounce is served by the death in progress.
+    mth::test::recorder().paused = false;
+    mth::test::recorder().health = 0.0f;
+    player.set_dying(true);
+    hooks.poll();
+
+    // Respawn and play well past a full grace + settle. The latch must have been cancelled, not merely delayed.
+    mth::test::recorder().health = 1.0f;
+    player.set_dying(false);
+    for (int i = 0; i < (mth::DeathBroadcastGate::kInboundDeathGraceTicks + mth::DeathBroadcastGate::kStableAliveTicks) * 2; ++i)
+        hooks.poll();
+
+    REQUIRE(mth::test::recorder().deaths == 1); // one exchange, one death
+
+    mod::set_api(nullptr);
+}
