@@ -13,7 +13,7 @@ struct DeathLinkBounce
 };
 
 // Compose the `cause` sentence for an outbound bounce. Receivers display the cause verbatim, so by AP
-// convention it has to name the dying player; `detail` supplies only the predicate ("was hollowed out").
+// convention it has to name the dying player; `detail` supplies only the predicate.
 [[nodiscard]] std::string deathlink_cause(const std::string &slot_name, const std::string &detail);
 
 // Serialize a DeathLink Bounce payload (JSON object as a string).

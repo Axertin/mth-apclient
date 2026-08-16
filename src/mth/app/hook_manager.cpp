@@ -36,7 +36,7 @@ namespace mth
 {
 
 HookManager::HookManager(IGameEvents &events, RandoBridge &rando, ScoutRegistry &scout, ApState &state, ApSaveBundleStore &bundle,
-                         std::function<void()> send_death, std::function<void *()> get_player)
+                         std::function<void(const std::string &)> send_death, std::function<void *()> get_player)
     : rando_(rando)
 {
     game_hooks_ = std::make_unique<GameHooks>(events);

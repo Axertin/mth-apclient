@@ -25,8 +25,8 @@ class IApLink
     virtual void set_goal() = 0;
 
     virtual void enable_deathlink(bool on) = 0; // tag the connection; call before connect()
-    // `detail` is the predicate only ("was hollowed out"); the implementation prefixes our slot name, which
-    // is what receivers display.
+    // `detail` is the predicate only; the implementation prefixes our slot name, which is what
+    // receivers display.
     virtual void send_death(const std::string &detail) = 0;
 
     // Publish the current room/area id to AP data storage (key MTH_level_<team>_<slot>).

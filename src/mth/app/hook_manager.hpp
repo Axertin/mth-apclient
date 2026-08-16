@@ -41,8 +41,8 @@ class ApSaveBundleStore;
 class HookManager
 {
   public:
-    HookManager(IGameEvents &events, RandoBridge &rando, ScoutRegistry &scout, ApState &state, ApSaveBundleStore &bundle, std::function<void()> send_death,
-                std::function<void *()> get_player);
+    HookManager(IGameEvents &events, RandoBridge &rando, ScoutRegistry &scout, ApState &state, ApSaveBundleStore &bundle,
+                std::function<void(const std::string &)> send_death, std::function<void *()> get_player);
     ~HookManager(); // out of line: the owned hook types are only forward-declared here
 
     HookManager(const HookManager &) = delete;

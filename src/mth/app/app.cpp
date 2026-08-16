@@ -173,7 +173,7 @@ App::App() : bundle_store_(pal::mod_save_dir(), {pal::log_dir(), pal::mod_save_d
 
     // Built last: GameHooks needs *events_, and the manager's hooks tick into all managers.
     hooks_ = std::make_unique<HookManager>(
-        *events_, net_->rando(), scout_registry_, state_, bundle_store_, [this] { net_->link().send_death("was hollowed out"); },
+        *events_, net_->rando(), scout_registry_, state_, bundle_store_, [this](const std::string &detail) { net_->link().send_death(detail); },
         [this]() -> void * { return tracker_->player(); });
 #ifdef MTHAP_HAS_OVERLAY
     {

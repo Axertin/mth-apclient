@@ -1,3 +1,4 @@
+#include <string>
 #include <vector>
 
 #include <catch2/catch_test_macros.hpp>
@@ -38,7 +39,7 @@ TEST_CASE("deathlink: a spark-cushioned death is not broadcast even though spark
 
     FakePlayer player;
     int broadcasts = 0;
-    mth::DeathHooks hooks([&] { ++broadcasts; }, [&] { return player.base(); });
+    mth::DeathHooks hooks([&](const std::string &) { ++broadcasts; }, [&] { return player.base(); });
 
     // Alive with 3 sparks banked: DeathHooks snapshots the pre-death spark here.
     mth::test::recorder().health = 1.0f;
@@ -66,7 +67,7 @@ TEST_CASE("deathlink: a genuine sparkless death is broadcast", "[deathlink][spar
 
     FakePlayer player;
     int broadcasts = 0;
-    mth::DeathHooks hooks([&] { ++broadcasts; }, [&] { return player.base(); });
+    mth::DeathHooks hooks([&](const std::string &) { ++broadcasts; }, [&] { return player.base(); });
 
     // Alive but already at 0 sparks.
     mth::test::recorder().health = 1.0f;
@@ -86,6 +87,32 @@ TEST_CASE("deathlink: a genuine sparkless death is broadcast", "[deathlink][spar
     mod::set_api(nullptr);
 }
 
+TEST_CASE("deathlink: the broadcast carries a detail for the outbound cause", "[deathlink][sparkless]")
+{
+    mth::test::recorder().reset();
+    auto fake = mth::test::make_fake_api();
+    mod::set_api(&fake);
+
+    FakePlayer player;
+    std::string detail;
+    mth::DeathHooks hooks([&](const std::string &d) { detail = d; }, [&] { return player.base(); });
+
+    mth::test::recorder().health = 1.0f;
+    mth::test::recorder().spark = 0;
+    player.set_dying(false);
+    hooks.poll();
+
+    mth::test::recorder().health = 0.0f;
+    player.set_dying(true);
+    hooks.poll();
+
+    // ApLink prefixes the slot name, so the detail is the predicate alone: no leading name, no empty string
+    // that would leave a receiver's banner reading as a bare slot name.
+    REQUIRE_FALSE(detail.empty());
+
+    mod::set_api(nullptr);
+}
+
 // Replays the in-game echo storm (#125): an inbound death is applied via PlayerDie from a settled state, but
 // health/the guard byte keep reading alive for ~0.7s before the death registers. Those alive polls must not
 // count as a settled respawn, or they lift the suppression armed for this very death and we broadcast it back.
@@ -97,7 +124,7 @@ TEST_CASE("deathlink: a death taken from an inbound deathlink is never echoed ba
 
     FakePlayer player;
     int broadcasts = 0;
-    mth::DeathHooks hooks([&] { ++broadcasts; }, [&] { return player.base(); });
+    mth::DeathHooks hooks([&](const std::string &) { ++broadcasts; }, [&] { return player.base(); });
 
     // Settle: stably alive, no sparks (so any death of ours would otherwise broadcast).
     mth::test::recorder().health = 1.0f;
@@ -132,7 +159,7 @@ TEST_CASE("deathlink: respawn re-arms; a mid-death guard-byte pulse does not ove
 
     FakePlayer player;
     int broadcasts = 0;
-    mth::DeathHooks hooks([&] { ++broadcasts; }, [&] { return player.base(); });
+    mth::DeathHooks hooks([&](const std::string &) { ++broadcasts; }, [&] { return player.base(); });
 
     // Alive with sparks, snapshot taken.
     mth::test::recorder().health = 1.0f;
@@ -180,7 +207,7 @@ TEST_CASE("deathlink: a second inbound death arriving during the first is deferr
     mod::set_api(&fake);
 
     FakePlayer player;
-    mth::DeathHooks hooks([] {}, [&] { return player.base(); });
+    mth::DeathHooks hooks([](const std::string &) {}, [&] { return player.base(); });
     settle(hooks, player);
 
     hooks.kill(); // first bounce -> applied from a settled state
@@ -208,7 +235,7 @@ TEST_CASE("deathlink: an inbound death during a screen transition is deferred", 
     mod::set_api(&fake);
 
     FakePlayer player;
-    mth::DeathHooks hooks([] {}, [&] { return player.base(); });
+    mth::DeathHooks hooks([](const std::string &) {}, [&] { return player.base(); });
     settle(hooks, player);
 
     // The room clock stalls while WorldIsPaused stays false: mid-transition, not a menu.
@@ -228,7 +255,7 @@ TEST_CASE("deathlink: an inbound death during a menu is still applied", "[deathl
     mod::set_api(&fake);
 
     FakePlayer player;
-    mth::DeathHooks hooks([] {}, [&] { return player.base(); });
+    mth::DeathHooks hooks([](const std::string &) {}, [&] { return player.base(); });
     settle(hooks, player);
 
     // A paused world: the game queues the death and holds it until the menu closes, so it must keep applying.
@@ -252,7 +279,7 @@ TEST_CASE("deathlink: a death queued behind a menu is not echoed when the menu c
 
     FakePlayer player;
     int broadcasts = 0;
-    mth::DeathHooks hooks([&] { ++broadcasts; }, [&] { return player.base(); });
+    mth::DeathHooks hooks([&](const std::string &) { ++broadcasts; }, [&] { return player.base(); });
 
     // Settle: stably alive, no sparks (so any death of ours would otherwise broadcast).
     mth::test::recorder().health = 1.0f;
@@ -291,7 +318,7 @@ TEST_CASE("deathlink: a death queued behind a game-level pause is not echoed eit
 
     FakePlayer player;
     int broadcasts = 0;
-    mth::DeathHooks hooks([&] { ++broadcasts; }, [&] { return player.base(); });
+    mth::DeathHooks hooks([&](const std::string &) { ++broadcasts; }, [&] { return player.base(); });
 
     mth::test::recorder().health = 1.0f;
     mth::test::recorder().spark = 0;
@@ -326,7 +353,7 @@ TEST_CASE("deathlink: a rejected inbound death heals and the next genuine death 
 
     FakePlayer player;
     int broadcasts = 0;
-    mth::DeathHooks hooks([&] { ++broadcasts; }, [&] { return player.base(); });
+    mth::DeathHooks hooks([&](const std::string &) { ++broadcasts; }, [&] { return player.base(); });
 
     mth::test::recorder().health = 1.0f;
     mth::test::recorder().spark = 0;
@@ -361,7 +388,7 @@ TEST_CASE("deathlink: a bounce arriving during our own death does not kill us ag
 
     FakePlayer player;
     int broadcasts = 0;
-    mth::DeathHooks hooks([&] { ++broadcasts; }, [&] { return player.base(); });
+    mth::DeathHooks hooks([&](const std::string &) { ++broadcasts; }, [&] { return player.base(); });
 
     // Settle, then die locally: the gate is no longer stably alive.
     mth::test::recorder().health = 1.0f;
@@ -399,7 +426,7 @@ TEST_CASE("deathlink: an inbound death arriving during a transition is applied w
     FakePlayer player;
     void *live = nullptr; // mid-transition: no player captured
     int broadcasts = 0;
-    mth::DeathHooks hooks([&] { ++broadcasts; }, [&] { return live; });
+    mth::DeathHooks hooks([&](const std::string &) { ++broadcasts; }, [&] { return live; });
 
     hooks.kill();
     REQUIRE(mth::test::recorder().deaths == 0);
@@ -427,7 +454,7 @@ TEST_CASE("deathlink: a latched inbound death expires if the player never settle
     FakePlayer player;
     void *live = nullptr;
     int broadcasts = 0;
-    mth::DeathHooks hooks([&] { ++broadcasts; }, [&] { return live; });
+    mth::DeathHooks hooks([&](const std::string &) { ++broadcasts; }, [&] { return live; });
 
     hooks.kill();
     for (int i = 0; i < mth::DeathHooks::kPendingInboundDeathTicks + 1; ++i)
@@ -456,7 +483,7 @@ TEST_CASE("deathlink: several inbound deaths arriving before the player settles 
     FakePlayer player;
     void *live = nullptr;
     int broadcasts = 0;
-    mth::DeathHooks hooks([&] { ++broadcasts; }, [&] { return live; });
+    mth::DeathHooks hooks([&](const std::string &) { ++broadcasts; }, [&] { return live; });
 
     // Three bounces spread across the unsettled window, not stacked on one tick: a counter would queue all
     // three rather than collapsing them.
@@ -493,7 +520,7 @@ TEST_CASE("deathlink: a menu does not burn the pending-death retry window", "[de
     FakePlayer player;
     void *live = nullptr;
     int broadcasts = 0;
-    mth::DeathHooks hooks([&] { ++broadcasts; }, [&] { return live; });
+    mth::DeathHooks hooks([&](const std::string &) { ++broadcasts; }, [&] { return live; });
 
     hooks.kill();
 
@@ -526,7 +553,7 @@ TEST_CASE("deathlink: a latched death lands as soon as the player settles, not a
     FakePlayer player;
     void *live = nullptr;
     int broadcasts = 0;
-    mth::DeathHooks hooks([&] { ++broadcasts; }, [&] { return live; });
+    mth::DeathHooks hooks([&](const std::string &) { ++broadcasts; }, [&] { return live; });
 
     hooks.kill(); // no player yet: latched
 
@@ -554,7 +581,7 @@ TEST_CASE("deathlink: a steady stream of bounces still lands a death", "[deathli
     FakePlayer player;
     void *live = nullptr;
     int broadcasts = 0;
-    mth::DeathHooks hooks([&] { ++broadcasts; }, [&] { return live; });
+    mth::DeathHooks hooks([&](const std::string &) { ++broadcasts; }, [&] { return live; });
 
     hooks.kill(); // first bounce arrives mid-transition
 
@@ -586,7 +613,7 @@ TEST_CASE("deathlink: a stream of bounces does not extend the retry window", "[d
     FakePlayer player;
     void *live = nullptr;
     int broadcasts = 0;
-    mth::DeathHooks hooks([&] { ++broadcasts; }, [&] { return live; });
+    mth::DeathHooks hooks([&](const std::string &) { ++broadcasts; }, [&] { return live; });
 
     const int window = mth::DeathHooks::kPendingInboundDeathTicks;
     hooks.kill();
@@ -620,7 +647,7 @@ TEST_CASE("deathlink: a bounce that applies at once clears an already-latched de
     FakePlayer player;
     int broadcasts = 0;
     void *live = nullptr;
-    mth::DeathHooks hooks([&] { ++broadcasts; }, [&] { return live; });
+    mth::DeathHooks hooks([&](const std::string &) { ++broadcasts; }, [&] { return live; });
 
     mth::test::recorder().health = 1.0f;
     mth::test::recorder().spark = 0;
@@ -656,7 +683,7 @@ TEST_CASE("deathlink: a death in progress cancels a latched bounce instead of ki
     mod::set_api(&fake);
 
     FakePlayer player;
-    mth::DeathHooks hooks([] {}, [&] { return player.base(); });
+    mth::DeathHooks hooks([](const std::string &) {}, [&] { return player.base(); });
     settle(hooks, player);
 
     hooks.kill(); // first bounce -> applied from a settled state, which unsettles us at once
