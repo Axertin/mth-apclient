@@ -180,7 +180,14 @@ void ApLink::send_death(const std::string &detail)
             std::list<std::string> tags{"DeathLink"};
             try
             {
-                client_->Bounce(data, {}, {}, tags);
+                // Bounce refuses by return value while the link is still coming up, and every layer under it
+                // swallows the socket write result, so logging the send unconditionally reports a death that
+                // never left.
+                if (!client_->Bounce(data, {}, {}, tags))
+                {
+                    pal::logf(pal::LogLevel::Warn, "deathlink: bounce refused (link not ready); death not sent");
+                    return;
+                }
                 pal::logf(pal::LogLevel::Info, "deathlink: sent bounce (cause=%s)", cause.c_str());
             }
             catch (const std::exception &e)
@@ -430,7 +437,13 @@ void ApLink::setup_handlers(const std::string &slot, const std::string &password
             std::string payload = cmd.contains("data") ? cmd["data"].dump() : std::string{};
             auto dl = mth::net::parse_deathlink_payload(payload);
             if (dl && dl->source == slot_name_)
-                return; // our own death echoed back by the server; ignore
+            {
+                // A tagged Bounce is relayed to every same-team client carrying that tag, the sender included,
+                // so this echo is the only confirmation available that our own death reached the server and
+                // was fanned out. Dropping it silently leaves an outbound deathlink unfalsifiable from a log.
+                pal::logf(pal::LogLevel::Info, "deathlink: own bounce echoed back by server (relayed to the room)");
+                return;
+            }
             std::string source = dl ? std::move(dl->source) : std::string{};
             std::string cause = dl ? std::move(dl->cause) : std::string{};
             pal::logf(pal::LogLevel::Info, "deathlink: received bounce (source=%s cause=%s)", source.c_str(), cause.c_str());
