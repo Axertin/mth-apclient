@@ -96,20 +96,33 @@ TEST_CASE("BannerQueue: shows a message and fades over hold+fade", "[mth][broadc
     REQUIRE(q.update(t0 + hold + fade).empty());                        // fully faded -> gone
 }
 
-TEST_CASE("BannerQueue: shows up to kMaxVisible messages stacked at once", "[mth][broadcast]")
+TEST_CASE("BannerQueue: stacks up to kMaxVisible, one promotion per interval", "[mth][broadcast]")
 {
+    constexpr double step = BannerQueue::kPromoteIntervalSeconds;
+
     BannerQueue q;
     for (int i = 0; i < BannerQueue::kMaxVisible + 2; ++i)
         q.push({{"msg", 0xFFFFFFFFu}});
 
-    const auto frames = q.update(0.0);
-    REQUIRE(static_cast<int>(frames.size()) == BannerQueue::kMaxVisible); // no more than the cap, even with extras pending
+    REQUIRE(q.update(0.0).size() == 1);        // a same-frame batch does not appear all at once
+    REQUIRE(q.update(step * 0.5).size() == 1); // still inside the interval
+
+    std::vector<mth::BannerFrame> frames;
+    for (int i = 1; i < BannerQueue::kMaxVisible; ++i)
+    {
+        frames = q.update(step * i);
+        REQUIRE(static_cast<int>(frames.size()) == i + 1);
+    }
     for (const auto &f : frames)
         REQUIRE(f.alpha == Approx(1.0f)); // each shown independently, all within hold
+
+    // The cap holds with extras pending even once the interval has elapsed.
+    REQUIRE(static_cast<int>(q.update(step * BannerQueue::kMaxVisible).size()) == BannerQueue::kMaxVisible);
 }
 
 TEST_CASE("BannerQueue: a queued message waits until a visible slot frees, in order", "[mth][broadcast]")
 {
+    constexpr double step = BannerQueue::kPromoteIntervalSeconds;
     constexpr double life = BannerQueue::kHoldSeconds + BannerQueue::kFadeSeconds;
 
     BannerQueue q;
@@ -117,14 +130,17 @@ TEST_CASE("BannerQueue: a queued message waits until a visible slot frees, in or
         q.push({{"filler", 0xFFFFFFFFu}});
     q.push({{"overflow", 0xFFFFFFFFu}}); // one past the cap -> must wait
 
-    // At t0 only the first kMaxVisible show; "overflow" is still pending.
-    REQUIRE(static_cast<int>(q.update(0.0).size()) == BannerQueue::kMaxVisible);
+    // Fill every slot, one per interval; the first filler starts at 0.0 and the last at step*(kMaxVisible-1).
+    for (int i = 0; i < BannerQueue::kMaxVisible; ++i)
+        q.update(step * i);
+    REQUIRE(static_cast<int>(q.update(step * BannerQueue::kMaxVisible).size()) == BannerQueue::kMaxVisible); // "overflow" still pending
 
-    // After the first batch fades out, the overflow message takes a freed slot.
-    const auto after = q.update(life + 0.1);
-    REQUIRE(after.size() == 1);
-    REQUIRE(after[0].segments[0].text == "overflow");
-    REQUIRE(q.update(2.0 * life + 0.2).empty()); // overflow expired too
+    // The first filler fades out at `life`, freeing a slot for the overflow message.
+    const auto after = q.update(life);
+    REQUIRE(static_cast<int>(after.size()) == BannerQueue::kMaxVisible);
+    REQUIRE(after.back().segments[0].text == "overflow"); // promoted last -> drawn at the bottom of the stack
+
+    REQUIRE(q.update(life * 2.0).empty()); // overflow expired too
 }
 
 TEST_CASE("deathlink_banner_text: a cause is already a full sentence naming the sender", "[mth][broadcast][deathlink]")

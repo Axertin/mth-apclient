@@ -115,11 +115,13 @@ std::vector<BannerFrame> BannerQueue::update(double now)
     while (!active_.empty() && now - active_.front().start >= kHoldSeconds + kFadeSeconds)
         active_.pop_front();
 
-    // Fill freed slots from the pending queue; a banner promoted now starts its hold from `now`.
-    while (static_cast<int>(active_.size()) < kMaxVisible && !pending_.empty())
+    // One banner per interval, so a batch of messages pushed in the same frame does not appear all at once.
+    // A banner promoted now starts its hold from `now`.
+    if (!pending_.empty() && static_cast<int>(active_.size()) < kMaxVisible && now >= next_promote_)
     {
         active_.push_back(Active{std::move(pending_.front()), now});
         pending_.pop_front();
+        next_promote_ = now + kPromoteIntervalSeconds;
     }
 
     std::vector<BannerFrame> frames;

@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <deque>
+#include <limits>
 #include <mutex>
 #include <optional>
 #include <string>
@@ -44,15 +45,17 @@ struct BannerFrame
 };
 
 // Thread-safe FIFO that shows up to kMaxVisible messages stacked at once: push() on the producer thread,
-// update(now) on the render thread. Each visible message keeps its own hold+fade timer; a fresh push shows
-// immediately while a slot is free, otherwise waits until an active one fades out. `now` is injected
-// (monotonic seconds, e.g. ImGui::GetTime()) so the queue/fade logic stays testable.
+// update(now) on the render thread. Each visible message keeps its own hold+fade timer; a message waits for
+// both a free slot and the promotion interval, so a burst arriving in one frame staggers in rather than
+// landing as a block. `now` is injected (monotonic seconds, e.g. ImGui::GetTime()) so the queue/fade logic
+// stays testable.
 class BannerQueue
 {
   public:
-    static constexpr double kHoldSeconds = 3.0; // fully opaque
-    static constexpr double kFadeSeconds = 1.0; // then fades to gone
-    static constexpr int kMaxVisible = 3;       // messages shown stacked at once
+    static constexpr double kHoldSeconds = 5.0;            // fully opaque
+    static constexpr double kFadeSeconds = 1.0;            // then fades to gone
+    static constexpr double kPromoteIntervalSeconds = 1.0; // spacing between two messages appearing
+    static constexpr int kMaxVisible = 5;                  // messages shown stacked at once
 
     void push(std::vector<BannerSegment> segments);
 
@@ -68,7 +71,8 @@ class BannerQueue
     };
     std::mutex mutex_;
     std::deque<std::vector<BannerSegment>> pending_;
-    std::deque<Active> active_; // render-thread only (under mutex); oldest at front, <= kMaxVisible
+    std::deque<Active> active_;                                     // render-thread only (under mutex); oldest at front, <= kMaxVisible
+    double next_promote_{-std::numeric_limits<double>::infinity()}; // first message after an idle spell is never held back
 };
 
 } // namespace mth
