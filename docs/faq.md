@@ -129,11 +129,22 @@ The client sends standard Archipelago location and item events, so any tracker t
 
 `help` lists diagnostic commands (`giveapitem`, `caps`, `ability`, `modifier`, and others). They exist for testing. Using them during a real run will desync you from the server, so do not.
 
+### What sends deathlinks?
+
+A deathlink is sent when you die with no sparks, i.e. a "Sparkless Demise". Dying with an active spark does not send a deathlink.
+
 ## Problems
 
 ### The game starts but nothing happens
 
 The mod did not load. Check the loader log (`mod.log` in the game's save directory) and work through [The mod does not load](user-guide.md#the-mod-does-not-load-no-login-window). The usual causes are missing launch options, the wrong Steam branch, or files in the install directory instead of the save directory. If you've tried everything and it's still not working, try validating your game files.
+
+### The game crashes on launch
+
+The mod is generally pretty stable, and launch crashes are generally quite rare or the result of very specific circumstances. That said, there are a few known things that could cause launch crashes, so:
+
+- If the game updated recently, make sure you've updated to a mod version which supports the new game revision.
+- If you have certain overlay tools like RivaTuner Statistics Server (RTSS) running, they can conflict with the mod's overlays and cause some odd behavior and crashes. A functional workaround for RTSS is to set Application Detection to None for `MinaTheHollower.exe`. See [this post on the AP Discord](https://discord.com/channels/731205301247803413/1538032356546318346/1538413744617689138) for more details.
 
 ### It worked yesterday and broke after a game update
 
