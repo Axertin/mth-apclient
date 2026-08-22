@@ -18,14 +18,12 @@ ModifierHooks::ModifierHooks(ModifierRequest request)
         if (is_safe(idx) || forced_.count(idx) != 0)
             enforced_.insert(idx);
         else
-            pal::logf(pal::LogLevel::Warn, "modifiers: idx=%d is deny-list (%s); ignored (prefix force: to override)", idx,
+            pal::logf(pal::LogLevel::Warn, "modifiers: idx=%d is not live-settable (%s); ignored (prefix force: to override)", idx,
                       class_of(idx) == CheatClass::Grant        ? "grant"
                       : class_of(idx) == CheatClass::Combo      ? "combo"
                       : class_of(idx) == CheatClass::Randomizer ? "randomizer"
                                                                 : "invalid");
     }
-    armed_ = !enforced_.empty();
-
     if (!pal::modifiers_available())
     {
         pal::logf(pal::LogLevel::Warn, "modifiers: PAL unavailable; ModifierHooks inert");
@@ -72,18 +70,15 @@ void ModifierHooks::seed(int slot_index, std::uint32_t words[8])
     }
     if (armed_)
     {
-        // Authoritative for gameplay bits: set exactly the enforced set, clear other gameplay bits,
-        // never touch cosmetic bits.
+        // Runs on every real load, not only on a new file, so a denied modifier that was set
+        // before the save joined the AP session gets cleared again here. Anything the player is
+        // allowed to pick survives the reload.
         for (int idx = 0; idx < kCheatCount; ++idx)
-        {
-            if (!is_gameplay(idx))
-                continue;
-            const std::uint32_t bit = 1u << (static_cast<unsigned>(idx) & 31u);
-            if (enforced_.count(idx) != 0)
-                words[idx >> 5] |= bit;
-            else
-                words[idx >> 5] &= ~bit;
-        }
+            if (is_ap_denied(idx))
+                words[idx >> 5] &= ~(1u << (static_cast<unsigned>(idx) & 31u));
+        // After the clear, so a force: override still wins over the deny list.
+        for (int idx : enforced_)
+            words[idx >> 5] |= 1u << (static_cast<unsigned>(idx) & 31u);
     }
     if (scoped) // additive: force the AP baseline on without disturbing the player's other modifiers
         for (int idx : force_on_)
@@ -97,7 +92,7 @@ bool ModifierHooks::block(int idx) const
     std::lock_guard<std::mutex> lk(mtx_);
     if (ap_scoped_.load() && force_on_.count(idx) != 0)
         return true; // a force-on baseline modifier can't be toggled off
-    return armed_ && is_gameplay(idx);
+    return armed_ && is_ap_denied(idx);
 }
 
 void ModifierHooks::set_enforce_live(bool on)
@@ -172,12 +167,11 @@ void ModifierHooks::set_enforced(ModifierRequest request)
         for (int idx : request.indices)
             if (is_safe(idx) || forced_.count(idx) != 0)
                 enforced_.insert(idx);
-        armed_ = !enforced_.empty();
         kept = enforced_.size();
     }
     if (kept != requested)
-        pal::logf(pal::LogLevel::Warn, "modifiers: set_enforced kept %zu of %zu requested (deny-list/duplicate indices dropped)", kept, requested);
-    pal::logf(pal::LogLevel::Info, "modifiers: enforced set replaced (n=%zu armed=%d)", kept, static_cast<int>(kept != 0));
+        pal::logf(pal::LogLevel::Warn, "modifiers: set_enforced kept %zu of %zu requested (unsafe/duplicate indices dropped)", kept, requested);
+    pal::logf(pal::LogLevel::Info, "modifiers: enforced set replaced (n=%zu)", kept);
 }
 
 void ModifierHooks::drain_live()

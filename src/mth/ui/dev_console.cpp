@@ -171,7 +171,7 @@ void DevConsole::run_input()
     case CommandKind::Help:
         println("commands: help, clear, status, gate, items, connect <server> <slot> [pw], disconnect");
         println("          giveapitem <ap_item_id>, removelock <slot>");
-        println("          modifier <idx> on|off, modifiers [lock|unlock]");
+        println("          modifier <idx> on|off, modifiers [lock|unlock]  (lock is the default in a session)");
         println("          caps <attack> <defense> <sidearm>  (per-stat level cap-ups; 0 = frozen)");
         println("          ability <name> on|off  (names: burrow swim rope puff spring carry train)");
         println("          deathlink on|off  (enable/disable deathlink, must also be enabled in yaml)");

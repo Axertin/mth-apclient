@@ -18,11 +18,8 @@ enum class CheatClass
 // Continuous == safe to force on a save and toggle live. Returns false for invalid indices.
 [[nodiscard]] bool is_safe(int idx);
 
-// Purely visual/audio/UI modifiers the player keeps even when locked down. Conservative
-// allow-list (when unsure, treat as gameplay so lockdown stays airtight).
-[[nodiscard]] bool is_cosmetic(int idx);
-
-// Lockdown target: any valid, non-cosmetic index (includes grants/combos/randomizer).
-[[nodiscard]] bool is_gameplay(int idx);
+// The AP lockdown's deny list: modifiers a randomized run cannot survive. Everything outside it
+// stays the player's to pick, difficulty and cosmetic sets included.
+[[nodiscard]] bool is_ap_denied(int idx);
 
 } // namespace mth

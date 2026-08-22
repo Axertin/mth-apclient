@@ -12,7 +12,8 @@ namespace mth
 {
 
 // Owns the modifier PAL hooks and the enforcement policy. Installs unconditionally when modifiers
-// are available; the hooks no-op while disarmed. Armed when a non-empty enforced set exists.
+// are available; the hooks no-op while disarmed. Armed from construction, so an AP session enforces
+// the deny list without any configuration; `modifiers unlock` is the manual override.
 class ModifierHooks
 {
   public:
@@ -49,7 +50,7 @@ class ModifierHooks
     std::set<int> enforced_;
     std::set<int> forced_;
     std::set<int> force_on_{kCheatWarpHome, kCheatCheaperBoneUp, kCheatUnlockBoneUps}; // additive AP force-on (Warp Home always; Landing Done per ossex_start)
-    bool armed_{false};
+    bool armed_{true};
     bool installed_{false};
     int ap_slot_{-1};                                // captured AP-game slot index (-1 = none yet); guarded by mtx_
     std::atomic<bool> enforce_live_{false};          // AP session active (or offline test mode); gates seed + lockdown
