@@ -133,6 +133,10 @@ The client sends standard Archipelago location and item events, so any tracker t
 
 A deathlink is sent when you die with no sparks, i.e. a "Sparkless Demise". Dying with an active spark does not send a deathlink.
 
+### How do I get back to Ossex / get to Loner's Landing?
+
+The AP client force-enables the "Start In Ossex" basegame modifier, which also adds a green button to the pause menu in addition to the obvious start change. This button allows you to warp to either Ossex or the ship at Loner's Landing at any time.
+
 ## Problems
 
 ### The game starts but nothing happens
