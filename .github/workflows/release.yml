@@ -80,9 +80,17 @@ jobs:
       released: ${{ steps.rp.outputs.release_created }}
       tag: ${{ steps.rp.outputs.tag_name }}
     steps:
+      # Both lanes run as a GitHub App. PRs authored by github-actions[bot] leave their CI runs parked
+      # awaiting a manual approval click, which the app identity is exempt from.
+      - uses: actions/create-github-app-token@v2
+        id: app-token
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
       - uses: googleapis/release-please-action@v5
         id: rp
         with:
+          token: ${{ steps.app-token.outputs.token }}
           config-file: .github/prerelease-config.json
           manifest-file: .github/prerelease-manifest.json
 
@@ -97,8 +105,14 @@ jobs:
     steps:
       # PR only. The beta lane owns tagging and adopts this PR once it is merged, so letting this run
       # cut releases too would tag the same version twice.
+      - uses: actions/create-github-app-token@v2
+        id: app-token
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
       - uses: googleapis/release-please-action@v5
         with:
+          token: ${{ steps.app-token.outputs.token }}
           config-file: .github/release-config.json
           manifest-file: .github/release-manifest.json
           skip-github-release: true
