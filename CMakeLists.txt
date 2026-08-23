@@ -8,7 +8,7 @@ project(mth-apclient
     LANGUAGES C CXX
 )
 
-set(MTHAP_RELEASE_VERSION "1.0.1-beta.2") # x-release-please-version
+set(MTHAP_RELEASE_VERSION "1.0.1-beta.3") # x-release-please-version
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
