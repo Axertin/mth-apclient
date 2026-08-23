@@ -29,6 +29,12 @@ inline constexpr int kCollectionScanCap = 0x168;                // name-scan upp
 // Component/entity idiom: ycEntity* at component+0x10, ycWorld* at entity+0x50.
 inline constexpr std::ptrdiff_t kComponentEntityOff = 0x10;
 inline constexpr std::ptrdiff_t kEntityWorldOff = 0x50;
+// ycWorld -> AreaManager*. Null through the ending sequence and in the window between area teardown and
+// AreaManagerNewArea. The title and profile-select worlds also bind no area, but they carry no live player,
+// so a player-rooted walk never reaches them. Player::InitDeath is the one engine site that dereferences
+// this without a null check, so a death requested while it is null faults when the state machine flushes. Player::InitDeath is the one engine site that
+// dereferences it without a null check, so a death requested while it is null faults on the tick the state machine flushes.
+inline constexpr std::ptrdiff_t kWorldAreaManagerOff = 0x1758;
 
 // Pickup entity (verified by the startup self-check in the Pickup::Init hook).
 inline constexpr std::ptrdiff_t kPickupLocIdxOff = 0x380;

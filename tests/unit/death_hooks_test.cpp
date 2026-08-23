@@ -712,3 +712,106 @@ TEST_CASE("deathlink: a death in progress cancels a latched bounce instead of ki
 
     mod::set_api(nullptr);
 }
+
+// The ending sequence leaves a live, healthy Player in a World that has no area bound. Player::InitDeath
+// walks player->entity->world->area and dereferences it with no null check, unlike every other engine site,
+// so a PlayerDie requested there faults on the tick the state machine flushes the death (crash 2026-08-23:
+// 58 inbound deathlinks had already applied cleanly that session; the 59th arrived during the credits).
+TEST_CASE("deathlink: an inbound death is not applied while the world has no area bound", "[deathlink][ending]")
+{
+    mth::test::recorder().reset();
+    auto fake = mth::test::make_fake_api();
+    mod::set_api(&fake);
+
+    FakePlayer player;
+    mth::DeathHooks hooks([&](const std::string &) {}, [&] { return player.base(); });
+
+    settle(hooks, player);
+    mth::test::recorder().world_has_area = false; // a populated World, no area: the credits
+
+    hooks.kill();
+
+    REQUIRE(mth::test::recorder().deaths == 0);
+
+    mod::set_api(nullptr);
+}
+
+// Owner decision: no area bound is terminal, not transient. The run is over, so a bounce held and re-fired
+// once an area exists again would land somewhere in the post-credits handoff rather than on the run it was
+// meant for. It must be consumed on arrival, not latched for the retry window.
+TEST_CASE("deathlink: a bounce received with no area bound is dropped, not retried later", "[deathlink][ending]")
+{
+    mth::test::recorder().reset();
+    auto fake = mth::test::make_fake_api();
+    mod::set_api(&fake);
+
+    FakePlayer player;
+    mth::DeathHooks hooks([&](const std::string &) {}, [&] { return player.base(); });
+
+    settle(hooks, player);
+    mth::test::recorder().world_has_area = false;
+    hooks.kill();
+    REQUIRE(mth::test::recorder().deaths == 0);
+
+    // An area is bound again and play continues well past the retry window: nothing may still be waiting.
+    mth::test::recorder().world_has_area = true;
+    for (int i = 0; i < mth::DeathHooks::kPendingInboundDeathTicks + mth::DeathBroadcastGate::kStableAliveTicks + 2; ++i)
+        hooks.poll();
+
+    REQUIRE(mth::test::recorder().deaths == 0);
+
+    mod::set_api(nullptr);
+}
+
+// A build whose API cannot supply a World reports no world at all, which must not cost every deathlink.
+// This pins the outcome, not the branch: "no accessor" and "no world right now" are indistinguishable here
+// by construction, so what it guards is someone making an absent world refuse the kill instead of allow it.
+TEST_CASE("deathlink: the area check fails open when the build has no world accessor", "[deathlink][ending]")
+{
+    mth::test::recorder().reset();
+    auto fake = mth::test::make_fake_api();
+    fake.PlayerGetWorld = nullptr; // older game build: the entry is absent
+    mod::set_api(&fake);
+
+    FakePlayer player;
+    mth::DeathHooks hooks([&](const std::string &) {}, [&] { return player.base(); });
+
+    settle(hooks, player);
+    hooks.kill();
+
+    REQUIRE(mth::test::recorder().deaths == 1);
+
+    mod::set_api(nullptr);
+}
+
+// The ending is not the only area-less window: the gap between area teardown and AreaManagerNewArea is one
+// too, and that one clears by itself. Ordering the terminal area check ahead of the transient settled/stalled
+// checks would turn every such room change into a permanent silent drop, so the area check must come last.
+TEST_CASE("deathlink: an area-less bounce mid-transition is latched and lands, not dropped", "[deathlink][ending]")
+{
+    mth::test::recorder().reset();
+    auto fake = mth::test::make_fake_api();
+    mod::set_api(&fake);
+
+    FakePlayer player;
+    mth::DeathHooks hooks([&](const std::string &) {}, [&] { return player.base(); });
+
+    settle(hooks, player);
+
+    // A room change: the area is torn down and the room clock stalls with the world left unpaused.
+    mth::test::recorder().game_paused = true;
+    mth::test::recorder().world_has_area = false;
+    hooks.poll();
+    hooks.kill();
+    REQUIRE(mth::test::recorder().deaths == 0);
+
+    // The next room binds its area and the clock runs again: the latched bounce is still owed and lands.
+    mth::test::recorder().game_paused = false;
+    mth::test::recorder().world_has_area = true;
+    for (int i = 0; i < mth::DeathBroadcastGate::kStableAliveTicks + 2; ++i)
+        hooks.poll();
+
+    REQUIRE(mth::test::recorder().deaths == 1);
+
+    mod::set_api(nullptr);
+}

@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "MinaModAPI.h"
+#include "mth/core/data/game_layout.hpp"
 
 namespace mth::test
 {
@@ -38,11 +39,12 @@ struct ModApiRecorder
     std::uint32_t revision = 148716; // a plausible real r-number
     int game_state = 0;              // served by GetCurrentGameState
     bool install_returns_null = false;
-    float health = 0.0f;      // served by PlayerGetHealth
-    int spark = 0;            // served by PlayerGetSpark
-    int deaths = 0;           // counts PlayerDie calls
-    bool paused = false;      // served by WorldIsPaused: a menu that pauses the world
-    bool game_paused = false; // the whole world update queue is skipped; invisible to WorldIsPaused
+    float health = 0.0f;        // served by PlayerGetHealth
+    int spark = 0;              // served by PlayerGetSpark
+    int deaths = 0;             // counts PlayerDie calls
+    bool paused = false;        // served by WorldIsPaused: a menu that pauses the world
+    bool game_paused = false;   // the whole world update queue is skipped; invisible to WorldIsPaused
+    bool world_has_area = true; // false models a World with no area bound: menus, the title world, the ending
     float room_time = 0.0f;
     void *player = nullptr;            // served by PlayerGetComponent; the game nulls its global in Player::~Player
     std::uint64_t bosses_defeated = 0; // served by PlayerGetBossesDefeated
@@ -119,6 +121,7 @@ struct ModApiRecorder
         deaths = 0;
         paused = false;
         game_paused = false;
+        world_has_area = true;
         room_time = 0.0f;
         player = nullptr;
         bosses_defeated = 0;
@@ -400,10 +403,19 @@ inline bool fake_world_is_paused(World * /*world*/)
 {
     return recorder().paused;
 }
+// Sized to carry the AreaManager slot Player::InitDeath walks, so a test can serve a populated World that
+// has no area bound. The area pointer only has to be non-null; nothing dereferences it.
+inline unsigned char *fake_world_storage()
+{
+    static std::vector<unsigned char> world(static_cast<std::size_t>(mth::layout::kWorldAreaManagerOff) + sizeof(void *), 0);
+    return world.data();
+}
 inline World *fake_player_get_world()
 {
-    static int world; // opaque non-null handle; the fake pause getter ignores it
-    return reinterpret_cast<World *>(&world);
+    unsigned char *world = fake_world_storage();
+    void *area = recorder().world_has_area ? static_cast<void *>(&recorder()) : nullptr;
+    std::memcpy(world + mth::layout::kWorldAreaManagerOff, &area, sizeof(area));
+    return reinterpret_cast<World *>(world);
 }
 inline ycComponent *fake_player_get_component()
 {

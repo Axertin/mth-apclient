@@ -5,6 +5,7 @@
 #include "mod/mod_api.hpp"
 #include "mth/core/data/game_layout.hpp"
 #include "pal/pal_log.hpp"
+#include "pal/pal_mem.hpp"
 
 namespace
 {
@@ -14,6 +15,21 @@ namespace
 [[nodiscard]] bool is_dying(void *player)
 {
     return player != nullptr && *reinterpret_cast<unsigned char *>(static_cast<char *>(player) + mth::layout::kPlayerDeathGuardOff) != 0;
+}
+
+// ycWorld+0x1758 is the world's AreaManager. Player::InitDeath walks player->entity->world->area and
+// dereferences it without the null check every other engine site applies, so an area-less world makes a
+// requested death fatal.
+[[nodiscard]] bool world_area_missing()
+{
+    // Null covers both no live world and a build whose API cannot supply one; neither is a reason to refuse
+    // a deathlink, and the caller's null-player check already holds the transition case.
+    void *world = mod::player_world();
+    if (world == nullptr)
+        return false;
+    if (!pal::pointer_looks_valid(world))
+        return true; // a world we cannot vouch for is not one to request a death in
+    return *reinterpret_cast<void **>(static_cast<char *>(world) + mth::layout::kWorldAreaManagerOff) == nullptr;
 }
 
 } // namespace
@@ -96,7 +112,8 @@ void DeathHooks::poll()
 }
 
 // Returns false only for a block that clears on its own (no player yet, or not settled), which is the caller's
-// cue to retry. A missing PlayerDie API cannot clear, so it counts as handled rather than retried forever.
+// cue to retry. A missing PlayerDie API and an area-less world cannot clear usefully, so both count as
+// handled rather than retried forever.
 bool DeathHooks::try_apply_inbound_death()
 {
     void *p = get_player_ ? get_player_() : nullptr;
@@ -108,6 +125,18 @@ bool DeathHooks::try_apply_inbound_death()
     // at an unpredictable point; a paused world is a menu, which holds the death safely. #125.
     if (!gate_.stably_alive() || room_clock_stalled_)
         return false;
+    // The ending sequence leaves a live, settled player in a World with no area bound, and PlayerDie there
+    // faults a tick later inside Player::InitDeath. Checked after the two guards above so that the other
+    // area-less window - between area teardown and AreaManagerNewArea - is still caught as the transition it
+    // is and retried; what reaches here is settled and area-less, which does not clear on its own. Dropped
+    // rather than latched: by the credits the run is over, and a bounce held until an area exists again
+    // lands in the post-credits handoff instead of on the run it was meant for. An in-run pause keeps the
+    // room's world and its area, so a menu deathlink still queues normally (#125).
+    if (world_area_missing())
+    {
+        pal::logf(pal::LogLevel::Warn, "deathlink: inbound death dropped (world has no area bound; gamestate %d)", mod::current_game_state());
+        return true;
+    }
     if (!mod::player_die())
     {
         pal::logf(pal::LogLevel::Warn, "deathlink: inbound death not applied (PlayerDie API unavailable)");
