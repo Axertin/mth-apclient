@@ -99,7 +99,7 @@ Press **F2** for the login window, fill in server, slot, and password, and hit C
 
 ### Can I connect after I have already started playing?
 
-No. The server and slot are bound at the title screen, by design. If you get dropped, the client reconnects to the same session on its own; you do not need to re-enter anything mid-run.
+No. The server and slot are bound at the title screen, by design. If you get dropped, the client reconnects to the same session on its own; you do not need to re-enter anything mid-run. Due to how the game loads mods, it is possible to spam-accept when the game is booting and get to the save slot select screen before the mod even loads. Loading a vanilla save is dangerous when the mod is installed, so it's best to give the game a few seconds when it starts to load the mod before interacting with it.
 
 ### How do I know it is working?
 
@@ -138,6 +138,15 @@ A deathlink is sent when you die with no sparks, i.e. a "Sparkless Demise". Dyin
 The AP client force-enables the "Start In Ossex" basegame modifier, which also adds a green button to the pause menu in addition to the obvious start change. This button allows you to warp to either Ossex or the ship at Loner's Landing at any time.
 
 ## Problems
+
+### I'm not receiving items!
+
+Double check your mod and game versions and make sure they are compatible. The mod version is visible in the top-left corner of the overlay, and the game revision can be found in the bottom-right corner of the options menu from the title screen. If you are on a compatible pair (the release notes for the mod for the tested-compatible game versions, and from v1.0.0+ the mod will warn you about being run on an incompatible game revision). Both numbers can also be found in the first lines of the timestamped log, found at:
+
+- **Linux**: `~/.local/share/mth-apclient/`
+- **Windows**: `%LOCALAPPDATA%\mth-apclient\`
+
+If your version numbers check out, open an issue here or ask in the Discord channel and attach your log.
 
 ### The game starts but nothing happens
 
