@@ -79,10 +79,13 @@ SaveTakeover::SaveTakeover(ApSaveBundleStore &store, IdentityFn identity) : stor
 {
     if (!pal::install_save_request_hook([this] { on_game_save_requested(); }))
         pal::logf(pal::LogLevel::Warn, "takeover: save-request hook unavailable; mod saves will not flush");
+    if (!mod::install_input_suppress_hooks())
+        pal::logf(pal::LogLevel::Warn, "takeover: input hooks unavailable; a held confirm can still reach the file-select menu");
 }
 
 SaveTakeover::~SaveTakeover()
 {
+    mod::remove_input_suppress_hooks();
     pal::remove_save_request_hook();
 }
 
@@ -109,8 +112,36 @@ bool SaveTakeover::begin()
     mod::set_save_write_enabled(false); // re-assert; off since connect, this covers a savetest re-enable
     step_ = TakeoverStep::AwaitingMenu;
     frames_in_step_ = 0;
+    input_block_.rearm();
+    // Here rather than on the next tick: this runs inside the StartGame confirm, and the input update
+    // that would carry a still-held button into the file-select menu is the very next one.
+    update_input_block();
+    // InstallHook succeeds on a name the build never dispatches, so the ctor's return value proves
+    // nothing. These fire every input frame, which makes "still silent by the time a launch is claimed"
+    // the same statement as "this build has no input hooks", and the footgun is back.
+    if (!mod::input_suppress_hooks_fired() && !warned_input_inert_)
+    {
+        warned_input_inert_ = true;
+        pal::logf(pal::LogLevel::Error, "takeover: input hooks have never fired; a held confirm can still open a vanilla file");
+    }
     pal::logf(pal::LogLevel::Info, "takeover: begin seed=%s slot=%s", seed_.c_str(), slot_.c_str());
     return true;
+}
+
+// The block outlives the steps that want it: a takeover that gave up still has the player sitting on a
+// live file-select for the frames the bounce takes.
+void SaveTakeover::update_input_block()
+{
+    // Only the Failed bounce reads this, so the accessor stays off every other tick. An unavailable
+    // accessor reads as "menu gone" and releases, the opposite of in_gameplay() above: holding a dead
+    // controller on a build that cannot answer is worse than the narrow window it would cover.
+    const bool on_profile_select = step_ == TakeoverStep::Failed && mod::current_game_state() == layout::kProfileSelectGameState;
+
+    const bool was_blocked = input_block_.blocked();
+    const bool block = input_block_.advance(step_, on_profile_select);
+    mod::set_input_suppressed(block); // unconditional, so the flag cannot drift from what this decided
+    if (block != was_blocked)
+        pal::logf(pal::LogLevel::Info, "takeover: game input %s (step=%s)", block ? "swallowed" : "restored", takeover_step_name(step_));
 }
 
 void SaveTakeover::set_step(TakeoverStep next)
@@ -122,6 +153,8 @@ void SaveTakeover::set_step(TakeoverStep next)
 
 void SaveTakeover::tick()
 {
+    update_input_block(); // ahead of the early return: Failed still blocks while the menu is up
+
     if (takeover_settled(step_))
         return; // begin() re-arms these; the flush is driven by the save-request hook, not the tick
 
@@ -316,7 +349,7 @@ void SaveTakeover::flush()
 std::vector<std::string> SaveTakeover::status_lines() const
 {
     std::vector<std::string> out;
-    out.push_back(std::string("takeover: ") + takeover_step_name(step_));
+    out.push_back(std::string("takeover: ") + takeover_step_name(step_) + (input_block_.blocked() ? " (game input swallowed)" : ""));
     if (!seed_.empty())
         out.push_back("takeover save: " + store_.path_for(seed_, slot_).string());
     return out;

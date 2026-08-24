@@ -147,6 +147,24 @@ using ChestConstructFn = void (*)(void *chest);
 bool install_chest_construct_hook(ChestConstructFn on_construct);
 void remove_chest_construct_hook();
 
+// Zeroes the engine's keyboard and controller state while set_input_suppressed(true) holds, via the
+// native "ycKeyboardUpdate" / "ycControllerUpdate" hooks. Both fire after the frame's raw input has been
+// gathered but before it is committed to the state every consumer reads, so a write here is what the
+// menus and gameplay see. Mouse is skipped as a scope call: no menu confirm arrives by mouse, and
+// zeroing its held array would need YC_TOUCH_COUNT, which upstream does not publish. Installing proves
+// nothing on its own (see the note on the named hooks above); input_suppress_hooks_fired() is the
+// evidence.
+bool install_input_suppress_hooks();
+void remove_input_suppress_hooks();
+
+// The hooks dispatch from ycGameThread::ThreadMain, not the caller's tick, so the flag is atomic. This
+// is the engine's own input thread, unrelated to the overlay's ProcessSDLEvent hook.
+void set_input_suppressed(bool suppressed);
+
+// Whether both input hooks have actually dispatched on this build. They run every input frame, so a
+// false here past startup means the build does not know the names and nothing is being swallowed.
+bool input_suppress_hooks_fired();
+
 // Drops every named hook above. The callbacks live in this module, so one left armed past teardown
 // faults on unload.
 void remove_all_hooks();

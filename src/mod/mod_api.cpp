@@ -76,12 +76,14 @@ enum HookId
     kHookAreaManagerNewArea,
     kHookChestConstruct,
     kHookWorldUpdateEnd,
+    kHookKeyboardUpdate,
+    kHookControllerUpdate,
     kHookCount,
 };
 
 constexpr const char *kHookNames[kHookCount] = {
-    "IsItemCollected", "WorldUpdate",     "WorldDestroy",       "ItemsOnPickup",  "ItemsOnPickupDone",
-    "PickupOnPickup",  "ShopItemRefresh", "AreaManagerNewArea", "ChestConstruct", "WorldUpdateEnd",
+    "IsItemCollected", "WorldUpdate",        "WorldDestroy",   "ItemsOnPickup",  "ItemsOnPickupDone", "PickupOnPickup",
+    "ShopItemRefresh", "AreaManagerNewArea", "ChestConstruct", "WorldUpdateEnd", "ycKeyboardUpdate",  "ycControllerUpdate",
 };
 
 std::atomic<bool> g_hook_fired[kHookCount];
@@ -210,6 +212,41 @@ void area_new_area_trampoline(void *pctx)
     if (g_area_new_area_cb == nullptr || c == nullptr || c->oldArea == nullptr || c->newArea == nullptr)
         return;
     g_area_new_area_cb(*c->oldArea, *c->newArea);
+}
+
+std::atomic<bool> g_input_suppressed{false};
+
+// keysDown is sized [(YC_KEY_COUNT+31)/32] and upstream publishes no YC_KEY_COUNT. The engine's own
+// pack and unpack loops run indices 0..136 inclusive and top out at bit-word 4, so the count is five.
+// YC_KEY_META, the highest key MinaModEnums.h defines, is 136, which agrees.
+constexpr std::size_t kKeyWordCount = 5;
+
+void keyboard_update_trampoline(void *pctx)
+{
+    note_fired(kHookKeyboardUpdate);
+    auto *c = static_cast<ycKeyboardUpdateCtx *>(pctx);
+    if (c == nullptr || !g_input_suppressed.load(std::memory_order_relaxed))
+        return;
+    if (c->keysDown != nullptr)
+        std::memset(c->keysDown, 0, kKeyWordCount * sizeof(std::uint32_t));
+    if (c->keysDownFirstFrame != nullptr)
+        std::memset(c->keysDownFirstFrame, 0, kKeyWordCount * sizeof(std::uint32_t));
+}
+
+void controller_update_trampoline(void *pctx)
+{
+    note_fired(kHookControllerUpdate);
+    auto *c = static_cast<ycControllerUpdateCtx *>(pctx);
+    if (c == nullptr || !g_input_suppressed.load(std::memory_order_relaxed))
+        return;
+    // exists is left alone: clearing it would read as an unplugged pad and swap the on-screen prompts.
+    if (c->buttonDown != nullptr)
+        *c->buttonDown = 0;
+    for (std::int16_t *axis : {c->leftStickX, c->leftStickY, c->rightStickX, c->rightStickY, c->triggerLeft, c->triggerRight})
+    {
+        if (axis != nullptr)
+            *axis = 0;
+    }
 }
 
 mod::ChestConstructFn g_chest_construct_cb = nullptr;
@@ -728,8 +765,35 @@ void remove_chest_construct_hook()
     g_chest_construct_cb = nullptr;
 }
 
+bool install_input_suppress_hooks()
+{
+    const bool keyboard = install_named(kHookKeyboardUpdate, &keyboard_update_trampoline) != nullptr;
+    const bool controller = install_named(kHookControllerUpdate, &controller_update_trampoline) != nullptr;
+    if (!keyboard || !controller)
+        pal::logf(pal::LogLevel::Warn, "input: InstallHook(keyboard=%d controller=%d) failed; input cannot be swallowed", keyboard, controller);
+    return keyboard && controller;
+}
+
+void remove_input_suppress_hooks()
+{
+    g_input_suppressed.store(false, std::memory_order_relaxed);
+    remove_named(kHookKeyboardUpdate);
+    remove_named(kHookControllerUpdate);
+}
+
+void set_input_suppressed(bool suppressed)
+{
+    g_input_suppressed.store(suppressed, std::memory_order_relaxed);
+}
+
+bool input_suppress_hooks_fired()
+{
+    return g_hook_fired[kHookKeyboardUpdate].load() && g_hook_fired[kHookControllerUpdate].load();
+}
+
 void remove_all_hooks()
 {
+    g_input_suppressed.store(false, std::memory_order_relaxed);
     g_items_on_pickup_cb = nullptr;
     g_items_on_pickup_done_cb = nullptr;
     g_pickup_on_pickup_cb = nullptr;

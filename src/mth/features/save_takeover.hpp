@@ -52,6 +52,7 @@ class SaveTakeover
     [[nodiscard]] std::vector<std::string> status_lines() const;
 
   private:
+    void update_input_block();
     void drive_profile_menu(void *menu);
     void flush();
     bool stage_save();
@@ -65,6 +66,8 @@ class SaveTakeover
     std::uintptr_t mod_base_{0};
     std::size_t mod_size_{0};
     bool warned_no_walk_{false};
+    bool warned_input_inert_{false};
+    InputBlockState input_block_;
     std::vector<void *> pending_;
     std::vector<void *> buffer_;
     std::string seed_;
