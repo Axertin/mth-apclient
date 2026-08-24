@@ -26,6 +26,18 @@ inline constexpr std::ptrdiff_t kCollectionBitIdxOff = 0x1c;    // u8 unlock-bit
 inline constexpr std::ptrdiff_t kCollectionWarpRemapOff = 0x4c; // int warp remap (<0 = none)
 inline constexpr int kCollectionScanCap = 0x168;                // name-scan upper bound (SetSaveUnlocked mirror)
 
+// StatusMenu: the pause screen. Setup builds the three stat panels in one loop, so each panel is a
+// 0x40-stride block; the level label is the first pointer in it. Confirmed in-game on r149150.
+inline constexpr std::ptrdiff_t kStatusPanelBase = 0x128;
+inline constexpr std::ptrdiff_t kStatusPanelStride = 0x40;
+
+// Byte offset of stat's level-label ycTextComponent* within StatusMenu, or -1 for a row that is not
+// one of the three real stats. Pure so it is unit-testable.
+[[nodiscard]] constexpr std::ptrdiff_t status_lvl_widget_offset(int stat) noexcept
+{
+    return (stat >= 0 && stat < 3) ? kStatusPanelBase + kStatusPanelStride * stat : -1;
+}
+
 // LevelUpMenu (the bone-up panel on the pause screen) and the display it owns. The cursor index is
 // uninitialised until the state machine reaches the interactive state, so reads of it must be gated.
 inline constexpr std::ptrdiff_t kLevelUpMenuStateOff = 0x64; // state machine (int)

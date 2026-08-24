@@ -44,6 +44,7 @@ add_executable(mthap_unit_tests
     unit/modifier_config_test.cpp
     unit/modifier_table_test.cpp
     unit/stat_cap_state_test.cpp
+    unit/status_menu_caps_test.cpp
     unit/upgrade_state_test.cpp
     unit/wallet_cap_state_test.cpp
     unit/shop_flatten_test.cpp

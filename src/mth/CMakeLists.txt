@@ -118,6 +118,7 @@ if(NOT MTHAP_BUILD_TESTS_ONLY)
         features/intro_chest_gate.cpp
         features/modifier_hooks.cpp
         features/levelcap_hooks.cpp
+        features/status_menu_caps.cpp
         features/fountain_lamp_hooks.cpp
         features/title_gate.cpp
         features/save_takeover.cpp
