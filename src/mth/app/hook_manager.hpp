@@ -31,6 +31,7 @@ class SewerCatGate;
 class IntroChestGate;
 class ModifierHooks;
 class LevelCapHooks;
+class StatusMenuCaps;
 class FountainLampHooks;
 class TitleGate;
 class SaveTakeover;
@@ -101,6 +102,7 @@ class HookManager
     std::unique_ptr<IntroChestGate> intro_chest_gate_;
     std::unique_ptr<ModifierHooks> modifier_hooks_;
     std::unique_ptr<LevelCapHooks> level_cap_hooks_;
+    std::unique_ptr<StatusMenuCaps> status_menu_caps_;
     std::unique_ptr<FountainLampHooks> fountain_lamp_hooks_;
     std::unique_ptr<SaveTakeover> save_takeover_; // before TitleGate: it holds the detour that calls in
     std::unique_ptr<TitleGate> title_gate_;

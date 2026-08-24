@@ -26,6 +26,7 @@
 #include "mth/features/pawn_shop_hooks.hpp"
 #include "mth/features/save_takeover.hpp"
 #include "mth/features/sewer_cat_gate.hpp"
+#include "mth/features/status_menu_caps.hpp"
 #include "mth/features/title_gate.hpp"
 #include "mth/hooks/game_hooks.hpp"
 #include "pal/pal_game.hpp"
@@ -74,6 +75,7 @@ HookManager::HookManager(IGameEvents &events, RandoBridge &rando, ScoutRegistry 
     intro_chest_gate_ = std::make_unique<IntroChestGate>(); // armed from enforce_weapon_grants, which builds the mask
     modifier_hooks_ = std::make_unique<ModifierHooks>(ModifierRequest{});
     level_cap_hooks_ = std::make_unique<LevelCapHooks>();
+    status_menu_caps_ = std::make_unique<StatusMenuCaps>(*level_cap_hooks_); // reads the caps; must outlive it
     fountain_lamp_hooks_ = std::make_unique<FountainLampHooks>();
     // Before TitleGate, which takes the claim callback: TitleGate owns the only StartGame detour, and
     // reverse-order destruction then tears that detour down before the takeover it calls into.
@@ -96,6 +98,7 @@ HookManager::~HookManager()
     intro_chest_gate_.reset();
     death_hooks_.reset();
     modifier_hooks_.reset();
+    status_menu_caps_.reset(); // holds a reference to the cap hooks, so it goes first
     level_cap_hooks_.reset();
     title_gate_.reset(); // owns the StartGame detour that calls into the takeover, so it goes first
     save_takeover_.reset();
@@ -260,6 +263,7 @@ void HookManager::drain()
 void HookManager::on_world_update_end(void *world)
 {
     save_takeover_->on_world_update_end(world);
+    status_menu_caps_->on_world_update_end(world); // self-throttled; walks nothing on most ticks
 }
 
 void HookManager::on_world_destroy()
@@ -269,6 +273,7 @@ void HookManager::on_world_destroy()
     chest_hooks_->on_world_destroy(); // the tracked chests died with the world
     sewer_cat_gate_->on_world_destroy();
     intro_chest_gate_->on_world_destroy();
+    status_menu_caps_->on_world_destroy();
 }
 
 void HookManager::kill_player()
