@@ -10,7 +10,8 @@
 namespace mth
 {
 
-// Per-(seed, slot) durable state: checked location indices and granted item indices.
+// Per-(seed, slot) run state: checked location indices and granted item indices. Staged through
+// the store seam, which holds it until the game saves so the two can never disagree.
 // Sets rather than cursors: robust to gaps/out-of-order. Received-items list is
 // server state and is never persisted.
 class ApSaveState
@@ -49,7 +50,7 @@ class ApSaveState
         game_slot_ = slot;
     }
 
-    void save() const; // write-tmp-then-rename
+    void stage() const; // held in memory until the game saving commits the bundle
 
   private:
     LoadFn load_fn_;

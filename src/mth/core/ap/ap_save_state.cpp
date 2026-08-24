@@ -107,7 +107,7 @@ void ApSaveState::mark_granted(int item_index)
     granted_.insert(item_index);
 }
 
-void ApSaveState::save() const
+void ApSaveState::stage() const
 {
     if (store_fn_)
         store_fn_(serialize());

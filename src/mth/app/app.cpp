@@ -275,8 +275,8 @@ void App::drive_tick()
         if (s >= 0 && s != save_state_->game_slot())
         {
             save_state_->set_game_slot(s);
-            save_state_->save();
-            pal::logf(pal::LogLevel::Info, "modifiers: persisted AP-game slot %d", s);
+            save_state_->stage();
+            pal::logf(pal::LogLevel::Info, "modifiers: staged AP-game slot %d", s);
         }
     }
 }
@@ -416,7 +416,7 @@ void App::ensure_inbound_ready()
     const std::string slot = std::to_string(state_.player_slot());
     const std::string key = bundle_store_.path_for(seed, slot).string();
     save_state_.emplace([this, seed, slot] { return bundle_store_.load_state(seed, slot); },
-                        [this, seed, slot](std::string_view text) { bundle_store_.store_state(seed, slot, text); });
+                        [this, seed, slot](std::string_view text) { bundle_store_.stage_state(seed, slot, text); });
     grants_->build_inbound(state_, *save_state_, [this] { return hooks_->credit_kear_key(); }); // vanilla-kear key grant (#130)
     pal::logf(pal::LogLevel::Info, "inbound: state loaded (%s); granter live", key.c_str());
     hooks_->set_ap_slot(save_state_->game_slot()); // restore the AP-game slot (skip capture if known)
@@ -434,7 +434,7 @@ void App::reconcile_server_checked()
         if (id >= 0 && id <= std::numeric_limits<int>::max())
             changed |= net_->rando().reconcile_server_checked(static_cast<int>(id));
     if (changed)
-        save_state_->save(); // one persist per reconcile pass (batched)
+        save_state_->stage(); // one stage per reconcile pass (batched)
 }
 
 void App::connect(const std::string &server, const std::string &slot, const std::string &password)
@@ -501,6 +501,12 @@ std::vector<std::string> App::status_lines() const
     out.push_back("received items: " + std::to_string(state_.received_items().size()));
     if (const auto removed = state_.removed_locations().size(); removed != 0)
         out.push_back("removed locations: " + std::to_string(removed));
+    if (save_state_)
+    {
+        std::string line = "ap state: " + std::to_string(save_state_->checked().size()) + " checked";
+        line += bundle_store_.state_staged() ? " (uncommitted since the last game save)" : " (committed)";
+        out.push_back(line);
+    }
 
     // A named hook cannot be feature-detected, so firing is the only evidence it exists on this
     // build. Anything still listed after real play is a dead path.

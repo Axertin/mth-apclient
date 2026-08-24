@@ -29,7 +29,7 @@ TEST_CASE("ApSaveState round-trips both sets through a file", "[ap_save_state]")
         s.mark_checked(3);
         REQUIRE(s.is_granted(7));
         REQUIRE(s.is_checked(3));
-        s.save();
+        s.stage();
     }
     {
         mth::ApSaveState s(path);
@@ -59,7 +59,7 @@ TEST_CASE("ApSaveState round-trips the game save slot", "[ap_save_state]")
         REQUIRE(s.game_slot() == -1); // unknown by default
         s.set_game_slot(3);
         REQUIRE(s.game_slot() == 3);
-        s.save();
+        s.stage();
     }
     {
         mth::ApSaveState s(path);
@@ -130,6 +130,6 @@ TEST_CASE("state save hands the serialized text to the injected store", "[ap_sav
     std::string written;
     mth::ApSaveState s([] { return std::nullopt; }, [&written](std::string_view t) { written = std::string(t); });
     s.mark_checked(9);
-    s.save();
+    s.stage();
     REQUIRE(written == "c 9\n");
 }

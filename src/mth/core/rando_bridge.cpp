@@ -92,7 +92,7 @@ void RandoBridge::on_location_collected(int collection_slot)
             return;
         }
         save_->mark_checked(collection_slot);
-        save_->save();
+        save_->stage();
     }
     else if (!sent_.insert(id).second)
     {
@@ -100,7 +100,7 @@ void RandoBridge::on_location_collected(int collection_slot)
     }
 
     const bool connected = link_.is_connected();
-    pal::logf(pal::LogLevel::Info, "bridge: location slot=%d id=%lld checked+persisted; %s", collection_slot, static_cast<long long>(id),
+    pal::logf(pal::LogLevel::Info, "bridge: location slot=%d id=%lld checked+staged; %s", collection_slot, static_cast<long long>(id),
               connected ? "sending to server" : "queued (offline, will flush on connect)");
     if (connected)
         link_.send_locations({id});

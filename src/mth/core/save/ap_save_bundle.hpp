@@ -25,11 +25,14 @@ std::string ap_bundle_filename(std::string_view seed, std::string_view slot);
 // can never disagree about where a run got to. Reads fall back to the pre-container layout and the
 // first write migrates forward; the old files are left in place.
 //
-// The in-memory copy is the source of truth. Mutations update it and hand a snapshot to a writer
-// thread, so the game thread never waits on the disk and a burst of grants collapses into one write.
-// store() is the exception: the game saving is a durability point, so it blocks until the container
-// is on disk. That matters because the mod is leaked by design and never runs its destructor, so
-// nothing queued at process exit would otherwise land.
+// The in-memory copy is the source of truth, and store() alone publishes it. AP mutations stage
+// into that copy and wait there, so the bytes on disk are always the AP state as it stood when the
+// game last saved. Publishing them as they happen would pair a newer AP state with an older save
+// blob, and a death or a crash would then roll the run back while the state file still said the
+// items had been handed out, which loses them permanently (see #77).
+//
+// store() blocks until the container is on disk, because the mod is leaked by design and never runs
+// its destructor, so nothing merely queued at process exit would land.
 class ApSaveBundleStore
 {
   public:
@@ -48,16 +51,21 @@ class ApSaveBundleStore
     [[nodiscard]] std::filesystem::path path_for(std::string_view seed, std::string_view slot) const;
 
     // The game save blob. Named to match the superseded ApSaveStore so the takeover call sites did
-    // not have to change. store() blocks until the container is written.
+    // not have to change. store() is the commit point for the whole container, staged AP state
+    // included, and blocks until it is written.
     [[nodiscard]] std::optional<std::string> load(std::string_view seed, std::string_view slot) const;
     bool store(std::string_view seed, std::string_view slot, std::string_view blob);
 
-    // Queued: returns as soon as the in-memory copy is updated, so the bool says the state was
-    // accepted, NOT that it reached disk - use flush() for that. Read-back through load_state() is
-    // consistent either way, because reads come from memory. Note load_state() and load() block on a
-    // pending write when they are the first call for a new (seed, slot).
+    // Staged, not written: the bool says the state was accepted into the in-memory copy, where it
+    // waits for the store() that pairs it with a save blob. flush() will not publish it, and a
+    // session change discards it. Read-back through load_state() is consistent either way, because
+    // reads come from memory. Note load_state() and load() block on a pending write when they are
+    // the first call for a new (seed, slot).
     [[nodiscard]] std::optional<std::string> load_state(std::string_view seed, std::string_view slot) const;
-    bool store_state(std::string_view seed, std::string_view slot, std::string_view text);
+    bool stage_state(std::string_view seed, std::string_view slot, std::string_view text);
+
+    // True when a stage_state() is waiting for the store() that will publish it.
+    [[nodiscard]] bool state_staged() const;
 
     // Blocks until every queued write has been attempted. False if the last one failed.
     bool flush() const;
@@ -90,6 +98,9 @@ class ApSaveBundleStore
         Payload ap_state;
         // A container at our path that names another run. Writing would destroy it, so we refuse.
         bool foreign{false};
+        // AP state that has not been paired with a save blob yet. Cleared by the reset above on a
+        // key change, which is what discards the state a session we left never committed.
+        bool state_staged{false};
     };
 
     void ensure_loaded(std::string_view seed, std::string_view slot) const;

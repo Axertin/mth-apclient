@@ -29,13 +29,13 @@ InboundGranter::~InboundGranter()
     *alive_ = false;
 }
 
-// The one place a grant becomes durable. Reached only once the item has actually been applied, so a
+// The one place a grant is recorded. Reached only once the item has actually been applied, so a
 // queue that dies before its drain window leaves nothing marked and the receipt is retried (#175).
 void InboundGranter::on_applied(int receipt)
 {
     in_flight_.erase(receipt);
     save_.mark_granted(receipt);
-    save_.save();
+    save_.stage();
 }
 
 bool InboundGranter::handled(int index) const
@@ -60,7 +60,7 @@ void InboundGranter::tick()
 
     const bool vanilla_kear = state_.kear_mode() == KearMode::Vanilla;
 
-    int n_handled = 0;     // skipped: already durable or in flight
+    int n_handled = 0;     // skipped: already recorded or in flight
     int n_ungrantable = 0; // skipped: this path does not grant that category
 
     for (const auto &it : state_.received_items())
@@ -77,9 +77,9 @@ void InboundGranter::tick()
             }
             if (!credit_kear_key_ || !credit_kear_key_())
                 break; // no live save/player yet; retry next tick (do not mark)
-            // Applies inline rather than through the granter's queue, so it is durable immediately.
+            // Applies inline rather than through the granter's queue, so it is recorded right away.
             save_.mark_granted(it.index);
-            save_.save();
+            save_.stage();
             pal::logf(pal::LogLevel::Info, "inbound_granter: credited vanilla kear key (index=%d)", it.index);
             continue;
         }
@@ -99,7 +99,7 @@ void InboundGranter::tick()
             {
                 pal::logf(pal::LogLevel::Warn, "inbound_granter: fishing rod tier=%d exceeds max; ignored (index=%d)", tier, it.index);
                 save_.mark_granted(it.index);
-                save_.save();
+                save_.stage();
                 continue;
             }
             if (!offer(game_type, it.index))
@@ -124,7 +124,7 @@ void InboundGranter::tick()
             {
                 pal::logf(pal::LogLevel::Warn, "inbound_granter: weapon family=%d tier=%d exceeds max; ignored (index=%d)", fam, tier, it.index);
                 save_.mark_granted(it.index);
-                save_.save();
+                save_.stage();
                 continue;
             }
             if (!offer(game_type, it.index))
@@ -147,7 +147,7 @@ void InboundGranter::tick()
             {
                 pal::logf(pal::LogLevel::Warn, "inbound_granter: map tier=%d exceeds max; ignored (index=%d)", tier, it.index);
                 save_.mark_granted(it.index);
-                save_.save();
+                save_.stage();
                 continue;
             }
             if (!offer(game_type, it.index))

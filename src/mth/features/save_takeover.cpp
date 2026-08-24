@@ -264,6 +264,9 @@ bool SaveTakeover::stage_save()
 
 void SaveTakeover::on_game_save_requested()
 {
+    // Ahead of the step test on purpose: without it, "the game never asked to save" and "we declined
+    // to commit" leave the same empty log.
+    pal::logf(pal::LogLevel::Debug, "takeover: game save requested (step=%s)", takeover_step_name(step_));
     if (step_ != TakeoverStep::Running)
         return;
     flush();
@@ -302,8 +305,12 @@ void SaveTakeover::flush()
         pal::logf(pal::LogLevel::Warn, "takeover: empty save blob; skipping flush");
         return;
     }
+    // The only place AP state reaches the disk, so a log here is the evidence that a run's progress
+    // and its checks were committed together.
     if (!store_.store(seed_, slot_, blob))
         pal::logf(pal::LogLevel::Error, "takeover: failed to write mod save for seed=%s slot=%s", seed_.c_str(), slot_.c_str());
+    else
+        pal::logf(pal::LogLevel::Debug, "takeover: committed save and ap state for seed=%s slot=%s", seed_.c_str(), slot_.c_str());
 }
 
 std::vector<std::string> SaveTakeover::status_lines() const
