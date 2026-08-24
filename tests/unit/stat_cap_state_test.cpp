@@ -1,3 +1,4 @@
+#include <string>
 #include <vector>
 
 #include <catch2/catch_test_macros.hpp>
@@ -149,4 +150,53 @@ TEST_CASE("boneup_fake_capped_stat gates the fake to the interactive state, the 
 
     // Selected but below cap: leave real (genuinely buyable).
     REQUIRE_FALSE(mth::boneup_fake_capped_stat(true, true, 4, 5));
+}
+
+TEST_CASE("boneup_display_cap converts an enforced cap to the level the menu shows", "[boneup]")
+{
+    // Buy-gate is `raw_level < cap` and the menu renders raw+1, so cap N tops out at displayed N+1.
+    REQUIRE(mth::boneup_display_cap(0) == 1);
+    REQUIRE(mth::boneup_display_cap(2) == 3);
+    REQUIRE(mth::boneup_display_cap(9) == 10); // vanilla ceiling
+}
+
+TEST_CASE("boneup_with_cap_suffix appends the cap to the first line only", "[boneup]")
+{
+    const std::string desc = "Attack Level 1\nNext level at 175 Bones\nThe power of your main attack.";
+    REQUIRE(mth::boneup_with_cap_suffix(desc, 3) == "Attack Level 1 (3)\nNext level at 175 Bones\nThe power of your main attack.");
+}
+
+TEST_CASE("boneup_with_cap_suffix is idempotent across frames", "[boneup]")
+{
+    const std::string once = mth::boneup_with_cap_suffix("Attack Level 1\nNext level at 175 Bones", 3);
+    REQUIRE(mth::boneup_with_cap_suffix(once, 3) == once);
+}
+
+TEST_CASE("boneup_with_cap_suffix replaces a stale cap when the cap changes mid-menu", "[boneup]")
+{
+    const std::string stale = "Attack Level 1 (2)\nNext level at 175 Bones";
+    REQUIRE(mth::boneup_with_cap_suffix(stale, 3) == "Attack Level 1 (3)\nNext level at 175 Bones");
+}
+
+TEST_CASE("boneup_with_cap_suffix handles a single-line description", "[boneup]")
+{
+    REQUIRE(mth::boneup_with_cap_suffix("Attack Level 1", 3) == "Attack Level 1 (3)");
+}
+
+TEST_CASE("boneup_with_cap_suffix leaves empty text alone", "[boneup]")
+{
+    REQUIRE(mth::boneup_with_cap_suffix("", 3).empty());
+}
+
+TEST_CASE("boneup_with_cap_suffix only strips a numeric parenthesised suffix", "[boneup]")
+{
+    // Localized text may legitimately end in parentheses; only a bare number is ours to replace.
+    REQUIRE(mth::boneup_with_cap_suffix("Attack (special) Level 1", 3) == "Attack (special) Level 1 (3)");
+    REQUIRE(mth::boneup_with_cap_suffix("Attack Level 1 (max)", 3) == "Attack Level 1 (max) (3)");
+}
+
+TEST_CASE("boneup_with_cap_suffix leaves text alone when the first line is empty", "[boneup]")
+{
+    // No title to annotate; appending would produce a bare " (3)" as the first line.
+    REQUIRE(mth::boneup_with_cap_suffix("\nNext level at 175 Bones", 3) == "\nNext level at 175 Bones");
 }

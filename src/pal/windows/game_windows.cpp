@@ -948,6 +948,7 @@ void repl_lvlup_update(void *self, void *ctx)
         for (int s = 0; s <= kLvlMaxRealStat; ++s)
             if (saved[s] >= 0)
                 *reinterpret_cast<int *>(static_cast<char *>(slot) + kSaveStatArrOff + static_cast<std::ptrdiff_t>(s) * 4) = saved[s];
+    pal::boneup_annotate_description(self);
 }
 } // namespace
 

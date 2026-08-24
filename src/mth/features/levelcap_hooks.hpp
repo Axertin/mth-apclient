@@ -27,6 +27,10 @@ class LevelCapHooks
     void set_counts(int attack, int defense, int sidearm); // offline test override
     void set_enforce_live(bool on);                        // gate: vanilla play is never restricted
 
+    // Bone-up menu annotation: the level to display as the cap for `stat`, or <0 to leave the
+    // vanilla text alone (not enforcing, or not one of the real stats). Game thread.
+    [[nodiscard]] int display_cap_for(int stat) const;
+
     [[nodiscard]] std::vector<std::string> status_lines() const;
 
   private:

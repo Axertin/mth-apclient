@@ -26,6 +26,14 @@ inline constexpr std::ptrdiff_t kCollectionBitIdxOff = 0x1c;    // u8 unlock-bit
 inline constexpr std::ptrdiff_t kCollectionWarpRemapOff = 0x4c; // int warp remap (<0 = none)
 inline constexpr int kCollectionScanCap = 0x168;                // name-scan upper bound (SetSaveUnlocked mirror)
 
+// LevelUpMenu (the bone-up panel on the pause screen) and the display it owns. The cursor index is
+// uninitialised until the state machine reaches the interactive state, so reads of it must be gated.
+inline constexpr std::ptrdiff_t kLevelUpMenuStateOff = 0x64; // state machine (int)
+inline constexpr int kLevelUpMenuInteractiveState = 3;
+inline constexpr std::ptrdiff_t kLevelUpMenuStatOff = 0xb8;     // cursor stat: 0=attack 1=defense 2=sidearm, 3=bank, 4=exit
+inline constexpr std::ptrdiff_t kLevelUpMenuDisplayOff = 0x98;  // LevelUpDisplay*, null while the menu is off screen
+inline constexpr std::ptrdiff_t kLevelUpDisplayDescOff = 0x120; // ycTextComponent* (LevelUpDisplay+0x98 is a different one)
+
 // Component/entity idiom: ycEntity* at component+0x10, ycWorld* at entity+0x50.
 inline constexpr std::ptrdiff_t kComponentEntityOff = 0x10;
 inline constexpr std::ptrdiff_t kEntityWorldOff = 0x50;
