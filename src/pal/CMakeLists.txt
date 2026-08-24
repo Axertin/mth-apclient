@@ -58,6 +58,10 @@ list(APPEND _mthap_pal_sources native_mod_entry.cpp)
 # Palette-mapped text coloring - identical struct offsets on both platforms, so one TU.
 list(APPEND _mthap_pal_sources shop_palette.cpp)
 
+# Bone-up cap annotation, one TU. The widget offsets are pinned on both platforms, and each hop
+# is vtable-checked, so a build that moves them is rejected instead of trusted.
+list(APPEND _mthap_pal_sources boneup_desc.cpp)
+
 add_library(mthap_pal OBJECT ${_mthap_pal_sources})
 
 target_include_directories(mthap_pal PUBLIC "${CMAKE_SOURCE_DIR}/src")

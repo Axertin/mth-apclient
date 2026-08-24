@@ -101,6 +101,13 @@ void set_level_cap_provider(LevelCapFn cap);
 // Remove the level-cap hooks and clear the callback. Called by the mth/ owner's destructor.
 void remove_level_cap_hook();
 
+// Bone-up description text. Called from the per-frame LevelUpMenu wrapper on both platforms; walks to
+// the menu's description widget and appends the enforced cap to its first line. `cap(stat)` returns the
+// level to display for the cursor-selected stat, or a negative value to leave the vanilla text alone.
+using BoneupCapFn = std::function<int(int stat)>;
+void set_boneup_cap_provider(BoneupCapFn cap);
+void boneup_annotate_description(void *level_up_menu);
+
 // ---- Capacity upgrades (itemTypes 68..72). Symbol/offset divergence lives in the PAL impl. ----
 
 // True once the active SaveSlot global and Player::UpdateStats resolve. Resolves + caches on first

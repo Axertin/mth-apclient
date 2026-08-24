@@ -301,6 +301,7 @@ void repl_lvlup_update(void *self)
     g_active_lvlup_menu = self;
     if (g_orig_lvlup_update)
         g_orig_lvlup_update(self);
+    pal::boneup_annotate_description(self);
     g_active_lvlup_menu = prev;
 }
 

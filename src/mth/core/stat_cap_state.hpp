@@ -1,5 +1,7 @@
 #pragma once
 
+#include <string>
+
 #include "mth/core/ap/ap_ids.hpp" // kStatCount
 
 namespace mth
@@ -29,6 +31,19 @@ class ApState;
 {
     return menu_interactive && stat_is_selected && real_level >= cap;
 }
+
+// The buy-gate compares the raw level (`raw < cap`) but the bone-up menu renders raw+1, so an
+// enforced cap of N tops out at a displayed level of N+1. Vanilla cross-check: the native cap is 9
+// and the level AnimNumber clamps at 10.
+[[nodiscard]] constexpr int boneup_display_cap(int enforced_cap) noexcept
+{
+    return enforced_cap + 1;
+}
+
+// Description text with " (N)" appended to its first line. Any numeric parenthesised suffix already
+// on that line is replaced rather than stacked, so re-applying every frame is stable and a cap that
+// changes while the menu is open takes effect. Empty text is left alone.
+[[nodiscard]] std::string boneup_with_cap_suffix(const std::string &text, int display_cap);
 
 // twin: mth/features/levelcap_hooks.hpp enforces this in-game.
 // Per-stat level-cap policy, derived from received AP "cap up" items. Pure logic, no platform deps.
