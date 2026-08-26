@@ -72,6 +72,14 @@ list(APPEND _mthap_pal_sources game_train.cpp)
 # Mod-save flush trigger - symbol-resolved through the PAL, no platform data, so one TU.
 list(APPEND _mthap_pal_sources game_save_takeover.cpp)
 
+# ShopMenu accessors plus the SetCursor and Shop::Get detours. The ShopItem/ShopItemDef offsets
+# behind them are the same class layout on both builds, so one TU.
+list(APPEND _mthap_pal_sources game_shop_ui.cpp)
+
+# Pawn-shop, fountain-bulb, title StartGame and new-file kit detours. Each reads only offsets that
+# match on both builds, so one TU.
+list(APPEND _mthap_pal_sources game_menu_hooks.cpp)
+
 add_library(mthap_pal OBJECT ${_mthap_pal_sources})
 
 target_include_directories(mthap_pal PUBLIC "${CMAKE_SOURCE_DIR}/src")
