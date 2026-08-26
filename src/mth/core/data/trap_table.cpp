@@ -1,21 +1,38 @@
 #include "mth/core/data/trap_table.hpp"
 
+#include "MinaModEnums.h"
+
 namespace mth
 {
 
 namespace
 {
 
+constexpr TrapDef make_trap(int modifier_index, const char *label, float seconds)
+{
+    return TrapDef{modifier_index, label, seconds};
+}
+
+// Builds one row from the modifier's own kCheat_* name, so the label has exactly one source: no
+// hand-written string to drift from the index it names. MTH_TRAP(Mirror, 30.0f) is
+// make_trap(kCheat_Mirror, "Mirror", 30.0f): the ## paste forms the token kCheat_Mirror, which is
+// then itself macro-expanded to 204, and the # stringizes the bare argument. The duration stays a
+// per-row argument so one trap can be retuned without touching the others.
+#define MTH_TRAP(name, seconds) make_trap(kCheat_##name, #name, seconds)
+
 constexpr TrapDef kTrapTable[] = {
-    {204, "Mirror Mode", kDefaultTrapSeconds},     // scene flipped horizontally, controls flip with it
-    {205, "Upsidedown Mode", kDefaultTrapSeconds}, // scene flipped vertically
-    {202, "Spin!", kDefaultTrapSeconds},           // continuous camera roll
-    {203, "Lean!", kDefaultTrapSeconds},           // camera tilts with horizontal input
-    {197, "No HUD", kDefaultTrapSeconds},          // HUD hidden
-    {195, "Invisibility", kDefaultTrapSeconds},    // Mina invisible
-    {190, "1.5x Giant!", kDefaultTrapSeconds},     // player render scale
-    {191, "2x Giant!", kDefaultTrapSeconds},       // player render scale
+
+    MTH_TRAP(Giant, kDefaultTrapSeconds),             // player render scale
+    MTH_TRAP(Giant2, kDefaultTrapSeconds),            // player render scale
+    MTH_TRAP(StartInvisible, kDefaultTrapSeconds),    // Mina invisible
+    MTH_TRAP(NoHUD, kDefaultTrapSeconds),             // HUD hidden
+    MTH_TRAP(RotateCamera, kDefaultTrapSeconds),      // continuous camera roll
+    MTH_TRAP(RotateCameraInput, kDefaultTrapSeconds), // camera tilts with horizontal input
+    MTH_TRAP(Mirror, kDefaultTrapSeconds),            // scene flipped horizontally, controls flip with it
+    MTH_TRAP(Upsidedown, kDefaultTrapSeconds),        // scene flipped vertically
 };
+
+#undef MTH_TRAP
 
 } // namespace
 

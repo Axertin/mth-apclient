@@ -5,8 +5,10 @@
 namespace mth
 {
 
-// One trap: the modifier it forces on, the game's own shipped English menu label for it, and how
-// long it lasts in gameplay seconds.
+// One trap: the modifier it forces on, an operator-facing label derived from that modifier's
+// kCheat_* enum name (kCheat_Mirror becomes "Mirror"), and how long it lasts in gameplay seconds.
+// The label is for our own logs and status output, not the game's menu text: the randomizer names
+// the item for the player, so the mod does not need to carry a second copy of that name.
 struct TrapDef
 {
     int modifier_index;

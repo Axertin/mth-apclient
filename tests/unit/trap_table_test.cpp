@@ -47,7 +47,7 @@ TEST_CASE("trap table: lookup by modifier index", "[trap][trap_table]")
     const mth::TrapDef *d = mth::trap_for_modifier(204);
     REQUIRE(d != nullptr);
     REQUIRE(d->modifier_index == 204);
-    REQUIRE(std::string_view(d->label) == "Mirror Mode");
+    REQUIRE(std::string_view(d->label) == "Mirror");
 
     REQUIRE(mth::trap_for_modifier(19) == nullptr); // a Grant-class modifier is never a trap
     REQUIRE(mth::trap_for_modifier(-1) == nullptr);
