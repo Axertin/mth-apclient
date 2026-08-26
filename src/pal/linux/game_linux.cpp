@@ -1,8 +1,6 @@
 #include <algorithm>
-#include <bit>
 #include <cstddef>
 #include <cstdint>
-#include <filesystem>
 #include <functional>
 #include <limits>
 #include <mutex>
@@ -15,7 +13,6 @@
 #include "mth/core/data/cheat_mask.hpp"
 #include "mth/core/data/game_layout.hpp"
 #include "mth/core/data/game_symbols.hpp"
-#include "mth/core/data/game_tables.hpp"
 #include "mth/core/fountain_lamps.hpp"
 #include "mth/core/shop_boxes.hpp"
 #include "mth/core/shop_flatten.hpp"
@@ -411,15 +408,6 @@ constexpr int kAbTrain = 6;
 // Player-object offsets used by the detours (Linux build 828346d4).
 constexpr std::ptrdiff_t kPlayerWaterListenerOff = 0x2c0; // WaterListener* (swim-vs-land discriminator)
 
-// Player state machine (#163): current / requested / pending-request. Requesting kStateDeepWaterFall runs the
-// game's own on-foot deep-water fall, which chains fall -> respawn-at-shore -> pit damage on its own timer.
-// kStateMax is the InitState/UpdateState jump-table bound, used only as a sanity check on the offset.
-constexpr std::ptrdiff_t kPlayerStateCurOff = 0x254;
-constexpr std::ptrdiff_t kPlayerStateReqOff = 0x25c;
-constexpr std::ptrdiff_t kPlayerStatePendOff = 0x260;
-constexpr int kStateBurrow = 0x1c; // current state while burrowing (ground or water)
-constexpr int kStateDeepWaterFall = 0xf1;
-constexpr int kStateMax = 0xf5;
 // Pending bounce target (3 floats, FLT_MAX when none) and the bone-bounce variant marker. Player::OnBounce
 // consumes both; its own early-out clears them, and the block path has to do the same or the target stays
 // armed and fires late (#168).
@@ -444,13 +432,6 @@ constexpr int kTrainExitCode = 100;
 constexpr std::ptrdiff_t kSaveTrainPassOwnedOff = 0x1c0;
 // SaveSlot train-present byte (platform data; not an mth/ layout offset).
 constexpr std::ptrdiff_t kSaveTrainPresentOff = 0x1c1;
-// SaveSlot unlocked-train-lines bitfield (5 low bits, one per destination). Set by the TrainAuthority ctor
-// on station footfall; the AP client clamps it to the granted-ticket mask. Same layout on both platforms.
-constexpr std::ptrdiff_t kSaveTrainUnlockedLinesOff = 0x1e0;
-// SaveSlot donation-machine progress (u32 uTicketProgress). Read fresh by the machine every tick and never
-// reset, with exactly three readers (the state machine's goal compare, the progress bar, the deposit dial),
-// so raising it is a complete way to lower the donation cost. Same layout on both platforms.
-constexpr std::ptrdiff_t kSaveTicketProgressOff = 0x1bc;
 // CTP boss (Thorne 2) defeated bit: byte +0x281 mask 0x02 of the SaveSlot+0x280 boss bitfield. The Coltrane
 // line ride is gated on it (#108).
 constexpr std::ptrdiff_t kSaveCtpBossByteOff = 0x281;
@@ -926,21 +907,6 @@ void repl_title_start_game(void *self)
         return; // disconnected: the option is not selectable, so the vanilla path must not run
     if (g_orig_title_start_game)
         g_orig_title_start_game(self);
-}
-
-// SaveManager::WriteSaveData(bool): the flush trigger for mod-owned saves. Observed only, never
-// suppressed; the mod's own SetSaveWriteEnabled(false) (via the native MinaModAPI) is what
-// actually keeps saveData.yc untouched during a takeover.
-pal::SaveRequestedFn g_save_request_fn;
-pal::HookId g_save_request_hook = pal::kInvalidHookId;
-void (*g_orig_write_save_data)(void *, bool) = nullptr;
-
-void repl_write_save_data(void *self, bool flag)
-{
-    if (g_save_request_fn)
-        g_save_request_fn();
-    if (g_orig_write_save_data)
-        g_orig_write_save_data(self, flag);
 }
 
 } // namespace
@@ -1745,39 +1711,11 @@ int burrow_water_state(void *player)
     return mod::water_is_in_deep_water(wl, false) ? 1 : 0;
 }
 
-bool player_is_burrowing(void *player)
-{
-    if (player == nullptr)
-        return false;
-    const int cur = *reinterpret_cast<int *>(static_cast<char *>(player) + kPlayerStateCurOff);
-    return cur == kStateBurrow;
-}
-
 bool force_burrow_emerge(void *player)
 {
     if (player == nullptr || g_orig_burrow_jump == nullptr)
         return false;
     g_orig_burrow_jump(player); // the original, not the detour: this emerge is forced, not player-initiated
-    return true;
-}
-
-bool request_deep_water_fall(void *player)
-{
-    if (player == nullptr)
-        return false;
-    char *p = static_cast<char *>(player);
-    const int cur = *reinterpret_cast<int *>(p + kPlayerStateCurOff);
-    // Backstop for a caller that did not confirm the burrow state first: outside the dispatch table's range
-    // this is not the state field on this build, so leave the player alone.
-    if (cur < 0 || cur > kStateMax)
-    {
-        logf(LogLevel::Warn, "abilities: player state reads %d (out of range); deep-water fall not requested", cur);
-        return false;
-    }
-    if (cur == kStateDeepWaterFall)
-        return true; // already falling
-    *reinterpret_cast<int *>(p + kPlayerStateReqOff) = kStateDeepWaterFall;
-    *reinterpret_cast<std::uint8_t *>(p + kPlayerStatePendOff) = 1; // the game writes this as a byte
     return true;
 }
 
@@ -1791,16 +1729,6 @@ void enforce_train_presence(std::uintptr_t save_manager_global, bool blocked)
     *reinterpret_cast<char *>(static_cast<char *>(slot) + kSaveTrainPresentOff) = 0;
 }
 
-void enforce_train_destinations(std::uintptr_t save_manager_global, std::uint32_t line_mask)
-{
-    void *slot = active_save_slot(save_manager_global);
-    if (slot == nullptr)
-        return;
-    // Unlocked-lines bitfield is a byte at +0x1e0 (5 low bits); the footfall unlock only ORs bits in, so
-    // writing the granted mask each frame clears any line the game auto-unlocked on a station visit.
-    *reinterpret_cast<std::uint8_t *>(static_cast<char *>(slot) + kSaveTrainUnlockedLinesOff) = static_cast<std::uint8_t>(line_mask & 0xffu);
-}
-
 void enforce_train_boarding(std::uintptr_t save_manager_global)
 {
     void *slot = active_save_slot(save_manager_global);
@@ -1812,127 +1740,10 @@ void enforce_train_boarding(std::uintptr_t save_manager_global)
         *reinterpret_cast<char *>(static_cast<char *>(slot) + kSaveTrainPresentOff) = 0;
 }
 
-void clear_starter_weapon_swap(std::uintptr_t save_manager_global, bool authed, bool slot_ok)
-{
-    static bool logged = false;
-    void *slot = active_save_slot(save_manager_global);
-    if (slot == nullptr)
-        return;
-    auto &type = *reinterpret_cast<int *>(static_cast<char *>(slot) + mth::layout::kSaveStarterWeaponTypeOff);
-    if (!mth::tables::should_clear_starter_swap(authed, slot_ok, type))
-        return;
-    const int prev = type;
-    type = -1;
-    // A save load re-seeds the field, so this can fire more than once per session; only the first is Info.
-    const LogLevel level = logged ? LogLevel::Debug : LogLevel::Info;
-    logged = true;
-    logf(level, "starter: cleared weapon swap (was type=%d); belowdecks weapon stands restored to vanilla slots", prev);
-}
-
-void enforce_weapon_ownership(std::uintptr_t save_manager_global, const std::uint32_t *authorized, bool authed, bool slot_ok)
-{
-    static bool logged[mth::kWeaponFamilyCount] = {}; // per family: Info on the first correction, Debug on repeats
-    static bool warned = false;
-    static bool layout_ok = true;
-    if (!layout_ok)
-        return; // an implausible read already disabled the clamp for the rest of the process
-    if (!authed || !slot_ok || authorized == nullptr)
-        return; // durable and destructive: bound AP save only (slot_ok alone is true while offline)
-    void *slot = active_save_slot(save_manager_global);
-    if (slot == nullptr)
-        return;
-    auto *owned = reinterpret_cast<std::uint32_t *>(static_cast<char *>(slot) + mth::layout::kSaveWeaponOwnedBitsOff);
-    auto *active = reinterpret_cast<int *>(static_cast<char *>(slot) + mth::layout::kSaveWeaponActiveTierOff);
-
-    std::uint32_t authorized_any = 0;
-    std::uint32_t owned_any = 0;
-    for (int fam = 0; fam < mth::kWeaponFamilyCount; ++fam)
-    {
-        // Every family is checked before the first write: the clamp rewrites all 40 bytes of the pair each tick (see weapon_fields_in_domain).
-        if (!mth::tables::weapon_fields_in_domain(owned[fam], active[fam]))
-        {
-            layout_ok = false;
-            logf(LogLevel::Error,
-                 "weapons: family=%d owned=0x%x tier=%d outside the tier domain (mask 0x%x, tier 0..%d); offsets may have shifted, weapon writes DISABLED", fam,
-                 owned[fam], active[fam], mth::layout::kWeaponTierBits, std::bit_width(mth::layout::kWeaponTierBits) - 1);
-            return;
-        }
-        authorized_any |= authorized[fam];
-        owned_any |= owned[fam] & mth::layout::kWeaponTierBits;
-    }
-    if (!mth::tables::weapon_clamp_ready(authorized_any, owned_any))
-    {
-        if (!warned)
-            logf(LogLevel::Warn, "weapons: save owns 0x%x but AP has granted nothing yet; ownership clamp skipped until the receipts load", owned_any);
-        warned = true;
-        return;
-    }
-    warned = false;
-
-    for (int fam = 0; fam < mth::kWeaponFamilyCount; ++fam)
-    {
-        const std::uint32_t cur = owned[fam];
-        const std::uint32_t want = authorized[fam];
-        const int want_tier = mth::tables::weapon_active_bit(want);
-        if ((cur & mth::layout::kWeaponTierBits) == want && active[fam] == want_tier)
-            continue; // the common case is a pure read
-        const LogLevel level = logged[fam] ? LogLevel::Debug : LogLevel::Info;
-        logged[fam] = true;
-        logf(level, "weapons: family=%d owned 0x%x -> 0x%x, tier %d -> %d (clamped to the AP grants)", fam, cur & mth::layout::kWeaponTierBits, want,
-             active[fam], want_tier);
-        owned[fam] = (cur & ~mth::layout::kWeaponTierBits) | want; // anything outside the three tier bits is not ours
-        active[fam] = want_tier;
-    }
-}
-
-void seed_ticket_machine_progress(std::uintptr_t save_manager_global, std::uint32_t seed)
-{
-    if (seed == 0)
-        return;
-    void *slot = active_save_slot(save_manager_global);
-    if (slot == nullptr)
-        return;
-    // Raise only: a player already past the seed keeps their own progress, and re-running this each tick
-    // must not undo a deposit in flight.
-    auto *progress = reinterpret_cast<std::uint32_t *>(static_cast<char *>(slot) + kSaveTicketProgressOff);
-    if (*progress < seed)
-        *progress = seed;
-}
-
 void set_train_destination_gate(std::uint32_t granted_mask, bool rando_active)
 {
     g_train_granted_mask = granted_mask;
     g_train_rando_gate = rando_active;
-}
-
-bool install_save_request_hook(SaveRequestedFn on_save)
-{
-    g_save_request_fn = std::move(on_save);
-    const std::uintptr_t addr = resolve_game_symbol(mth::sym::save_manager_write_save_data);
-    if (addr == 0)
-    {
-        logf(LogLevel::Warn, "takeover: SaveManager::WriteSaveData not resolved; mod saves will not flush");
-        g_save_request_fn = nullptr;
-        return false;
-    }
-    g_save_request_hook = hook_engine().install_hook(reinterpret_cast<void *>(addr), reinterpret_cast<void *>(&repl_write_save_data),
-                                                     reinterpret_cast<void **>(&g_orig_write_save_data));
-    if (g_save_request_hook == kInvalidHookId)
-    {
-        logf(LogLevel::Error, "takeover: failed to hook SaveManager::WriteSaveData");
-        g_save_request_fn = nullptr;
-        return false;
-    }
-    logf(LogLevel::Info, "takeover: hooked SaveManager::WriteSaveData (id=%llu)", static_cast<unsigned long long>(g_save_request_hook));
-    return true;
-}
-
-void remove_save_request_hook()
-{
-    if (g_save_request_hook != kInvalidHookId)
-        hook_engine().remove_hook(g_save_request_hook);
-    g_save_request_hook = kInvalidHookId;
-    g_save_request_fn = nullptr;
 }
 
 // Resolved on first use rather than eagerly: on Windows each resolve is a full .text signature scan,
@@ -1982,11 +1793,6 @@ bool init_new_save_file(unsigned int slot)
     clear_fn(file_slot, false);
     init_fn(file_slot);
     return true;
-}
-
-std::filesystem::path mod_save_dir()
-{
-    return pal::log_dir() / "saves";
 }
 
 } // namespace pal

@@ -62,6 +62,16 @@ list(APPEND _mthap_pal_sources shop_palette.cpp)
 # is vtable-checked, so a build that moves them is rejected instead of trusted.
 list(APPEND _mthap_pal_sources boneup_desc.cpp)
 
+# Burrow state-machine reads - the Player struct is identical on both platforms, so one TU.
+list(APPEND _mthap_pal_sources game_burrow.cpp)
+
+# SaveSlot enforcement reached through pal::active_save_slot, which is where the per-platform
+# save-manager deref lives; the offsets past it match, so one TU.
+list(APPEND _mthap_pal_sources game_train.cpp)
+
+# Mod-save flush trigger - symbol-resolved through the PAL, no platform data, so one TU.
+list(APPEND _mthap_pal_sources game_save_takeover.cpp)
+
 add_library(mthap_pal OBJECT ${_mthap_pal_sources})
 
 target_include_directories(mthap_pal PUBLIC "${CMAKE_SOURCE_DIR}/src")
