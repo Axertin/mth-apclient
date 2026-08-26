@@ -48,7 +48,7 @@ class ICommandSink
     [[nodiscard]] virtual std::vector<std::string> status_lines() const = 0;
     [[nodiscard]] virtual std::vector<std::string> item_lines() const = 0;
     [[nodiscard]] virtual GateStatus gate_status() const = 0;
-    virtual void set_gate_enforcing(bool on) = 0; // dev toggle: make the gate's verdict actually block AP behavior
+    virtual void set_gate_enforcing(bool on) = 0; // dev override: enforcement is on by default, so `off` is the escape hatch
 
     virtual void give_item(std::int64_t ap_item_id) = 0;                       // manual test path; bypasses dedup
     virtual void remove_lock(int slot) = 0;                                    // pre-open/remove a KeyBlock by slot (AP runtime path)

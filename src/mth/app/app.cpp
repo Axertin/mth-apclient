@@ -110,11 +110,12 @@ App::App() : bundle_store_(pal::mod_save_dir(), {pal::log_dir(), pal::mod_save_d
     // hook engine; the item-table probes must precede tables::repurpose_dummy_item(), which the
     // feature installers call later and which would otherwise have us validating our own write.
     gate_inputs_ = run_static_gate_probes(game_rev);
-    // OBSERVE-ONLY for now: the verdict is computed, logged and shown, but does not block AP
-    // behavior until it is switched on with `gate enforce on`. A wrong probe must not brick the
-    // mod before the probes have been confirmed against real game builds.
+    // A refusal blocks connecting. Every probe here is a static property of the loaded binary, so
+    // a refusal is settled before any connect is possible; `gate enforce off` is the escape hatch
+    // for the case where a probe is what broke rather than the game.
     gate_tick();
-    pal::logf(pal::LogLevel::Info, "gate: verdict=%s enforcing=0 (console: `gate enforce on`)", verdict_name(gate_verdict_.load()));
+    pal::logf(pal::LogLevel::Info, "gate: verdict=%s enforcing=%d (console: `gate enforce off` to override)", verdict_name(gate_verdict_.load()),
+              gate_enforcing_.load() ? 1 : 0);
 
     net_ = std::make_unique<ApSession>(
         state_,
@@ -352,7 +353,15 @@ void App::gate_tick()
     {
         pal::logf(pal::LogLevel::Error, "gate: REFUSED - %s", reason.c_str());
         if (!gate_enforcing_.load())
-            pal::logf(pal::LogLevel::Warn, "gate: observe-only, so AP behavior is NOT being blocked; run `gate enforce on` to enforce");
+            pal::logf(pal::LogLevel::Warn, "gate: enforcement is off, so AP behavior is NOT being blocked; run `gate enforce on` to enforce");
+        else if (net_)
+        {
+            // Liveness is the one input that can settle after connect() already allowed a session
+            // through, so the refusal has to reach back and drop it. net_ is still null under the
+            // ctor's first gate_tick(), which is why this is guarded.
+            pal::logf(pal::LogLevel::Error, "gate: dropping the AP session that was opened before the verdict settled");
+            net_->link().disconnect();
+        }
     }
     else if (after == GateVerdict::Clear)
     {
@@ -445,7 +454,7 @@ void App::reconcile_server_checked()
 
 void App::connect(const std::string &server, const std::string &slot, const std::string &password)
 {
-    if (gate_enforcing_.load() && gate_verdict_.load() == GateVerdict::Refused)
+    if (should_refuse_connect(gate_enforcing_.load(), gate_verdict_.load()))
     {
         std::string reason;
         {

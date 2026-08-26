@@ -177,7 +177,7 @@ void DevConsole::run_input()
         println("          ability <name> on|off  (names: burrow swim rope puff spring carry train)");
         println("          deathlink on|off  (enable/disable deathlink, must also be enabled in yaml)");
         println("          litlamps <0..5 ...>|off  (force Ossex fountain lamps lit; offline test)");
-        println("          gate [enforce on|off]  (AP safety gate verdict; enforce blocks AP when refused)");
+        println("          gate [enforce on|off]  (AP safety gate; enforced by default, blocks connecting when refused)");
         println("          savetest dump|write|noflush|flush  (save-takeover validation; dev only)");
         break;
     case CommandKind::Clear:

@@ -48,6 +48,8 @@ void LoginWindow::draw(bool login_open)
     ImGui::InputText("Password", password_.data(), password_.size(), ImGuiInputTextFlags_Password);
 
     const ConnectionStatus status = sink_.connection_status();
+    const GateStatus gate = sink_.gate_status();
+    const bool gate_blocks = should_refuse_connect(gate.enforcing, gate.verdict);
     switch (status.phase)
     {
     case ConnectionPhase::Connecting:
@@ -61,8 +63,12 @@ void LoginWindow::draw(bool login_open)
         break;
     case ConnectionPhase::Disconnected:
     case ConnectionPhase::Error:
+        // The sink refuses the call regardless; disabling the button is what makes that visible
+        // here, since a gate refusal never reaches ApState and so never becomes an Error phase.
+        ImGui::BeginDisabled(gate_blocks);
         if (ImGui::Button("Connect"))
             sink_.connect(server_.data(), slot_.data(), password_.data());
+        ImGui::EndDisabled();
         break;
     }
 
@@ -82,6 +88,9 @@ void LoginWindow::draw(bool login_open)
         ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.4f, 1.0f), "Error: %s", status.detail.c_str());
         break;
     }
+
+    if (gate_blocks)
+        ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.4f, 1.0f), "Archipelago disabled: %s", gate.reason.c_str());
 
     ImGui::End();
 }

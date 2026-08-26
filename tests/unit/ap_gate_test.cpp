@@ -183,3 +183,38 @@ TEST_CASE("gate: mod_api_shape_ok is informational and never moves the verdict",
     pending.mod_api_shape_ok = false;
     REQUIRE(mth::evaluate(pending) == mth::GateVerdict::Pending);
 }
+
+TEST_CASE("gate: connect is refused only when enforcing and refused", "[gate]")
+{
+    REQUIRE(mth::should_refuse_connect(true, mth::GateVerdict::Refused));
+    REQUIRE_FALSE(mth::should_refuse_connect(true, mth::GateVerdict::Clear));
+    REQUIRE_FALSE(mth::should_refuse_connect(false, mth::GateVerdict::Refused));
+    REQUIRE_FALSE(mth::should_refuse_connect(false, mth::GateVerdict::Clear));
+}
+
+TEST_CASE("gate: Pending does not block connect", "[gate]")
+{
+    // The liveness proof cannot arrive before the game runs, so holding connects until it does
+    // would strand a launch-time login behind a 600-tick wait for no diagnostic gain.
+    REQUIRE_FALSE(mth::should_refuse_connect(true, mth::GateVerdict::Pending));
+    REQUIRE(mth::evaluate(healthy_pending()) == mth::GateVerdict::Pending);
+}
+
+TEST_CASE("gate: a static failure refuses connect before liveness is ever considered", "[gate]")
+{
+    mth::GateInputs in = healthy_pending();
+    in.symbols_resolved = false;
+    const mth::GateVerdict v = mth::evaluate(in);
+    REQUIRE(v == mth::GateVerdict::Refused);
+    REQUIRE(mth::should_refuse_connect(true, v));
+}
+
+TEST_CASE("gate: liveness expiry refuses connect after the Pending window closes", "[gate]")
+{
+    mth::GateInputs in = healthy_pending();
+    mth::GateLatch latch;
+    REQUIRE_FALSE(mth::should_refuse_connect(true, latch.update(in)));
+
+    in.ticks_since_probe_installed = mth::kLivenessTimeoutTicks;
+    REQUIRE(mth::should_refuse_connect(true, latch.update(in)));
+}

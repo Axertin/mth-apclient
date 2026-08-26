@@ -38,6 +38,12 @@ inline constexpr int kLivenessTimeoutTicks = 600;
 // Empty unless refused. Names the first failing input, so the banner alone is diagnosable.
 [[nodiscard]] std::string refusal_reason(const GateInputs &in);
 
+// The connect chokepoint's rule, kept out of App so it is testable: the test lane cannot compile
+// app.cpp without dragging in the whole PAL. Pending deliberately passes. The only input still
+// outstanding by then is the WorldUpdate liveness proof, which cannot fire until the game is
+// running, and every static probe that predicts it has already passed.
+[[nodiscard]] bool should_refuse_connect(bool enforcing, GateVerdict v);
+
 // Terminal: once the verdict leaves Pending it never changes, so a late input cannot re-arm AP
 // behavior that was already refused.
 class GateLatch

@@ -132,7 +132,7 @@ class App : public ICommandSink
     GateInputs gate_inputs_;
     GateLatch gate_latch_;
     std::atomic<GateVerdict> gate_verdict_{GateVerdict::Pending};
-    std::atomic<bool> gate_enforcing_{false};
+    std::atomic<bool> gate_enforcing_{true}; // `gate enforce off` is the escape hatch
     mutable std::mutex gate_reason_mutex_;
     std::string gate_reason_;
     void gate_tick(); // game thread: advance the liveness deadline, latch, log transitions

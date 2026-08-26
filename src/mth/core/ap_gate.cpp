@@ -60,6 +60,11 @@ std::string refusal_reason(const GateInputs &in)
     return std::string();
 }
 
+bool should_refuse_connect(bool enforcing, GateVerdict v)
+{
+    return enforcing && v == GateVerdict::Refused;
+}
+
 GateVerdict GateLatch::update(const GateInputs &in)
 {
     if (settled())
