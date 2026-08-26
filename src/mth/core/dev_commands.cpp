@@ -50,6 +50,8 @@ CommandKind verb_to_kind(const std::string &lower)
         return CommandKind::LitLamps;
     if (lower == "savetest")
         return CommandKind::SaveTest;
+    if (lower == "trap")
+        return CommandKind::Trap;
     return CommandKind::Unknown;
 }
 

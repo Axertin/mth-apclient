@@ -59,6 +59,9 @@ class ICommandSink
     virtual void enable_deathlink(bool on) = 0;                                // enable/disable deathlink
     virtual void set_lit_lamps(std::uint32_t lamp_mask) = 0;                   // offline test: force Ossex fountain lamps lit (bit i = lamp i)
     virtual void save_test(const std::string &op) = 0;                         // save-takeover validation; dev only
+    // offline test: queue one AP trap for the next game tick. seconds <= 0 uses the trap table's own
+    // duration, and the outcome goes to the log rather than coming back here.
+    virtual void fire_trap(int modifier_index, float seconds) = 0;
 };
 
 } // namespace mth

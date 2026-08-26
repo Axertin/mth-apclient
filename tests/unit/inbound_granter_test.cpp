@@ -9,6 +9,7 @@
 #include "mth/core/inbound_granter.hpp"
 #include "mth/core/item_granter_interface.hpp"
 #include "mth/core/rando_bridge.hpp"
+#include "mth/core/trap_state.hpp"
 
 namespace
 {
@@ -226,10 +227,11 @@ TEST_CASE("InboundGranter skips categories it cannot grant", "[inbound]")
 
     state.apply(recv(mth::kProgStatCapBase + 0, 0));   // stat-cap: StatCapState's job -> skipped
     state.apply(recv(mth::kKearBlockItemBase + 1, 1)); // lock removal -> skipped
-    state.apply(recv(mth::kTrapItemBase + 7, 2));      // reserved, no handler -> skipped
+    state.apply(recv(mth::kTrapItemBase + 7, 2));      // trap segment, but modifier 7 is not a trap -> consumed
     state.apply(recv(mth::ap_item_id(9), 3));          // vanilla item -> granted
     inbound.tick();
     REQUIRE(granter.granted == std::vector<int>{9});
+    REQUIRE(save.is_granted(2)); // Unavailable consumes the receipt rather than retrying it forever
 
     std::filesystem::remove(path);
 }
@@ -489,6 +491,120 @@ TEST_CASE("InboundGranter teardown does not disarm a successor's applied sink", 
     REQUIRE(granter.granted == std::vector<int>{5});
     granter.apply_queued();
     REQUIRE(save.is_granted(0)); // false if the teardown wiped the live sink
+
+    std::filesystem::remove(path);
+}
+
+TEST_CASE("InboundGranter arms a trap and marks it granted", "[inbound][trap]")
+{
+    const auto path = std::filesystem::temp_directory_path() / "mthap_inbound_trap.txt";
+    std::filesystem::remove(path);
+
+    mth::ApState state;
+    mth::ApSaveState save(path);
+    FakeGranter granter;
+    std::vector<int> armed;
+    mth::InboundGranter inbound(granter, state, save, {},
+                                [&armed](int idx)
+                                {
+                                    armed.push_back(idx);
+                                    return mth::TrapArm::Armed;
+                                });
+
+    state.apply(recv(mth::kTrapItemBase + 204, 0)); // Mirror Mode
+    inbound.tick();
+    REQUIRE(armed == std::vector<int>{204});
+    REQUIRE(save.is_granted(0));
+
+    inbound.tick(); // already granted: must not arm a second time
+    REQUIRE(armed == std::vector<int>{204});
+
+    std::filesystem::remove(path);
+}
+
+TEST_CASE("InboundGranter retries a trap that is not ready yet", "[inbound][trap]")
+{
+    const auto path = std::filesystem::temp_directory_path() / "mthap_inbound_trap_retry.txt";
+    std::filesystem::remove(path);
+
+    mth::ApState state;
+    mth::ApSaveState save(path);
+    FakeGranter granter;
+    int calls = 0;
+    mth::TrapArm result = mth::TrapArm::NotReady;
+    mth::InboundGranter inbound(granter, state, save, {},
+                                [&](int)
+                                {
+                                    ++calls;
+                                    return result;
+                                });
+
+    state.apply(recv(mth::kTrapItemBase + 204, 0));
+    inbound.tick();
+    REQUIRE(calls == 1);
+    REQUIRE_FALSE(save.is_granted(0)); // not ready: nothing is marked, so the receipt survives
+
+    result = mth::TrapArm::Armed;
+    inbound.tick();
+    REQUIRE(calls == 2);
+    REQUIRE(save.is_granted(0));
+
+    std::filesystem::remove(path);
+}
+
+TEST_CASE("InboundGranter consumes a trap the player already enabled", "[inbound][trap]")
+{
+    const auto path = std::filesystem::temp_directory_path() / "mthap_inbound_trap_skip.txt";
+    std::filesystem::remove(path);
+
+    mth::ApState state;
+    mth::ApSaveState save(path);
+    FakeGranter granter;
+    mth::InboundGranter inbound(granter, state, save, {}, [](int) { return mth::TrapArm::Skipped; });
+
+    state.apply(recv(mth::kTrapItemBase + 204, 0));
+    inbound.tick();
+    REQUIRE(save.is_granted(0)); // consumed, not retried forever
+
+    std::filesystem::remove(path);
+}
+
+TEST_CASE("InboundGranter does not block later items on a trap", "[inbound][trap]")
+{
+    const auto path = std::filesystem::temp_directory_path() / "mthap_inbound_trap_order.txt";
+    std::filesystem::remove(path);
+
+    mth::ApState state;
+    mth::ApSaveState save(path);
+    FakeGranter granter;
+    mth::InboundGranter inbound(granter, state, save, {}, [](int) { return mth::TrapArm::Armed; });
+
+    state.apply(recv(mth::kTrapItemBase + 204, 0));
+    state.apply(recv(mth::ap_item_id(9), 1));
+    inbound.tick();
+    REQUIRE(granter.granted == std::vector<int>{9});
+
+    std::filesystem::remove(path);
+}
+
+// A trap stuck on NotReady must not hold up every receipt behind it. An Armed trap (the case above)
+// reaches the same continue either way, so it cannot tell break from continue; only a trap that
+// stays NotReady for the whole tick can.
+TEST_CASE("InboundGranter does not block a later item on a trap that is not ready", "[inbound][trap]")
+{
+    const auto path = std::filesystem::temp_directory_path() / "mthap_inbound_trap_notready_order.txt";
+    std::filesystem::remove(path);
+
+    mth::ApState state;
+    mth::ApSaveState save(path);
+    FakeGranter granter;
+    mth::InboundGranter inbound(granter, state, save, {}, [](int) { return mth::TrapArm::NotReady; });
+
+    state.apply(recv(mth::kTrapItemBase + 204, 0));
+    state.apply(recv(mth::ap_item_id(9), 1));
+    inbound.tick();
+    REQUIRE(granter.granted == std::vector<int>{9}); // the stalled trap does not hold up the item behind it
+    REQUIRE_FALSE(save.is_granted(0));               // trap receipt stays unmarked and retries next tick
 
     std::filesystem::remove(path);
 }

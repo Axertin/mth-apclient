@@ -43,6 +43,11 @@ void note_chest(void *chest)
 {
     g_constructed_chest = chest;
 }
+float g_fixed_update_delta = -1.0f;
+void note_fixed_update_delta(float elapsed)
+{
+    g_fixed_update_delta = elapsed;
+}
 
 // Restores the process-wide range on scope exit so a failing REQUIRE mid-test cannot leave it
 // stuck at a value that would make every later test's usable() reject the fake api's pointers.
@@ -607,6 +612,44 @@ TEST_CASE("mod: ChestConstruct hands the callback the ctx's Chest", "[mod]")
     mod::set_api(nullptr);
 }
 
+TEST_CASE("mod: FixedUpdate hands the callback the ctx's elapsed", "[mod]")
+{
+    mth::test::recorder().reset();
+    mod::set_api(nullptr);
+    REQUIRE_FALSE(mod::set_fixed_update_delta_hook(&note_fixed_update_delta)); // no API: nothing armed
+
+    auto fake = mth::test::make_fake_api();
+    mod::set_api(&fake);
+    REQUIRE(mod::set_fixed_update_delta_hook(&note_fixed_update_delta));
+    REQUIRE(mth::test::recorder().hooks.count("FixedUpdate") == 1);
+
+    // Installed but never dispatched: the state that means no delta would ever reach a trap timer.
+    const auto unfired = mod::unfired_hooks();
+    REQUIRE(std::find(unfired.begin(), unfired.end(), std::string("FixedUpdate")) != unfired.end());
+
+    FixedUpdateCtx ctx{};
+    ctx.elapsed = 1.0f / 60.0f;
+    g_fixed_update_delta = -1.0f;
+    mth::test::recorder().fire("FixedUpdate", &ctx);
+    REQUIRE(g_fixed_update_delta == ctx.elapsed);
+
+    const auto after = mod::unfired_hooks();
+    REQUIRE(std::find(after.begin(), after.end(), std::string("FixedUpdate")) == after.end());
+
+    // A null ctx is tolerated: pins the trampoline's own guard rather than proving new behavior.
+    g_fixed_update_delta = -1.0f;
+    mth::test::recorder().fire("FixedUpdate", nullptr);
+    REQUIRE(g_fixed_update_delta == -1.0f);
+
+    // Re-arming with no callback happens once a caller decides it no longer wants the delta.
+    REQUIRE(mod::set_fixed_update_delta_hook(nullptr));
+    g_fixed_update_delta = -1.0f;
+    mth::test::recorder().fire("FixedUpdate", &ctx);
+    REQUIRE(g_fixed_update_delta == -1.0f);
+
+    mod::set_api(nullptr);
+}
+
 TEST_CASE("mod: weak pointers need no revision gate and report a dead target", "[mod]")
 {
     TextRangeGuard guard;
@@ -725,4 +768,58 @@ TEST_CASE("mod: set_item_collected and set_text_color refuse bad arguments", "[m
     REQUIRE(mth::test::recorder().collected_calls == 0);
     REQUIRE(mth::test::recorder().text_color_calls == 0);
     mod::set_api(nullptr);
+}
+
+TEST_CASE("cheat_manager_is_cheat_applied: out-of-range indices are rejected before reaching the fake", "[mod_api][trap]")
+{
+    TextRangeGuard guard;
+    mth::test::recorder().reset();
+    auto fake = mth::test::make_fake_api();
+    mod::set_api(&fake);
+    pal::set_game_text_range(pal::TextRange{reinterpret_cast<std::uintptr_t>(&fake_text_anchor) - 0x100000, 0x200000});
+
+    mth::test::recorder().revision = 200000;
+    mth::test::recorder().cheat_manager_is_cheat_applied_result = true;
+
+    // Out-of-range indices are rejected by the guard without reaching the fake.
+    REQUIRE_FALSE(mod::cheat_manager_is_cheat_applied(-1));
+    REQUIRE(mth::test::recorder().cheat_manager_is_cheat_applied_calls == 0);
+
+    REQUIRE_FALSE(mod::cheat_manager_is_cheat_applied(0xfe));
+    REQUIRE(mth::test::recorder().cheat_manager_is_cheat_applied_calls == 0);
+
+    mod::set_api(nullptr);
+}
+
+TEST_CASE("cheat_manager_is_cheat_applied: in-range indices reach the fake and return its value", "[mod_api][trap]")
+{
+    TextRangeGuard guard;
+    mth::test::recorder().reset();
+    auto fake = mth::test::make_fake_api();
+    mod::set_api(&fake);
+    pal::set_game_text_range(pal::TextRange{reinterpret_cast<std::uintptr_t>(&fake_text_anchor) - 0x100000, 0x200000});
+
+    mth::test::recorder().revision = 200000;
+    mth::test::recorder().cheat_manager_is_cheat_applied_result = true;
+
+    // In-range indices reach the fake.
+    REQUIRE(mod::cheat_manager_is_cheat_applied(0));
+    REQUIRE(mth::test::recorder().cheat_manager_is_cheat_applied_calls == 1);
+
+    REQUIRE(mod::cheat_manager_is_cheat_applied(0xfd));
+    REQUIRE(mth::test::recorder().cheat_manager_is_cheat_applied_calls == 2);
+
+    // The fake can report false.
+    mth::test::recorder().cheat_manager_is_cheat_applied_result = false;
+    REQUIRE_FALSE(mod::cheat_manager_is_cheat_applied(100));
+    REQUIRE(mth::test::recorder().cheat_manager_is_cheat_applied_calls == 3);
+
+    mod::set_api(nullptr);
+}
+
+TEST_CASE("cheat_manager_is_cheat_applied: unavailable API returns false", "[mod_api][trap]")
+{
+    mth::test::recorder().reset();
+    mod::set_api(nullptr);
+    REQUIRE_FALSE(mod::cheat_manager_is_cheat_applied(50));
 }

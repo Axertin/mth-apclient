@@ -90,8 +90,10 @@ struct ModApiRecorder
     int closest_layer = 0;
     float closest_max_dist = 0.0f;
     std::uint64_t closest_mask = 0;
-    void *closest_result = nullptr; // the carryable the fake reports, null for "nothing in range"
-    int update_stats_calls = 0;     // PlayerUpdateStats
+    void *closest_result = nullptr;               // the carryable the fake reports, null for "nothing in range"
+    int update_stats_calls = 0;                   // PlayerUpdateStats
+    int cheat_manager_is_cheat_applied_calls = 0; // CheatManagerIsCheatApplied
+    bool cheat_manager_is_cheat_applied_result = false;
 
     // WorldGetEntityList: the entries the fake serves per list name, and what it was asked for.
     std::unordered_map<std::string, std::vector<void *>> entity_lists;
@@ -175,6 +177,8 @@ struct ModApiRecorder
         closest_mask = 0;
         closest_result = nullptr;
         update_stats_calls = 0;
+        cheat_manager_is_cheat_applied_calls = 0;
+        cheat_manager_is_cheat_applied_result = false;
         entity_lists.clear();
         entity_list_asked.clear();
         entity_list_calls = 0;
@@ -326,6 +330,12 @@ inline void fake_player_update_stats()
     ++recorder().update_stats_calls;
 }
 
+inline bool fake_cheat_manager_is_cheat_applied(std::int32_t /*cheat*/, std::uint32_t /*save_slot*/)
+{
+    ++recorder().cheat_manager_is_cheat_applied_calls;
+    return recorder().cheat_manager_is_cheat_applied_result;
+}
+
 // Mirrors the real contract: the total count comes back even when the buffer is too small, and a
 // null/0 buffer is the sizing call.
 inline std::size_t fake_world_entity_list(World * /*world*/, const char *list, GameComponent **out, std::size_t cap)
@@ -456,6 +466,7 @@ inline MinaModAPI make_fake_api()
     mm.PhysicsComponentGetAABB = &fake_physics_get_aabb;
     mm.CarryManagerGetClosestCarryableObject = &fake_closest_carryable;
     mm.PlayerUpdateStats = &fake_player_update_stats;
+    mm.CheatManagerIsCheatApplied = &fake_cheat_manager_is_cheat_applied;
     mm.WorldGetEntityList = &fake_world_entity_list;
     mm.CreateWeakPtr = &fake_create_weak_ptr;
     mm.WeakPtrGet = &fake_weak_ptr_get;

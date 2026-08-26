@@ -37,8 +37,10 @@ add_library(mthap_core STATIC
     core/lock_registry.cpp
     core/modifier_config.cpp
     core/data/modifier_table.cpp
+    core/data/trap_table.cpp
     core/stat_cap_state.cpp
     core/title_menu.cpp
+    core/trap_state.cpp
     core/upgrade_state.cpp
     core/wallet_cap_state.cpp
     core/area_reporter.cpp
@@ -49,7 +51,7 @@ add_library(mthap_core STATIC
 )
 
 target_include_directories(mthap_core PUBLIC "${CMAKE_SOURCE_DIR}/src")
-target_link_libraries(mthap_core PUBLIC nlohmann_json::nlohmann_json ZLIB::ZLIB Threads::Threads)
+target_link_libraries(mthap_core PUBLIC nlohmann_json::nlohmann_json ZLIB::ZLIB Threads::Threads mthap::minamodapi)
 target_compile_features(mthap_core PUBLIC cxx_std_23)
 set_target_properties(mthap_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
@@ -117,6 +119,7 @@ if(NOT MTHAP_BUILD_TESTS_ONLY)
         features/sewer_cat_gate.cpp
         features/intro_chest_gate.cpp
         features/modifier_hooks.cpp
+        features/trap_hooks.cpp
         features/levelcap_hooks.cpp
         features/status_menu_caps.cpp
         features/fountain_lamp_hooks.cpp

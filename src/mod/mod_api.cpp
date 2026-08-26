@@ -78,12 +78,13 @@ enum HookId
     kHookWorldUpdateEnd,
     kHookKeyboardUpdate,
     kHookControllerUpdate,
+    kHookFixedUpdate,
     kHookCount,
 };
 
 constexpr const char *kHookNames[kHookCount] = {
-    "IsItemCollected", "WorldUpdate",        "WorldDestroy",   "ItemsOnPickup",  "ItemsOnPickupDone", "PickupOnPickup",
-    "ShopItemRefresh", "AreaManagerNewArea", "ChestConstruct", "WorldUpdateEnd", "ycKeyboardUpdate",  "ycControllerUpdate",
+    "IsItemCollected",    "WorldUpdate",    "WorldDestroy",   "ItemsOnPickup",    "ItemsOnPickupDone",  "PickupOnPickup", "ShopItemRefresh",
+    "AreaManagerNewArea", "ChestConstruct", "WorldUpdateEnd", "ycKeyboardUpdate", "ycControllerUpdate", "FixedUpdate",
 };
 
 std::atomic<bool> g_hook_fired[kHookCount];
@@ -258,6 +259,23 @@ void chest_construct_trampoline(void *pctx)
     // The ctx carries the real Chest*, so no per-platform subobject fixup is needed here.
     if (g_chest_construct_cb != nullptr && c != nullptr && c->chest != nullptr)
         g_chest_construct_cb(static_cast<void *>(c->chest));
+}
+
+// Mirrors MinaModHooks.h. The named hook fires at the top of Game::FixedUpdate and is the only
+// supply of the engine's own frame delta; the function itself takes void, so the detour cannot see it.
+struct FixedUpdateCtx
+{
+    float elapsed;
+};
+
+mod::FixedUpdateDeltaFn g_fixed_update_delta_cb = nullptr;
+
+void fixed_update_trampoline(void *pctx)
+{
+    note_fired(kHookFixedUpdate);
+    auto *c = static_cast<FixedUpdateCtx *>(pctx);
+    if (g_fixed_update_delta_cb != nullptr && c != nullptr)
+        g_fixed_update_delta_cb(c->elapsed);
 }
 
 } // namespace
@@ -722,6 +740,17 @@ bool install_chest_construct_hook(ChestConstructFn on_construct)
     return true;
 }
 
+bool set_fixed_update_delta_hook(FixedUpdateDeltaFn cb)
+{
+    g_fixed_update_delta_cb = cb;
+    if (install_named(kHookFixedUpdate, &fixed_update_trampoline) == nullptr)
+    {
+        pal::logf(pal::LogLevel::Warn, "mod hook: FixedUpdate unavailable; frame delta falls back to a fixed tick estimate");
+        return false;
+    }
+    return true;
+}
+
 void remove_named(HookId id)
 {
     if (g_hook_handles[id] != nullptr && g_mod_api != nullptr && usable(g_mod_api->RemoveHook))
@@ -1025,6 +1054,15 @@ bool cheat_manager_set_cheat_applied(int cheat, bool active)
         return false;
     g_mod_api->CheatManagerSetCheatApplied(cheat, active, static_cast<std::uint32_t>(-1));
     return true;
+}
+
+bool cheat_manager_is_cheat_applied(int cheat)
+{
+    if (cheat < 0 || cheat > 0xfd)
+        return false;
+    if (!appended_api_possible() || g_mod_api == nullptr || !usable_appended(g_mod_api->CheatManagerIsCheatApplied))
+        return false;
+    return g_mod_api->CheatManagerIsCheatApplied(cheat, static_cast<std::uint32_t>(-1));
 }
 
 void set_save_write_enabled(bool on)

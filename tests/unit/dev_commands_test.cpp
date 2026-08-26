@@ -106,3 +106,22 @@ TEST_CASE("savetest verb parses case-insensitively", "[commands]")
     REQUIRE(mth::parse_command("SAVETEST launch").kind == mth::CommandKind::SaveTest);
     REQUIRE(mth::parse_command("savetest dump").args.at(0) == "dump");
 }
+
+TEST_CASE("parse_command: trap verb", "[dev_commands][trap]")
+{
+    const auto c = mth::parse_command("trap 204");
+    REQUIRE(c.kind == mth::CommandKind::Trap);
+    REQUIRE(c.args == std::vector<std::string>{"204"});
+}
+
+TEST_CASE("parse_command: trap verb with an explicit duration", "[dev_commands][trap]")
+{
+    const auto c = mth::parse_command("trap 204 5");
+    REQUIRE(c.kind == mth::CommandKind::Trap);
+    REQUIRE(c.args == std::vector<std::string>{"204", "5"});
+}
+
+TEST_CASE("parse_command: trap verb is case-insensitive", "[dev_commands][trap]")
+{
+    REQUIRE(mth::parse_command("TRAP 204").kind == mth::CommandKind::Trap);
+}

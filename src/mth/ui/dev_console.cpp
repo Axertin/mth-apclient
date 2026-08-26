@@ -172,6 +172,7 @@ void DevConsole::run_input()
         println("commands: help, clear, status, gate, items, connect <server> <slot> [pw], disconnect");
         println("          giveapitem <ap_item_id>, removelock <slot>");
         println("          modifier <idx> on|off, modifiers [lock|unlock]  (lock is the default in a session)");
+        println("          trap <idx> [seconds]    fire an AP trap by hand (offline test)");
         println("          caps <attack> <defense> <sidearm>  (per-stat level cap-ups; 0 = frozen)");
         println("          ability <name> on|off  (names: burrow swim rope puff spring carry train)");
         println("          deathlink on|off  (enable/disable deathlink, must also be enabled in yaml)");
@@ -365,6 +366,24 @@ void DevConsole::run_input()
         {
             sink_.save_test(cmd.args[0]);
             println("savetest " + cmd.args[0] + " issued; see log");
+        }
+        break;
+    case CommandKind::Trap:
+        if (cmd.args.empty())
+            println("usage: trap <modifier idx> [seconds]");
+        else
+        {
+            int idx = 0;
+            int secs = 0; // 0 means "use the trap table's duration"
+            if (!parse_num(cmd.args[0], idx))
+                println("trap: '" + cmd.args[0] + "' is not a number");
+            else if (cmd.args.size() > 1 && !parse_num(cmd.args[1], secs))
+                println("trap: '" + cmd.args[1] + "' is not a number");
+            else
+            {
+                sink_.fire_trap(idx, static_cast<float>(secs));
+                println("trap: modifier " + std::to_string(idx) + " queued for the next game tick (see the log for the result)");
+            }
         }
         break;
     case CommandKind::Unknown:

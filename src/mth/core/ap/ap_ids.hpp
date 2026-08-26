@@ -304,7 +304,20 @@ inline constexpr std::int64_t kKearBlockItemBase = 2000;    // kear-lock removal
 inline constexpr std::int64_t kAreaKearLockItemBase = 2500; // kear-lock removals (wired)
 inline constexpr std::int64_t kAbilityItemBase = 3000;      // ability gates (Ability enum; see ability_ids.hpp)
 inline constexpr std::int64_t kBlockerItemBase = 4000;      // reserved
-inline constexpr std::int64_t kTrapItemBase = 5000;         // reserved
+inline constexpr std::int64_t kTrapItemBase = 5000;         // modifier traps (kTrapItemBase + modifier index)
+inline constexpr std::int64_t kTrapSegmentWidth = 1000;
+
+// A trap id carries the modifier index it forces on. The segment is a full 1000 wide, so an id in
+// the tail decodes to an index with no trap behind it, and the table lookup rejects those.
+[[nodiscard]] inline constexpr bool is_trap_item(std::int64_t id) noexcept
+{
+    return id >= kTrapItemBase && id < kTrapItemBase + kTrapSegmentWidth;
+}
+
+[[nodiscard]] inline constexpr int trap_modifier_index(std::int64_t id) noexcept
+{
+    return static_cast<int>(id - kTrapItemBase); // valid only when is_trap_item()
+}
 
 // special Constants
 inline constexpr std::int64_t kMMFirstDoubleKearBlockID = 2304;

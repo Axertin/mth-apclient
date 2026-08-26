@@ -147,6 +147,14 @@ using ChestConstructFn = void (*)(void *chest);
 bool install_chest_construct_hook(ChestConstructFn on_construct);
 void remove_chest_construct_hook();
 
+// The engine's own frame delta, delivered from the top of Game::FixedUpdate. The mod also detours
+// that function for its post-original tick, and the two coexist: the hook cannot run the tick
+// (it fires before the original) and the detour cannot see the delta (the function takes void).
+// A true return only means InstallHook accepted the name. Firing is the only evidence it dispatches,
+// so a caller that needs certainty must observe its own callback.
+using FixedUpdateDeltaFn = void (*)(float elapsed);
+bool set_fixed_update_delta_hook(FixedUpdateDeltaFn cb);
+
 // Zeroes the engine's keyboard and controller state while set_input_suppressed(true) holds, via the
 // native "ycKeyboardUpdate" / "ycControllerUpdate" hooks. Both fire after the frame's raw input has been
 // gathered but before it is committed to the state every consumer reads, so a write here is what the
@@ -250,6 +258,11 @@ bool cheat_manager_activate_save_cheats();
 // ApplyBackerCheats (an unrelated write set) and a negative index silently no-ops game-side. The
 // entry does NOT null-check the slot, so the caller must know one is bound. False when unavailable.
 bool cheat_manager_set_cheat_applied(int cheat, bool active);
+
+// Whether the currently active save has that modifier enabled in its own mask. False also means
+// "unknown", because the entry is absent on older builds, and unknown is the safe direction: a trap
+// that arms over a modifier the player had chosen is a worse outcome than one that fails to skip.
+bool cheat_manager_is_cheat_applied(int cheat);
 
 // Kill the player via the native MinaModAPI PlayerDie (deathlink apply). Offset-free and cross-platform,
 // replacing the old Player::TriggerDeath sig detour. Returns false (no-op) if the modding API or PlayerDie
