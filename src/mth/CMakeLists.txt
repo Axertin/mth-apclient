@@ -37,8 +37,10 @@ add_library(mthap_core STATIC
     core/lock_registry.cpp
     core/modifier_config.cpp
     core/data/modifier_table.cpp
+    core/data/trap_table.cpp
     core/stat_cap_state.cpp
     core/title_menu.cpp
+    core/trap_state.cpp
     core/upgrade_state.cpp
     core/wallet_cap_state.cpp
     core/area_reporter.cpp
@@ -117,6 +119,7 @@ if(NOT MTHAP_BUILD_TESTS_ONLY)
         features/sewer_cat_gate.cpp
         features/intro_chest_gate.cpp
         features/modifier_hooks.cpp
+        features/trap_hooks.cpp
         features/levelcap_hooks.cpp
         features/status_menu_caps.cpp
         features/fountain_lamp_hooks.cpp

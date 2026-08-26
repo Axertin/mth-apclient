@@ -26,10 +26,10 @@ bool GrantPipeline::grant(int item_type)
     return granter_->grant(item_type, kNoReceipt);
 }
 
-void GrantPipeline::build_inbound(ApState &state, ApSaveState &save_state, std::function<bool()> credit_kear_key)
+void GrantPipeline::build_inbound(ApState &state, ApSaveState &save_state, std::function<bool()> credit_kear_key, std::function<TrapArm(int)> arm_trap)
 {
     inbound_.reset(); // release the old save reference before binding the new one
-    inbound_ = std::make_unique<InboundGranter>(*granter_, state, save_state, std::move(credit_kear_key));
+    inbound_ = std::make_unique<InboundGranter>(*granter_, state, save_state, std::move(credit_kear_key), std::move(arm_trap));
 }
 
 bool GrantPipeline::inbound_ready() const

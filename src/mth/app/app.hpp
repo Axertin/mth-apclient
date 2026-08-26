@@ -37,6 +37,7 @@ class PlayerTracker;
 class RoomTracker;
 class OverlayRoot;
 class GrantPipeline;
+class TrapHooks;
 
 // Composition root. Logger and hook engine are PAL globals; App owns everything else.
 // Implements ICommandSink unconditionally (the dev console is the only caller today,
@@ -113,6 +114,7 @@ class App : public ICommandSink
     std::unique_ptr<HookManager> hooks_;
     std::optional<ApSaveState> save_state_;
     std::unique_ptr<GrantPipeline> grants_;
+    std::unique_ptr<TrapHooks> traps_;
     std::atomic<bool> pending_inbound_death_{false};
     // Attribution line for the death pending_inbound_death_ arms. Written by the coordinator drain and read
     // later in the same game-thread tick, so it needs no lock; it is deliberately not cleared alongside the

@@ -3,6 +3,8 @@
 #include <functional>
 #include <memory>
 
+#include "mth/core/trap_state.hpp"
+
 namespace mth
 {
 
@@ -26,7 +28,8 @@ class GrantPipeline
 
     bool grant(int item_type);
     // once, after inbound_ready() is false. credit_kear_key: vanilla-kear-mode key grant effect (#130).
-    void build_inbound(ApState &state, ApSaveState &save_state, std::function<bool()> credit_kear_key = {});
+    // arm_trap: forces a cosmetic modifier on for a while.
+    void build_inbound(ApState &state, ApSaveState &save_state, std::function<bool()> credit_kear_key = {}, std::function<TrapArm(int)> arm_trap = {});
     [[nodiscard]] bool inbound_ready() const;
     // Drop the inbound granter. It holds a reference to the ApSaveState, so this must run before that is
     // destroyed. inbound_ready() goes false, so the next connection rebuilds it against its own save.

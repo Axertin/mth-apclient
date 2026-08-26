@@ -20,6 +20,7 @@
 #include "mth/core/rando_bridge.hpp"
 #include "mth/features/player_tracker.hpp"
 #include "mth/features/room_tracker.hpp"
+#include "mth/features/trap_hooks.hpp"
 #include "mth_version.h"
 #include "pal/pal_game.hpp"
 #include "pal/pal_hook.hpp"
@@ -159,6 +160,7 @@ App::App() : bundle_store_(pal::mod_save_dir(), {pal::log_dir(), pal::mod_save_d
     events_ = std::make_unique<AppTickSink>(*this);
     grants_ = std::make_unique<GrantPipeline>(
         *tracker_, [this](int loc) { return net_->rando().is_ap_location(loc); }, [this](int loc) { net_->rando().on_location_collected(loc); });
+    traps_ = std::make_unique<TrapHooks>();
     // Suppress the game's default new-file starting kit while AP-authenticated (AP supplies it instead).
     // SaveSlot::Clear also fires on profile-menu / save-load, so the zero can hit an existing save's upgrade
     // fields; re-arm the upgrade re-apply each time we suppress so drive_tick refills them from AP state.
@@ -267,6 +269,7 @@ void App::drive_tick()
         net_->rando().flush(); // (re)connect: resend the full persisted checked set; server dedups
         pal::logf(pal::LogLevel::Info, "outbound: (re)connect -> flushed checked-set");
     }
+    traps_->tick();
     grants_->tick();
     // Persist a freshly captured AP-game slot so it's known on the next load/session.
     if (save_state_)
@@ -402,6 +405,7 @@ void App::clear_session_state()
     // next recompute is not dirty and cannot write a downgrade into the live save.
     upgrades_ = UpgradeState{};
     wallet_ = WalletCapState{};
+    traps_->clear();                    // a running trap must not leak into the next seed
     resend_gate_ = ConnectResendGate{}; // re-arm so the next connection flushes its own checked-set
     pending_inbound_death_.store(false);
     pal::logf(pal::LogLevel::Info, "session: cleared previous AP connection state");
@@ -417,7 +421,9 @@ void App::ensure_inbound_ready()
     const std::string key = bundle_store_.path_for(seed, slot).string();
     save_state_.emplace([this, seed, slot] { return bundle_store_.load_state(seed, slot); },
                         [this, seed, slot](std::string_view text) { bundle_store_.stage_state(seed, slot, text); });
-    grants_->build_inbound(state_, *save_state_, [this] { return hooks_->credit_kear_key(); }); // vanilla-kear key grant (#130)
+    grants_->build_inbound(
+        state_, *save_state_, [this] { return hooks_->credit_kear_key(); }, // vanilla-kear key grant (#130)
+        [this](int modifier_index) { return traps_->arm(modifier_index); });
     pal::logf(pal::LogLevel::Info, "inbound: state loaded (%s); granter live", key.c_str());
     hooks_->set_ap_slot(save_state_->game_slot()); // restore the AP-game slot (skip capture if known)
     net_->rando().attach_save_state(*save_state_);
@@ -518,6 +524,8 @@ std::vector<std::string> App::status_lines() const
         out.push_back(line);
     }
 
+    for (const auto &l : traps_->status_lines())
+        out.push_back(l);
     hooks_->append_status_lines(out);
     return out;
 }
