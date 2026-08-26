@@ -99,8 +99,6 @@ flowchart TB
 - The network stack (apclientpp / wswrap / websocketpp with OpenSSL) is an optional build feature.
   When it is not compiled in, a null link stands in.
 
-Randomizer item/location data lives in [randomizer/](randomizer/).
-
 ## In-game overlay
 
 An optional Dear ImGui dev console (toggle **F1**) renders over the game and offers commands to
@@ -135,6 +133,5 @@ src/pal/windows/  Windows PAL (MinHook, D3D12 overlay, native mod entry)
 cmake/            dependency + toolchain modules
 scripts/          build and signature tooling
 tests/unit/       Catch2 unit tests
-docs/randomizer/  randomizer item/location data
 external/vcpkg/   vcpkg submodule
 ```

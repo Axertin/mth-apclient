@@ -11,6 +11,3 @@
 
 - **Hooks and reverse-engineering** -> [reverse-engineering.md](reverse-engineering.md):
   the hook mechanisms, the PAL boundary, and the Windows signature-table workflow.
-
-- **Game-side data reference** -> [randomizer/](randomizer/): the game's
-  item/location model, IDs, and save layout (a build-specific snapshot).
