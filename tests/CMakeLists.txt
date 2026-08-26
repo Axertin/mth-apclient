@@ -67,6 +67,7 @@ add_executable(mthap_unit_tests
     unit/zip_archive_test.cpp
     unit/ap_save_bundle_test.cpp
     unit/takeover_state_test.cpp
+    unit/cheat_mask_test.cpp
     unit/title_menu_test.cpp
     unit/palette_index_test.cpp
     unit/deathlink_payload_test.cpp

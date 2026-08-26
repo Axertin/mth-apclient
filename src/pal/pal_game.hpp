@@ -86,6 +86,28 @@ bool apply_live_modifier(int idx, bool on);
 // Remove the modifier hooks and clear the callbacks. Called by the mth/ owner's destructor.
 void remove_modifier_hooks();
 
+// ---- Runtime-only modifier control (AP traps). ----
+
+// True once g_cheatManager resolves through the game's own GetSymAddr. It is not in the Linux
+// symbol table, so resolve_game_symbol cannot find it. A miss is not cached: resolution can depend
+// on the game's text range being published, which may postdate the first ask, so only a successful
+// resolve sticks and a false here is worth asking again rather than treated as final.
+bool runtime_modifiers_available();
+
+// True once the cheat manager resolves and its activated byte is set. The game sets that byte only
+// in ActivateSaveCheats, so it doubles as "a save slot has been activated". The native cheat entries
+// resolve the live save slot themselves and do not null-check it, so a caller has to clear this
+// before reaching one. Session state, where runtime_modifiers_available above is a property of the
+// build.
+bool runtime_modifier_ready();
+
+// Set/clear a modifier bit in the runtime cheat mask at CheatManager+0x20 and nowhere else. The
+// save mask is never touched, so nothing persists across a crash and the save's achievement byte is
+// never burned. Gameplay re-reads that mask every frame, so the effect lands without a room change.
+// Game-thread only. False means "not right now" (no cheat manager bound, or the activated byte is
+// still clear), which the caller should retry rather than treat as a permanent failure.
+bool set_runtime_modifier(int idx, bool on);
+
 // ---- Per-stat level cap. All symbol/offset/game-call divergence lives in the PAL impl. ----
 
 // True once LevelUpMenu::UpdateState and CombatData::GetNewGameMaxLevelPlayer both resolve.
