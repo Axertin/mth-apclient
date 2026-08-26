@@ -1,4 +1,3 @@
-#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -10,7 +9,6 @@
 
 #include "mod/mod_api.hpp"
 #include "mth/core/ap/ap_ids.hpp"
-#include "mth/core/data/cheat_mask.hpp"
 #include "mth/core/data/game_layout.hpp"
 #include "mth/core/data/game_symbols.hpp"
 #include "mth/core/sig_scan.hpp"
@@ -78,7 +76,7 @@ void repl_init_state(void *self)
 // standalone-function detour could not - so the #93 have-bit box workaround is no longer platform-specific.
 
 // ---- modifier control (Windows). Cheat mask = SaveSlot+0xcb0; live slot = *(g_saveManager); slot
-// index = *(g_saveManager+0x8); CheatManager captured via the ActivateSaveCheats hook. Lockdown hooks
+// index = *(g_saveManager+0x8); CheatManager resolved by symbol in game_cheat_manager.cpp. Lockdown hooks
 // ToggleCheat (menu: sets the runtime mirror + persists) AND SetCheatApplied (typed cheat-code).
 constexpr std::ptrdiff_t kCheatMaskOff = 0xcb0;
 constexpr std::ptrdiff_t kSlotIndexOff = 0x8;
@@ -118,87 +116,6 @@ void set_mask_bit(void *slot, int idx, bool on)
         mask[idx >> 5] |= bit;
     else
         mask[idx >> 5] &= ~bit;
-}
-
-// CheatManager layout (distinct from the SaveSlot mask above). +0x01 is an "activated" bool that
-// every read site checks before consulting the mask, and +0x20 holds a u64[4] covering indices
-// 0..63, 64..127, 128..191, 192..255. CheatManager::ActivateSaveCheats writes that byte to 1 at the
-// top of its body and is its only writer, so a set byte means the game has activated a save slot.
-constexpr std::size_t kCheatMgrActivatedOff = 0x01;
-constexpr std::size_t kCheatMgrMaskOff = 0x20;
-
-void *g_cheat_mgr_sym = nullptr;
-bool g_cheat_mgr_outcome_logged = false; // one-shot: the manager resolved and validated
-bool g_cheat_mgr_miss_logged = false;    // one-shot: symbol not (yet) resolved
-
-// A validated CheatManager, resolved once so a caller needing both the activated byte and the mask
-// does not walk +0x20 twice. A null base means there is no usable manager.
-struct CheatManagerView
-{
-    std::uint8_t *base = nullptr;
-    std::uint64_t *mask = nullptr;
-};
-
-// A candidate CheatManager* is trusted only if it looks like a real, naturally aligned pointer, its
-// "activated" byte reads as an actual bool, and the mask pointer it carries at +0x20 is itself a
-// valid, aligned pointer.
-// pal::pointer_looks_valid is a range test, not a mapping check (pal/pal_mem.hpp), so alignment and
-// the layout's own field values catch a candidate that merely landed in the valid range.
-std::uint64_t *cheat_mask_at(void *candidate)
-{
-    const auto addr = reinterpret_cast<std::uintptr_t>(candidate);
-    if (!pal::pointer_looks_valid(candidate) || (addr & 7u) != 0)
-        return nullptr;
-    auto *base = reinterpret_cast<std::uint8_t *>(candidate);
-    if (base[kCheatMgrActivatedOff] > 1)
-        return nullptr;
-    auto *mask = *reinterpret_cast<std::uint64_t **>(base + kCheatMgrMaskOff);
-    const auto mask_addr = reinterpret_cast<std::uintptr_t>(mask);
-    if (!pal::pointer_looks_valid(mask) || (mask_addr & 7u) != 0)
-        return nullptr;
-    return mask;
-}
-
-// Resolves g_cheatManager through the game's own GetSymAddr. Only a successful resolve is cached:
-// a miss is retried on every call, because a caller asking this from its own constructor can race
-// the App constructor body publishing the game's text range (mod::sym_addr fails closed until
-// then), and caching that transient miss would make traps look permanently unavailable for the rest
-// of the session. The "not yet available" log is still one-shot, so a slow race does not spam it.
-void ensure_cheat_mgr_symbol()
-{
-    if (g_cheat_mgr_sym != nullptr)
-        return;
-    g_cheat_mgr_sym = mod::sym_addr("g_cheatManager");
-    if (g_cheat_mgr_sym != nullptr)
-    {
-        pal::logf(pal::LogLevel::Info, "traps: g_cheatManager resolved");
-        return;
-    }
-    if (!g_cheat_mgr_miss_logged)
-    {
-        g_cheat_mgr_miss_logged = true;
-        pal::logf(pal::LogLevel::Warn, "traps: g_cheatManager NOT available (yet)");
-    }
-}
-
-// GetSymAddr hands back the CheatManager itself, already dereferenced: the symbol table's entry for
-// g_cheatManager loads the global rather than taking its address. The validation below still earns
-// its place, since cheat_mask_at is all that stands between a resolve gone wrong and a write into
-// arbitrary game memory. The outcome logs once, since a human reads that line in-game.
-CheatManagerView cheat_manager()
-{
-    ensure_cheat_mgr_symbol();
-    if (g_cheat_mgr_sym == nullptr)
-        return {};
-    std::uint64_t *mask = cheat_mask_at(g_cheat_mgr_sym);
-    if (mask == nullptr)
-        return {};
-    if (!g_cheat_mgr_outcome_logged)
-    {
-        g_cheat_mgr_outcome_logged = true;
-        pal::logf(pal::LogLevel::Info, "traps: g_cheatManager resolved (mask at +0x20 looked valid)");
-    }
-    return {reinterpret_cast<std::uint8_t *>(g_cheat_mgr_sym), mask};
 }
 
 void repl_activate_slot(void *self, bool flag)
@@ -519,34 +436,6 @@ void remove_modifier_hooks()
     g_block_fn = nullptr;
 }
 
-bool runtime_modifiers_available()
-{
-    ensure_cheat_mgr_symbol();
-    return g_cheat_mgr_sym != nullptr;
-}
-
-bool runtime_modifier_ready()
-{
-    const CheatManagerView mgr = cheat_manager();
-    return mgr.base != nullptr && mgr.base[kCheatMgrActivatedOff] != 0;
-}
-
-bool set_runtime_modifier(int idx, bool on)
-{
-    if (idx < 0 || idx >= 254)
-        return false;
-    const CheatManagerView mgr = cheat_manager();
-    if (mgr.base == nullptr)
-        return false;
-    // Every read site checks this byte before the mask, so a bit written while it is clear does
-    // nothing at all. Only the game's own ActivateSaveCheats sets it, so a clear byte means no save
-    // is active yet, and the write is worth attempting again only after the next activation.
-    if (mgr.base[kCheatMgrActivatedOff] == 0)
-        return false;
-    mth::cheat_mask_set(mgr.mask, idx, on);
-    return true;
-}
-
 } // namespace pal
 
 // ---- per-stat level cap (Windows). The cap is inlined into the menu's state machine (no cap fn to detour
@@ -661,151 +550,6 @@ void remove_level_cap_hook()
         hook_engine().remove_hook(g_lc_id_update);
     g_lc_id_update = kInvalidHookId;
     g_lc_cap_fn = nullptr;
-}
-
-} // namespace pal
-
-// ---- capacity upgrades ----
-// Per-upgrade SaveSlot field (index Magic,Health,Spark,Vial,Trinket); popcount = capacity. SaveSlot
-// offsets match Linux (same struct layout). Player::UpdateStats resolves via the signature table; if
-// the sig is absent (not yet regenerated for the shipping build) the feature stays disabled. The Vial slot
-// (kVialUpgradeIndex) is a placeholder here and never written: vials go through the mod API (see App).
-namespace
-{
-constexpr std::ptrdiff_t kUpgradeFieldOff[5] = {0x170, 0x130, 0x54, 0x18c, 0x950};
-
-// Live resource-pool fields (offsets confirmed identical to Linux by 3 independent RE passes;
-// CombatCore = *(Player+0x130)). Used to keep the missing amount constant on a capacity grant.
-constexpr std::ptrdiff_t kCombatCoreOff = 0x130; // Player -> CombatCore*
-constexpr std::ptrdiff_t kHpCurOff = 0x1e0;      // CombatCore, float
-constexpr std::ptrdiff_t kHpMaxOff = 0x1e8;      // CombatCore, float
-// Joules (magic), pinned by the game's own accessors: PlayerGetJoules/PlayerSetJoules use Player+0x117c,
-// and UpdateStats writes the max at Player+0x1180. These read 0x1174/0x1178 until r148851; those are the
-// backup-sidearm and latched in-flight sidearm itemTypes, so every grant clamped one sidearm itemType
-// against the other and the backup slot emptied on the next WriteSave.
-constexpr std::ptrdiff_t kMagicCurOff = 0x117c; // Player, int
-constexpr std::ptrdiff_t kMagicMaxOff = 0x1180; // Player, int
-constexpr std::ptrdiff_t kSparkCurOff = 0x50;   // SaveSlot, int
-constexpr std::ptrdiff_t kSparkMaxOff = 0x230;  // CombatCore, int
-// Vials are NOT written here: their SaveSlot bitfield offset drifts between builds (#97), so App drives
-// them through the offset-free mod-API accessors (mod::set_player_max_vials) instead.
-
-bool g_up_resolved = false;
-bool g_up_ok = false;
-bool g_up_layout_ok = true; // cleared permanently if an upgrade field reads out of its plausible domain
-std::uintptr_t g_up_save_manager = 0;
-
-float fld_f(void *base, std::ptrdiff_t off)
-{
-    return *reinterpret_cast<float *>(static_cast<char *>(base) + off);
-}
-int fld_i(void *base, std::ptrdiff_t off)
-{
-    return *reinterpret_cast<int *>(static_cast<char *>(base) + off);
-}
-} // namespace
-
-namespace pal
-{
-
-bool upgrades_available()
-{
-    if (g_up_resolved)
-        return g_up_ok;
-    g_up_resolved = true;
-    g_up_save_manager = resolve_game_symbol(mth::sym::save_manager);
-    g_up_ok = g_up_save_manager != 0;
-    if (!g_up_ok)
-        logf(LogLevel::Warn, "upgrades: g_saveManager unresolved; feature disabled");
-    return g_up_ok;
-}
-
-bool apply_upgrades(const int *counts, void *player)
-{
-    // Diagnostic (#46): this is called every tick while dirty, so log only when the outcome CHANGES to
-    // avoid per-frame spam. Distinguishes which silent guard drops the new-file start-inventory grant.
-    static int s_last_outcome = -1;
-    auto trace = [&](int outcome, const char *what, void *slot)
-    {
-        if (outcome == s_last_outcome)
-            return;
-        s_last_outcome = outcome;
-        pal::logf(pal::LogLevel::Debug, "upgrades: apply -> %s (player=%p slot=%p counts=[%d,%d,%d,%d,%d])", what, player, slot, counts[0], counts[1],
-                  counts[2], counts[3], counts[4]);
-    };
-    if (!upgrades_available())
-    {
-        trace(1, "skip: symbols unavailable", nullptr);
-        return false;
-    }
-    if (player == nullptr)
-    {
-        trace(2, "skip: player null", nullptr);
-        return false;
-    }
-    if (!g_up_layout_ok)
-    {
-        trace(3, "skip: layout disabled", nullptr);
-        return false;
-    }
-    // Checked before any write: the owned-bit fields do nothing until UpdateStats recomputes the maxima
-    // from them, so without it the grant would be half-applied instead of merely deferred.
-    if (!mod::player_stats_api_available())
-    {
-        trace(6, "skip: PlayerUpdateStats unavailable", nullptr);
-        return false;
-    }
-    void *slot = *reinterpret_cast<void **>(g_up_save_manager); // global holds the active SaveSlot*
-    if (!pal::pointer_looks_valid(slot))
-    {
-        trace(4, "skip: active SaveSlot* invalid", slot);
-        return false;
-    }
-    // CombatCore is reached through the Player, so a non-canonical read means the Player is not one (#157
-    // faulted on exactly this load, walking a freed Player). Bail rather than treat it as absent: UpdateStats
-    // and the magic-pool writes below still go through that same pointer. Leaves the counts dirty, so the
-    // next tick retries. A genuinely null CombatCore is the separate case the pool restores already handle.
-    void *cc = *reinterpret_cast<void **>(static_cast<char *>(player) + kCombatCoreOff);
-    if (cc != nullptr && !pal::pointer_looks_valid(cc))
-    {
-        trace(5, "skip: CombatCore* invalid", slot);
-        return false;
-    }
-
-    // Keep each pool's missing amount constant across the grant (current = new_max - old_missing);
-    // a no-op on a resend (max unchanged) and full on a fresh file. Mirrors the Linux impl.
-    const float hp_missing = cc != nullptr ? fld_f(cc, kHpMaxOff) - fld_f(cc, kHpCurOff) : 0.0f;
-    const int magic_missing = fld_i(player, kMagicMaxOff) - fld_i(player, kMagicCurOff);
-    const int spark_missing = cc != nullptr ? fld_i(cc, kSparkMaxOff) - fld_i(slot, kSparkCurOff) : 0;
-
-    for (int i = 0; i < 5; ++i)
-    {
-        if (i == mth::kVialUpgradeIndex)
-            continue; // vials are applied via the mod API (offset-free), not this bitfield
-        auto &fieldv = *reinterpret_cast<std::uint32_t *>(static_cast<char *>(slot) + kUpgradeFieldOff[i]);
-        if (!mth::upgrade_field_in_domain(i, fieldv))
-        {
-            g_up_layout_ok = false;
-            logf(LogLevel::Warn, "upgrades: kUpgradeFieldOff[%d] read=0x%x exceeds cap %d; offset may have shifted, upgrade writes DISABLED", i, fieldv,
-                 mth::kUpgradeCaps[i]);
-            return false;
-        }
-        fieldv = mth::upgrade_field_value(i, counts[i], fieldv);
-    }
-    mod::player_update_stats(); // recompute live maxima from the owned-bit fields; acts on the live player
-
-    if (cc != nullptr)
-    {
-        const float hp_max = fld_f(cc, kHpMaxOff);
-        *reinterpret_cast<float *>(static_cast<char *>(cc) + kHpCurOff) = std::clamp(hp_max - hp_missing, 0.0f, hp_max);
-        const int spark_max = fld_i(cc, kSparkMaxOff);
-        *reinterpret_cast<int *>(static_cast<char *>(slot) + kSparkCurOff) = std::clamp(spark_max - spark_missing, 0, spark_max);
-    }
-    const int magic_max = fld_i(player, kMagicMaxOff);
-    *reinterpret_cast<int *>(static_cast<char *>(player) + kMagicCurOff) = std::clamp(magic_max - magic_missing, 0, magic_max);
-
-    trace(0, "applied", slot);
-    return true;
 }
 
 } // namespace pal

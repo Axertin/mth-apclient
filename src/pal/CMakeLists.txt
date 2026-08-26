@@ -80,6 +80,14 @@ list(APPEND _mthap_pal_sources game_shop_ui.cpp)
 # match on both builds, so one TU.
 list(APPEND _mthap_pal_sources game_menu_hooks.cpp)
 
+# Capacity-upgrade grants. The SaveSlot/Player/CombatCore offsets match, and the save-manager deref is
+# already behind pal::active_save_slot, so one TU.
+list(APPEND _mthap_pal_sources game_upgrades.cpp)
+
+# Runtime cheat mirror behind the modifier traps, reached through the mod API's g_cheatManager symbol
+# rather than a save-manager offset, so one TU. The save-mask half stays per-platform.
+list(APPEND _mthap_pal_sources game_cheat_manager.cpp)
+
 add_library(mthap_pal OBJECT ${_mthap_pal_sources})
 
 target_include_directories(mthap_pal PUBLIC "${CMAKE_SOURCE_DIR}/src")
