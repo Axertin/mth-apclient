@@ -591,6 +591,14 @@ void App::set_modifier(int idx, bool on)
     pal::logf(pal::LogLevel::Info, "console: modifier %d %s", idx, on ? "on" : "off");
 }
 
+void App::fire_trap(int modifier_index, float seconds)
+{
+    // Render thread: TrapHooks owns countdown lists the game thread walks every tick, so hand the
+    // request over rather than arming here. The arm itself logs what came of it.
+    traps_->queue_arm(modifier_index, seconds);
+    pal::logf(pal::LogLevel::Info, "console: trap %d queued for the next game tick", modifier_index);
+}
+
 void App::lock_modifiers(bool armed)
 {
     policy_.arm_console_modifiers();

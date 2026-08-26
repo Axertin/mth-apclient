@@ -89,6 +89,7 @@ class App : public ICommandSink
     void enable_deathlink(bool on) override;
     void set_lit_lamps(std::uint32_t lamp_mask) override;
     void save_test(const std::string &op) override;
+    void fire_trap(int modifier_index, float seconds) override;
 
   private:
     void remember_successful_login(); // persist the attempted target once the server authenticates
