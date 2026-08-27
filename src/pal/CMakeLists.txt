@@ -6,7 +6,7 @@
 # unreferenced .o file and silently break the mod.
 
 if(WIN32)
-    set(_mthap_pal_sources
+    set(_mthap_pal_platform
         windows/log_windows.cpp
         windows/module_windows.cpp
         windows/thread_windows.cpp
@@ -20,7 +20,7 @@ if(WIN32)
         windows/game_windows.cpp
     )
 else()
-    set(_mthap_pal_sources
+    set(_mthap_pal_platform
         linux/log_linux.cpp
         linux/module_linux.cpp
         linux/thread_linux.cpp
@@ -38,9 +38,9 @@ endif()
 # overlay feature is on. (When off, App never references make_overlay.)
 if(MTHAP_ENABLE_OVERLAY)
     if(WIN32)
-        list(APPEND _mthap_pal_sources windows/overlay_windows.cpp)
+        set(_mthap_pal_overlay windows/overlay_windows.cpp)
     else()
-        list(APPEND _mthap_pal_sources linux/overlay_linux.cpp)
+        set(_mthap_pal_overlay linux/overlay_linux.cpp)
     endif()
 endif()
 
@@ -48,45 +48,27 @@ endif()
 # (msvcrt dllimport); clang-cl/MSVC does not. Only relevant when the net lane
 # (which pulls OpenSSL) is built.
 if(MINGW AND MTHAP_ENABLE_NET)
-    list(APPEND _mthap_pal_sources windows/mingw_crt_shim.cpp)
+    set(_mthap_pal_mingw windows/mingw_crt_shim.cpp)
 endif()
 
-# Native MinaModAPI entry (MinaMod_Init) - shared across platforms; the export
-# macro is the only platform divergence and lives inside the TU.
-list(APPEND _mthap_pal_sources native_mod_entry.cpp)
-
-# Palette-mapped text coloring - identical struct offsets on both platforms, so one TU.
-list(APPEND _mthap_pal_sources shop_palette.cpp)
-
-# Bone-up cap annotation, one TU. The widget offsets are pinned on both platforms, and each hop
-# is vtable-checked, so a build that moves them is rejected instead of trusted.
-list(APPEND _mthap_pal_sources boneup_desc.cpp)
-
-# Burrow state-machine reads - the Player struct is identical on both platforms, so one TU.
-list(APPEND _mthap_pal_sources game_burrow.cpp)
-
-# SaveSlot enforcement reached through pal::active_save_slot, which is where the per-platform
-# save-manager deref lives; the offsets past it match, so one TU.
-list(APPEND _mthap_pal_sources game_train.cpp)
-
-# Mod-save flush trigger - symbol-resolved through the PAL, no platform data, so one TU.
-list(APPEND _mthap_pal_sources game_save_takeover.cpp)
-
-# ShopMenu accessors plus the SetCursor and Shop::Get detours. The ShopItem/ShopItemDef offsets
-# behind them are the same class layout on both builds, so one TU.
-list(APPEND _mthap_pal_sources game_shop_ui.cpp)
-
-# Pawn-shop, fountain-bulb, title StartGame and new-file kit detours. Each reads only offsets that
-# match on both builds, so one TU.
-list(APPEND _mthap_pal_sources game_menu_hooks.cpp)
-
-# Capacity-upgrade grants. The SaveSlot/Player/CombatCore offsets match, and the save-manager deref is
-# already behind pal::active_save_slot, so one TU.
-list(APPEND _mthap_pal_sources game_upgrades.cpp)
-
-# Runtime cheat mirror behind the modifier traps, reached through the mod API's g_cheatManager symbol
-# rather than a save-manager offset, so one TU. The save-mask half stays per-platform.
-list(APPEND _mthap_pal_sources game_cheat_manager.cpp)
+# The unqualified TUs are platform-neutral: each one reads only struct offsets that match on both
+# builds, or reaches a divergent offset through a pal:: seam such as active_save_slot. Anything whose
+# offsets differ stays in linux/ or windows/ above. An unset optional variable expands to nothing.
+set(_mthap_pal_sources
+    ${_mthap_pal_platform}
+    ${_mthap_pal_overlay}
+    ${_mthap_pal_mingw}
+    native_mod_entry.cpp   # MinaMod_Init; the export macro is the only divergence, inside the TU
+    shop_palette.cpp       # palette-mapped text coloring
+    boneup_desc.cpp        # bone-up cap annotation; every vtable hop is checked, so drift is rejected
+    game_burrow.cpp        # Player burrow state machine
+    game_cheat_manager.cpp # runtime cheat mirror behind the AP traps; the save-mask half is per-platform
+    game_menu_hooks.cpp    # pawn shop, fountain bulb, title StartGame, new-file kit detours
+    game_save_takeover.cpp # mod-save flush trigger, symbol-resolved through the PAL
+    game_shop_ui.cpp       # ShopMenu accessors plus the SetCursor and Shop::Get detours
+    game_train.cpp         # train and weapon enforcement
+    game_upgrades.cpp      # capacity-upgrade grants
+)
 
 add_library(mthap_pal OBJECT ${_mthap_pal_sources})
 
