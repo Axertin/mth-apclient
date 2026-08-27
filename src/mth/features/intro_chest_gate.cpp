@@ -8,7 +8,6 @@
 #include "mth/core/data/game_layout.hpp"
 #include "mth/features/scene_walk.hpp"
 #include "pal/pal_log.hpp"
-#include "pal/pal_module.hpp"
 
 namespace
 {
@@ -17,8 +16,6 @@ namespace
 // with no chest in it.
 constexpr int kWalkIntervalTicks = 60;
 
-constexpr std::size_t kMaxNodes = mth::kSceneMaxNodes;
-constexpr std::size_t kMaxChildren = mth::kSceneMaxChildren;
 using mth::looks_like_component;
 
 } // namespace
@@ -39,7 +36,7 @@ void IntroChestGate::demote_chest(void *chest)
     auto *starter = reinterpret_cast<std::uint8_t *>(static_cast<char *>(chest) + mth::layout::kCheckpointChestStarterOff);
     void *menu = *reinterpret_cast<void **>(static_cast<char *>(chest) + mth::layout::kCheckpointChestMenuOff);
     std::uint8_t *menu_starter = nullptr;
-    if (looks_like_component(menu, mod_base_, mod_size_) && mod::component_isa(menu, mth::rtti::kWeaponsChestMenu))
+    if (looks_like_component(menu) && mod::component_isa(menu, mth::rtti::kWeaponsChestMenu))
         menu_starter = reinterpret_cast<std::uint8_t *>(static_cast<char *>(menu) + mth::layout::kWeaponsChestMenuStarterOff);
 
     if (*starter == 0 && (menu_starter == nullptr || *menu_starter == 0))
@@ -77,71 +74,10 @@ void IntroChestGate::tick()
     // yet) cannot eat the on_world_destroy reset and cost a full interval.
     cooldown_ = kWalkIntervalTicks;
 
-    if (mod_size_ == 0)
-    {
-        const pal::ModuleInfo gm = pal::game_module();
-        mod_base_ = gm.base;
-        mod_size_ = gm.size;
-    }
-    std::size_t visited = 0;
-
-    pending_.clear();
-    pending_.push_back(root);
-    while (!pending_.empty() && visited < kMaxNodes)
-    {
-        void *entity = pending_.back();
-        pending_.pop_back();
-
-        const std::size_t count = mod::entity_children(entity, nullptr, 0); // sizing call
-        if (count == 0)
-            continue;
-        // Walk a prefix rather than abandoning the node: skipping it would drop its whole subtree.
-        buffer_.assign(count > kMaxChildren ? kMaxChildren : count, nullptr);
-        if (count > kMaxChildren && !warned_capped_)
-        {
-            warned_capped_ = true;
-            pal::logf(pal::LogLevel::Warn, "intro: scene node %p has %zu children; walking the first %zu", entity, count, kMaxChildren);
-        }
-        mod::entity_children(entity, buffer_.data(), buffer_.size());
-
-        for (void *c : buffer_)
-        {
-            if (!looks_like_component(c, mod_base_, mod_size_))
-                continue;
-            ++visited;
-            // An entity is a component that holds the next level down, so the graph is walked through it.
-            if (mod::component_isa(c, rtti::kYcEntity))
-                pending_.push_back(c);
-            // No early exit: a checkpoint room carries a trinket chest and a weapon chest, and only the
-            // one still in starter mode is written, so the rest cost a read each.
-            else if (mod::component_isa(c, rtti::kCheckpointChest))
-                demote_chest(c);
-        }
-    }
-    pending_.clear(); // no game pointer outlives the walk that produced it
-
-    if (visited >= kMaxNodes && !warned_capped_)
-    {
-        warned_capped_ = true;
-        pal::logf(pal::LogLevel::Warn, "intro: scene walk hit the %zu node cap; the weapon chest may be past it", kMaxNodes);
-    }
-    // The failure mode of this walk is silence: a broken traversal finds no chest, which is also what every
-    // room without one looks like. Reaching zero components off a valid root is the one reading that can
-    // only mean broken, so it warns; the extent of a working walk is logged once for scale.
-    if (visited == 0)
-    {
-        if (!warned_empty_)
-        {
-            warned_empty_ = true;
-            pal::logf(pal::LogLevel::Warn, "intro: scene walk reached no components; the weapon chest cannot be found");
-        }
-        return;
-    }
-    if (!logged_extent_)
-    {
-        logged_extent_ = true;
-        pal::logf(pal::LogLevel::Debug, "intro: scene walk covered %zu components (node cap %zu)", visited, kMaxNodes);
-    }
+    // No early exit: a checkpoint room carries a trinket chest and a weapon chest, and only the one
+    // still in starter mode is written, so the rest cost a read each.
+    const SceneWalk walk = walker_.for_each(root, rtti::kCheckpointChest, [&](void *c) { demote_chest(c); });
+    walker_.report(walk);
 }
 
 void IntroChestGate::on_world_destroy()

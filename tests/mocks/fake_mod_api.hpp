@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <deque>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -444,6 +445,68 @@ inline MM_Vec3 fake_get_pos3()
     return v;
 }
 
+// Fake scene graph for the walk primitive. A node IS its own handle: the walk only ever reads the first
+// word (looking for something vtable-shaped) and then asks the API about it, so a plain struct whose
+// first member is any valid pointer satisfies every check walk_scene makes.
+struct FakeComponent
+{
+    void *vtable{nullptr};
+    std::uint64_t type{0};
+    std::vector<void *> children;
+};
+
+struct FakeScene
+{
+    std::deque<FakeComponent> nodes; // deque: node addresses are the handles, so they must be stable
+    int vtable_anchor{0};
+
+    void reset()
+    {
+        nodes.clear();
+    }
+
+    void *add(std::uint64_t type, void *parent)
+    {
+        FakeComponent &n = nodes.emplace_back();
+        n.vtable = &vtable_anchor;
+        n.type = type;
+        if (parent != nullptr)
+            static_cast<FakeComponent *>(parent)->children.push_back(&n);
+        return &n;
+    }
+};
+
+inline FakeScene &fake_scene()
+{
+    static FakeScene s;
+    return s;
+}
+
+// Must stay non-null: mod::entity_walk_api_available() gates the two entries the walk actually uses on
+// this one being present. Tests pass the root they built straight to walk_scene, so it is never called.
+inline ycEntity *fake_world_game_root(World *)
+{
+    return nullptr;
+}
+
+inline size_t fake_entity_children(ycEntity *entity, ycComponent **out, size_t cap)
+{
+    auto *n = reinterpret_cast<FakeComponent *>(entity);
+    if (n == nullptr)
+        return 0;
+    const size_t total = n->children.size();
+    if (out != nullptr)
+        for (size_t i = 0; i < total && i < cap; ++i)
+            out[i] = reinterpret_cast<ycComponent *>(n->children[i]);
+    return total; // the real entry reports the true count even when the buffer is short
+}
+
+inline bool fake_component_isa(ycComponent *component, MM_Rtti rtti)
+{
+    auto *n = reinterpret_cast<FakeComponent *>(component);
+    return n != nullptr && n->type == rtti.typeId;
+}
+
 // A MinaModAPI wired to the recorder stubs. reset() the recorder before use.
 inline MinaModAPI make_fake_api()
 {
@@ -468,6 +531,9 @@ inline MinaModAPI make_fake_api()
     mm.PlayerUpdateStats = &fake_player_update_stats;
     mm.CheatManagerIsCheatApplied = &fake_cheat_manager_is_cheat_applied;
     mm.WorldGetEntityList = &fake_world_entity_list;
+    mm.WorldGetGameRootEntity = &fake_world_game_root;
+    mm.EntityGetChildren = &fake_entity_children;
+    mm.ComponentIsa = &fake_component_isa;
     mm.CreateWeakPtr = &fake_create_weak_ptr;
     mm.WeakPtrGet = &fake_weak_ptr_get;
     mm.DestroyWeakPtr = &fake_destroy_weak_ptr;

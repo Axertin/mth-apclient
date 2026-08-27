@@ -9,6 +9,7 @@
 
 #include "mth/core/save/ap_save_bundle.hpp"
 #include "mth/core/save/takeover_state.hpp"
+#include "mth/features/scene_walk.hpp"
 
 namespace mth
 {
@@ -63,13 +64,10 @@ class SaveTakeover
     IdentityFn identity_;
     TakeoverStep step_{TakeoverStep::Idle};
     int frames_in_step_{0};
-    std::uintptr_t mod_base_{0};
-    std::size_t mod_size_{0};
-    bool warned_no_walk_{false};
+    SceneWalker walker_{"takeover", "the profile menu", "", "menu-world scene walk"};
+
     bool warned_input_inert_{false};
     InputBlockState input_block_;
-    std::vector<void *> pending_;
-    std::vector<void *> buffer_;
     std::string seed_;
     std::string slot_;
 };
