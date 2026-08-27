@@ -125,8 +125,6 @@ std::uintptr_t scan_resolve(const char *mangled_name)
             if (const std::uintptr_t scanned = scan_only(mangled_name, mth::sig::Kind::DataRef); scanned != 0 && scanned != addr)
                 logf(LogLevel::Error, "sig: %s DISAGREEMENT GetSymAddr=0x%llx scan=0x%llx; using GetSymAddr (check gate item_table_shape_ok)", mangled_name,
                      static_cast<unsigned long long>(addr), static_cast<unsigned long long>(scanned));
-            else
-                logf(LogLevel::Info, "sig: %s via GetSymAddr -> 0x%llx", mangled_name, static_cast<unsigned long long>(addr));
             cache[mangled_name] = addr;
             return addr;
         }
