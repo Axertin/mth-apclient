@@ -29,22 +29,6 @@ env:
   VCPKG_BINARY_SOURCES: "clear;files,${{ github.workspace }}/.vcpkg-cache,readwrite"
 
 jobs:
-  labels:
-    name: Ensure the autorelease labels exist
-    runs-on: ubuntu-24.04
-    permissions:
-      issues: write
-    steps:
-      # release-please fails rather than creating these itself. Never --force: that would clobber the
-      # colour/description of labels that already exist.
-      - env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-        run: |
-          for label in "autorelease: pending" "autorelease: tagged" "autorelease: snapshot"; do
-            gh label create "$label" --color ededed --description "release-please" 2>/dev/null || true
-          done
-
   tests:
     name: Native tests (release gate)
     runs-on: ubuntu-24.04
@@ -71,7 +55,7 @@ jobs:
 
   beta:
     name: Maintain the prerelease PR
-    needs: [labels, tests]
+    needs: tests
     runs-on: ubuntu-24.04
     permissions:
       contents: write

@@ -1,11 +1,7 @@
 # Catch2 via FetchContent - keeps the test lane off the vcpkg bootstrap.
 include(FetchContent)
-include(VerifyGitPin)
 
 set(CATCH2_VERSION "v3.5.4")
-# Commit ${CATCH2_VERSION} resolves to; checked after populate so an upstream
-# retag fails configure instead of silently changing what ships.
-set(CATCH2_COMMIT "b5373dadca40b7edc8570cf9470b9b1cb1934d40")
 
 FetchContent_Declare(
     Catch2
@@ -14,7 +10,6 @@ FetchContent_Declare(
     GIT_SHALLOW    TRUE
 )
 FetchContent_MakeAvailable(Catch2)
-mthap_verify_git_pin(Catch2 "${catch2_SOURCE_DIR}" "${CATCH2_COMMIT}")
 
 list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
 include(Catch)

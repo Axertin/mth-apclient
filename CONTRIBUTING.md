@@ -94,10 +94,10 @@ Formatting is enforced (Allman style, `.clang-format`). Run it before committing
 bash format.sh
 ```
 
-...or install the pre-commit hook once:
+...or point git at the tracked hook once per clone, after which every commit is formatted:
 
 ```bash
-python scripts/install-format-hook.py
+git config core.hooksPath .githooks
 ```
 
 CI gates merges on formatting with a pinned clang-format version.
