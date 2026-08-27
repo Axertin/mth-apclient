@@ -49,11 +49,16 @@ struct SceneWalk
 // Depth-first walk of the live scene graph from `root`, the general way to find a game object without
 // depending on an address that moves every build. Descends through anything the game reports as a
 // ycEntity and hands each node's other validated children to `visit` as one span, so a caller can reason
-// about siblings rather than one child at a time. `pending` and `buffer` are the caller's scratch, kept
-// across ticks so a per-frame walk does not reallocate.
+// about siblings rather than one child at a time. `pending` and `buffer` are the caller's scratch, reused
+// so that no node costs an allocation.
 //
 // visit is called as visit(children) and returns whether to keep walking, so a search can stop the
 // moment it finds its target instead of touring the rest of the room.
+//
+// Cost: a full walk lands just under one frame's budget, because EntityGetChildren and ComponentIsa are
+// real calls into the game per node rather than a memory read. Walk on a transition (a room load, a menu
+// opening, a state change) or behind a tick throttle. A walk that runs every frame drops frames while
+// still returning the right answer, which is what makes the cost easy to miss.
 template <typename Visit>
 SceneWalk walk_scene(void *root, std::uintptr_t mod_base, std::size_t mod_size, std::vector<void *> &pending, std::vector<void *> &buffer, Visit &&visit)
 {
@@ -125,8 +130,8 @@ SceneWalk walk_scene(void *root, std::uintptr_t mod_base, std::size_t mod_size, 
 }
 
 // One scene-polling feature's walking apparatus: the scratch a repeated walk reuses, and the once-only
-// latches its diagnostics need. Features hold one instead of carrying six members and their own copy of
-// the reporting, which was identical at every site bar a log prefix and a noun.
+// latches its diagnostics need. Choosing a cadence stays with the caller; read the cost note on
+// walk_scene before adding one.
 class SceneWalker
 {
   public:
