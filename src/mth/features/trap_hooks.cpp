@@ -37,8 +37,6 @@ constexpr float kFallbackDelta = 1.0f / static_cast<float>(kMaxFixedUpdateHz);
 TrapHooks::TrapHooks()
 {
     mod::set_fixed_update_delta_hook(&on_fixed_update_delta);
-    if (!pal::runtime_modifiers_available())
-        pal::logf(pal::LogLevel::Warn, "traps: g_cheatManager unavailable on this build; traps are inert");
 }
 
 TrapHooks::~TrapHooks()
