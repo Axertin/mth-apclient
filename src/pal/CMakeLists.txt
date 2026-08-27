@@ -58,6 +58,7 @@ set(_mthap_pal_sources
     ${_mthap_pal_platform}
     ${_mthap_pal_overlay}
     ${_mthap_pal_mingw}
+    log.cpp                # file logger; only log_dir() is per-platform
     native_mod_entry.cpp   # MinaMod_Init; the export macro is the only divergence, inside the TU
     shop_palette.cpp       # palette-mapped text coloring
     boneup_desc.cpp        # bone-up cap annotation; every vtable hop is checked, so drift is rejected
