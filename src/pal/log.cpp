@@ -7,9 +7,7 @@
 #include <cstdio>
 #include <ctime>
 #include <filesystem>
-#include <functional>
 #include <mutex>
-#include <string>
 
 #include "pal/pal_log.hpp"
 
@@ -18,15 +16,22 @@ namespace fs = std::filesystem;
 namespace
 {
 
-std::tm local_time(std::time_t t)
+// "<date><sep><time><sep><millis>", the one timestamp both the log lines and the log filename want.
+void stamp(char (&out)[32], const char *fmt, char sep)
 {
+    const auto now = std::chrono::system_clock::now();
+    const std::time_t secs = std::chrono::system_clock::to_time_t(now);
+    const auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count() % 1000;
+
     std::tm tm{};
 #if defined(_WIN32)
-    localtime_s(&tm, &t);
+    localtime_s(&tm, &secs);
 #else
-    localtime_r(&t, &tm);
+    localtime_r(&secs, &tm);
 #endif
-    return tm;
+    char date[24];
+    std::strftime(date, sizeof(date), fmt, &tm);
+    std::snprintf(out, sizeof(out), "%s%c%03lld", date, sep, static_cast<long long>(millis));
 }
 
 // Only the Linux crash handler reads this, to keep writing after the process is already unwinding.
@@ -78,15 +83,12 @@ class FileLog final : public pal::ILog
             tag = "ERROR";
             break;
         }
-        const auto now = std::chrono::system_clock::now();
-        const auto secs_since = std::chrono::system_clock::to_time_t(now);
-        const auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count() % 1000;
+        // Stamped before the lock so a line records when it was written, not when it won the mutex.
+        char ts[32];
+        stamp(ts, "%Y-%m-%d %H:%M:%S", '.');
 
         std::lock_guard<std::mutex> lock(mu_);
-        const std::tm tm = local_time(secs_since);
-        char ts[24];
-        std::strftime(ts, sizeof(ts), "%Y-%m-%d %H:%M:%S", &tm);
-        std::fprintf(fp_, "[%s.%03lld] [%s] %.*s\n", ts, static_cast<long long>(millis), tag, static_cast<int>(message.size()), message.data());
+        std::fprintf(fp_, "[%s] [%s] %.*s\n", ts, tag, static_cast<int>(message.size()), message.data());
         std::fflush(fp_);
     }
 
@@ -134,14 +136,10 @@ void log_init(std::string_view stem)
 {
     if (g_file_log)
         return;
-    const auto now = std::chrono::system_clock::now();
-    const auto t = std::chrono::system_clock::to_time_t(now);
-    const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count() % 1000;
-    const std::tm tm = local_time(t);
     char ts[32];
-    std::strftime(ts, sizeof(ts), "%Y-%m-%d_%H-%M-%S", &tm);
+    stamp(ts, "%Y-%m-%d_%H-%M-%S", '_');
     char fname[64];
-    std::snprintf(fname, sizeof(fname), "%.*s_%s_%03lld.log", static_cast<int>(stem.size()), stem.data(), ts, static_cast<long long>(ms));
+    std::snprintf(fname, sizeof(fname), "%.*s_%s.log", static_cast<int>(stem.size()), stem.data(), ts);
     g_file_log = new FileLog(log_dir() / fname);
     g_log.store(g_file_log, std::memory_order_release);
 }
