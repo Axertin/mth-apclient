@@ -87,6 +87,7 @@ target_compile_features(mthap_unit_tests PRIVATE cxx_std_23)
 # Exercise the real Linux file-log backend's pure entry points (ILog seam,
 # set_default_log, logf) without Frida or the module.
 target_sources(mthap_unit_tests PRIVATE
+    "${CMAKE_SOURCE_DIR}/src/pal/log.cpp"
     "${CMAKE_SOURCE_DIR}/src/pal/linux/log_linux.cpp"
     "${CMAKE_SOURCE_DIR}/src/pal/linux/cert_linux.cpp"
     # DeathHooks lives in the mthap module (not linked by tests); compile it in directly so its
