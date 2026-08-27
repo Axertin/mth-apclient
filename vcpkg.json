@@ -1,6 +1,6 @@
 {
   "name": "mth-apclient",
-  "version-string": "1.1.0",
+  "version-string": "1.2.0-beta.1",
   "builtin-baseline": "eae1680538b86f962455c27abca2aad0dc304a4d",
   "dependencies": [
     "nlohmann-json",
