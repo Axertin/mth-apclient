@@ -1,8 +1,5 @@
-#include <algorithm>
-#include <bit>
 #include <cstddef>
 #include <cstdint>
-#include <filesystem>
 #include <functional>
 #include <limits>
 #include <mutex>
@@ -12,13 +9,8 @@
 
 #include "mod/mod_api.hpp"
 #include "mth/core/ap/ap_ids.hpp"
-#include "mth/core/data/cheat_mask.hpp"
 #include "mth/core/data/game_layout.hpp"
 #include "mth/core/data/game_symbols.hpp"
-#include "mth/core/data/game_tables.hpp"
-#include "mth/core/fountain_lamps.hpp"
-#include "mth/core/shop_boxes.hpp"
-#include "mth/core/shop_flatten.hpp"
 #include "mth/core/sig_scan.hpp"
 #include "mth/core/stat_cap_state.hpp"
 #include "mth/core/title_menu.hpp"
@@ -79,140 +71,12 @@ void repl_init_state(void *self)
     }
 }
 
-// ShopItem / ShopItemDef instance offsets. Verified on the Windows depot build: ShopItem+0xf8 (active
-// def*), +0xec (stock count), ShopItemDef+0x48 (cached GetCollectionIndex == loc_idx) all match Linux.
-
-pal::ShopFlattenFn g_shop_flatten_cb = nullptr;
-pal::HookId g_shop_flatten_hook = pal::kInvalidHookId;
-// Shop::Get takes a 64-bit name hash. Use a fixed-width type: `unsigned long` is 32-bit under Windows
-// LLP64 and would truncate the hash, so the forwarded lookup finds no shop and returns null.
-void *(*g_orig_shop_get)(std::uint64_t name_hash) = nullptr; // Shop::Get(uint64_t) -> ShopDef*
-
-// The ShopItemRefresh context carries only a ShopItem*, so nothing there says which shop opened. The
-// name hash passed here does; log each distinct one once (#88).
-void note_shop_lookup(std::uint64_t name_hash, const void *def)
-{
-    constexpr std::size_t kMaxSeenShops = 32;
-    static std::uint64_t seen[kMaxSeenShops] = {};
-    static std::size_t seen_count = 0;
-    static bool capped = false;
-    if (capped)
-        return;
-    for (std::size_t i = 0; i < seen_count; ++i)
-    {
-        if (seen[i] == name_hash)
-            return;
-    }
-    // Latch instead of dropping the overflow: an unrecorded hash misses the scan above on every later
-    // call, and Shop::Get runs per tick from several UpdateState paths.
-    if (seen_count == kMaxSeenShops)
-    {
-        capped = true;
-        pal::logf(pal::LogLevel::Debug, "shop: Shop::Get hash log capped at %zu distinct shops", kMaxSeenShops);
-        return;
-    }
-    seen[seen_count++] = name_hash;
-    pal::logf(pal::LogLevel::Debug, "shop: Shop::Get hash=0x%016llx -> %p", static_cast<unsigned long long>(name_hash), def);
-}
-
-// Shop::Get(nameHash) is the accessor InteractComponent::OpenShop consults before building a shop's
-// box list; OR the never-stack bit onto the returned ShopDef so stacked slots flatten (one box/level).
-void *repl_shop_get(std::uint64_t name_hash)
-{
-    void *def = g_orig_shop_get != nullptr ? g_orig_shop_get(name_hash) : nullptr;
-    note_shop_lookup(name_hash, def);
-    if (def != nullptr && g_shop_flatten_cb != nullptr && g_shop_flatten_cb())
-    {
-        auto *flags = reinterpret_cast<std::uint32_t *>(static_cast<char *>(def) + mth::kShopFlagsOff);
-        *flags = mth::apply_flatten_flag(*flags, true);
-    }
-    return def;
-}
-
-// ShopMenu::SetCursor post-hook: rewrites the selected box's name+description text from scouted AP data.
-// Standalone on Windows (not inlined), so this is a direct post-hook exactly like Linux.
-pal::ShopTextFn g_shop_text_cb = nullptr;
-pal::HookId g_shop_text_hook = pal::kInvalidHookId;
-void (*g_orig_set_cursor)(void *, int, bool) = nullptr;
-
-// ShopMenu instance fields (box list + selection); distinct from the InitState frame offsets above.
-// Confirmed identical to Linux by decompiling SetCursor on the r148851 PE.
-constexpr std::ptrdiff_t kShopNameWidgetOff = 0x148;
-constexpr std::ptrdiff_t kShopDescWidgetOff = 0x150;
-constexpr std::ptrdiff_t kShopBoxArrayOff = 0x1c8;
-constexpr std::ptrdiff_t kShopBoxCountOff = 0x1d0;
-constexpr std::ptrdiff_t kShopCursorOff = 0x1d8;
-constexpr std::ptrdiff_t kShopModeOff = 0x23c;
-constexpr std::ptrdiff_t kShopBoxItemTypeOff = 0xcc; // ShopItem -> itemType (box's item kind)
-constexpr int kShopSkipItemType = 0x65;
-
-// ShopMenu runs in one of two modes, selected by the int at +0x23c: the ctor zeroes it, then stores 1 for
-// the shop named `Color` (the Atelier's "Custom Fitting" appearance menu). A mode-1 SetupBoxes takes the
-// palette-widget branch and returns without ever filling the box array. Gate on != 0 rather than the
-// game's own == 1 so that a mode added by a later build is excluded by default.
-[[nodiscard]] bool shop_menu_is_stocked(const void *shop_menu) noexcept
-{
-    return *reinterpret_cast<const int *>(static_cast<const char *>(shop_menu) + kShopModeOff) == 0;
-}
-
-// Resolve the box array plus a count that is safe to walk, or false when this menu has no walkable rows.
-// OpenShop allocates +0x1c8 and sets a real row count in +0x1d0 for every menu including a mode-1 one,
-// but SetupBoxes returns before filling that array, leaving a live, correctly sized buffer full of
-// uninitialized heap. A null check and a range check both pass on it; only the mode gate catches it.
-[[nodiscard]] bool shop_box_list(void *shop_menu, void ***out_boxes, int *out_count) noexcept
-{
-    if (!pal::pointer_looks_valid(shop_menu) || !shop_menu_is_stocked(shop_menu))
-        return false;
-    void **boxes = *reinterpret_cast<void ***>(static_cast<char *>(shop_menu) + kShopBoxArrayOff);
-    const int count = mth::shop_box_walk_count(*reinterpret_cast<int *>(static_cast<char *>(shop_menu) + kShopBoxCountOff));
-    if (!pal::pointer_looks_valid(boxes) || count <= 0)
-        return false;
-    *out_boxes = boxes;
-    *out_count = count;
-    return true;
-}
-
-void repl_set_cursor(void *self, int index, bool b)
-{
-    if (g_orig_set_cursor)
-        g_orig_set_cursor(self, index, b);
-    if (g_shop_text_cb != nullptr && self != nullptr)
-        g_shop_text_cb(self);
-}
-
 // Items::IsItemCollected override lives in native_mod_entry.cpp (native modding hook; cross-platform).
 // This also catches clang-cl's inlined copies of IsItemCollected (e.g. the Pickup-ctor self-kill), which a
 // standalone-function detour could not - so the #93 have-bit box workaround is no longer platform-specific.
 
-// ---- new-file starting-kit suppression. MSVC's SaveSlot layout matches Linux on depot_1875582, so the
-// upgrade-field offsets are identical (verified against Windows SetItemCollected's case map). ----
-constexpr std::ptrdiff_t kSparkUpgOff = 0x54;    // Spark_Upgrade   (itemType 0x46)
-constexpr std::ptrdiff_t kHealthUpgOff = 0x130;  // Health_Upgrade  (itemType 0x45) bitfield (0xff = 8)
-constexpr std::ptrdiff_t kMagicUpgOff = 0x170;   // Magic_Upgrade   (itemType 0x44)
-constexpr std::ptrdiff_t kTrinketUpgOff = 0x950; // Trinket_Upgrade (itemType 0x48)
-// Vials are not zeroed here: their bitfield offset drifts (#97). App::enforce_vial_capacity re-asserts the
-// AP vial count via the mod API each tick instead, which also survives the run re-seeding the base (#171).
-
-pal::NewfileKitSuppressFn g_kit_suppress = nullptr;
-pal::HookId g_kit_hook = pal::kInvalidHookId;
-void (*g_orig_save_slot_clear)(void *, bool) = nullptr;
-void repl_save_slot_clear(void *self, bool arg)
-{
-    if (g_orig_save_slot_clear)
-        g_orig_save_slot_clear(self, arg);
-    if (self == nullptr || !g_kit_suppress || !g_kit_suppress())
-        return;
-    auto field = [self](std::ptrdiff_t off) -> std::uint32_t & { return *reinterpret_cast<std::uint32_t *>(static_cast<char *>(self) + off); };
-    pal::logf(pal::LogLevel::Info, "newfile-kit: zeroing default upgrades (health=%#x magic=%#x spark=%#x trinket=%#x)", field(kHealthUpgOff),
-              field(kMagicUpgOff), field(kSparkUpgOff), field(kTrinketUpgOff));
-    field(kHealthUpgOff) = 0;
-    field(kMagicUpgOff) = 0;
-    field(kSparkUpgOff) = 0;
-    field(kTrinketUpgOff) = 0;
-}
-
 // ---- modifier control (Windows). Cheat mask = SaveSlot+0xcb0; live slot = *(g_saveManager); slot
-// index = *(g_saveManager+0x8); CheatManager captured via the ActivateSaveCheats hook. Lockdown hooks
+// index = *(g_saveManager+0x8); CheatManager resolved by symbol in game_cheat_manager.cpp. Lockdown hooks
 // ToggleCheat (menu: sets the runtime mirror + persists) AND SetCheatApplied (typed cheat-code).
 constexpr std::ptrdiff_t kCheatMaskOff = 0xcb0;
 constexpr std::ptrdiff_t kSlotIndexOff = 0x8;
@@ -252,87 +116,6 @@ void set_mask_bit(void *slot, int idx, bool on)
         mask[idx >> 5] |= bit;
     else
         mask[idx >> 5] &= ~bit;
-}
-
-// CheatManager layout (distinct from the SaveSlot mask above). +0x01 is an "activated" bool that
-// every read site checks before consulting the mask, and +0x20 holds a u64[4] covering indices
-// 0..63, 64..127, 128..191, 192..255. CheatManager::ActivateSaveCheats writes that byte to 1 at the
-// top of its body and is its only writer, so a set byte means the game has activated a save slot.
-constexpr std::size_t kCheatMgrActivatedOff = 0x01;
-constexpr std::size_t kCheatMgrMaskOff = 0x20;
-
-void *g_cheat_mgr_sym = nullptr;
-bool g_cheat_mgr_outcome_logged = false; // one-shot: the manager resolved and validated
-bool g_cheat_mgr_miss_logged = false;    // one-shot: symbol not (yet) resolved
-
-// A validated CheatManager, resolved once so a caller needing both the activated byte and the mask
-// does not walk +0x20 twice. A null base means there is no usable manager.
-struct CheatManagerView
-{
-    std::uint8_t *base = nullptr;
-    std::uint64_t *mask = nullptr;
-};
-
-// A candidate CheatManager* is trusted only if it looks like a real, naturally aligned pointer, its
-// "activated" byte reads as an actual bool, and the mask pointer it carries at +0x20 is itself a
-// valid, aligned pointer.
-// pal::pointer_looks_valid is a range test, not a mapping check (pal/pal_mem.hpp), so alignment and
-// the layout's own field values catch a candidate that merely landed in the valid range.
-std::uint64_t *cheat_mask_at(void *candidate)
-{
-    const auto addr = reinterpret_cast<std::uintptr_t>(candidate);
-    if (!pal::pointer_looks_valid(candidate) || (addr & 7u) != 0)
-        return nullptr;
-    auto *base = reinterpret_cast<std::uint8_t *>(candidate);
-    if (base[kCheatMgrActivatedOff] > 1)
-        return nullptr;
-    auto *mask = *reinterpret_cast<std::uint64_t **>(base + kCheatMgrMaskOff);
-    const auto mask_addr = reinterpret_cast<std::uintptr_t>(mask);
-    if (!pal::pointer_looks_valid(mask) || (mask_addr & 7u) != 0)
-        return nullptr;
-    return mask;
-}
-
-// Resolves g_cheatManager through the game's own GetSymAddr. Only a successful resolve is cached:
-// a miss is retried on every call, because a caller asking this from its own constructor can race
-// the App constructor body publishing the game's text range (mod::sym_addr fails closed until
-// then), and caching that transient miss would make traps look permanently unavailable for the rest
-// of the session. The "not yet available" log is still one-shot, so a slow race does not spam it.
-void ensure_cheat_mgr_symbol()
-{
-    if (g_cheat_mgr_sym != nullptr)
-        return;
-    g_cheat_mgr_sym = mod::sym_addr("g_cheatManager");
-    if (g_cheat_mgr_sym != nullptr)
-    {
-        pal::logf(pal::LogLevel::Info, "traps: g_cheatManager resolved");
-        return;
-    }
-    if (!g_cheat_mgr_miss_logged)
-    {
-        g_cheat_mgr_miss_logged = true;
-        pal::logf(pal::LogLevel::Warn, "traps: g_cheatManager NOT available (yet)");
-    }
-}
-
-// GetSymAddr hands back the CheatManager itself, already dereferenced: the symbol table's entry for
-// g_cheatManager loads the global rather than taking its address. The validation below still earns
-// its place, since cheat_mask_at is all that stands between a resolve gone wrong and a write into
-// arbitrary game memory. The outcome logs once, since a human reads that line in-game.
-CheatManagerView cheat_manager()
-{
-    ensure_cheat_mgr_symbol();
-    if (g_cheat_mgr_sym == nullptr)
-        return {};
-    std::uint64_t *mask = cheat_mask_at(g_cheat_mgr_sym);
-    if (mask == nullptr)
-        return {};
-    if (!g_cheat_mgr_outcome_logged)
-    {
-        g_cheat_mgr_outcome_logged = true;
-        pal::logf(pal::LogLevel::Info, "traps: g_cheatManager resolved (mask at +0x20 looked valid)");
-    }
-    return {reinterpret_cast<std::uint8_t *>(g_cheat_mgr_sym), mask};
 }
 
 void repl_activate_slot(void *self, bool flag)
@@ -383,45 +166,6 @@ void repl_set_applied(void *self, int idx, bool applied, void *slot)
         return;
     if (g_orig_set_applied)
         g_orig_set_applied(self, idx, applied, slot);
-}
-
-// Pawnty (PawnShopNPC::OnNPCEvent) disable. event 0x1f is InteractComponent::IsInteractable's veto
-// query: a nonzero float at info+0x8 means "not interactable" -> no prompt. No-op everything else so
-// no dialogue line is set and the sell menu never opens.
-constexpr unsigned kPawnInteractableQueryEvent = 0x1f;
-constexpr std::ptrdiff_t kPawnVetoFloatOff = 0x8; // InteractEventInfo veto float
-pal::PawnShopBlockFn g_pawn_disable;
-pal::HookId g_pawn_hook = pal::kInvalidHookId;
-void (*g_orig_pawn_npc)(void *, unsigned, void *) = nullptr;
-
-void repl_pawn_npc(void *self, unsigned event, void *info)
-{
-    if (g_pawn_disable && g_pawn_disable())
-    {
-        if (event == kPawnInteractableQueryEvent && info != nullptr)
-            *reinterpret_cast<float *>(static_cast<char *>(info) + kPawnVetoFloatOff) = 1.0f;
-        return; // swallow dialogue/menu/can-interact; never call the original
-    }
-    if (g_orig_pawn_npc)
-        g_orig_pawn_npc(self, event, info);
-}
-
-// HubFountain::Bulb::Update(float dt, bool lit): forces lit=true for AP-granted generator lamps.
-// Prototype order (self, dt, lit) matches the mangled Update(float,bool) on both ABIs; never reorder.
-pal::FountainLampFn g_fountain_mask_fn;
-pal::HookId g_fountain_hook = pal::kInvalidHookId;
-void (*g_orig_bulb_update)(void *, float, bool) = nullptr;
-
-void repl_bulb_update(void *self, float dt, bool lit)
-{
-    if (g_fountain_mask_fn && self != nullptr)
-    {
-        const std::uint32_t idx = *reinterpret_cast<std::uint32_t *>(static_cast<char *>(self) + mth::layout::kBulbIndexOff);
-        if (idx < static_cast<std::uint32_t>(mth::kGeneratorLampCount) && ((g_fountain_mask_fn() >> idx) & 1u))
-            lit = true; // force this generator lamp lit; never writes SaveSlot+0x290
-    }
-    if (g_orig_bulb_update)
-        g_orig_bulb_update(self, dt, lit);
 }
 
 // TitleScreen::UpdateState(): while disconnected, keep the menu cursor off index 0 ("Start Game")
@@ -530,36 +274,6 @@ void repl_title_update_state(void *self)
     apply_title_start_text(base);
 }
 
-// TitleScreen::StartGame(): backstop to the cursor gate above. UpdateState performs the cursor write
-// AND the confirm dispatch in the same call, so correcting the cursor after the original returns is
-// too late once StartGame has already run; suppress it outright while disconnected instead.
-pal::StartGameSuppressFn g_start_game_suppress_fn;
-pal::HookId g_start_game_hook = pal::kInvalidHookId;
-void (*g_orig_title_start_game)(void *) = nullptr;
-
-void repl_title_start_game(void *self)
-{
-    if (g_start_game_suppress_fn && g_start_game_suppress_fn())
-        return; // disconnected: the option is not selectable, so the vanilla path must not run
-    if (g_orig_title_start_game)
-        g_orig_title_start_game(self);
-}
-
-// SaveManager::WriteSaveData(bool): the flush trigger for mod-owned saves. Observed only, never
-// suppressed; the mod's own SetSaveWriteEnabled(false) (via the native MinaModAPI) is what
-// actually keeps saveData.yc untouched during a takeover.
-pal::SaveRequestedFn g_save_request_fn;
-pal::HookId g_save_request_hook = pal::kInvalidHookId;
-void (*g_orig_write_save_data)(void *, bool) = nullptr;
-
-void repl_write_save_data(void *self, bool flag)
-{
-    if (g_save_request_fn)
-        g_save_request_fn();
-    if (g_orig_write_save_data)
-        g_orig_write_save_data(self, flag);
-}
-
 } // namespace
 
 namespace pal
@@ -602,66 +316,6 @@ void remove_shop_purchase_hook()
     g_on_shop_buy = nullptr;
 }
 
-bool install_pawn_shop_hook(PawnShopBlockFn disable)
-{
-    g_pawn_disable = std::move(disable);
-    const std::uintptr_t addr = resolve_game_symbol(mth::sym::pawn_shop_on_npc_event);
-    if (addr == 0)
-    {
-        logf(LogLevel::Warn, "pawnty: PawnShopNPC::OnNPCEvent not resolved; pawn-shop disable off");
-        g_pawn_disable = nullptr;
-        return false;
-    }
-    g_pawn_hook =
-        hook_engine().install_hook(reinterpret_cast<void *>(addr), reinterpret_cast<void *>(&repl_pawn_npc), reinterpret_cast<void **>(&g_orig_pawn_npc));
-    if (g_pawn_hook == kInvalidHookId)
-    {
-        logf(LogLevel::Error, "pawnty: failed to hook PawnShopNPC::OnNPCEvent");
-        g_pawn_disable = nullptr;
-        return false;
-    }
-    logf(LogLevel::Info, "pawnty: hooked PawnShopNPC::OnNPCEvent (id=%llu)", static_cast<unsigned long long>(g_pawn_hook));
-    return true;
-}
-
-void remove_pawn_shop_hook()
-{
-    if (g_pawn_hook != kInvalidHookId)
-        hook_engine().remove_hook(g_pawn_hook);
-    g_pawn_hook = kInvalidHookId;
-    g_pawn_disable = nullptr;
-}
-
-bool install_fountain_lamp_hook(FountainLampFn lit_mask)
-{
-    g_fountain_mask_fn = std::move(lit_mask);
-    const std::uintptr_t addr = resolve_game_symbol(mth::sym::hub_fountain_bulb_update);
-    if (addr == 0)
-    {
-        logf(LogLevel::Warn, "fountain: HubFountain::Bulb::Update not resolved; lamp pre-light off");
-        g_fountain_mask_fn = nullptr;
-        return false;
-    }
-    g_fountain_hook =
-        hook_engine().install_hook(reinterpret_cast<void *>(addr), reinterpret_cast<void *>(&repl_bulb_update), reinterpret_cast<void **>(&g_orig_bulb_update));
-    if (g_fountain_hook == kInvalidHookId)
-    {
-        logf(LogLevel::Error, "fountain: failed to hook HubFountain::Bulb::Update");
-        g_fountain_mask_fn = nullptr;
-        return false;
-    }
-    logf(LogLevel::Info, "fountain: hooked HubFountain::Bulb::Update (id=%llu)", static_cast<unsigned long long>(g_fountain_hook));
-    return true;
-}
-
-void remove_fountain_lamp_hook()
-{
-    if (g_fountain_hook != kInvalidHookId)
-        hook_engine().remove_hook(g_fountain_hook);
-    g_fountain_hook = kInvalidHookId;
-    g_fountain_mask_fn = nullptr;
-}
-
 bool install_title_gate_hook(TitleGateFn connected)
 {
     g_title_gate_fn = std::move(connected);
@@ -698,187 +352,7 @@ void set_title_start_option_text(const char *text)
     g_title_start_text = (text != nullptr) ? text : "";
 }
 
-bool install_start_game_suppress_hook(StartGameSuppressFn suppress)
-{
-    g_start_game_suppress_fn = std::move(suppress);
-    const std::uintptr_t addr = resolve_game_symbol(mth::sym::title_screen_start_game);
-    if (addr == 0)
-    {
-        logf(LogLevel::Warn, "title: TitleScreen::StartGame not resolved; start-game backstop off");
-        g_start_game_suppress_fn = nullptr;
-        return false;
-    }
-    g_start_game_hook = hook_engine().install_hook(reinterpret_cast<void *>(addr), reinterpret_cast<void *>(&repl_title_start_game),
-                                                   reinterpret_cast<void **>(&g_orig_title_start_game));
-    if (g_start_game_hook == kInvalidHookId)
-    {
-        logf(LogLevel::Error, "title: failed to hook TitleScreen::StartGame");
-        g_start_game_suppress_fn = nullptr;
-        return false;
-    }
-    logf(LogLevel::Info, "title: hooked TitleScreen::StartGame (id=%llu)", static_cast<unsigned long long>(g_start_game_hook));
-    return true;
-}
-
-void remove_start_game_suppress_hook()
-{
-    if (g_start_game_hook != kInvalidHookId)
-        hook_engine().remove_hook(g_start_game_hook);
-    g_start_game_hook = kInvalidHookId;
-    g_start_game_suppress_fn = nullptr;
-}
-
-bool install_shop_flatten_hook(ShopFlattenFn active)
-{
-    g_shop_flatten_cb = active;
-    const std::uintptr_t addr = resolve_game_symbol(mth::sym::shop_get);
-    if (addr == 0)
-    {
-        logf(LogLevel::Warn, "shop: Shop::Get not resolved; stacked-shop flattening disabled");
-        g_shop_flatten_cb = nullptr;
-        return false;
-    }
-    g_shop_flatten_hook =
-        hook_engine().install_hook(reinterpret_cast<void *>(addr), reinterpret_cast<void *>(&repl_shop_get), reinterpret_cast<void **>(&g_orig_shop_get));
-    if (g_shop_flatten_hook == kInvalidHookId)
-    {
-        logf(LogLevel::Error, "shop: failed to hook Shop::Get");
-        g_shop_flatten_cb = nullptr;
-        return false;
-    }
-    logf(LogLevel::Info, "shop: hooked Shop::Get for flattening (id=%llu)", static_cast<unsigned long long>(g_shop_flatten_hook));
-    return true;
-}
-
-void remove_shop_flatten_hook()
-{
-    if (g_shop_flatten_hook != kInvalidHookId)
-        hook_engine().remove_hook(g_shop_flatten_hook);
-    g_shop_flatten_hook = kInvalidHookId;
-    g_shop_flatten_cb = nullptr;
-    g_orig_shop_get = nullptr;
-}
-
-int shop_selected_loc(void *shop_menu)
-{
-    void **boxes = nullptr;
-    int count = 0;
-    if (!shop_box_list(shop_menu, &boxes, &count))
-        return -1;
-    const int cursor = *reinterpret_cast<int *>(static_cast<char *>(shop_menu) + kShopCursorOff);
-    if (cursor < 0 || cursor >= count)
-        return -1;
-    void *box = boxes[cursor];
-    if (!pal::pointer_looks_valid(box))
-        return -1;
-    const int item_type = *reinterpret_cast<int *>(static_cast<char *>(box) + kShopBoxItemTypeOff);
-    if (item_type == kShopSkipItemType)
-        return -1;
-    // Sold-out box: stock count 0 (same field the ShopItem::Refresh hook zeroes for a fully-bought slot).
-    if (*reinterpret_cast<int *>(static_cast<char *>(box) + mth::layout::kShopItemStockOff) == 0)
-        return -1;
-    void *def = *reinterpret_cast<void **>(static_cast<char *>(box) + mth::layout::kShopItemDefOff);
-    if (!pal::pointer_looks_valid(def))
-        return -1;
-    return *reinterpret_cast<int *>(static_cast<char *>(def) + mth::layout::kShopDefLocOff);
-}
-
-void shop_enumerate_locs(void *shop_menu, void (*sink)(int loc, void *ctx), void *ctx)
-{
-    void **boxes = nullptr;
-    int count = 0;
-    if (sink == nullptr || !shop_box_list(shop_menu, &boxes, &count))
-        return;
-    for (int i = 0; i < count; ++i)
-    {
-        void *box = boxes[i];
-        if (!pal::pointer_looks_valid(box))
-            continue;
-        void *def = *reinterpret_cast<void **>(static_cast<char *>(box) + mth::layout::kShopItemDefOff);
-        if (!pal::pointer_looks_valid(def))
-            continue;
-        sink(*reinterpret_cast<int *>(static_cast<char *>(def) + mth::layout::kShopDefLocOff), ctx);
-    }
-}
-
-// Deliberately not mode-gated: SetupBoxes builds a live text widget for the appearance menu too, so these
-// return a real widget there. Safe only because on_shop_set_cursor resolves a location first and bails
-// when there is none; keep that order, or the appearance menu's title gets overwritten with an AP name.
-void *shop_name_widget(void *shop_menu)
-{
-    return shop_menu != nullptr ? *reinterpret_cast<void **>(static_cast<char *>(shop_menu) + kShopNameWidgetOff) : nullptr;
-}
-
-void *shop_desc_widget(void *shop_menu)
-{
-    return shop_menu != nullptr ? *reinterpret_cast<void **>(static_cast<char *>(shop_menu) + kShopDescWidgetOff) : nullptr;
-}
-
-void shop_set_text(void *widget, const char *utf8)
-{
-    mod::set_text(widget, utf8);
-}
-
-bool install_shop_text_hook(ShopTextFn on_set_cursor)
-{
-    const std::uintptr_t addr = resolve_game_symbol(mth::sym::shop_set_cursor);
-    if (addr == 0)
-    {
-        logf(LogLevel::Warn, "shop: ShopMenu::SetCursor not resolved; shop text override disabled");
-        return false;
-    }
-    g_shop_text_cb = on_set_cursor;
-    g_shop_text_hook =
-        hook_engine().install_hook(reinterpret_cast<void *>(addr), reinterpret_cast<void *>(&repl_set_cursor), reinterpret_cast<void **>(&g_orig_set_cursor));
-    if (g_shop_text_hook == kInvalidHookId)
-    {
-        logf(LogLevel::Error, "shop: failed to hook ShopMenu::SetCursor");
-        g_shop_text_cb = nullptr;
-        return false;
-    }
-    logf(LogLevel::Info, "shop: hooked ShopMenu::SetCursor for text override (id=%llu)", static_cast<unsigned long long>(g_shop_text_hook));
-    return true;
-}
-
-void remove_shop_text_hook()
-{
-    if (g_shop_text_hook != kInvalidHookId)
-        hook_engine().remove_hook(g_shop_text_hook);
-    g_shop_text_hook = kInvalidHookId;
-    g_shop_text_cb = nullptr;
-    g_orig_set_cursor = nullptr;
-}
-
 // install_item_collected_hook / remove_item_collected_hook live in mod/mod_api.cpp.
-
-bool install_newfile_kit_suppressor(NewfileKitSuppressFn should_suppress)
-{
-    const std::uintptr_t addr = resolve_game_symbol(mth::sym::save_slot_clear);
-    if (addr == 0)
-    {
-        logf(LogLevel::Warn, "newfile-kit: SaveSlot::Clear not resolved; starting-kit suppression disabled");
-        return false;
-    }
-    g_kit_suppress = std::move(should_suppress);
-    g_kit_hook = hook_engine().install_hook(reinterpret_cast<void *>(addr), reinterpret_cast<void *>(&repl_save_slot_clear),
-                                            reinterpret_cast<void **>(&g_orig_save_slot_clear));
-    if (g_kit_hook == kInvalidHookId)
-    {
-        logf(LogLevel::Error, "newfile-kit: failed to hook SaveSlot::Clear");
-        g_kit_suppress = nullptr;
-        return false;
-    }
-    logf(LogLevel::Info, "newfile-kit: hooked SaveSlot::Clear (id=%llu)", static_cast<unsigned long long>(g_kit_hook));
-    return true;
-}
-
-void remove_newfile_kit_suppressor()
-{
-    if (g_kit_hook != kInvalidHookId)
-        hook_engine().remove_hook(g_kit_hook);
-    g_kit_hook = kInvalidHookId;
-    g_kit_suppress = nullptr;
-}
 
 bool modifiers_available()
 {
@@ -960,34 +434,6 @@ void remove_modifier_hooks()
     g_seed_fn = nullptr;
     g_save_loaded_fn = nullptr;
     g_block_fn = nullptr;
-}
-
-bool runtime_modifiers_available()
-{
-    ensure_cheat_mgr_symbol();
-    return g_cheat_mgr_sym != nullptr;
-}
-
-bool runtime_modifier_ready()
-{
-    const CheatManagerView mgr = cheat_manager();
-    return mgr.base != nullptr && mgr.base[kCheatMgrActivatedOff] != 0;
-}
-
-bool set_runtime_modifier(int idx, bool on)
-{
-    if (idx < 0 || idx >= 254)
-        return false;
-    const CheatManagerView mgr = cheat_manager();
-    if (mgr.base == nullptr)
-        return false;
-    // Every read site checks this byte before the mask, so a bit written while it is clear does
-    // nothing at all. Only the game's own ActivateSaveCheats sets it, so a clear byte means no save
-    // is active yet, and the write is worth attempting again only after the next activation.
-    if (mgr.base[kCheatMgrActivatedOff] == 0)
-        return false;
-    mth::cheat_mask_set(mgr.mask, idx, on);
-    return true;
 }
 
 } // namespace pal
@@ -1108,151 +554,6 @@ void remove_level_cap_hook()
 
 } // namespace pal
 
-// ---- capacity upgrades ----
-// Per-upgrade SaveSlot field (index Magic,Health,Spark,Vial,Trinket); popcount = capacity. SaveSlot
-// offsets match Linux (same struct layout). Player::UpdateStats resolves via the signature table; if
-// the sig is absent (not yet regenerated for the shipping build) the feature stays disabled. The Vial slot
-// (kVialUpgradeIndex) is a placeholder here and never written: vials go through the mod API (see App).
-namespace
-{
-constexpr std::ptrdiff_t kUpgradeFieldOff[5] = {0x170, 0x130, 0x54, 0x18c, 0x950};
-
-// Live resource-pool fields (offsets confirmed identical to Linux by 3 independent RE passes;
-// CombatCore = *(Player+0x130)). Used to keep the missing amount constant on a capacity grant.
-constexpr std::ptrdiff_t kCombatCoreOff = 0x130; // Player -> CombatCore*
-constexpr std::ptrdiff_t kHpCurOff = 0x1e0;      // CombatCore, float
-constexpr std::ptrdiff_t kHpMaxOff = 0x1e8;      // CombatCore, float
-// Joules (magic), pinned by the game's own accessors: PlayerGetJoules/PlayerSetJoules use Player+0x117c,
-// and UpdateStats writes the max at Player+0x1180. These read 0x1174/0x1178 until r148851; those are the
-// backup-sidearm and latched in-flight sidearm itemTypes, so every grant clamped one sidearm itemType
-// against the other and the backup slot emptied on the next WriteSave.
-constexpr std::ptrdiff_t kMagicCurOff = 0x117c; // Player, int
-constexpr std::ptrdiff_t kMagicMaxOff = 0x1180; // Player, int
-constexpr std::ptrdiff_t kSparkCurOff = 0x50;   // SaveSlot, int
-constexpr std::ptrdiff_t kSparkMaxOff = 0x230;  // CombatCore, int
-// Vials are NOT written here: their SaveSlot bitfield offset drifts between builds (#97), so App drives
-// them through the offset-free mod-API accessors (mod::set_player_max_vials) instead.
-
-bool g_up_resolved = false;
-bool g_up_ok = false;
-bool g_up_layout_ok = true; // cleared permanently if an upgrade field reads out of its plausible domain
-std::uintptr_t g_up_save_manager = 0;
-
-float fld_f(void *base, std::ptrdiff_t off)
-{
-    return *reinterpret_cast<float *>(static_cast<char *>(base) + off);
-}
-int fld_i(void *base, std::ptrdiff_t off)
-{
-    return *reinterpret_cast<int *>(static_cast<char *>(base) + off);
-}
-} // namespace
-
-namespace pal
-{
-
-bool upgrades_available()
-{
-    if (g_up_resolved)
-        return g_up_ok;
-    g_up_resolved = true;
-    g_up_save_manager = resolve_game_symbol(mth::sym::save_manager);
-    g_up_ok = g_up_save_manager != 0;
-    if (!g_up_ok)
-        logf(LogLevel::Warn, "upgrades: g_saveManager unresolved; feature disabled");
-    return g_up_ok;
-}
-
-bool apply_upgrades(const int *counts, void *player)
-{
-    // Diagnostic (#46): this is called every tick while dirty, so log only when the outcome CHANGES to
-    // avoid per-frame spam. Distinguishes which silent guard drops the new-file start-inventory grant.
-    static int s_last_outcome = -1;
-    auto trace = [&](int outcome, const char *what, void *slot)
-    {
-        if (outcome == s_last_outcome)
-            return;
-        s_last_outcome = outcome;
-        pal::logf(pal::LogLevel::Debug, "upgrades: apply -> %s (player=%p slot=%p counts=[%d,%d,%d,%d,%d])", what, player, slot, counts[0], counts[1],
-                  counts[2], counts[3], counts[4]);
-    };
-    if (!upgrades_available())
-    {
-        trace(1, "skip: symbols unavailable", nullptr);
-        return false;
-    }
-    if (player == nullptr)
-    {
-        trace(2, "skip: player null", nullptr);
-        return false;
-    }
-    if (!g_up_layout_ok)
-    {
-        trace(3, "skip: layout disabled", nullptr);
-        return false;
-    }
-    // Checked before any write: the owned-bit fields do nothing until UpdateStats recomputes the maxima
-    // from them, so without it the grant would be half-applied instead of merely deferred.
-    if (!mod::player_stats_api_available())
-    {
-        trace(6, "skip: PlayerUpdateStats unavailable", nullptr);
-        return false;
-    }
-    void *slot = *reinterpret_cast<void **>(g_up_save_manager); // global holds the active SaveSlot*
-    if (!pal::pointer_looks_valid(slot))
-    {
-        trace(4, "skip: active SaveSlot* invalid", slot);
-        return false;
-    }
-    // CombatCore is reached through the Player, so a non-canonical read means the Player is not one (#157
-    // faulted on exactly this load, walking a freed Player). Bail rather than treat it as absent: UpdateStats
-    // and the magic-pool writes below still go through that same pointer. Leaves the counts dirty, so the
-    // next tick retries. A genuinely null CombatCore is the separate case the pool restores already handle.
-    void *cc = *reinterpret_cast<void **>(static_cast<char *>(player) + kCombatCoreOff);
-    if (cc != nullptr && !pal::pointer_looks_valid(cc))
-    {
-        trace(5, "skip: CombatCore* invalid", slot);
-        return false;
-    }
-
-    // Keep each pool's missing amount constant across the grant (current = new_max - old_missing);
-    // a no-op on a resend (max unchanged) and full on a fresh file. Mirrors the Linux impl.
-    const float hp_missing = cc != nullptr ? fld_f(cc, kHpMaxOff) - fld_f(cc, kHpCurOff) : 0.0f;
-    const int magic_missing = fld_i(player, kMagicMaxOff) - fld_i(player, kMagicCurOff);
-    const int spark_missing = cc != nullptr ? fld_i(cc, kSparkMaxOff) - fld_i(slot, kSparkCurOff) : 0;
-
-    for (int i = 0; i < 5; ++i)
-    {
-        if (i == mth::kVialUpgradeIndex)
-            continue; // vials are applied via the mod API (offset-free), not this bitfield
-        auto &fieldv = *reinterpret_cast<std::uint32_t *>(static_cast<char *>(slot) + kUpgradeFieldOff[i]);
-        if (!mth::upgrade_field_in_domain(i, fieldv))
-        {
-            g_up_layout_ok = false;
-            logf(LogLevel::Warn, "upgrades: kUpgradeFieldOff[%d] read=0x%x exceeds cap %d; offset may have shifted, upgrade writes DISABLED", i, fieldv,
-                 mth::kUpgradeCaps[i]);
-            return false;
-        }
-        fieldv = mth::upgrade_field_value(i, counts[i], fieldv);
-    }
-    mod::player_update_stats(); // recompute live maxima from the owned-bit fields; acts on the live player
-
-    if (cc != nullptr)
-    {
-        const float hp_max = fld_f(cc, kHpMaxOff);
-        *reinterpret_cast<float *>(static_cast<char *>(cc) + kHpCurOff) = std::clamp(hp_max - hp_missing, 0.0f, hp_max);
-        const int spark_max = fld_i(cc, kSparkMaxOff);
-        *reinterpret_cast<int *>(static_cast<char *>(slot) + kSparkCurOff) = std::clamp(spark_max - spark_missing, 0, spark_max);
-    }
-    const int magic_max = fld_i(player, kMagicMaxOff);
-    *reinterpret_cast<int *>(static_cast<char *>(player) + kMagicCurOff) = std::clamp(magic_max - magic_missing, 0, magic_max);
-
-    trace(0, "applied", slot);
-    return true;
-}
-
-} // namespace pal
-
 // ---- ability gating (Windows) ----
 // mth::Ability ordinals (kept local so pal/ stays free of mth/ layout headers).
 namespace
@@ -1268,15 +569,6 @@ constexpr int kAbTrain = 6;
 // Player-object offsets used by the detours; mirror the Linux struct layout (same Player struct).
 constexpr std::ptrdiff_t kPlayerWaterListenerOff = 0x2c0; // WaterListener* (swim-vs-land discriminator)
 
-// Player state machine (#163): current / requested / pending-request. Requesting kStateDeepWaterFall runs the
-// game's own on-foot deep-water fall, which chains fall -> respawn-at-shore -> pit damage on its own timer.
-// kStateMax is the InitState/UpdateState jump-table bound, used only as a sanity check on the offset.
-constexpr std::ptrdiff_t kPlayerStateCurOff = 0x254;
-constexpr std::ptrdiff_t kPlayerStateReqOff = 0x25c;
-constexpr std::ptrdiff_t kPlayerStatePendOff = 0x260;
-constexpr int kStateBurrow = 0x1c; // current state while burrowing (ground or water)
-constexpr int kStateDeepWaterFall = 0xf1;
-constexpr int kStateMax = 0xf5;
 // Pending bounce target (3 floats, FLT_MAX when none) and the bone-bounce variant marker. Player::OnBounce
 // consumes both; its own early-out clears them, and the block path has to do the same or the target stays
 // armed and fires late (#168).
@@ -1303,13 +595,6 @@ constexpr int kTrainExitCode = 100;
 constexpr std::ptrdiff_t kSaveTrainPassOwnedOff = 0x1c0;
 // SaveSlot train-present byte (platform data; not an mth/ layout offset).
 constexpr std::ptrdiff_t kSaveTrainPresentOff = 0x1c1;
-// SaveSlot unlocked-train-lines bitfield (5 low bits, one per destination). Set by the TrainAuthority ctor
-// on station footfall; the AP client clamps it to the granted-ticket mask. Same layout on both platforms.
-constexpr std::ptrdiff_t kSaveTrainUnlockedLinesOff = 0x1e0;
-// SaveSlot donation-machine progress (u32 uTicketProgress). Read fresh by the machine every tick and never
-// reset, with exactly three readers (the state machine's goal compare, the progress bar, the deposit dial),
-// so raising it is a complete way to lower the donation cost. Same layout on both platforms.
-constexpr std::ptrdiff_t kSaveTicketProgressOff = 0x1bc;
 // CTP boss (Thorne 2) defeated bit: byte +0x281 mask 0x02 of the SaveSlot+0x280 boss bitfield. The Coltrane
 // line ride is gated on it (#108). Shared layout.
 constexpr std::ptrdiff_t kSaveCtpBossByteOff = 0x281;
@@ -1764,39 +1049,11 @@ int burrow_water_state(void *player)
     return mod::water_is_in_deep_water(wl, false) ? 1 : 0;
 }
 
-bool player_is_burrowing(void *player)
-{
-    if (player == nullptr)
-        return false;
-    const int cur = *reinterpret_cast<int *>(static_cast<char *>(player) + kPlayerStateCurOff);
-    return cur == kStateBurrow;
-}
-
 bool force_burrow_emerge(void *player)
 {
     if (player == nullptr || g_orig_burrow_jump == nullptr)
         return false;
     g_orig_burrow_jump(player); // the original, not the detour: this emerge is forced, not player-initiated
-    return true;
-}
-
-bool request_deep_water_fall(void *player)
-{
-    if (player == nullptr)
-        return false;
-    char *p = static_cast<char *>(player);
-    const int cur = *reinterpret_cast<int *>(p + kPlayerStateCurOff);
-    // Backstop for a caller that did not confirm the burrow state first: outside the dispatch table's range
-    // this is not the state field on this build, so leave the player alone.
-    if (cur < 0 || cur > kStateMax)
-    {
-        logf(LogLevel::Warn, "abilities: player state reads %d (out of range); deep-water fall not requested", cur);
-        return false;
-    }
-    if (cur == kStateDeepWaterFall)
-        return true; // already falling
-    *reinterpret_cast<int *>(p + kPlayerStateReqOff) = kStateDeepWaterFall;
-    *reinterpret_cast<std::uint8_t *>(p + kPlayerStatePendOff) = 1; // the game writes this as a byte
     return true;
 }
 
@@ -1810,16 +1067,6 @@ void enforce_train_presence(std::uintptr_t save_manager_global, bool blocked)
     *reinterpret_cast<char *>(static_cast<char *>(slot) + kSaveTrainPresentOff) = 0;
 }
 
-void enforce_train_destinations(std::uintptr_t save_manager_global, std::uint32_t line_mask)
-{
-    void *slot = active_save_slot(save_manager_global);
-    if (slot == nullptr)
-        return;
-    // Unlocked-lines bitfield is a byte at +0x1e0 (5 low bits); the footfall unlock only ORs bits in, so
-    // writing the granted mask each frame clears any line the game auto-unlocked on a station visit.
-    *reinterpret_cast<std::uint8_t *>(static_cast<char *>(slot) + kSaveTrainUnlockedLinesOff) = static_cast<std::uint8_t>(line_mask & 0xffu);
-}
-
 void enforce_train_boarding(std::uintptr_t save_manager_global)
 {
     void *slot = active_save_slot(save_manager_global);
@@ -1831,127 +1078,10 @@ void enforce_train_boarding(std::uintptr_t save_manager_global)
         *reinterpret_cast<char *>(static_cast<char *>(slot) + kSaveTrainPresentOff) = 0;
 }
 
-void clear_starter_weapon_swap(std::uintptr_t save_manager_global, bool authed, bool slot_ok)
-{
-    static bool logged = false;
-    void *slot = active_save_slot(save_manager_global);
-    if (slot == nullptr)
-        return;
-    auto &type = *reinterpret_cast<int *>(static_cast<char *>(slot) + mth::layout::kSaveStarterWeaponTypeOff);
-    if (!mth::tables::should_clear_starter_swap(authed, slot_ok, type))
-        return;
-    const int prev = type;
-    type = -1;
-    // A save load re-seeds the field, so this can fire more than once per session; only the first is Info.
-    const LogLevel level = logged ? LogLevel::Debug : LogLevel::Info;
-    logged = true;
-    logf(level, "starter: cleared weapon swap (was type=%d); belowdecks weapon stands restored to vanilla slots", prev);
-}
-
-void enforce_weapon_ownership(std::uintptr_t save_manager_global, const std::uint32_t *authorized, bool authed, bool slot_ok)
-{
-    static bool logged[mth::kWeaponFamilyCount] = {}; // per family: Info on the first correction, Debug on repeats
-    static bool warned = false;
-    static bool layout_ok = true;
-    if (!layout_ok)
-        return; // an implausible read already disabled the clamp for the rest of the process
-    if (!authed || !slot_ok || authorized == nullptr)
-        return; // durable and destructive: bound AP save only (slot_ok alone is true while offline)
-    void *slot = active_save_slot(save_manager_global);
-    if (slot == nullptr)
-        return;
-    auto *owned = reinterpret_cast<std::uint32_t *>(static_cast<char *>(slot) + mth::layout::kSaveWeaponOwnedBitsOff);
-    auto *active = reinterpret_cast<int *>(static_cast<char *>(slot) + mth::layout::kSaveWeaponActiveTierOff);
-
-    std::uint32_t authorized_any = 0;
-    std::uint32_t owned_any = 0;
-    for (int fam = 0; fam < mth::kWeaponFamilyCount; ++fam)
-    {
-        // Every family is checked before the first write: the clamp rewrites all 40 bytes of the pair each tick (see weapon_fields_in_domain).
-        if (!mth::tables::weapon_fields_in_domain(owned[fam], active[fam]))
-        {
-            layout_ok = false;
-            logf(LogLevel::Error,
-                 "weapons: family=%d owned=0x%x tier=%d outside the tier domain (mask 0x%x, tier 0..%d); offsets may have shifted, weapon writes DISABLED", fam,
-                 owned[fam], active[fam], mth::layout::kWeaponTierBits, std::bit_width(mth::layout::kWeaponTierBits) - 1);
-            return;
-        }
-        authorized_any |= authorized[fam];
-        owned_any |= owned[fam] & mth::layout::kWeaponTierBits;
-    }
-    if (!mth::tables::weapon_clamp_ready(authorized_any, owned_any))
-    {
-        if (!warned)
-            logf(LogLevel::Warn, "weapons: save owns 0x%x but AP has granted nothing yet; ownership clamp skipped until the receipts load", owned_any);
-        warned = true;
-        return;
-    }
-    warned = false;
-
-    for (int fam = 0; fam < mth::kWeaponFamilyCount; ++fam)
-    {
-        const std::uint32_t cur = owned[fam];
-        const std::uint32_t want = authorized[fam];
-        const int want_tier = mth::tables::weapon_active_bit(want);
-        if ((cur & mth::layout::kWeaponTierBits) == want && active[fam] == want_tier)
-            continue; // the common case is a pure read
-        const LogLevel level = logged[fam] ? LogLevel::Debug : LogLevel::Info;
-        logged[fam] = true;
-        logf(level, "weapons: family=%d owned 0x%x -> 0x%x, tier %d -> %d (clamped to the AP grants)", fam, cur & mth::layout::kWeaponTierBits, want,
-             active[fam], want_tier);
-        owned[fam] = (cur & ~mth::layout::kWeaponTierBits) | want; // anything outside the three tier bits is not ours
-        active[fam] = want_tier;
-    }
-}
-
-void seed_ticket_machine_progress(std::uintptr_t save_manager_global, std::uint32_t seed)
-{
-    if (seed == 0)
-        return;
-    void *slot = active_save_slot(save_manager_global);
-    if (slot == nullptr)
-        return;
-    // Raise only: a player already past the seed keeps their own progress, and re-running this each tick
-    // must not undo a deposit in flight.
-    auto *progress = reinterpret_cast<std::uint32_t *>(static_cast<char *>(slot) + kSaveTicketProgressOff);
-    if (*progress < seed)
-        *progress = seed;
-}
-
 void set_train_destination_gate(std::uint32_t granted_mask, bool rando_active)
 {
     g_train_granted_mask = granted_mask;
     g_train_rando_gate = rando_active;
-}
-
-bool install_save_request_hook(SaveRequestedFn on_save)
-{
-    g_save_request_fn = std::move(on_save);
-    const std::uintptr_t addr = resolve_game_symbol(mth::sym::save_manager_write_save_data);
-    if (addr == 0)
-    {
-        logf(LogLevel::Warn, "takeover: SaveManager::WriteSaveData not resolved; mod saves will not flush");
-        g_save_request_fn = nullptr;
-        return false;
-    }
-    g_save_request_hook = hook_engine().install_hook(reinterpret_cast<void *>(addr), reinterpret_cast<void *>(&repl_write_save_data),
-                                                     reinterpret_cast<void **>(&g_orig_write_save_data));
-    if (g_save_request_hook == kInvalidHookId)
-    {
-        logf(LogLevel::Error, "takeover: failed to hook SaveManager::WriteSaveData");
-        g_save_request_fn = nullptr;
-        return false;
-    }
-    logf(LogLevel::Info, "takeover: hooked SaveManager::WriteSaveData (id=%llu)", static_cast<unsigned long long>(g_save_request_hook));
-    return true;
-}
-
-void remove_save_request_hook()
-{
-    if (g_save_request_hook != kInvalidHookId)
-        hook_engine().remove_hook(g_save_request_hook);
-    g_save_request_hook = kInvalidHookId;
-    g_save_request_fn = nullptr;
 }
 
 // Resolved on first use rather than eagerly: on Windows each resolve is a full .text signature scan,
@@ -2001,11 +1131,6 @@ bool init_new_save_file(unsigned int slot)
     clear_fn(file_slot, false);
     init_fn(file_slot);
     return true;
-}
-
-std::filesystem::path mod_save_dir()
-{
-    return pal::log_dir() / "saves";
 }
 
 } // namespace pal
