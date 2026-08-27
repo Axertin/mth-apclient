@@ -303,9 +303,32 @@ inline constexpr int fishing_rod_itemtype(int tier)
 inline constexpr std::int64_t kKearBlockItemBase = 2000;    // kear-lock removals (wired)
 inline constexpr std::int64_t kAreaKearLockItemBase = 2500; // kear-lock removals (wired)
 inline constexpr std::int64_t kAbilityItemBase = 3000;      // ability gates (Ability enum; see ability_ids.hpp)
-inline constexpr std::int64_t kBlockerItemBase = 4000;      // reserved
+inline constexpr std::int64_t kBlockerItemBase = 4000;      // Mirrors End shortcut switches (#28)
 inline constexpr std::int64_t kTrapItemBase = 5000;         // modifier traps (kTrapItemBase + modifier index)
 inline constexpr std::int64_t kTrapSegmentWidth = 1000;
+
+// The apworld's five "<color> Astral Platforms" items sit at the bottom of the blocker segment, in its
+// own color order. The game's Color property uses a different one, so an id decodes through this table
+// rather than by arithmetic. Index = id - kBlockerItemBase, value = the game color the switch reports.
+inline constexpr int kAstralPlatformCount = 5;
+inline constexpr std::array<int, kAstralPlatformCount> kAstralPlatformColors{
+    1, // 4000 green  -> Nox's Bayou mirror
+    4, // 4001 red    -> Bone Beach mirror
+    2, // 4002 blue   -> Queensbury mirror
+    0, // 4003 yellow -> Septemburg mirror
+    3, // 4004 purple -> Coltrane Peak mirror
+};
+
+[[nodiscard]] inline constexpr bool is_astral_platform_item(std::int64_t id) noexcept
+{
+    return id >= kBlockerItemBase && id < kBlockerItemBase + kAstralPlatformCount;
+}
+
+// Valid only when is_astral_platform_item(). Returns a bit position, so a set of these ORs into a mask.
+[[nodiscard]] inline constexpr int astral_platform_color(std::int64_t id) noexcept
+{
+    return kAstralPlatformColors[static_cast<std::size_t>(id - kBlockerItemBase)];
+}
 
 // A trap id carries the modifier index it forces on. The segment is a full 1000 wide, so an id in
 // the tail decodes to an index with no trap behind it, and the table lookup rejects those.
