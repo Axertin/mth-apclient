@@ -45,7 +45,7 @@ TEST_CASE("scene walk: descends entities and reports leaves to the visitor", "[s
     std::vector<void *> found;
     Walker w;
     const mth::SceneWalk r = w.run(root,
-                                   [&](void *, std::span<void *const> children)
+                                   [&](std::span<void *const> children)
                                    {
                                        for (void *c : children)
                                            if (mod::component_isa(c, kTarget))
@@ -78,7 +78,7 @@ TEST_CASE("scene walk: a visitor returning false stops the walk", "[scene]")
     int calls = 0;
     Walker w;
     const mth::SceneWalk r = w.run(root,
-                                   [&](void *, std::span<void *const>)
+                                   [&](std::span<void *const>)
                                    {
                                        ++calls;
                                        return false;
@@ -105,7 +105,7 @@ TEST_CASE("scene walk: entities never reach the visitor", "[scene]")
     bool saw_entity = false;
     Walker w;
     w.run(root,
-          [&](void *, std::span<void *const> children)
+          [&](std::span<void *const> children)
           {
               for (void *c : children)
               {
@@ -130,7 +130,7 @@ TEST_CASE("scene walk: a childless or null root walks nothing", "[scene]")
 
     int calls = 0;
     Walker w;
-    const auto visit = [&](void *, std::span<void *const>)
+    const auto visit = [&](std::span<void *const>)
     {
         ++calls;
         return true;
@@ -156,7 +156,7 @@ TEST_CASE("scene walk: a node wider than the child cap is walked as a prefix and
     std::size_t seen = 0;
     Walker w;
     const mth::SceneWalk r = w.run(root,
-                                   [&](void *, std::span<void *const> children)
+                                   [&](std::span<void *const> children)
                                    {
                                        seen += children.size();
                                        return true;

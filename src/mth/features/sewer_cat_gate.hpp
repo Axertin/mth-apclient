@@ -5,6 +5,8 @@
 #include <functional>
 #include <vector>
 
+#include "mth/features/scene_walk.hpp"
+
 namespace mth
 {
 
@@ -32,14 +34,8 @@ class SewerCatGate
 
     std::function<bool()> should_disable_;
     int cooldown_{0};
-    bool logged_extent_{false};      // one-shot scale log: a walk that sees nothing is how this breaks
-    bool warned_empty_{false};       // ... and reaching nothing at all is how it breaks silently
     bool warned_no_interact_{false}; // found him, could not attribute an interact component to him
-    bool warned_capped_{false};      // either runaway guard tripping, reported once rather than per walk
-    std::uintptr_t mod_base_{0};     // game module range, resolved once: the lookup takes the loader lock
-    std::size_t mod_size_{0};
-    std::vector<void *> buffer_;  // reused across levels and ticks; no per-node allocation
-    std::vector<void *> pending_; // entities left to descend into (explicit stack, no recursion)
+    SceneWalker walker_{"panino", "the fetch vendor", " (#88)"};
 };
 
 } // namespace mth

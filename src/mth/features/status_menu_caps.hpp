@@ -4,6 +4,8 @@
 #include <cstdint>
 #include <vector>
 
+#include "mth/features/scene_walk.hpp"
+
 namespace mth
 {
 class LevelCapHooks;
@@ -25,12 +27,8 @@ class StatusMenuCaps
 
     const LevelCapHooks &caps_;
     int ticks_{0};
-    std::uintptr_t mod_base_{0};
-    std::size_t mod_size_{0};
-    bool warned_no_walk_{false};
     bool logged_found_{false};
-    std::vector<void *> pending_;
-    std::vector<void *> buffer_;
+    SceneWalker walker_{"statuscaps", "the pause panels"};
 };
 
 } // namespace mth

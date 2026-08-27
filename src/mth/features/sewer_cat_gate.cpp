@@ -9,7 +9,6 @@
 #include "mth/core/data/game_layout.hpp"
 #include "mth/features/scene_walk.hpp"
 #include "pal/pal_log.hpp"
-#include "pal/pal_module.hpp"
 
 namespace
 {
@@ -22,13 +21,13 @@ using mth::looks_like_component;
 
 // The game's ownership link, and the only path that names THIS vendor's component. Both offsets are
 // Linux-derived, so both hops are validated.
-[[nodiscard]] void *interact_via_owner(void *behavior, std::uintptr_t mod_base, std::size_t mod_size)
+[[nodiscard]] void *interact_via_owner(void *behavior)
 {
     void *owner = *reinterpret_cast<void **>(static_cast<char *>(behavior) + mth::layout::kSewerCatEntityOff);
-    if (!looks_like_component(owner, mod_base, mod_size))
+    if (!looks_like_component(owner))
         return nullptr;
     void *ic = *reinterpret_cast<void **>(static_cast<char *>(owner) + mth::layout::kNpcEntityInteractOff);
-    if (!looks_like_component(ic, mod_base, mod_size) || !mod::component_isa(ic, mth::rtti::kInteractComponent))
+    if (!looks_like_component(ic) || !mod::component_isa(ic, mth::rtti::kInteractComponent))
         return nullptr;
     return ic;
 }
@@ -50,7 +49,7 @@ SewerCatGate::SewerCatGate(std::function<bool()> should_disable) : should_disabl
 void SewerCatGate::disable_vendor(void *behavior, void *sibling_interact, bool sibling_unique)
 {
     const char *via = "owner";
-    void *ic = interact_via_owner(behavior, mod_base_, mod_size_);
+    void *ic = interact_via_owner(behavior);
     if (ic == nullptr && sibling_unique)
     {
         ic = sibling_interact;
@@ -93,69 +92,33 @@ void SewerCatGate::tick()
     // usually has no live player yet, eat the on_world_destroy reset and cost a full interval.
     cooldown_ = kWalkIntervalTicks;
 
-    if (mod_size_ == 0)
-    {
-        const pal::ModuleInfo gm = pal::game_module();
-        mod_base_ = gm.base;
-        mod_size_ = gm.size;
-    }
-
     // Behaviour and interact component are docked as siblings, so one node's children yield both. The
     // count is what makes the sibling usable: one under this entity can only be his, several cannot be
     // told apart.
-    const SceneWalk walk = walk_scene(root, mod_base_, mod_size_, pending_, buffer_,
-                                      [&](void *, std::span<void *const> children)
-                                      {
-                                          void *vendor = nullptr;
-                                          void *interact = nullptr;
-                                          std::size_t interact_count = 0;
-                                          for (void *c : children)
-                                          {
-                                              if (mod::component_isa(c, rtti::kNpcBehaviorSewerCat))
-                                                  vendor = c;
-                                              else if (mod::component_isa(c, rtti::kInteractComponent))
-                                              {
-                                                  interact = c;
-                                                  ++interact_count;
-                                              }
-                                          }
-                                          if (vendor == nullptr)
-                                              return true;
-                                          disable_vendor(vendor, interact, interact_count == 1);
-                                          return false; // one dedicated instance per world; nothing left to find
-                                      });
-    const std::size_t visited = walk.visited;
+    const SceneWalk walk = walker_.walk(root,
+                                        [&](std::span<void *const> children)
+                                        {
+                                            void *vendor = nullptr;
+                                            void *interact = nullptr;
+                                            std::size_t interact_count = 0;
+                                            for (void *c : children)
+                                            {
+                                                if (mod::component_isa(c, rtti::kNpcBehaviorSewerCat))
+                                                    vendor = c;
+                                                else if (mod::component_isa(c, rtti::kInteractComponent))
+                                                {
+                                                    interact = c;
+                                                    ++interact_count;
+                                                }
+                                            }
+                                            if (vendor == nullptr)
+                                                return true;
+                                            disable_vendor(vendor, interact, interact_count == 1);
+                                            return false; // one dedicated instance per world; nothing left to find
+                                        });
     if (walk.stopped_by_visitor)
         return;
-    if (walk.widest_node != nullptr && !warned_capped_)
-    {
-        warned_capped_ = true;
-        pal::logf(pal::LogLevel::Warn, "panino: scene node %p has %zu children; walking the first %zu (#88)", walk.widest_node, walk.widest_node_children,
-                  kSceneMaxChildren);
-    }
-    if (walk.node_budget_spent && !warned_capped_)
-    {
-        warned_capped_ = true;
-        pal::logf(pal::LogLevel::Warn, "panino: scene walk hit the %zu node cap; the vendor may be past it (#88)", kSceneMaxNodes);
-    }
-
-    // The failure mode of this walk is silence: a broken traversal finds no vendor, which is also what
-    // every room without him looks like. Reaching zero components off a valid root is the one reading
-    // that can only mean broken, so it warns; the extent of a working walk is logged once for scale.
-    if (visited == 0)
-    {
-        if (!warned_empty_)
-        {
-            warned_empty_ = true;
-            pal::logf(pal::LogLevel::Warn, "panino: scene walk reached no components; the fetch vendor cannot be found (#88)");
-        }
-        return;
-    }
-    if (!logged_extent_)
-    {
-        logged_extent_ = true;
-        pal::logf(pal::LogLevel::Debug, "panino: scene walk reached %zu components (#88)", visited);
-    }
+    walker_.report(walk);
 }
 
 void SewerCatGate::on_world_destroy()

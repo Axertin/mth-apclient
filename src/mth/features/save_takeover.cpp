@@ -7,7 +7,6 @@
 #include "pal/pal_game.hpp"
 #include "pal/pal_log.hpp"
 #include "pal/pal_mem.hpp"
-#include "pal/pal_module.hpp"
 
 namespace mth
 {
@@ -199,37 +198,11 @@ void SaveTakeover::on_world_update_end(void *world)
     if (root == nullptr)
         return;
 
-    if (mod_size_ == 0)
-    {
-        const pal::ModuleInfo gm = pal::game_module();
-        mod_base_ = gm.base;
-        mod_size_ = gm.size;
-    }
-
-    const SceneWalk walk = walk_scene(root, mod_base_, mod_size_, pending_, buffer_,
-                                      [&](void *, std::span<void *const> children)
-                                      {
-                                          for (void *c : children)
-                                              // ProfileSelectMenu is a plain ycComponent, so it is a leaf: the walk never descends into it.
-                                              if (mod::component_isa(c, rtti::kProfileSelectMenu))
-                                              {
-                                                  drive_profile_menu(c);
-                                                  return false;
-                                              }
-                                          return true;
-                                      });
-    if (walk.stopped_by_visitor)
-        return;
-    const std::size_t visited = walk.visited;
-
-    // Silence is this walk's failure mode, and here it is also the normal case: the menu only exists for
-    // the seconds between the title and the launch. Warn once only when a claim is actually pending and
-    // the walk reached nothing at all, which can only mean broken rather than absent.
-    if (visited == 0 && step_ == TakeoverStep::AwaitingMenu && !warned_no_walk_)
-    {
-        warned_no_walk_ = true;
-        pal::logf(pal::LogLevel::Warn, "takeover: menu-world scene walk reached no components; the profile menu cannot be found");
-    }
+    // ProfileSelectMenu is a plain ycComponent, so it is a leaf: the walk never descends into it.
+    const SceneWalk walk = walker_.find_first(root, rtti::kProfileSelectMenu, [&](void *c) { drive_profile_menu(c); });
+    // Silence is also the normal case here: the menu only exists for the seconds between the title and
+    // the launch, so this is only a real signal while a claim is waiting on it.
+    walker_.report_silence(walk, step_ == TakeoverStep::AwaitingMenu);
 }
 
 void SaveTakeover::drive_profile_menu(void *menu)

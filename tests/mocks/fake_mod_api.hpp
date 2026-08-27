@@ -458,13 +458,11 @@ struct FakeComponent
 struct FakeScene
 {
     std::deque<FakeComponent> nodes; // deque: node addresses are the handles, so they must be stable
-    void *root{nullptr};
     int vtable_anchor{0};
 
     void reset()
     {
         nodes.clear();
-        root = nullptr;
     }
 
     void *add(std::uint64_t type, void *parent)
@@ -474,8 +472,6 @@ struct FakeScene
         n.type = type;
         if (parent != nullptr)
             static_cast<FakeComponent *>(parent)->children.push_back(&n);
-        else if (root == nullptr)
-            root = &n;
         return &n;
     }
 };
@@ -486,9 +482,11 @@ inline FakeScene &fake_scene()
     return s;
 }
 
+// Must stay non-null: mod::entity_walk_api_available() gates the two entries the walk actually uses on
+// this one being present. Tests pass the root they built straight to walk_scene, so it is never called.
 inline ycEntity *fake_world_game_root(World *)
 {
-    return static_cast<ycEntity *>(fake_scene().root);
+    return nullptr;
 }
 
 inline size_t fake_entity_children(ycEntity *entity, ycComponent **out, size_t cap)

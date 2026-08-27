@@ -7,7 +7,9 @@
 
 #include "mod/mod_api.hpp"
 #include "mth/core/data/component_types.hpp"
+#include "pal/pal_log.hpp"
 #include "pal/pal_mem.hpp"
+#include "pal/pal_module.hpp"
 
 namespace mth
 {
@@ -50,8 +52,8 @@ struct SceneWalk
 // about siblings rather than one child at a time. `pending` and `buffer` are the caller's scratch, kept
 // across ticks so a per-frame walk does not reallocate.
 //
-// visit is called as visit(parent_entity, children) and returns whether to keep walking, so a search
-// can stop the moment it finds its target instead of touring the rest of the room.
+// visit is called as visit(children) and returns whether to keep walking, so a search can stop the
+// moment it finds its target instead of touring the rest of the room.
 template <typename Visit>
 SceneWalk walk_scene(void *root, std::uintptr_t mod_base, std::size_t mod_size, std::vector<void *> &pending, std::vector<void *> &buffer, Visit &&visit)
 {
@@ -92,7 +94,7 @@ SceneWalk walk_scene(void *root, std::uintptr_t mod_base, std::size_t mod_size, 
             else
                 buffer[kept++] = c;
         }
-        if (kept != 0 && !visit(entity, std::span<void *const>(buffer.data(), kept)))
+        if (kept != 0 && !visit(std::span<void *const>(buffer.data(), kept)))
         {
             out.stopped_by_visitor = true;
             pending.clear();
@@ -103,5 +105,117 @@ SceneWalk walk_scene(void *root, std::uintptr_t mod_base, std::size_t mod_size, 
     pending.clear();
     return out;
 }
+
+// The game module range, which looks_like_component needs to range-check a vtable. Resolved on first
+// use rather than at startup because the lookup takes the loader lock, and retried until it answers so
+// a walk that runs before the module is published does not cache a zero for the rest of the session.
+// Game-thread only, like every walk.
+[[nodiscard]] inline pal::ModuleInfo game_range()
+{
+    static pal::ModuleInfo gm{};
+    if (gm.size == 0)
+        gm = pal::game_module();
+    return gm;
+}
+
+[[nodiscard]] inline bool looks_like_component(const void *p)
+{
+    const pal::ModuleInfo gm = game_range();
+    return looks_like_component(p, gm.base, gm.size);
+}
+
+// One scene-polling feature's walking apparatus: the scratch a repeated walk reuses, and the once-only
+// latches its diagnostics need. Features hold one instead of carrying six members and their own copy of
+// the reporting, which was identical at every site bar a log prefix and a noun.
+class SceneWalker
+{
+  public:
+    // tag prefixes every line ("intro"), noun names what is being looked for ("the weapon chest"),
+    // suffix carries an issue reference or is empty, and walk_name distinguishes a walk over something
+    // other than the game world.
+    SceneWalker(const char *tag, const char *noun, const char *suffix = "", const char *walk_name = "scene walk")
+        : tag_(tag), noun_(noun), suffix_(suffix), walk_name_(walk_name)
+    {
+    }
+
+    template <typename Visit> SceneWalk walk(void *root, Visit &&visit)
+    {
+        const pal::ModuleInfo gm = game_range();
+        return walk_scene(root, gm.base, gm.size, pending_, buffer_, std::forward<Visit>(visit));
+    }
+
+    // Hand every component of `type` to fn. Walks the whole graph: a room can hold more than one.
+    template <typename Fn> SceneWalk for_each(void *root, std::uint64_t type, Fn &&fn)
+    {
+        return walk(root,
+                    [&](std::span<void *const> children)
+                    {
+                        for (void *c : children)
+                            if (mod::component_isa(c, type))
+                                fn(c);
+                        return true;
+                    });
+    }
+
+    // Stop at the first component of `type`. SceneWalk::stopped_by_visitor is the "found it" flag.
+    template <typename Fn> SceneWalk find_first(void *root, std::uint64_t type, Fn &&fn)
+    {
+        return walk(root,
+                    [&](std::span<void *const> children)
+                    {
+                        for (void *c : children)
+                            if (mod::component_isa(c, type))
+                            {
+                                fn(c);
+                                return false;
+                            }
+                        return true;
+                    });
+    }
+
+    // Both runaway guards plus the silence check, each reported once per feature rather than per walk.
+    void report(const SceneWalk &w)
+    {
+        if (w.widest_node != nullptr && !warned_capped_)
+        {
+            warned_capped_ = true;
+            pal::logf(pal::LogLevel::Warn, "%s: scene node %p has %zu children; walking the first %zu%s", tag_, w.widest_node, w.widest_node_children,
+                      kSceneMaxChildren, suffix_);
+        }
+        if (w.node_budget_spent && !warned_capped_)
+        {
+            warned_capped_ = true;
+            pal::logf(pal::LogLevel::Warn, "%s: %s hit the %zu node cap; %s may be past it%s", tag_, walk_name_, kSceneMaxNodes, noun_, suffix_);
+        }
+        report_silence(w, true);
+        if (w.visited != 0 && !logged_extent_)
+        {
+            logged_extent_ = true;
+            pal::logf(pal::LogLevel::Debug, "%s: %s reached %zu components%s", tag_, walk_name_, w.visited, suffix_);
+        }
+    }
+
+    // The failure mode of every one of these walks is silence: finding nothing looks exactly like a room
+    // that has nothing. Reaching zero components off a valid root is the one reading that can only mean
+    // broken, so that alone warns, and only when the caller says the answer mattered this tick.
+    void report_silence(const SceneWalk &w, bool mattered)
+    {
+        if (w.visited != 0 || !mattered || warned_empty_)
+            return;
+        warned_empty_ = true;
+        pal::logf(pal::LogLevel::Warn, "%s: %s reached no components; %s cannot be found%s", tag_, walk_name_, noun_, suffix_);
+    }
+
+  private:
+    const char *tag_;
+    const char *noun_;
+    const char *suffix_;
+    const char *walk_name_;
+    bool warned_capped_{false};
+    bool warned_empty_{false};
+    bool logged_extent_{false};
+    std::vector<void *> pending_; // entities left to descend into (explicit stack, no recursion)
+    std::vector<void *> buffer_;  // reused across levels and ticks; no per-node allocation
+};
 
 } // namespace mth

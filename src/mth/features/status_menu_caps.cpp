@@ -10,8 +10,6 @@
 #include "mth/features/levelcap_hooks.hpp"
 #include "mth/features/scene_walk.hpp"
 #include "pal/pal_log.hpp"
-#include "pal/pal_mem.hpp"
-#include "pal/pal_module.hpp"
 
 namespace mth
 {
@@ -48,36 +46,11 @@ void StatusMenuCaps::on_world_update_end(void *world)
     if (root == nullptr)
         return;
 
-    if (mod_size_ == 0)
-    {
-        const pal::ModuleInfo gm = pal::game_module();
-        mod_base_ = gm.base;
-        mod_size_ = gm.size;
-    }
-
-    const SceneWalk walk = walk_scene(root, mod_base_, mod_size_, pending_, buffer_,
-                                      [&](void *, std::span<void *const> children)
-                                      {
-                                          for (void *c : children)
-                                              // StatusMenu is a plain ycComponent, so it is a leaf: the walk never descends into it.
-                                              if (mod::component_isa(c, rtti::kStatusMenu))
-                                              {
-                                                  annotate(c);
-                                                  return false;
-                                              }
-                                          return true;
-                                      });
-    if (walk.stopped_by_visitor)
-        return;
-    const std::size_t visited = walk.visited;
-
+    // StatusMenu is a plain ycComponent, so it is a leaf: the walk never descends into it.
+    const SceneWalk walk = walker_.find_first(root, rtti::kStatusMenu, [&](void *c) { annotate(c); });
     // Absence is the normal case (the pause screen is open for seconds at a time), so only a walk that
-    // reached nothing at all is worth reporting, and only once.
-    if (visited == 0 && !warned_no_walk_)
-    {
-        warned_no_walk_ = true;
-        pal::logf(pal::LogLevel::Warn, "statuscaps: scene walk reached no components; the pause panels cannot be found");
-    }
+    // reached nothing at all is worth reporting.
+    walker_.report_silence(walk, true);
 }
 
 void StatusMenuCaps::annotate(void *status_menu)
@@ -97,7 +70,7 @@ void StatusMenuCaps::annotate(void *status_menu)
         void *widget = *reinterpret_cast<void **>(static_cast<char *>(status_menu) + mth::layout::status_lvl_widget_offset(stat));
         // A drifted offset can land on another live object, and this path writes to what it finds, so
         // the vtable is checked against the module the way the scene walks check theirs.
-        if (!looks_like_component(widget, mod_base_, mod_size_))
+        if (!looks_like_component(widget))
         {
             pal::logf(pal::LogLevel::Debug, "statuscaps: stat=%d level widget rejected (%p)", stat, widget);
             continue;
