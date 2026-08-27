@@ -353,3 +353,13 @@ TEST_CASE("parse_slot_data: unknown keys are ignored", "[slot_data]")
     REQUIRE(cfg.ossex_start);
     REQUIRE(cfg.train_rando);
 }
+
+TEST_CASE("parse_slot_data: mirror_switch_rando defaults on", "[slot_data]")
+{
+    // An AP session owns the save, so the shortcut switches are driven unless the seed opts out.
+    REQUIRE(mth::parse_slot_data(json::object()).mirror_switch_rando);
+    REQUIRE(mth::parse_slot_data(json{{"mirror_switch_rando", 1}}).mirror_switch_rando);
+    REQUIRE_FALSE(mth::parse_slot_data(json{{"mirror_switch_rando", 0}}).mirror_switch_rando);
+    // A non-object blob is the no-slot_data case, which reaches no seed at all.
+    REQUIRE_FALSE(mth::parse_slot_data(json(5)).mirror_switch_rando);
+}
