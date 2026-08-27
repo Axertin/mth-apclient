@@ -55,34 +55,21 @@ void StatusMenuCaps::on_world_update_end(void *world)
         mod_size_ = gm.size;
     }
 
-    std::size_t visited = 0;
-    pending_.clear();
-    pending_.push_back(root);
-    while (!pending_.empty() && visited < kSceneMaxNodes)
-    {
-        void *entity = pending_.back();
-        pending_.pop_back();
-
-        const std::size_t count = mod::entity_children(entity, nullptr, 0); // sizing call
-        if (count == 0)
-            continue;
-        buffer_.assign(count > kSceneMaxChildren ? kSceneMaxChildren : count, nullptr);
-        mod::entity_children(entity, buffer_.data(), buffer_.size());
-        for (void *c : buffer_)
-        {
-            if (!looks_like_component(c, mod_base_, mod_size_))
-                continue;
-            ++visited;
-            // StatusMenu is a plain ycComponent, so it is a leaf: never descend into it.
-            if (mod::component_isa(c, rtti::kStatusMenu))
-            {
-                annotate(c);
-                return;
-            }
-            if (mod::component_isa(c, rtti::kYcEntity))
-                pending_.push_back(c);
-        }
-    }
+    const SceneWalk walk = walk_scene(root, mod_base_, mod_size_, pending_, buffer_,
+                                      [&](void *, std::span<void *const> children)
+                                      {
+                                          for (void *c : children)
+                                              // StatusMenu is a plain ycComponent, so it is a leaf: the walk never descends into it.
+                                              if (mod::component_isa(c, rtti::kStatusMenu))
+                                              {
+                                                  annotate(c);
+                                                  return false;
+                                              }
+                                          return true;
+                                      });
+    if (walk.stopped_by_visitor)
+        return;
+    const std::size_t visited = walk.visited;
 
     // Absence is the normal case (the pause screen is open for seconds at a time), so only a walk that
     // reached nothing at all is worth reporting, and only once.

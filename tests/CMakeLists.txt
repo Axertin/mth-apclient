@@ -57,6 +57,7 @@ add_executable(mthap_unit_tests
     unit/connect_resend_gate_test.cpp
     unit/death_broadcast_gate_test.cpp
     unit/death_hooks_test.cpp
+    unit/scene_walk_test.cpp
     unit/fountain_lamps_test.cpp
     unit/ap_save_store_test.cpp
     unit/zip_archive_test.cpp

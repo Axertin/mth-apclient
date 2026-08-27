@@ -18,7 +18,6 @@ namespace
 constexpr int kWalkIntervalTicks = 60;
 
 constexpr std::size_t kMaxNodes = mth::kSceneMaxNodes;
-constexpr std::size_t kMaxChildren = mth::kSceneMaxChildren;
 using mth::looks_like_component;
 
 } // namespace
@@ -83,48 +82,30 @@ void IntroChestGate::tick()
         mod_base_ = gm.base;
         mod_size_ = gm.size;
     }
-    std::size_t visited = 0;
 
-    pending_.clear();
-    pending_.push_back(root);
-    while (!pending_.empty() && visited < kMaxNodes)
-    {
-        void *entity = pending_.back();
-        pending_.pop_back();
-
-        const std::size_t count = mod::entity_children(entity, nullptr, 0); // sizing call
-        if (count == 0)
-            continue;
-        // Walk a prefix rather than abandoning the node: skipping it would drop its whole subtree.
-        buffer_.assign(count > kMaxChildren ? kMaxChildren : count, nullptr);
-        if (count > kMaxChildren && !warned_capped_)
-        {
-            warned_capped_ = true;
-            pal::logf(pal::LogLevel::Warn, "intro: scene node %p has %zu children; walking the first %zu", entity, count, kMaxChildren);
-        }
-        mod::entity_children(entity, buffer_.data(), buffer_.size());
-
-        for (void *c : buffer_)
-        {
-            if (!looks_like_component(c, mod_base_, mod_size_))
-                continue;
-            ++visited;
-            // An entity is a component that holds the next level down, so the graph is walked through it.
-            if (mod::component_isa(c, rtti::kYcEntity))
-                pending_.push_back(c);
-            // No early exit: a checkpoint room carries a trinket chest and a weapon chest, and only the
-            // one still in starter mode is written, so the rest cost a read each.
-            else if (mod::component_isa(c, rtti::kCheckpointChest))
-                demote_chest(c);
-        }
-    }
-    pending_.clear(); // no game pointer outlives the walk that produced it
-
-    if (visited >= kMaxNodes && !warned_capped_)
+    const SceneWalk walk = walk_scene(root, mod_base_, mod_size_, pending_, buffer_,
+                                      [&](void *, std::span<void *const> children)
+                                      {
+                                          // No early exit: a checkpoint room carries a trinket chest and a weapon chest, and
+                                          // only the one still in starter mode is written, so the rest cost a read each.
+                                          for (void *c : children)
+                                              if (mod::component_isa(c, rtti::kCheckpointChest))
+                                                  demote_chest(c);
+                                          return true;
+                                      });
+    const std::size_t visited = walk.visited;
+    if (walk.widest_node != nullptr && !warned_capped_)
     {
         warned_capped_ = true;
-        pal::logf(pal::LogLevel::Warn, "intro: scene walk hit the %zu node cap; the weapon chest may be past it", kMaxNodes);
+        pal::logf(pal::LogLevel::Warn, "intro: scene node %p has %zu children; walking the first %zu", walk.widest_node, walk.widest_node_children,
+                  kSceneMaxChildren);
     }
+    if (walk.node_budget_spent && !warned_capped_)
+    {
+        warned_capped_ = true;
+        pal::logf(pal::LogLevel::Warn, "intro: scene walk hit the %zu node cap; the weapon chest may be past it", kSceneMaxNodes);
+    }
+
     // The failure mode of this walk is silence: a broken traversal finds no chest, which is also what every
     // room without one looks like. Reaching zero components off a valid root is the one reading that can
     // only mean broken, so it warns; the extent of a working walk is logged once for scale.

@@ -18,8 +18,6 @@ namespace
 // room he is not in.
 constexpr int kWalkIntervalTicks = 60;
 
-constexpr std::size_t kMaxNodes = mth::kSceneMaxNodes;
-constexpr std::size_t kMaxChildren = mth::kSceneMaxChildren;
 using mth::looks_like_component;
 
 // The game's ownership link, and the only path that names THIS vendor's component. Both offsets are
@@ -101,61 +99,46 @@ void SewerCatGate::tick()
         mod_base_ = gm.base;
         mod_size_ = gm.size;
     }
-    std::size_t visited = 0;
 
-    pending_.clear();
-    pending_.push_back(root);
-    while (!pending_.empty() && visited < kMaxNodes)
-    {
-        void *entity = pending_.back();
-        pending_.pop_back();
-
-        const std::size_t count = mod::entity_children(entity, nullptr, 0); // sizing call
-        if (count == 0)
-            continue;
-        // Walk a prefix rather than abandoning the node: skipping it would drop its whole subtree.
-        buffer_.assign(count > kMaxChildren ? kMaxChildren : count, nullptr);
-        if (count > kMaxChildren && !warned_capped_)
-        {
-            warned_capped_ = true;
-            pal::logf(pal::LogLevel::Warn, "panino: scene node %p has %zu children; walking the first %zu (#88)", entity, count, kMaxChildren);
-        }
-        mod::entity_children(entity, buffer_.data(), buffer_.size());
-
-        // Behaviour and interact component are docked as siblings, so one pass yields both. The count is
-        // what makes the sibling usable: one under this entity can only be his, several cannot be told apart.
-        void *vendor = nullptr;
-        void *interact = nullptr;
-        std::size_t interact_count = 0;
-        for (void *c : buffer_)
-        {
-            if (!looks_like_component(c, mod_base_, mod_size_))
-                continue;
-            ++visited;
-            // An entity is a component that holds the next level down, so the graph is walked through it.
-            if (mod::component_isa(c, rtti::kYcEntity))
-                pending_.push_back(c);
-            else if (mod::component_isa(c, rtti::kNpcBehaviorSewerCat))
-                vendor = c;
-            else if (mod::component_isa(c, rtti::kInteractComponent))
-            {
-                interact = c;
-                ++interact_count;
-            }
-        }
-        if (vendor != nullptr)
-        {
-            disable_vendor(vendor, interact, interact_count == 1);
-            pending_.clear(); // no game pointer outlives the walk that produced it
-            return;           // one dedicated instance per world; nothing left to find
-        }
-    }
-
-    if (visited >= kMaxNodes && !warned_capped_)
+    // Behaviour and interact component are docked as siblings, so one node's children yield both. The
+    // count is what makes the sibling usable: one under this entity can only be his, several cannot be
+    // told apart.
+    const SceneWalk walk = walk_scene(root, mod_base_, mod_size_, pending_, buffer_,
+                                      [&](void *, std::span<void *const> children)
+                                      {
+                                          void *vendor = nullptr;
+                                          void *interact = nullptr;
+                                          std::size_t interact_count = 0;
+                                          for (void *c : children)
+                                          {
+                                              if (mod::component_isa(c, rtti::kNpcBehaviorSewerCat))
+                                                  vendor = c;
+                                              else if (mod::component_isa(c, rtti::kInteractComponent))
+                                              {
+                                                  interact = c;
+                                                  ++interact_count;
+                                              }
+                                          }
+                                          if (vendor == nullptr)
+                                              return true;
+                                          disable_vendor(vendor, interact, interact_count == 1);
+                                          return false; // one dedicated instance per world; nothing left to find
+                                      });
+    const std::size_t visited = walk.visited;
+    if (walk.stopped_by_visitor)
+        return;
+    if (walk.widest_node != nullptr && !warned_capped_)
     {
         warned_capped_ = true;
-        pal::logf(pal::LogLevel::Warn, "panino: scene walk hit the %zu node cap; the vendor may be past it (#88)", kMaxNodes);
+        pal::logf(pal::LogLevel::Warn, "panino: scene node %p has %zu children; walking the first %zu (#88)", walk.widest_node, walk.widest_node_children,
+                  kSceneMaxChildren);
     }
+    if (walk.node_budget_spent && !warned_capped_)
+    {
+        warned_capped_ = true;
+        pal::logf(pal::LogLevel::Warn, "panino: scene walk hit the %zu node cap; the vendor may be past it (#88)", kSceneMaxNodes);
+    }
+
     // The failure mode of this walk is silence: a broken traversal finds no vendor, which is also what
     // every room without him looks like. Reaching zero components off a valid root is the one reading
     // that can only mean broken, so it warns; the extent of a working walk is logged once for scale.

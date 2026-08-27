@@ -18,8 +18,6 @@ namespace
 // machine, so this runs at about 1Hz rather than per frame.
 constexpr int kWalkIntervalTicks = 60;
 
-constexpr std::size_t kMaxNodes = mth::kSceneMaxNodes;
-constexpr std::size_t kMaxChildren = mth::kSceneMaxChildren;
 using mth::looks_like_component;
 
 // Disables the machine's interact component. Writes only on a real transition, so the log marks the one
@@ -70,44 +68,27 @@ void TicketMachineGate::tick()
         mod_base_ = gm.base;
         mod_size_ = gm.size;
     }
-    std::size_t visited = 0;
 
-    pending_.clear();
-    pending_.push_back(root);
-    while (!pending_.empty() && visited < kMaxNodes)
-    {
-        void *entity = pending_.back();
-        pending_.pop_back();
-
-        const std::size_t count = mod::entity_children(entity, nullptr, 0); // sizing call
-        if (count == 0)
-            continue;
-        // Walk a prefix rather than abandoning the node: skipping it would drop its whole subtree, and a
-        // tile-heavy room having a wide node says nothing about whether the machine is under it.
-        buffer_.assign(count > kMaxChildren ? kMaxChildren : count, nullptr);
-        if (count > kMaxChildren && !warned_capped_)
-        {
-            warned_capped_ = true;
-            pal::logf(pal::LogLevel::Warn, "train: scene node %p has %zu children; walking the first %zu (#162)", entity, count, kMaxChildren);
-        }
-        mod::entity_children(entity, buffer_.data(), buffer_.size());
-
-        for (void *c : buffer_)
-        {
-            if (!looks_like_component(c, mod_base_, mod_size_))
-                continue;
-            ++visited;
-            // An entity is a component that holds the next level down, so the graph is walked through it.
-            if (mod::component_isa(c, rtti::kYcEntity))
-                pending_.push_back(c);
-            else if (mod::component_isa(c, rtti::kTicketMachine))
-                disable_machine(c, mod_base_, mod_size_);
-        }
-    }
-    if (visited >= kMaxNodes && !warned_capped_)
+    const SceneWalk walk = walk_scene(root, mod_base_, mod_size_, pending_, buffer_,
+                                      [&](void *, std::span<void *const> children)
+                                      {
+                                          for (void *c : children)
+                                              if (mod::component_isa(c, rtti::kTicketMachine))
+                                                  disable_machine(c, mod_base_, mod_size_);
+                                          return true;
+                                      });
+    const std::size_t visited = walk.visited;
+    if (walk.widest_node != nullptr && !warned_capped_)
     {
         warned_capped_ = true;
-        pal::logf(pal::LogLevel::Warn, "train: scene walk hit the %zu node cap; the machine may be past it (#162)", kMaxNodes);
+        // A tile-heavy room having a wide node says nothing about whether the machine is under it.
+        pal::logf(pal::LogLevel::Warn, "train: scene node %p has %zu children; walking the first %zu (#162)", walk.widest_node, walk.widest_node_children,
+                  kSceneMaxChildren);
+    }
+    if (walk.node_budget_spent && !warned_capped_)
+    {
+        warned_capped_ = true;
+        pal::logf(pal::LogLevel::Warn, "train: scene walk hit the %zu node cap; the machine may be past it (#162)", kSceneMaxNodes);
     }
 
     // The failure mode of this walk is silence: a broken traversal finds no machine, which is also exactly
