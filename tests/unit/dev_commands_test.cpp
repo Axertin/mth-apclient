@@ -125,3 +125,18 @@ TEST_CASE("parse_command: trap verb is case-insensitive", "[dev_commands][trap]"
 {
     REQUIRE(mth::parse_command("TRAP 204").kind == mth::CommandKind::Trap);
 }
+
+TEST_CASE("switches verb parses with no args", "[dev_commands]")
+{
+    const auto cmd = mth::parse_command("switches");
+    REQUIRE(cmd.kind == mth::CommandKind::Switches);
+    REQUIRE(cmd.args.empty());
+    REQUIRE(mth::parse_command("SWITCHES").kind == mth::CommandKind::Switches);
+}
+
+TEST_CASE("switches verb carries an on/off argument", "[dev_commands]")
+{
+    REQUIRE(mth::parse_command("switches on").kind == mth::CommandKind::Switches);
+    REQUIRE(mth::parse_command("switches on").args == std::vector<std::string>{"on"});
+    REQUIRE(mth::parse_command("SWITCHES OFF").args == std::vector<std::string>{"OFF"});
+}
