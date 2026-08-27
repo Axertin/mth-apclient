@@ -22,6 +22,7 @@
 #include "mth/features/levelcap_hooks.hpp"
 #include "mth/features/location_hooks.hpp"
 #include "mth/features/lock_hooks.hpp"
+#include "mth/features/mirror_switches.hpp"
 #include "mth/features/modifier_hooks.hpp"
 #include "mth/features/pawn_shop_hooks.hpp"
 #include "mth/features/save_takeover.hpp"
@@ -180,6 +181,9 @@ void HookManager::tick(ApState &state, SessionPolicy &policy, int save_game_slot
     // offline and is not the bound-save test.
     pal::clear_starter_weapon_swap(save_manager_, authed, slot_ok);
     enforce_weapon_grants(state, authed, slot_ok);
+    // Mirrors End shortcut switches (#28). Durable like the two above, so it takes slot_ok for the same
+    // reason; it reads authed off the state itself.
+    tick_mirror_switches(state, slot_ok);
 
     seed_kear_blocks(state);
 
@@ -274,6 +278,7 @@ void HookManager::on_world_destroy()
     sewer_cat_gate_->on_world_destroy();
     intro_chest_gate_->on_world_destroy();
     status_menu_caps_->on_world_destroy();
+    mirror_switches_on_world_destroy(); // the managed switches died with the world
 }
 
 void HookManager::kill_player()

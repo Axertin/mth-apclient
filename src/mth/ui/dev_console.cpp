@@ -179,6 +179,7 @@ void DevConsole::run_input()
         println("          litlamps <0..5 ...>|off  (force Ossex fountain lamps lit; offline test)");
         println("          gate [enforce on|off]  (AP safety gate; enforced by default, blocks connecting when refused)");
         println("          savetest dump|write|noflush|flush  (save-takeover validation; dev only)");
+        println("          switches [on|off]  (log this room's rainbow switches; on|off forces the AP drive, scratch saves only)");
         break;
     case CommandKind::Clear:
         log_.clear();
@@ -359,6 +360,19 @@ void DevConsole::run_input()
         }
         break;
     }
+    case CommandKind::Switches:
+        if (cmd.args.empty())
+        {
+            sink_.probe_switches();
+            println("switches: walking this room; see log");
+        }
+        else
+        {
+            const bool on = cmd.args[0] == "on" || cmd.args[0] == "1" || cmd.args[0] == "true";
+            sink_.set_mirror_switch_override(on);
+            println("switches: AP drive forced " + std::string(on ? "on (scratch saves only)" : "off"));
+        }
+        break;
     case CommandKind::SaveTest:
         if (cmd.args.empty())
             println("usage: savetest dump|write|noflush|flush");

@@ -18,6 +18,7 @@
 #include "mth/core/data/ability_ids.hpp"
 #include "mth/core/game_events.hpp"
 #include "mth/core/rando_bridge.hpp"
+#include "mth/features/mirror_switches.hpp"
 #include "mth/features/player_tracker.hpp"
 #include "mth/features/room_tracker.hpp"
 #include "mth/features/trap_hooks.hpp"
@@ -606,6 +607,23 @@ void App::fire_trap(int modifier_index, float seconds)
     // request over rather than arming here. The arm itself logs what came of it.
     traps_->queue_arm(modifier_index, seconds);
     pal::logf(pal::LogLevel::Info, "console: trap %d queued for the next game tick", modifier_index);
+}
+
+void App::probe_switches()
+{
+    // Render thread: the walk calls into the game per node, so hand it to the next tick like every other
+    // console verb that touches the world.
+    request_switch_probe();
+    pal::logf(pal::LogLevel::Info, "console: switch probe queued for the next game tick");
+}
+
+void App::set_mirror_switch_override(bool on)
+{
+    set_mirror_switches_override_flag(on);
+    if (on)
+        pal::logf(pal::LogLevel::Warn, "console: mirror-switch override on; it ignores the AP session and the bound save, and the clamp is a durable write");
+    else
+        pal::logf(pal::LogLevel::Info, "console: mirror-switch override off");
 }
 
 void App::lock_modifiers(bool armed)

@@ -31,6 +31,9 @@ inline constexpr std::uint64_t kCheckpointChest = type_id("CheckpointChest");
 inline constexpr std::uint64_t kWeaponsChestMenu = type_id("WeaponsChestMenu");
 // The pause screen, built by PauseMenu::UpdateState; owns the three stat panels.
 inline constexpr std::uint64_t kStatusMenu = type_id("StatusMenu");
+// The rainbow-platform switch: a combat hittable, not an interactable. The Mirrors End shortcut
+// switches are the five of these that AP grants (#28).
+inline constexpr std::uint64_t kSwitchOre = type_id("SwitchOre");
 
 static_assert(kYcEntity == 0x8a1d0d54bd371fe0ULL, "ycEntity::GetTypeId()");
 static_assert(kTicketMachine == 0xca27866425643ac0ULL, "TicketMachine::GetTypeId()");
@@ -40,5 +43,6 @@ static_assert(kNpcBehaviorSewerCat == 0xdb075389d6ad4044ULL, "NPCBehavior_SewerC
 static_assert(kCheckpointChest == 0xf14d539e533485feULL, "CheckpointChest::GetTypeId()");
 static_assert(kWeaponsChestMenu == 0x7e089555de4a516eULL, "WeaponsChestMenu::GetTypeId()");
 static_assert(kStatusMenu == 0x2307b8c44d4fcc25ULL, "StatusMenu::GetTypeId()");
+static_assert(kSwitchOre == 0x73e113b5d8b2f1b4ULL, "SwitchOre::GetTypeId()");
 
 } // namespace mth::rtti

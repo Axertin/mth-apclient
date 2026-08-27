@@ -62,6 +62,12 @@ class ICommandSink
     // offline test: queue one AP trap for the next game tick. seconds <= 0 uses the trap table's own
     // duration, and the outcome goes to the log rather than coming back here.
     virtual void fire_trap(int modifier_index, float seconds) = 0;
+    // dev probe: log every rainbow switch in the room the player is standing in (#28). The findings go
+    // to the log rather than coming back here, because the walk runs on the game thread.
+    virtual void probe_switches() = 0;
+    // offline test: drive the Mirrors End switches with no AP session. Bypasses the bound-save gate that
+    // the durable write otherwise waits for, so it is a scratch-save tool.
+    virtual void set_mirror_switch_override(bool on) = 0;
 };
 
 } // namespace mth

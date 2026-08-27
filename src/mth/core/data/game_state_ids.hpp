@@ -15,6 +15,10 @@ inline constexpr int kGameStateFirstWorld = GAMESTATE_INTROBEACH;
 inline constexpr int kGameStateLastWorld = GAMESTATE_GYM_WORLDLOADTEST2;
 inline constexpr int kGameStateTitleScreen = GAMESTATE_TITLE_SCREEN;
 inline constexpr int kGameStateProfileSelect = GAMESTATE_PROFILE_SELECT_MENU;
+// The Mirrors End mirror hub, which is its own gamestate rather than part of the Orrery, and small enough
+// to gate the shortcut switches on: the apworld's room table lists six rooms in it, all but one of them
+// Mirrors End proper.
+inline constexpr int kGameStateMirrorHub = GAMESTATE_ASTRAL_ORRERY_MIRROR_HUB;
 
 // current_game_state() reports -1 when the API is unavailable, which lands outside the range.
 [[nodiscard]] inline constexpr bool is_gameplay_game_state(int gs) noexcept

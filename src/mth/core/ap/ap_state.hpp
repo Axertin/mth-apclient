@@ -108,6 +108,10 @@ class ApState
     {
         return config_.train_pass_cost;
     }
+    [[nodiscard]] bool mirror_switch_rando() const
+    {
+        return config_.mirror_switch_rando;
+    }
     [[nodiscard]] bool deathlink() const // slot_data flag: deaths bounce over the AP link
     {
         return config_.deathlink;

@@ -296,3 +296,19 @@ TEST_CASE("maintained_vial_held preserves the missing flask count across a capac
     REQUIRE(mth::maintained_vial_held(3, 1, 0) == 0); // cap drops to 0 -> clamped, no negative
     REQUIRE(mth::maintained_vial_held(0, 0, 4) == 4); // fresh file, cap 4 -> full 4/4
 }
+
+TEST_CASE("astral platform items decode to the game's own color order", "[items]")
+{
+    // apworld order is green, red, blue, yellow, purple; the game's Color property is
+    // yellow, green, blue, purple, red. A straight subtraction would map four of the five wrong.
+    REQUIRE(mth::astral_platform_color(4000) == 1); // green
+    REQUIRE(mth::astral_platform_color(4001) == 4); // red
+    REQUIRE(mth::astral_platform_color(4002) == 2); // blue
+    REQUIRE(mth::astral_platform_color(4003) == 0); // yellow
+    REQUIRE(mth::astral_platform_color(4004) == 3); // purple
+
+    REQUIRE(mth::is_astral_platform_item(4000));
+    REQUIRE(mth::is_astral_platform_item(4004));
+    REQUIRE_FALSE(mth::is_astral_platform_item(3999));
+    REQUIRE_FALSE(mth::is_astral_platform_item(4005)); // the rest of the blocker segment is not ours
+}
