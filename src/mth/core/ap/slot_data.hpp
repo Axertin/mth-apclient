@@ -48,10 +48,9 @@ struct SlotDataConfig
     std::uint64_t broken_generator_mask{kAllGeneratorsMask}; // "broken_generators": these count toward the goal
     int goal_bosses{99};                                     // "goal_bosses": bosses needed (default unreachable)
     bool wallet_cap{false};                                  // "wallet_cap": cap the bone wallet by received wallet items
-    // "mirror_switch_rando": the Mirrors End shortcut switches are AP items. On by default: in a session
-    // the mod owns the save, so the switches are AP's to drive whether or not the seed mentions them. A
-    // seed that does not shuffle them holds all five shut, so send mirror_switch_rando=0 to opt out.
-    bool mirror_switch_rando{true};
+    // "mirror_switch_rando": the Mirrors End shortcut switches are AP items. Absent means vanilla, since a
+    // seed that does not shuffle them has no way to grant one and would otherwise hold all five shut.
+    bool mirror_switch_rando{false};
     std::uint32_t lit_generator_lamp_mask{0}; // "lit_generators": force these Ossex fountain lamps lit (visual only)
     // "removed_locations": ids the apworld pruned from the pool; treated as already collected.
     std::vector<std::int64_t> removed_locations{};

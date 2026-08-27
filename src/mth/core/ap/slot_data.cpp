@@ -38,7 +38,7 @@ SlotDataConfig parse_slot_data(const nlohmann::json &data)
     cfg.goal_generators = obj ? data.value("goal_generators", 99) : 99;
     cfg.goal_bosses = obj ? data.value("goal_bosses", 99) : 99;
     cfg.wallet_cap = obj && data.value("wallet_cap", 0) != 0;
-    cfg.mirror_switch_rando = obj && data.value("mirror_switch_rando", 1) != 0;
+    cfg.mirror_switch_rando = obj && data.value("mirror_switch_rando", 0) != 0;
 
     // The fail-closed default is silent otherwise, so a seed nobody can finish looks like a working one.
     if (cfg.goal_config == kGoalGenerators && !data.contains("goal_generators"))
