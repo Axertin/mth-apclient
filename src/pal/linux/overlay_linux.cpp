@@ -32,6 +32,7 @@
 #include <vulkan/vulkan.h>
 
 #include "mth/core/data/game_symbols.hpp"
+#include "pal/overlay_scale.hpp"
 #include "pal/pal_hook.hpp"
 #include "pal/pal_log.hpp"
 #include "pal/pal_module.hpp"
@@ -838,6 +839,7 @@ bool init_imgui()
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGui::StyleColorsDark();
+    pal::scale_overlay_for_height(g_state.extent.height);
 
     ImGuiIO &io = ImGui::GetIO();
     io.IniFilename = nullptr; // never write imgui.ini into the game dir

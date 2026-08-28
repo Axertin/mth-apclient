@@ -36,7 +36,7 @@ void LoginWindow::draw(bool login_open)
 
     prefill_once();
 
-    ImGui::SetNextWindowSize(ImVec2(380, 0), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(ImGui::GetFontSize() * 29.0f, 0.0f), ImGuiCond_FirstUseEver);
     if (!ImGui::Begin("Archipelago Connection"))
     {
         ImGui::End();

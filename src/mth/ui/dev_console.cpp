@@ -116,7 +116,8 @@ void DevConsole::draw_gate_banner()
 
 void DevConsole::draw_console()
 {
-    ImGui::SetNextWindowSize(ImVec2(720, 420), ImGuiCond_FirstUseEver);
+    const float em = ImGui::GetFontSize();
+    ImGui::SetNextWindowSize(ImVec2(em * 55.0f, em * 32.0f), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowBgAlpha(0);
     if (!ImGui::Begin("mth dev console"))
     {

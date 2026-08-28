@@ -29,6 +29,7 @@
 #include <imgui_impl_win32.h>
 #include <psapi.h>
 
+#include "pal/overlay_scale.hpp"
 #include "pal/pal_hook.hpp"
 #include "pal/pal_log.hpp"
 #include "pal/pal_overlay.hpp"
@@ -784,6 +785,7 @@ static bool init_render(IDXGISwapChain3 *swap)
     ImGui::CreateContext();
     ImGui::GetIO().IniFilename = nullptr; // do not write imgui.ini next to the game
     ImGui::StyleColorsDark();
+    pal::scale_overlay_for_height(desc.BufferDesc.Height);
     ImGui_ImplWin32_Init(g_hwnd);
     ImGui_ImplDX12_Init(g_device, static_cast<int>(g_frame_count), desc.BufferDesc.Format, g_srv_heap, g_srv_heap->GetCPUDescriptorHandleForHeapStart(),
                         g_srv_heap->GetGPUDescriptorHandleForHeapStart());

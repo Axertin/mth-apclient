@@ -54,6 +54,11 @@ if(NOT MTHAP_BUILD_TESTS_ONLY)
     else()
         include(FridaGum)
     endif()
+    # Contributes a generated source to mthap_pal, so it has to run before that subdir.
+    if(MTHAP_ENABLE_OVERLAY)
+        include(OverlayFont)
+    endif()
+
     add_subdirectory(src/pal)
 
     # Archipelago net stack (apclientpp/wswrap/websocketpp), fetched + patched
