@@ -45,6 +45,12 @@ class ApState;
 // changes while the menu is open takes effect. Empty text is left alone.
 [[nodiscard]] std::string boneup_with_cap_suffix(const std::string &text, int display_cap);
 
+// Pause-panel label with "/N" appended to its first line, N clamped to two digits. The panel's level
+// widget wraps at a width that "LVL 14 (14)" already exceeds, and a wrapped block is anchored on its
+// last line, so the overflow renders ABOVE the panel box. The compact separator is what keeps a
+// two-digit level and a two-digit cap inside that width. Stale suffixes are replaced, not stacked.
+[[nodiscard]] std::string status_panel_with_cap_suffix(const std::string &text, int display_cap);
+
 // twin: mth/features/levelcap_hooks.hpp enforces this in-game.
 // Per-stat level-cap policy, derived from received AP "cap up" items. Pure logic, no platform deps.
 // The game's per-stat buy-gate is `current_level < cap`; we feed it min(vanilla_cap, granted-count),

@@ -80,7 +80,7 @@ void StatusMenuCaps::annotate(void *status_menu)
         if (current == nullptr || *current == '\0')
             continue; // built but not yet filled
 
-        const std::string annotated = boneup_with_cap_suffix(current, display_cap);
+        const std::string annotated = status_panel_with_cap_suffix(current, display_cap);
         if (annotated == current)
             continue;
 

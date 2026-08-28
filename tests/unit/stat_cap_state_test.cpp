@@ -200,3 +200,49 @@ TEST_CASE("boneup_with_cap_suffix leaves text alone when the first line is empty
     // No title to annotate; appending would produce a bare " (3)" as the first line.
     REQUIRE(mth::boneup_with_cap_suffix("\nNext level at 175 Bones", 3) == "\nNext level at 175 Bones");
 }
+
+namespace
+{
+// The panel's level widget wraps at a fixed width and renders the overflow ABOVE the box, so the
+// constraint on the annotated label is its rendered width, not its wording. Nothing outside the game
+// can measure that width, so the tests below use a character count as the proxy: "LVL 9 (14)" was
+// reported rendering on one line and "LVL 14 (14)" was reported wrapping, which makes ten the longest
+// label with in-game evidence behind it.
+constexpr std::size_t kPanelFitChars = 10;
+} // namespace
+
+TEST_CASE("status_panel_with_cap_suffix keeps every reachable level and cap inside the panel width", "[boneup]")
+{
+    // Levels and caps both top out at the game's absolute ceiling of 99, displayed as level+1.
+    for (int level = 1; level <= 100; ++level)
+    {
+        const std::string label = "LVL " + std::to_string(level);
+        for (int cap = 1; cap <= 100; ++cap)
+        {
+            const std::string annotated = mth::status_panel_with_cap_suffix(label, cap);
+            INFO("level " << level << " cap " << cap << " -> " << annotated);
+            REQUIRE(annotated.size() <= kPanelFitChars);
+            REQUIRE(annotated.size() > label.size());
+        }
+    }
+}
+
+TEST_CASE("status_panel_with_cap_suffix does not stack when re-applied or when the cap changes", "[boneup]")
+{
+    // The walk re-annotates on a cadence while the pause screen is open, so a label it already wrote
+    // has to be indistinguishable from the vanilla one as an input.
+    const std::string base = "LVL 14";
+    const std::string annotated = mth::status_panel_with_cap_suffix(base, 3);
+    REQUIRE(mth::status_panel_with_cap_suffix(annotated, 3) == annotated);
+    REQUIRE(mth::status_panel_with_cap_suffix(annotated, 15) == mth::status_panel_with_cap_suffix(base, 15));
+}
+
+TEST_CASE("status_panel_with_cap_suffix shows a cap past the ceiling as the ceiling", "[boneup]")
+{
+    REQUIRE(mth::status_panel_with_cap_suffix("LVL 99", 100) == mth::status_panel_with_cap_suffix("LVL 99", 99));
+}
+
+TEST_CASE("status_panel_with_cap_suffix leaves empty text alone", "[boneup]")
+{
+    REQUIRE(mth::status_panel_with_cap_suffix("", 3).empty());
+}
