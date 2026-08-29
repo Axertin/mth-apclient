@@ -135,3 +135,27 @@ TEST_CASE("the ceiling releases a step that still wants the block", "[takeover]"
     REQUIRE_FALSE(mth::block_game_input(TakeoverStep::Launching, in));
     REQUIRE_FALSE(mth::block_game_input(TakeoverStep::Failed, in));
 }
+
+TEST_CASE("flush_refusal: a commit needs all three conditions, and each one alone can stop it", "[takeover]")
+{
+    // Stated as three necessary conditions rather than as the verdict for each input, so the order the
+    // guards run in stays free. #152 is the gameplay one: outside gameplay the live slot is the cleared
+    // title slot, and committing it destroys the run.
+    for (mth::TakeoverStep step :
+         {mth::TakeoverStep::Idle, mth::TakeoverStep::AwaitingMenu, mth::TakeoverStep::Launching, mth::TakeoverStep::Running, mth::TakeoverStep::Failed})
+        for (bool gameplay : {false, true})
+            for (bool same_seed : {false, true})
+                for (bool same_slot : {false, true})
+                {
+                    const mth::FlushInputs in{step, gameplay, "seed", "slot", same_seed ? "seed" : "other", same_slot ? "slot" : "other"};
+                    INFO("step=" << mth::takeover_step_name(step) << " gameplay=" << gameplay << " seed=" << in.current_seed << " slot=" << in.current_slot);
+                    if (step != mth::TakeoverStep::Running || !gameplay || !same_seed || !same_slot)
+                        REQUIRE(mth::flush_refusal(in) != nullptr);
+                }
+}
+
+TEST_CASE("flush_refusal: a running takeover in gameplay commits its own session's blob", "[takeover]")
+{
+    // Without this the invariants above are satisfied by refusing everything.
+    REQUIRE(mth::flush_refusal(mth::FlushInputs{mth::TakeoverStep::Running, true, "seed", "slot", "seed", "slot"}) == nullptr);
+}

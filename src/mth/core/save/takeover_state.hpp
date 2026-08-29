@@ -1,5 +1,7 @@
 #pragma once
 
+#include <string_view>
+
 namespace mth
 {
 
@@ -63,5 +65,21 @@ class InputBlockState
 };
 
 const char *takeover_step_name(TakeoverStep step);
+
+// What stands between a cleared title slot and the player's run. The decision lives here rather than
+// inline in the feature, where the test lane cannot compile it. Blob emptiness is deliberately not an
+// input: reading the slot costs a full serialize, so the caller does that only once these pass.
+struct FlushInputs
+{
+    TakeoverStep step{TakeoverStep::Idle};
+    bool in_gameplay{false};
+    std::string_view begin_seed;
+    std::string_view begin_slot;
+    std::string_view current_seed;
+    std::string_view current_slot;
+};
+
+// Null to commit, otherwise the reason, for the log.
+[[nodiscard]] const char *flush_refusal(const FlushInputs &in) noexcept;
 
 } // namespace mth

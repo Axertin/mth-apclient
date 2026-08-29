@@ -98,4 +98,17 @@ const char *takeover_step_name(TakeoverStep step)
     return "Unknown";
 }
 
+const char *flush_refusal(const FlushInputs &in) noexcept
+{
+    if (in.step != TakeoverStep::Running)
+        return "no claim on the slot";
+    // #152: outside gameplay the live slot is the cleared one, and committing it destroys the run.
+    if (!in.in_gameplay)
+        return "not in gameplay";
+    // A reconnect since begin() must not file this blob under a session that is no longer live.
+    if (in.current_seed != in.begin_seed || in.current_slot != in.begin_slot)
+        return "AP identity changed since begin()";
+    return nullptr;
+}
+
 } // namespace mth

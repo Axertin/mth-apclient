@@ -260,36 +260,28 @@ void SaveTakeover::on_game_save_requested()
     // Ahead of the step test on purpose: without it, "the game never asked to save" and "we declined
     // to commit" leave the same empty log.
     pal::logf(pal::LogLevel::Debug, "takeover: game save requested (step=%s)", takeover_step_name(step_));
-    if (step_ != TakeoverStep::Running)
-        return;
     flush();
 }
 
 void SaveTakeover::flush()
 {
+    const auto [current_seed, current_slot] = identity_();
+    if (const char *refusal = flush_refusal({step_, in_gameplay(), seed_, slot_, current_seed, current_slot}); refusal != nullptr)
+    {
+        // The game asking while we hold no claim is every vanilla save, so it stays at Debug. The rest
+        // mean a commit the player expected did not happen.
+        const pal::LogLevel level = step_ != TakeoverStep::Running ? pal::LogLevel::Debug : pal::LogLevel::Warn;
+        pal::logf(level, "takeover: skipping flush (%s; step=%s seed=%s slot=%s now seed=%s slot=%s)", refusal, takeover_step_name(step_), seed_.c_str(),
+                  slot_.c_str(), current_seed.c_str(), current_slot.c_str());
+        return;
+    }
+
+    // Only under a live claim: outside one the game's own writes are none of our business, and
+    // suppressing them here would silently break vanilla saving for a player with no AP session.
     if (mod::save_write_enabled())
     {
         pal::logf(pal::LogLevel::Warn, "takeover: game save writes were re-enabled; suppressing");
         mod::set_save_write_enabled(false);
-    }
-
-    // #152: a capture taken outside gameplay is the cleared slot, and storing it destroys the run (which is
-    // then staged back as a fresh file, while the AP granted-set still says every item was handed out).
-    if (!in_gameplay())
-    {
-        pal::logf(pal::LogLevel::Warn, "takeover: not in gameplay; skipping flush (the live slot is not the run)");
-        return;
-    }
-
-    // Re-resolve identity rather than trusting seed_/slot_: a reconnect to a different AP session
-    // since begin() must not file this blob under the session that is no longer live. Persisting
-    // nothing is safe, persisting to the wrong seed is not.
-    const auto [current_seed, current_slot] = identity_();
-    if (current_seed != seed_ || current_slot != slot_)
-    {
-        pal::logf(pal::LogLevel::Warn, "takeover: AP identity changed since begin() (was seed=%s slot=%s, now seed=%s slot=%s); skipping flush", seed_.c_str(),
-                  slot_.c_str(), current_seed.c_str(), current_slot.c_str());
-        return;
     }
 
     const std::string blob = mod::active_save_slot_contents();
