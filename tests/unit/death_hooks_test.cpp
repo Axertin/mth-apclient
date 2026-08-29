@@ -6,6 +6,7 @@
 #include "mocks/fake_mod_api.hpp"
 #include "mod/mod_api.hpp"
 #include "mth/core/data/game_layout.hpp"
+#include "mth/core/data/game_state_ids.hpp"
 #include "mth/features/death_hooks.hpp"
 
 // What this file covers is the deathlink state machine given a correct offset, not the offset itself.
@@ -81,13 +82,56 @@ TEST_CASE("deathlink: a genuine sparkless death is broadcast", "[deathlink][spar
     hooks.poll();
     REQUIRE(broadcasts == 0);
 
-    // Death with no sparks banked.
+    // Death with no sparks banked. The death edge alone is not enough: a Proto Spark save produces the same
+    // edge, so the broadcast is held until the game reaches the death screen.
     mth::test::recorder().health = 0.0f;
     mth::test::recorder().spark = 0;
     player.set_dying(true);
     hooks.poll();
+    REQUIRE(broadcasts == 0);
 
-    REQUIRE(broadcasts == 1); // sparkless death broadcasts
+    mth::test::recorder().game_state = mth::kGameStateDeath;
+    hooks.poll();
+
+    REQUIRE(broadcasts == 1); // a death that reached the death screen broadcasts
+
+    mod::set_api(nullptr);
+}
+
+// A Proto Spark save runs the whole death sequence and sets the same death-guard byte a real death does, then
+// revives the player in place instead of transitioning to the death screen. Broadcasting on the edge alone
+// sent a deathlink for every one of them.
+TEST_CASE("deathlink: a death the player is revived from is not broadcast", "[deathlink][sparkless]")
+{
+    mth::test::recorder().reset();
+    auto fake = mth::test::make_fake_api();
+    mod::set_api(&fake);
+
+    FakePlayer player;
+    int broadcasts = 0;
+    mth::DeathHooks hooks([&](const std::string &) { ++broadcasts; }, [&] { return player.base(); });
+
+    // Alive in a room, no sparks banked: a death here would otherwise broadcast.
+    mth::test::recorder().game_state = mth::kGameStateFirstWorld;
+    mth::test::recorder().health = 1.0f;
+    mth::test::recorder().spark = 0;
+    player.set_dying(false);
+    hooks.poll();
+
+    // The death sequence runs, and the game never leaves the room for the death screen.
+    mth::test::recorder().health = 0.0f;
+    player.set_dying(true);
+    for (int i = 0; i < mth::DeathHooks::kDeathConfirmTicks; ++i)
+        hooks.poll();
+    REQUIRE(broadcasts == 0);
+
+    // Revived in place, and still nothing may fire once the held death has lapsed.
+    mth::test::recorder().health = 1.0f;
+    player.set_dying(false);
+    for (int i = 0; i < mth::DeathBroadcastGate::kStableAliveTicks * 2; ++i)
+        hooks.poll();
+
+    REQUIRE(broadcasts == 0);
 
     mod::set_api(nullptr);
 }
@@ -109,6 +153,8 @@ TEST_CASE("deathlink: the broadcast carries a detail for the outbound cause", "[
 
     mth::test::recorder().health = 0.0f;
     player.set_dying(true);
+    hooks.poll();
+    mth::test::recorder().game_state = mth::kGameStateDeath;
     hooks.poll();
 
     // ApLink prefixes the slot name, so the detail is the predicate alone: no leading name, no empty string
@@ -334,6 +380,8 @@ TEST_CASE("deathlink: a bounce arriving during our own death does not kill us ag
         hooks.poll();
     mth::test::recorder().health = 0.0f;
     player.set_dying(true);
+    hooks.poll();
+    mth::test::recorder().game_state = mth::kGameStateDeath;
     hooks.poll();
     REQUIRE(broadcasts == 1);
 

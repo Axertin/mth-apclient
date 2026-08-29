@@ -4,6 +4,7 @@
 
 #include "mod/mod_api.hpp"
 #include "mth/core/data/game_layout.hpp"
+#include "mth/core/data/game_state_ids.hpp"
 #include "pal/pal_log.hpp"
 #include "pal/pal_mem.hpp"
 
@@ -75,6 +76,7 @@ void DeathHooks::poll()
 {
     const bool advanced = gameplay_advanced(); // sampled every tick: last_room_time_ must not go stale
     drive_pending_death(advanced);
+    drive_pending_broadcast(); // ahead of the null-player return below: the death screen has no player
     void *p = get_player_ ? get_player_() : nullptr;
     if (p == nullptr)
     {
@@ -105,10 +107,28 @@ void DeathHooks::poll()
             pal::logf(pal::LogLevel::Info, "deathlink: local death suppressed (had %d spark(s); not sparkless)", last_alive_spark_);
             return;
         }
-        pal::logf(pal::LogLevel::Info, "deathlink: sparkless local death -> broadcasting");
+        pending_broadcast_ticks_ = kDeathConfirmTicks;
+    }
+}
+
+// Hold a sparkless death until the death screen confirms it landed. A Proto Spark save runs the whole death
+// sequence, guard byte and all, and diverges only at the tail, where it revives in place instead of
+// transitioning, so nothing readable at the death edge separates the two without a raw Player offset.
+void DeathHooks::drive_pending_broadcast()
+{
+    if (pending_broadcast_ticks_ <= 0)
+        return;
+    const int gs = mod::current_game_state();
+    if (gs == kGameStateDeath || gs < 0) // no gamestate to read means no confirmation is ever coming: send it
+    {
+        pending_broadcast_ticks_ = 0;
+        pal::logf(pal::LogLevel::Info, "deathlink: sparkless local death confirmed -> broadcasting");
         // One detail for every death until the death path can distinguish them.
         on_local_death_("had a skill issue");
+        return;
     }
+    if (--pending_broadcast_ticks_ == 0)
+        pal::logf(pal::LogLevel::Info, "deathlink: local death not broadcast (revived without reaching the death screen)");
 }
 
 // Returns false only for a block that clears on its own (no player yet, or not settled), which is the caller's
@@ -207,6 +227,7 @@ void DeathHooks::kill()
 void DeathHooks::reset()
 {
     pending_kill_ticks_ = 0;
+    pending_broadcast_ticks_ = 0;
 }
 
 } // namespace mth
