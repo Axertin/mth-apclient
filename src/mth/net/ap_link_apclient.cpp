@@ -246,8 +246,14 @@ void ApLink::run()
             catch (const std::exception &e)
             {
                 pal::logf(pal::LogLevel::Error, "ApLink: poll failed: %s", e.what());
+                // Nothing else reports a throw that lands before the handshake (slot_data with a
+                // wrong-typed key is the one that reaches here), so the login window would wait on a
+                // connection already gone. An armed deadline is what says the attempt never finished;
+                // a socket drop in this same poll has already cleared it and pushed its own event.
                 if (connected_.exchange(false))
                     push_event(mth::ApDisconnected{});
+                else if (connect_deadline_)
+                    push_event(mth::ApConnectionRefused{{std::string("connection failed: ") + e.what()}});
                 client_.reset();
                 connect_deadline_.reset();
             }

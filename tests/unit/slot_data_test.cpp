@@ -328,7 +328,9 @@ TEST_CASE("parse_slot_data: an absent or non-array removed_locations prunes noth
 TEST_CASE("parse_slot_data: a key of the wrong JSON type throws", "[slot_data]")
 {
     // A wrong-typed key throws out of the parse rather than substituting a default and running a seed
-    // on configuration the apworld did not actually specify.
+    // on configuration the apworld did not actually specify. The throw escapes into ApLink's poll,
+    // which turns a pre-handshake failure into ApConnectionRefused, so the login window reports it
+    // instead of waiting on a connection that is already gone.
     REQUIRE_THROWS_AS(mth::parse_slot_data(json{{"ossex_start", "yes"}}), nlohmann::json::type_error);
     REQUIRE_THROWS_AS(mth::parse_slot_data(json{{"goal_generators", "4"}}), nlohmann::json::type_error);
     REQUIRE_THROWS_AS(mth::parse_slot_data(json{{"train_pass_cost", json::array({1})}}), nlohmann::json::type_error);
