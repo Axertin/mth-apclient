@@ -35,7 +35,6 @@ add_library(mthap_core STATIC
     core/inbound_granter.cpp
     core/sig_scan.cpp
     core/lock_registry.cpp
-    core/modifier_config.cpp
     core/data/modifier_table.cpp
     core/data/trap_table.cpp
     core/stat_cap_state.cpp

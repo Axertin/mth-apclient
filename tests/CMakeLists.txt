@@ -35,7 +35,6 @@ add_executable(mthap_unit_tests
     unit/hook_hash_test.cpp
     unit/riprel_test.cpp
     unit/lock_registry_test.cpp
-    unit/modifier_config_test.cpp
     unit/modifier_table_test.cpp
     unit/stat_cap_state_test.cpp
     unit/status_menu_caps_test.cpp

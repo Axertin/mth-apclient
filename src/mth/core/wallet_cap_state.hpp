@@ -31,9 +31,6 @@ class WalletCapState
     // Recount received wallet items from the AP received-items list. Idempotent; safe every tick.
     void recompute(const ApState &state);
 
-    // Offline test seam: set the received count directly (bypasses AP).
-    void set_count(int count);
-
     // The bone cap to enforce, or nullopt for "uncapped".
     [[nodiscard]] std::optional<int> enforced_cap() const;
 

@@ -14,11 +14,6 @@ void WalletCapState::recompute(const ApState &state)
             ++count_;
 }
 
-void WalletCapState::set_count(int count)
-{
-    count_ = count;
-}
-
 std::optional<int> WalletCapState::enforced_cap() const
 {
     return wallet_cap_for(count_);
