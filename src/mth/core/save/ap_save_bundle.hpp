@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <condition_variable>
 #include <filesystem>
 #include <map>
@@ -98,10 +99,12 @@ class ApSaveBundleStore
         Payload ap_state;
         // A container at our path that names another run. Writing would destroy it, so we refuse.
         bool foreign{false};
-        // AP state that has not been paired with a save blob yet. Cleared by the reset above on a
-        // key change, which is what discards the state a session we left never committed.
-        bool state_staged{false};
     };
+
+    // Outside Cache because the overlay render thread reads it for the status pane while the game
+    // thread stages and commits. Cleared alongside the cache on a key change, which is what discards
+    // the state a session we left never committed.
+    mutable std::atomic<bool> state_staged_{false};
 
     void ensure_loaded(std::string_view seed, std::string_view slot) const;
     void post() const; // queue the current in-memory state for the writer

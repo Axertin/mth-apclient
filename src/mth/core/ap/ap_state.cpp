@@ -21,8 +21,14 @@ void ApState::push_received(const ReceivedItem &item)
 void ApState::set_phase(ConnectionPhase p)
 {
     phase_.store(p, std::memory_order_relaxed);
-    std::lock_guard<std::mutex> lk(detail_mutex_);
+    std::lock_guard<std::mutex> lk(text_mutex_);
     detail_.clear();
+}
+
+void ApState::set_status(std::string text)
+{
+    std::lock_guard<std::mutex> lk(text_mutex_);
+    status_ = std::move(text);
 }
 
 void ApState::reset_session()
@@ -74,7 +80,7 @@ void ApState::apply(const ApEvent &ev)
                 }
 
                 authenticated_ = true;
-                status_ = "Connected";
+                set_status("Connected");
                 set_phase(ConnectionPhase::Connected);
 
                 // The server's location-id space. ap_loc_id(slot)=kLocBase+slot must
@@ -95,7 +101,7 @@ void ApState::apply(const ApEvent &ev)
             }
             else if constexpr (std::is_same_v<T, ApConnecting>)
             {
-                status_ = "Connecting...";
+                set_status("Connecting...");
                 set_phase(ConnectionPhase::Connecting);
             }
             else if constexpr (std::is_same_v<T, ApItemReceived>)
@@ -121,7 +127,7 @@ void ApState::apply(const ApEvent &ev)
             else if constexpr (std::is_same_v<T, ApDisconnected>)
             {
                 authenticated_ = false;
-                status_ = "Disconnected";
+                set_status("Disconnected");
                 set_phase(ConnectionPhase::Disconnected);
                 pal::logf(pal::LogLevel::Warn, "ap_state: DISCONNECTED");
             }
@@ -134,20 +140,20 @@ void ApState::apply(const ApEvent &ev)
                     msg += ' ';
                     msg += err;
                 }
-                status_ = msg;
+                set_status(msg);
                 phase_.store(ConnectionPhase::Error, std::memory_order_relaxed);
                 {
                     std::string detail;
                     for (std::size_t i = 0; i < e.errors.size(); ++i)
                         detail += (i ? ", " : "") + e.errors[i];
-                    std::lock_guard<std::mutex> lk(detail_mutex_);
+                    std::lock_guard<std::mutex> lk(text_mutex_);
                     detail_ = std::move(detail);
                 }
                 pal::logf(pal::LogLevel::Error, "ap_state: connection %s", msg.c_str());
             }
             else if constexpr (std::is_same_v<T, ApStatusChanged>)
             {
-                status_ = e.text;
+                set_status(e.text);
                 pal::logf(pal::LogLevel::Debug, "ap_state: status=%s", e.text.c_str());
             }
             else if constexpr (std::is_same_v<T, ApDeathReceived>)

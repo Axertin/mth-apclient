@@ -132,6 +132,7 @@ void ApSaveBundleStore::ensure_loaded(std::string_view seed, std::string_view sl
         flush();
 
     cache_ = Cache{};
+    state_staged_.store(false, std::memory_order_relaxed);
     cache_.loaded = true;
     cache_.seed = std::string(seed);
     cache_.slot = std::string(slot);
@@ -406,7 +407,7 @@ bool ApSaveBundleStore::store(std::string_view seed, std::string_view slot, std:
         return false;
     }
     cache_.game_save = std::make_shared<const std::string>(blob);
-    cache_.state_staged = false;
+    state_staged_.store(false, std::memory_order_relaxed);
     post();
     // The game saving is the durability point: the mod never runs its destructor, so this is the
     // moment that has to be on disk rather than merely queued.
@@ -423,7 +424,7 @@ std::optional<std::string> ApSaveBundleStore::load_state(std::string_view seed, 
 
 bool ApSaveBundleStore::state_staged() const
 {
-    return cache_.state_staged;
+    return state_staged_.load(std::memory_order_relaxed);
 }
 
 bool ApSaveBundleStore::stage_state(std::string_view seed, std::string_view slot, std::string_view text)
@@ -437,7 +438,7 @@ bool ApSaveBundleStore::stage_state(std::string_view seed, std::string_view slot
     // Deliberately no post(). The container is published by store(), so the AP state that lands is
     // the one that was true when the game captured its save blob.
     cache_.ap_state = std::make_shared<const std::string>(text);
-    cache_.state_staged = true;
+    state_staged_.store(true, std::memory_order_relaxed);
     return true;
 }
 

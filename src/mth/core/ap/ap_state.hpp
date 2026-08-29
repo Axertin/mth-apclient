@@ -35,8 +35,10 @@ class ApState
     {
         return authenticated_;
     }
-    [[nodiscard]] const std::string &status() const
+    // By value under the lock: the overlay render thread reads this while the game thread reassigns it.
+    [[nodiscard]] std::string status() const
     {
+        std::lock_guard<std::mutex> lk(text_mutex_);
         return status_;
     }
     [[nodiscard]] ConnectionPhase phase() const
@@ -45,7 +47,7 @@ class ApState
     }
     [[nodiscard]] std::string detail() const
     {
-        std::lock_guard<std::mutex> lk(detail_mutex_);
+        std::lock_guard<std::mutex> lk(text_mutex_);
         return detail_;
     }
     [[nodiscard]] const std::string &seed() const
@@ -191,12 +193,13 @@ class ApState
     void push_received(const ReceivedItem &item);
     // Store the phase and clear detail_ under its lock (non-error transitions).
     void set_phase(ConnectionPhase p);
+    void set_status(std::string text);
 
     bool authenticated_{false};
     std::string status_{"Idle"};
     std::atomic<ConnectionPhase> phase_{ConnectionPhase::Disconnected};
-    std::string detail_{};            // human-readable error/status detail for the login window
-    mutable std::mutex detail_mutex_; // guards detail_ across the game/render thread boundary
+    std::string detail_{};          // human-readable error/status detail for the login window
+    mutable std::mutex text_mutex_; // guards detail_ and status_ across the game/render thread boundary
     std::string seed_{};
     std::string slot_data_{};
     int player_slot_{-1};
