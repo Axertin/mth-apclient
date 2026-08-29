@@ -51,7 +51,7 @@ class ApSaveBundleStore
 
     [[nodiscard]] std::filesystem::path path_for(std::string_view seed, std::string_view slot) const;
 
-    // The game save blob. Named to match the superseded ApSaveStore so the takeover call sites did
+    // The game save blob. Named to match the store this replaced so the takeover call sites did
     // not have to change. store() is the commit point for the whole container, staged AP state
     // included, and blocks until it is written.
     [[nodiscard]] std::optional<std::string> load(std::string_view seed, std::string_view slot) const;

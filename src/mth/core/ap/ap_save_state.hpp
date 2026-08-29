@@ -1,6 +1,5 @@
 #pragma once
 
-#include <filesystem>
 #include <functional>
 #include <optional>
 #include <set>
@@ -23,9 +22,6 @@ class ApSaveState
     using StoreFn = std::function<void(std::string_view)>;
 
     ApSaveState(LoadFn load, StoreFn store);
-
-    // Direct-to-file, for callers with no container.
-    explicit ApSaveState(std::filesystem::path path);
 
     [[nodiscard]] std::string serialize() const;
     void deserialize(std::string_view text);

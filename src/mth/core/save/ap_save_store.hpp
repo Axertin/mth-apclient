@@ -1,7 +1,5 @@
 #pragma once
 
-#include <filesystem>
-#include <optional>
 #include <string>
 #include <string_view>
 
@@ -21,31 +19,5 @@ std::string ap_save_filename(std::string_view seed, std::string_view slot);
 // A serialized single slot starts with the ycData header and carries a SaveSlot body. Cheap
 // structural check only; the blob is otherwise opaque to us.
 bool looks_like_save_blob(std::string_view blob);
-
-// Superseded by ApSaveBundleStore, which keeps this payload and the AP state in one container. Only
-// ap_save_filename and looks_like_save_blob above are still live, for the bundle's legacy search;
-// this class stays until that fallback is dropped, so both go at once.
-//
-// Mod-owned save files, one per (seed, slot). Deliberately knows nothing about the game: the blob
-// is produced and consumed by the native save API.
-class ApSaveStore
-{
-  public:
-    explicit ApSaveStore(std::filesystem::path dir);
-
-    [[nodiscard]] std::filesystem::path path_for(std::string_view seed, std::string_view slot) const;
-
-    // nullopt when absent, unreadable, or structurally invalid, so a corrupt file reads as "no
-    // save" and the caller starts a new game rather than launching into garbage.
-    [[nodiscard]] std::optional<std::string> load(std::string_view seed, std::string_view slot) const;
-
-    // Refuses malformed blobs. Writes to a temp file and renames, so an interrupted write cannot
-    // truncate a good save.
-    bool store(std::string_view seed, std::string_view slot, std::string_view blob);
-
-  private:
-    std::filesystem::path dir_;
-    bool dir_ready_{false};
-};
 
 } // namespace mth

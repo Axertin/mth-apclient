@@ -131,8 +131,8 @@ void ApSaveBundleStore::ensure_loaded(std::string_view seed, std::string_view sl
     if (cache_.loaded)
         flush();
 
-    cache_ = Cache{};
     state_staged_.store(false, std::memory_order_relaxed);
+    cache_ = Cache{};
     cache_.loaded = true;
     cache_.seed = std::string(seed);
     cache_.slot = std::string(slot);
@@ -203,12 +203,7 @@ void ApSaveBundleStore::post() const
     Snapshot snap{cache_.seed, cache_.slot, cache_.game_save, cache_.ap_state};
     {
         std::lock_guard<std::mutex> lock(mutex_);
-        // Coalesce: a burst of grants in one tick becomes one write. Only against the tail, so a
-        // pending write for a previous session is never dropped.
-        if (!queue_.empty() && queue_.back().seed == snap.seed && queue_.back().slot == snap.slot)
-            queue_.back() = std::move(snap);
-        else
-            queue_.push_back(std::move(snap));
+        queue_.push_back(std::move(snap));
     }
     queued_cv_.notify_one();
 }

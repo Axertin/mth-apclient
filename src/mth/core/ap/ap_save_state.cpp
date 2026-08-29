@@ -20,40 +20,6 @@ ApSaveState::ApSaveState(LoadFn load, StoreFn store) : load_fn_(std::move(load))
     }
 }
 
-ApSaveState::ApSaveState(std::filesystem::path path)
-    : ApSaveState(
-          [path]() -> std::optional<std::string>
-          {
-              std::ifstream in(path, std::ios::binary);
-              if (!in)
-                  return std::nullopt;
-              return std::string(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>{});
-          },
-          [path](std::string_view text)
-          {
-              std::error_code ec;
-              std::filesystem::create_directories(path.parent_path(), ec);
-              auto tmp = path;
-              tmp += ".tmp";
-              {
-                  std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
-                  if (!out)
-                      return;
-                  out.write(text.data(), static_cast<std::streamsize>(text.size()));
-                  // Explicit: the buffer is only flushed on close, so the destructor would swallow a
-                  // failed write and the rename would publish a truncated file.
-                  out.close();
-                  if (!out)
-                  {
-                      std::filesystem::remove(tmp, ec);
-                      return;
-                  }
-              }
-              std::filesystem::rename(tmp, path, ec); // atomic replace
-          })
-{
-}
-
 std::string ApSaveState::serialize() const
 {
     std::string out;
