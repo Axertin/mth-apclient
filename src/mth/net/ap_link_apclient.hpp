@@ -46,9 +46,10 @@ class ApLink final : public mth::IApLink
 
     void do_connect(const std::string &server, const std::string &slot, const std::string &password);
     void do_disconnect();
-    void setup_handlers(const std::string &slot, const std::string &password);
+    void setup_handlers(const std::string &slot, const std::string &password, bool may_downgrade);
 
     std::unique_ptr<APClient> client_; // net thread only
+    bool encrypted_attempt_{true};     // net thread only; mirrors which scheme apclientpp will try next
     int last_item_index_{-1};          // net thread only
     // Identity of the AP session this process is on, as reported by the server. Survives disconnects on
     // purpose: only a server authenticating a DIFFERENT seed/slot ends the session. Empty until the first

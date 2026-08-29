@@ -68,6 +68,7 @@ add_executable(mthap_unit_tests
     unit/title_menu_test.cpp
     unit/palette_index_test.cpp
     unit/deathlink_payload_test.cpp
+    unit/connect_target_test.cpp
 )
 
 target_include_directories(mthap_unit_tests PRIVATE

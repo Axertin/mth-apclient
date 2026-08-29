@@ -11,6 +11,7 @@
 #include <apuuid.hpp>
 
 #include "mth/core/ap/ap_ids.hpp" // kLocBase
+#include "mth/core/ap/connect_target.hpp"
 #include "mth/core/ap/slot_data.hpp"
 #include "mth/core/broadcast.hpp"
 #include "mth/net/deathlink.hpp"
@@ -22,15 +23,6 @@ namespace
 constexpr const char *kGameName = "Mina The Hollower"; // placeholder until apworld is named
 constexpr int kItemHandling = 0b111;                   // remote + own-world + starting inventory
 constexpr std::chrono::seconds kConnectTimeout{30};
-
-std::string build_uri(const std::string &server)
-{
-    if (server.starts_with("ws://") || server.starts_with("wss://"))
-        return server;
-    if (server.starts_with("localhost") || server.starts_with("127.0.0.1"))
-        return "ws://" + server;
-    return "wss://" + server;
-}
 } // namespace
 
 namespace mth::net
@@ -281,27 +273,25 @@ void ApLink::do_connect(const std::string &server, const std::string &slot, cons
         return;
     }
 
-    const std::string uri = build_uri(server);
-    std::string cert;
-    if (uri.starts_with("wss://"))
+    const mth::ConnectTarget target = mth::plan_connection(server);
+    const auto ca = pal::ca_bundle_path();
+    const mth::CertChoice choice = mth::choose_cert(target.tls, ca ? ca->string() : std::string{});
+    if (choice.refuse)
     {
-        const auto ca = pal::ca_bundle_path();
-        if (!ca)
-        {
-            push_event(mth::ApConnectionRefused{{"no CA bundle found for wss (set MTHAP_AP_CERT)"}});
-            return;
-        }
-        cert = ca->string();
+        push_event(mth::ApConnectionRefused{{"no CA bundle found for wss (set MTHAP_AP_CERT)"}});
+        return;
     }
+    if (choice.unverified)
+        pal::logf(pal::LogLevel::Warn, "ApLink: no CA bundle (set MTHAP_AP_CERT), so the encrypted attempt will fail and fall back to plaintext");
 
     try
     {
         const std::string uuid = ap_get_uuid((pal::log_dir() / "ap_uuid").string(), server);
-        client_ = std::make_unique<APClient>(uuid, kGameName, uri, cert);
-        setup_handlers(slot, password);
+        client_ = std::make_unique<APClient>(uuid, kGameName, target.uri, choice.cert);
+        setup_handlers(slot, password, target.tls == mth::TlsMode::Preferred);
         push_event(mth::ApConnecting{});
         connect_deadline_ = std::chrono::steady_clock::now() + kConnectTimeout;
-        pal::logf(pal::LogLevel::Info, "ApLink: connecting to %s", uri.c_str());
+        pal::logf(pal::LogLevel::Info, "ApLink: connecting to %s", target.uri.c_str());
     }
     catch (const std::exception &e)
     {
@@ -322,8 +312,22 @@ void ApLink::do_disconnect()
         push_event(mth::ApDisconnected{});
 }
 
-void ApLink::setup_handlers(const std::string &slot, const std::string &password)
+void ApLink::setup_handlers(const std::string &slot, const std::string &password, bool may_downgrade)
 {
+    if (may_downgrade)
+    {
+        encrypted_attempt_ = true;
+        // apclientpp flips the scheme on every socket error when it was handed a schemeless URI, so the event that
+        // says the attempt failed is also the only notice of what the next one will use. Nothing exposes the live URI.
+        client_->set_socket_error_handler(
+            [this](const std::string &msg)
+            {
+                encrypted_attempt_ = !encrypted_attempt_;
+                if (!encrypted_attempt_)
+                    pal::logf(pal::LogLevel::Warn, "ApLink: encrypted connect failed (%s), retrying in plaintext", msg.c_str());
+            });
+    }
+
     client_->set_socket_disconnected_handler(
         [this]
         {
