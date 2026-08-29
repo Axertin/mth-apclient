@@ -108,3 +108,23 @@ TEST_CASE("LoginPrefs trims trailing carriage returns", "[login_prefs]")
     REQUIRE(p.slot() == "Mina");
     std::filesystem::remove(path);
 }
+
+TEST_CASE("LoginPrefs does not let a newline forge a second record", "[login_prefs]")
+{
+    const auto path = temp_prefs("mthap_test_login_newline.prefs");
+
+    // The login window takes free text, so a pasted name can carry a newline. save() writes one record
+    // per line and load() reads the last record of a key, so the tail of such a name would come back as
+    // the slot the mod then connects with. Both fields are checked: they take the same path in.
+    {
+        mth::LoginPrefs p(path);
+        p.set("archipelago.gg:38281\nslot Evil", "Mina\nserver evil:1");
+        p.save();
+    }
+    {
+        mth::LoginPrefs p(path);
+        REQUIRE(p.slot() != "Evil"); // rejected, escaped or truncated, but never a different slot
+        REQUIRE(p.server() != "evil:1");
+    }
+    std::filesystem::remove(path);
+}

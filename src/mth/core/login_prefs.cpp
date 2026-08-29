@@ -13,6 +13,18 @@ LoginPrefs::LoginPrefs(std::filesystem::path path) : path_(std::move(path))
     load();
 }
 
+namespace
+{
+// The file is one record per line, so a newline inside a value would reload as a second record: a slot
+// of "Mina\nslot Evil" comes back as slot "Evil". Trimming at the setter keeps what is held in memory
+// equal to what a reload produces.
+std::string one_line(std::string value)
+{
+    const std::size_t cut = value.find_first_of("\r\n");
+    return cut == std::string::npos ? value : value.substr(0, cut);
+}
+} // namespace
+
 void LoginPrefs::load()
 {
     std::ifstream in(path_);
@@ -39,8 +51,8 @@ void LoginPrefs::load()
 
 void LoginPrefs::set(std::string server, std::string slot)
 {
-    server_ = std::move(server);
-    slot_ = std::move(slot);
+    server_ = one_line(std::move(server));
+    slot_ = one_line(std::move(slot));
 }
 
 void LoginPrefs::save() const
