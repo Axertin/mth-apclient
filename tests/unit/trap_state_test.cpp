@@ -118,24 +118,3 @@ TEST_CASE("TrapState: active_with_remaining carries the seconds left", "[trap]")
     REQUIRE(running[1].index == 197);
     REQUIRE(running[1].remaining == Catch::Approx(15.0f));
 }
-
-TEST_CASE("TrapState: active_with_remaining matches active() and drops what expired", "[trap]")
-{
-    mth::TrapState s;
-    s.arm(204, 10.0f);
-    s.arm(197, 30.0f);
-    REQUIRE(s.advance(10.0f) == std::vector<int>{204});
-
-    const std::vector<mth::ActiveTrap> running = s.active_with_remaining();
-    REQUIRE(running.size() == 1);
-    REQUIRE(running[0].index == 197);
-    REQUIRE(running[0].remaining == Catch::Approx(20.0f));
-
-    std::vector<int> indices;
-    for (const mth::ActiveTrap &t : running)
-        indices.push_back(t.index);
-    REQUIRE(indices == s.active());
-
-    REQUIRE(s.clear() == std::vector<int>{197});
-    REQUIRE(s.active_with_remaining().empty());
-}

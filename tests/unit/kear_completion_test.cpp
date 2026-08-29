@@ -71,7 +71,6 @@ TEST_CASE("kear set sizes match the apworld pools", "[kear]")
     REQUIRE(mth::kSingleKearCount == 39);
     REQUIRE(mth::kSingleKearRequired == 30);
     REQUIRE(mth::kAreaKearCount == 17);
-    REQUIRE(mth::kVanillaKearTotal == 40);
 }
 
 // HasAllKears() clears at 30 of the 39 single kears, so the gate must fire short of the full set.

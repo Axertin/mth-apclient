@@ -25,20 +25,11 @@ static_assert(hash64("ShopItemRefresh") == 0x553c7634843b755bULL);
 static_assert(hash64("AreaManagerNewArea") == 0x762f9cb2d804d61bULL);
 static_assert(hash64("ChestConstruct") == 0x04588da3e185326cULL);
 
-TEST_CASE("hook_hash reproduces the game's dispatch constants", "[hookhash]")
-{
-    REQUIRE(hash64("WorldUpdate") == 0x2f3672e14c657ffdULL);
-    REQUIRE(hash64("ItemsOnPickupDone") == 0xc33f1d10e2025ea2ULL);
-    REQUIRE(hash64("ycControllerUpdate") == 0x7cc4f96a2b42b94aULL);
-}
+// One of the two input hooks the save takeover installs; the keyboard one is not pinned.
+static_assert(hash64("ycControllerUpdate") == 0x7cc4f96a2b42b94aULL);
 
-TEST_CASE("hook_hash spans the 12-byte block boundary correctly", "[hookhash]")
-{
-    // Names below/at/above one 12-byte block exercise the loop and the byte-wise tail separately.
-    REQUIRE(hash64("GameInit") == 0xcd6c390c7a5949a6ULL);            // 8, tail only
-    REQUIRE(hash64("GameShutdown") == 0xfa1005f0dfb0b999ULL);        // 12, tail only
-    REQUIRE(hash64("GameStateTransition") == 0xb9cbbdeee4f465aaULL); // 19, one block + tail
-}
+// The set also covers the hash's 12-byte block seam: "GameInit" (8) and "GameShutdown" (12) take the
+// byte-wise tail alone, while "GameStateTransition" (19) takes one whole block plus a tail.
 
 TEST_CASE("hook_hash separates names that differ slightly", "[hookhash]")
 {

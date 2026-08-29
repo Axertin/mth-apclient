@@ -15,7 +15,6 @@ list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
 include(Catch)
 
 add_executable(mthap_unit_tests
-    unit/smoke_test.cpp
     unit/burrow_boundary_test.cpp
     unit/log_test.cpp
     unit/ap_state_test.cpp

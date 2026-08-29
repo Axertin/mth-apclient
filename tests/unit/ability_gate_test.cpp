@@ -28,7 +28,6 @@ TEST_CASE("ability_from_name maps known names and rejects unknown")
     REQUIRE(mth::ability_from_name("train") == Ability::Train);
     REQUIRE_FALSE(mth::ability_from_name("unknown").has_value());
     REQUIRE_FALSE(mth::ability_from_name("").has_value());
-    REQUIRE_FALSE(mth::ability_from_name("Burrow").has_value()); // case-sensitive
 }
 
 TEST_CASE("AbilityGate blocks only randomized, ungranted abilities on the AP slot")

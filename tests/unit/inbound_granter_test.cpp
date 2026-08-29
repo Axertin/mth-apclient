@@ -1,11 +1,14 @@
-#include <filesystem>
 #include <memory>
+#include <optional>
+#include <string>
+#include <string_view>
 #include <vector>
 
 #include <catch2/catch_test_macros.hpp>
 
 #include "mth/core/ap/ap_save_state.hpp"
 #include "mth/core/ap/ap_state.hpp"
+#include "mth/core/data/trap_table.hpp"
 #include "mth/core/inbound_granter.hpp"
 #include "mth/core/item_granter_interface.hpp"
 #include "mth/core/rando_bridge.hpp"
@@ -47,6 +50,18 @@ struct FakeGranter : mth::IItemGranter
     }
 };
 
+// Nothing in the granter's logic reads or writes the statefile, so these cases only need the format.
+mth::ApSaveState detached()
+{
+    return mth::ApSaveState([] { return std::nullopt; }, [](std::string_view) {});
+}
+
+// Backed by a string, for a case that has to rebuild the state and still see what was staged.
+mth::ApSaveState backed_by(std::string &text)
+{
+    return mth::ApSaveState([&text]() -> std::optional<std::string> { return text; }, [&text](std::string_view t) { text = std::string(t); });
+}
+
 mth::ApItemReceived recv(std::int64_t item_id, int index)
 {
     mth::ApItemReceived e;
@@ -58,11 +73,8 @@ mth::ApItemReceived recv(std::int64_t item_id, int index)
 
 TEST_CASE("InboundGranter grants new items once and dedups by index", "[inbound]")
 {
-    const auto path = std::filesystem::temp_directory_path() / "mthap_inbound_state.txt";
-    std::filesystem::remove(path);
-
     mth::ApState state;
-    mth::ApSaveState save(path);
+    mth::ApSaveState save = detached();
     FakeGranter granter;
     mth::InboundGranter inbound(granter, state, save);
 
@@ -77,16 +89,12 @@ TEST_CASE("InboundGranter grants new items once and dedups by index", "[inbound]
     state.apply(recv(mth::ap_item_id(2), 2));
     inbound.tick();
     REQUIRE(granter.granted == std::vector<int>{5, 9, 2});
-    std::filesystem::remove(path);
 }
 
 TEST_CASE("InboundGranter does not mark on failure and retries", "[inbound]")
 {
-    const auto path = std::filesystem::temp_directory_path() / "mthap_inbound_fail.txt";
-    std::filesystem::remove(path);
-
     mth::ApState state;
-    mth::ApSaveState save(path);
+    mth::ApSaveState save = detached();
     FakeGranter granter;
     granter.ok = false;
     mth::InboundGranter inbound(granter, state, save);
@@ -100,7 +108,6 @@ TEST_CASE("InboundGranter does not mark on failure and retries", "[inbound]")
     inbound.tick();
     REQUIRE(granter.granted == std::vector<int>{5});
     REQUIRE(save.is_granted(0));
-    std::filesystem::remove(path);
 }
 
 // #130: in vanilla kear mode a received Universal Kear (id 63) must grant a real usable key. It does NOT
@@ -108,12 +115,9 @@ TEST_CASE("InboundGranter does not mark on failure and retries", "[inbound]")
 // each new receipt fires the injected key-credit effect once, marked durable per index like any grant.
 TEST_CASE("InboundGranter credits vanilla kears instead of granting itemType 63", "[inbound]")
 {
-    const auto path = std::filesystem::temp_directory_path() / "mthap_inbound_kear_vanilla.txt";
-    std::filesystem::remove(path);
-
     mth::ApState state;
     state.apply(mth::ApConnected{.slot_data = "{}", .player_slot = 1, .config = {.kear_mode = mth::KearMode::Vanilla}});
-    mth::ApSaveState save(path);
+    mth::ApSaveState save = detached();
     FakeGranter granter;
     int credits = 0;
     mth::InboundGranter inbound(granter, state, save,
@@ -133,18 +137,13 @@ TEST_CASE("InboundGranter credits vanilla kears instead of granting itemType 63"
 
     inbound.tick(); // resend/next tick: already credited, no double
     REQUIRE(credits == 2);
-
-    std::filesystem::remove(path);
 }
 
 TEST_CASE("InboundGranter retries a vanilla kear credit that is not ready", "[inbound]")
 {
-    const auto path = std::filesystem::temp_directory_path() / "mthap_inbound_kear_retry.txt";
-    std::filesystem::remove(path);
-
     mth::ApState state;
     state.apply(mth::ApConnected{.slot_data = "{}", .player_slot = 1, .config = {.kear_mode = mth::KearMode::Vanilla}});
-    mth::ApSaveState save(path);
+    mth::ApSaveState save = detached();
     FakeGranter granter;
     bool ready = false;
     int credits = 0;
@@ -166,20 +165,15 @@ TEST_CASE("InboundGranter retries a vanilla kear credit that is not ready", "[in
     inbound.tick();
     REQUIRE(credits == 1);
     REQUIRE(save.is_granted(0));
-
-    std::filesystem::remove(path);
 }
 
 // In the AP-item kear modes the pool never carries id 63; the credit effect must stay dormant so those
 // modes keep their existing behavior (this fix is vanilla-only).
 TEST_CASE("InboundGranter does not credit kears outside vanilla mode", "[inbound]")
 {
-    const auto path = std::filesystem::temp_directory_path() / "mthap_inbound_kear_apitems.txt";
-    std::filesystem::remove(path);
-
     mth::ApState state;
     state.apply(mth::ApConnected{.slot_data = "{}", .player_slot = 1, .config = {.kear_mode = mth::KearMode::ApItems}});
-    mth::ApSaveState save(path);
+    mth::ApSaveState save = detached();
     FakeGranter granter;
     int credits = 0;
     mth::InboundGranter inbound(granter, state, save,
@@ -193,17 +187,12 @@ TEST_CASE("InboundGranter does not credit kears outside vanilla mode", "[inbound
     inbound.tick();
     REQUIRE(credits == 0);
     REQUIRE(granter.granted == std::vector<int>{63}); // falls through to the normal vanilla-grant path
-
-    std::filesystem::remove(path);
 }
 
 TEST_CASE("InboundGranter skips stat-cap items", "[inbound]")
 {
-    const auto path = std::filesystem::temp_directory_path() / "mthap_inbound_caps.txt";
-    std::filesystem::remove(path);
-
     mth::ApState state;
-    mth::ApSaveState save(path);
+    mth::ApSaveState save = detached();
     FakeGranter granter;
     mth::InboundGranter inbound(granter, state, save);
 
@@ -211,19 +200,17 @@ TEST_CASE("InboundGranter skips stat-cap items", "[inbound]")
     state.apply(recv(mth::ap_item_id(9), 1));        // a real item: must be granted
     inbound.tick();
     REQUIRE(granter.granted == std::vector<int>{9});
-
-    std::filesystem::remove(path);
 }
 
 TEST_CASE("InboundGranter skips categories it cannot grant", "[inbound]")
 {
-    const auto path = std::filesystem::temp_directory_path() / "mthap_inbound_reserved.txt";
-    std::filesystem::remove(path);
-
     mth::ApState state;
-    mth::ApSaveState save(path);
+    mth::ApSaveState save = detached();
     FakeGranter granter;
-    mth::InboundGranter inbound(granter, state, save);
+    // Mirrors TrapHooks::arm's first branch, which is the only thing that rejects an id in the trap
+    // segment that no trap row claims. Without it every index would report Unavailable regardless.
+    mth::InboundGranter inbound(granter, state, save, {},
+                                [](int idx) { return mth::trap_for_modifier(idx) != nullptr ? mth::TrapArm::Armed : mth::TrapArm::Unavailable; });
 
     state.apply(recv(mth::kProgStatCapBase + 0, 0));   // stat-cap: StatCapState's job -> skipped
     state.apply(recv(mth::kKearBlockItemBase + 1, 1)); // lock removal -> skipped
@@ -232,17 +219,12 @@ TEST_CASE("InboundGranter skips categories it cannot grant", "[inbound]")
     inbound.tick();
     REQUIRE(granter.granted == std::vector<int>{9});
     REQUIRE(save.is_granted(2)); // Unavailable consumes the receipt rather than retrying it forever
-
-    std::filesystem::remove(path);
 }
 
 TEST_CASE("InboundGranter translates progressive weapons to tiered itemTypes", "[inbound]")
 {
-    const auto path = std::filesystem::temp_directory_path() / "mthap_inbound_weapons.txt";
-    std::filesystem::remove(path);
-
     mth::ApState state;
-    mth::ApSaveState save(path);
+    mth::ApSaveState save = detached();
     FakeGranter granter;
     mth::InboundGranter inbound(granter, state, save);
 
@@ -259,17 +241,12 @@ TEST_CASE("InboundGranter translates progressive weapons to tiered itemTypes", "
     granter.granted.clear();
     inbound.tick();
     REQUIRE(granter.granted.empty());
-
-    std::filesystem::remove(path);
 }
 
 TEST_CASE("InboundGranter translates the progressive fishing rod to tiered upgrade itemTypes", "[inbound]")
 {
-    const auto path = std::filesystem::temp_directory_path() / "mthap_inbound_fishing.txt";
-    std::filesystem::remove(path);
-
     mth::ApState state;
-    mth::ApSaveState save(path);
+    mth::ApSaveState save = detached();
     FakeGranter granter;
     mth::InboundGranter inbound(granter, state, save);
 
@@ -284,17 +261,12 @@ TEST_CASE("InboundGranter translates the progressive fishing rod to tiered upgra
     granter.granted.clear();
     inbound.tick();
     REQUIRE(granter.granted.empty());
-
-    std::filesystem::remove(path);
 }
 
 TEST_CASE("InboundGranter consumes a progressive fishing rod beyond its top tier without granting", "[inbound]")
 {
-    const auto path = std::filesystem::temp_directory_path() / "mthap_inbound_fishing_overflow.txt";
-    std::filesystem::remove(path);
-
     mth::ApState state;
-    mth::ApSaveState save(path);
+    mth::ApSaveState save = detached();
     FakeGranter granter;
     mth::InboundGranter inbound(granter, state, save);
 
@@ -305,17 +277,12 @@ TEST_CASE("InboundGranter consumes a progressive fishing rod beyond its top tier
     inbound.tick();
     REQUIRE(granter.granted == std::vector<int>{87, 88, 89});
     REQUIRE(save.is_granted(3));
-
-    std::filesystem::remove(path);
 }
 
 TEST_CASE("InboundGranter retries the fishing rod at its correct tier after a failure", "[inbound]")
 {
-    const auto path = std::filesystem::temp_directory_path() / "mthap_inbound_fishing_retry.txt";
-    std::filesystem::remove(path);
-
     mth::ApState state;
-    mth::ApSaveState save(path);
+    mth::ApSaveState save = detached();
     FakeGranter granter;
     granter.ok = false; // player not ready yet
     mth::InboundGranter inbound(granter, state, save);
@@ -329,17 +296,12 @@ TEST_CASE("InboundGranter retries the fishing rod at its correct tier after a fa
     granter.ok = true;
     inbound.tick();
     REQUIRE(granter.granted == std::vector<int>{87, 88}); // tiers recomputed correctly, both granted
-
-    std::filesystem::remove(path);
 }
 
 TEST_CASE("InboundGranter retries a weapon at its correct tier after a failure", "[inbound]")
 {
-    const auto path = std::filesystem::temp_directory_path() / "mthap_inbound_weapon_retry.txt";
-    std::filesystem::remove(path);
-
     mth::ApState state;
-    mth::ApSaveState save(path);
+    mth::ApSaveState save = detached();
     FakeGranter granter;
     granter.ok = false; // player not ready yet
     mth::InboundGranter inbound(granter, state, save);
@@ -353,8 +315,6 @@ TEST_CASE("InboundGranter retries a weapon at its correct tier after a failure",
     granter.ok = true;
     inbound.tick();
     REQUIRE(granter.granted == std::vector<int>{2, 3}); // tiers recomputed correctly, both granted
-
-    std::filesystem::remove(path);
 }
 
 // #175: the real granter only QUEUES on grant(); the item lands later, inside the engine's update
@@ -362,11 +322,8 @@ TEST_CASE("InboundGranter retries a weapon at its correct tier after a failure",
 // because is_granted() then suppresses it on every future launch.
 TEST_CASE("InboundGranter does not persist a receipt the granter has only queued", "[inbound]")
 {
-    const auto path = std::filesystem::temp_directory_path() / "mthap_inbound_queued.txt";
-    std::filesystem::remove(path);
-
     mth::ApState state;
-    mth::ApSaveState save(path);
+    mth::ApSaveState save = detached();
     FakeGranter granter;
     granter.defer = true;
     mth::InboundGranter inbound(granter, state, save);
@@ -378,18 +335,13 @@ TEST_CASE("InboundGranter does not persist a receipt the granter has only queued
 
     granter.apply_queued();
     REQUIRE(save.is_granted(0));
-
-    std::filesystem::remove(path);
 }
 
 // The in-flight receipt is not durable yet, so the next tick must not hand it to the granter again.
 TEST_CASE("InboundGranter does not re-queue an in-flight receipt", "[inbound]")
 {
-    const auto path = std::filesystem::temp_directory_path() / "mthap_inbound_inflight.txt";
-    std::filesystem::remove(path);
-
     mth::ApState state;
-    mth::ApSaveState save(path);
+    mth::ApSaveState save = detached();
     FakeGranter granter;
     granter.defer = true;
     mth::InboundGranter inbound(granter, state, save);
@@ -404,22 +356,19 @@ TEST_CASE("InboundGranter does not re-queue an in-flight receipt", "[inbound]")
     inbound.tick();
     REQUIRE(granter.granted == std::vector<int>{5}); // and not again after it lands
     REQUIRE(save.is_granted(0));
-
-    std::filesystem::remove(path);
 }
 
 // The loss window in #175: the player quits with the batch still queued. Nothing was persisted, so a
 // fresh granter over the same save file must hand the item out again rather than skip it forever.
 TEST_CASE("InboundGranter retries a receipt that was queued but never applied", "[inbound]")
 {
-    const auto path = std::filesystem::temp_directory_path() / "mthap_inbound_lost_queue.txt";
-    std::filesystem::remove(path);
-
     mth::ApState state;
     state.apply(recv(mth::ap_item_id(5), 0));
 
+    std::string statefile; // stands in for the file: the only case here where state outlives the object
+
     {
-        mth::ApSaveState save(path);
+        mth::ApSaveState save = backed_by(statefile);
         FakeGranter granter;
         granter.defer = true;
         mth::InboundGranter inbound(granter, state, save);
@@ -429,26 +378,21 @@ TEST_CASE("InboundGranter retries a receipt that was queued but never applied", 
     } // process exit: the queue dies with it
 
     // relaunch: the server replays the same stream against the persisted state
-    mth::ApSaveState reloaded(path);
+    mth::ApSaveState reloaded = backed_by(statefile);
     REQUIRE_FALSE(reloaded.is_granted(0));
     FakeGranter granter;
     mth::InboundGranter inbound(granter, state, reloaded);
     inbound.tick();
     REQUIRE(granter.granted == std::vector<int>{5}); // recovered, not lost
     REQUIRE(reloaded.is_granted(0));
-
-    std::filesystem::remove(path);
 }
 
 // A session change drops the queue, so those receipts must be retried against the new save rather
 // than acked into it.
 TEST_CASE("InboundGranter re-queues receipts dropped by a session change", "[inbound]")
 {
-    const auto path = std::filesystem::temp_directory_path() / "mthap_inbound_discard.txt";
-    std::filesystem::remove(path);
-
     mth::ApState state;
-    mth::ApSaveState save(path);
+    mth::ApSaveState save = detached();
     FakeGranter granter;
     granter.defer = true;
     state.apply(recv(mth::ap_item_id(5), 0));
@@ -465,8 +409,6 @@ TEST_CASE("InboundGranter re-queues receipts dropped by a session change", "[inb
     rebuilt.tick();
     REQUIRE(granter.granted == std::vector<int>{5}); // offered again, never silently dropped
     REQUIRE_FALSE(save.is_granted(0));
-
-    std::filesystem::remove(path);
 }
 
 // The granter outlives its InboundGranter and holds the applied sink. If a replacement is built
@@ -474,11 +416,8 @@ TEST_CASE("InboundGranter re-queues receipts dropped by a session change", "[inb
 // the installed one leaves grants applying with nothing marked, so they all re-apply next launch.
 TEST_CASE("InboundGranter teardown does not disarm a successor's applied sink", "[inbound]")
 {
-    const auto path = std::filesystem::temp_directory_path() / "mthap_inbound_sink_handover.txt";
-    std::filesystem::remove(path);
-
     mth::ApState state;
-    mth::ApSaveState save(path);
+    mth::ApSaveState save = detached();
     FakeGranter granter;
     granter.defer = true;
     state.apply(recv(mth::ap_item_id(5), 0));
@@ -491,17 +430,12 @@ TEST_CASE("InboundGranter teardown does not disarm a successor's applied sink", 
     REQUIRE(granter.granted == std::vector<int>{5});
     granter.apply_queued();
     REQUIRE(save.is_granted(0)); // false if the teardown wiped the live sink
-
-    std::filesystem::remove(path);
 }
 
 TEST_CASE("InboundGranter arms a trap and marks it granted", "[inbound][trap]")
 {
-    const auto path = std::filesystem::temp_directory_path() / "mthap_inbound_trap.txt";
-    std::filesystem::remove(path);
-
     mth::ApState state;
-    mth::ApSaveState save(path);
+    mth::ApSaveState save = detached();
     FakeGranter granter;
     std::vector<int> armed;
     mth::InboundGranter inbound(granter, state, save, {},
@@ -518,64 +452,56 @@ TEST_CASE("InboundGranter arms a trap and marks it granted", "[inbound][trap]")
 
     inbound.tick(); // already granted: must not arm a second time
     REQUIRE(armed == std::vector<int>{204});
-
-    std::filesystem::remove(path);
 }
 
 TEST_CASE("InboundGranter retries a trap that is not ready yet", "[inbound][trap]")
 {
-    const auto path = std::filesystem::temp_directory_path() / "mthap_inbound_trap_retry.txt";
-    std::filesystem::remove(path);
-
     mth::ApState state;
-    mth::ApSaveState save(path);
+    mth::ApSaveState save = detached();
     FakeGranter granter;
-    int calls = 0;
+    int probes = 0;
+    std::vector<int> armed;
     mth::TrapArm result = mth::TrapArm::NotReady;
     mth::InboundGranter inbound(granter, state, save, {},
-                                [&](int)
+                                [&](int idx)
                                 {
-                                    ++calls;
+                                    ++probes;
+                                    if (result == mth::TrapArm::Armed)
+                                        armed.push_back(idx);
                                     return result;
                                 });
 
     state.apply(recv(mth::kTrapItemBase + 204, 0));
     inbound.tick();
-    REQUIRE(calls == 1);
+    REQUIRE(probes > 0);               // the arm was attempted
     REQUIRE_FALSE(save.is_granted(0)); // not ready: nothing is marked, so the receipt survives
 
     result = mth::TrapArm::Armed;
     inbound.tick();
-    REQUIRE(calls == 2);
+    REQUIRE(armed == std::vector<int>{204});
     REQUIRE(save.is_granted(0));
 
-    std::filesystem::remove(path);
+    inbound.tick();
+    REQUIRE(armed == std::vector<int>{204}); // the retry must not arm the trap twice
+    REQUIRE(save.is_granted(0));
 }
 
 TEST_CASE("InboundGranter consumes a trap the player already enabled", "[inbound][trap]")
 {
-    const auto path = std::filesystem::temp_directory_path() / "mthap_inbound_trap_skip.txt";
-    std::filesystem::remove(path);
-
     mth::ApState state;
-    mth::ApSaveState save(path);
+    mth::ApSaveState save = detached();
     FakeGranter granter;
     mth::InboundGranter inbound(granter, state, save, {}, [](int) { return mth::TrapArm::Skipped; });
 
     state.apply(recv(mth::kTrapItemBase + 204, 0));
     inbound.tick();
     REQUIRE(save.is_granted(0)); // consumed, not retried forever
-
-    std::filesystem::remove(path);
 }
 
 TEST_CASE("InboundGranter does not block later items on a trap", "[inbound][trap]")
 {
-    const auto path = std::filesystem::temp_directory_path() / "mthap_inbound_trap_order.txt";
-    std::filesystem::remove(path);
-
     mth::ApState state;
-    mth::ApSaveState save(path);
+    mth::ApSaveState save = detached();
     FakeGranter granter;
     mth::InboundGranter inbound(granter, state, save, {}, [](int) { return mth::TrapArm::Armed; });
 
@@ -583,8 +509,6 @@ TEST_CASE("InboundGranter does not block later items on a trap", "[inbound][trap
     state.apply(recv(mth::ap_item_id(9), 1));
     inbound.tick();
     REQUIRE(granter.granted == std::vector<int>{9});
-
-    std::filesystem::remove(path);
 }
 
 // A trap stuck on NotReady must not hold up every receipt behind it. An Armed trap (the case above)
@@ -592,11 +516,8 @@ TEST_CASE("InboundGranter does not block later items on a trap", "[inbound][trap
 // stays NotReady for the whole tick can.
 TEST_CASE("InboundGranter does not block a later item on a trap that is not ready", "[inbound][trap]")
 {
-    const auto path = std::filesystem::temp_directory_path() / "mthap_inbound_trap_notready_order.txt";
-    std::filesystem::remove(path);
-
     mth::ApState state;
-    mth::ApSaveState save(path);
+    mth::ApSaveState save = detached();
     FakeGranter granter;
     mth::InboundGranter inbound(granter, state, save, {}, [](int) { return mth::TrapArm::NotReady; });
 
@@ -605,6 +526,4 @@ TEST_CASE("InboundGranter does not block a later item on a trap that is not read
     inbound.tick();
     REQUIRE(granter.granted == std::vector<int>{9}); // the stalled trap does not hold up the item behind it
     REQUIRE_FALSE(save.is_granted(0));               // trap receipt stays unmarked and retries next tick
-
-    std::filesystem::remove(path);
 }

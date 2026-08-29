@@ -1,3 +1,6 @@
+#include <string>
+#include <vector>
+
 #include <catch2/catch_test_macros.hpp>
 
 #include "mth/core/ap_gate.hpp"
@@ -91,34 +94,61 @@ TEST_CASE("gate: an unknown revision alone does not refuse", "[gate]")
     REQUIRE(mth::refusal_reason(in).empty());
 }
 
-TEST_CASE("gate: refusal_reason names the first failing input", "[gate]")
+TEST_CASE("gate: refusal_reason is non-empty exactly when refused, and distinct per cause", "[gate]")
 {
+    std::vector<mth::GateInputs> refused;
     {
         mth::GateInputs in = healthy_clear();
         in.mod_api_present = false;
-        in.symbols_resolved = false; // both broken; the more fundamental one is reported
-        REQUIRE(mth::refusal_reason(in).find("mod API") != std::string::npos);
+        refused.push_back(in);
     }
     {
         mth::GateInputs in = healthy_clear();
         in.symbols_resolved = false;
-        REQUIRE(mth::refusal_reason(in).find("game functions") != std::string::npos);
+        refused.push_back(in);
     }
     {
         mth::GateInputs in = healthy_clear();
         in.item_table_shape_ok = false;
-        REQUIRE(mth::refusal_reason(in).find("item table") != std::string::npos);
+        refused.push_back(in);
     }
     {
         mth::GateInputs in = healthy_clear();
         in.layout_probes_ok = false;
-        REQUIRE(mth::refusal_reason(in).find("layout probe") != std::string::npos);
+        refused.push_back(in);
     }
     {
         mth::GateInputs in = healthy_pending();
         in.ticks_since_probe_installed = mth::kLivenessTimeoutTicks;
-        REQUIRE(mth::refusal_reason(in).find("WorldUpdate") != std::string::npos);
+        refused.push_back(in);
     }
+
+    std::vector<std::string> reasons;
+    for (const mth::GateInputs &in : refused)
+    {
+        REQUIRE(mth::evaluate(in) == mth::GateVerdict::Refused);
+        reasons.push_back(mth::refusal_reason(in));
+        REQUIRE_FALSE(reasons.back().empty());
+    }
+    REQUIRE(mth::refusal_reason(healthy_clear()).empty());
+    REQUIRE(mth::refusal_reason(healthy_pending()).empty());
+
+    // Five causes, five reasons. A banner that reads the same for a stale signature as for a missing
+    // mod API costs the player the one thing the banner is for.
+    for (std::size_t i = 0; i < reasons.size(); ++i)
+        for (std::size_t j = i + 1; j < reasons.size(); ++j)
+        {
+            INFO(reasons[i] << " / " << reasons[j]);
+            REQUIRE(reasons[i] != reasons[j]);
+        }
+
+    // A missing mod API also explains a failed symbol resolve, so it is the one reported.
+    mth::GateInputs both = healthy_clear();
+    both.mod_api_present = false;
+    both.symbols_resolved = false;
+    mth::GateInputs api_only = healthy_clear();
+    api_only.mod_api_present = false;
+    REQUIRE(mth::refusal_reason(both) == mth::refusal_reason(api_only));
 }
 
 TEST_CASE("gate latch: Clear is terminal", "[gate]")
@@ -154,22 +184,16 @@ TEST_CASE("gate latch: Refused is terminal", "[gate]")
 
 TEST_CASE("gate latch: stays Pending across repeated updates until an input settles it", "[gate]")
 {
+    // Pending is the one verdict the latch re-evaluates, so a second update is all it takes to show
+    // it does not stick. The timeout boundary itself belongs to the evaluate() case above.
     mth::GateLatch latch;
     mth::GateInputs in = healthy_pending();
-    for (int tick = 1; tick < mth::kLivenessTimeoutTicks; ++tick)
-    {
-        in.ticks_since_probe_installed = tick;
-        REQUIRE(latch.update(in) == mth::GateVerdict::Pending);
-    }
+    REQUIRE(latch.update(in) == mth::GateVerdict::Pending);
+    REQUIRE(latch.update(in) == mth::GateVerdict::Pending);
+    REQUIRE_FALSE(latch.settled());
+
     in.worldupdate_observed = true;
     REQUIRE(latch.update(in) == mth::GateVerdict::Clear);
-}
-
-TEST_CASE("gate: verdict_name covers every enumerator", "[gate]")
-{
-    REQUIRE(std::string(mth::verdict_name(mth::GateVerdict::Pending)) == "Pending");
-    REQUIRE(std::string(mth::verdict_name(mth::GateVerdict::Clear)) == "Clear");
-    REQUIRE(std::string(mth::verdict_name(mth::GateVerdict::Refused)) == "Refused");
 }
 
 TEST_CASE("gate: mod_api_shape_ok is informational and never moves the verdict", "[gate]")
@@ -198,23 +222,4 @@ TEST_CASE("gate: Pending does not block connect", "[gate]")
     // would strand a launch-time login behind a 600-tick wait for no diagnostic gain.
     REQUIRE_FALSE(mth::should_refuse_connect(true, mth::GateVerdict::Pending));
     REQUIRE(mth::evaluate(healthy_pending()) == mth::GateVerdict::Pending);
-}
-
-TEST_CASE("gate: a static failure refuses connect before liveness is ever considered", "[gate]")
-{
-    mth::GateInputs in = healthy_pending();
-    in.symbols_resolved = false;
-    const mth::GateVerdict v = mth::evaluate(in);
-    REQUIRE(v == mth::GateVerdict::Refused);
-    REQUIRE(mth::should_refuse_connect(true, v));
-}
-
-TEST_CASE("gate: liveness expiry refuses connect after the Pending window closes", "[gate]")
-{
-    mth::GateInputs in = healthy_pending();
-    mth::GateLatch latch;
-    REQUIRE_FALSE(mth::should_refuse_connect(true, latch.update(in)));
-
-    in.ticks_since_probe_installed = mth::kLivenessTimeoutTicks;
-    REQUIRE(mth::should_refuse_connect(true, latch.update(in)));
 }

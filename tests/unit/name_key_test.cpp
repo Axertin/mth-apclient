@@ -6,8 +6,10 @@
 #include "mth/core/data/game_layout.hpp"
 #include "mth/features/name_key.hpp"
 
-// Stand-ins for the game objects the name-key walk crosses. Only the offsets it reads are modelled; the
-// static_asserts keep the fakes pinned to the real layout constants.
+// Stand-ins for the game objects the name-key walk crosses. Only the offsets it reads are modelled, and
+// those offsets come from the same layout constants name_key.hpp reads, so nothing here can catch one
+// drifting on a game rebuild: they are pinned reverse-engineered facts, confirmed in game rather than
+// tested. What is left below is the logic that sits on top of them, the key precedence and the null hops.
 namespace
 {
 
@@ -42,7 +44,7 @@ static_assert(offsetof(FakeComponent, entity) == mth::layout::kKeyBlockEntityRef
 
 } // namespace
 
-TEST_CASE("object_name_key: the direct hash wins", "[name_key]")
+TEST_CASE("object_name_key: the direct hash wins over the shared descriptor", "[name_key]")
 {
     FakeDescriptor desc{};
     desc.name_key = 0xdead;
@@ -51,19 +53,12 @@ TEST_CASE("object_name_key: the direct hash wins", "[name_key]")
     sp.name_key = 0xbeef;
 
     CHECK(mth::object_name_key(&sp) == 0xbeef);
-}
 
-TEST_CASE("object_name_key: falls back to the shared descriptor when the direct hash is 0", "[name_key]")
-{
-    FakeDescriptor desc{};
-    desc.name_key = 0xdead;
-    FakeSpawnPoint sp{};
-    sp.descriptor = &desc;
-
+    sp.name_key = 0; // no direct hash: the descriptor several objects share answers instead
     CHECK(mth::object_name_key(&sp) == 0xdead);
 }
 
-TEST_CASE("object_name_key: a broken chain reports 0 rather than dereferencing it", "[name_key]")
+TEST_CASE("name_key: a null hop anywhere in either chain reports 0", "[name_key]")
 {
     CHECK(mth::object_name_key(nullptr) == 0);
 
@@ -73,22 +68,7 @@ TEST_CASE("object_name_key: a broken chain reports 0 rather than dereferencing i
     FakeDescriptor desc{}; // descriptor present but itself keyless
     sp.descriptor = &desc;
     CHECK(mth::object_name_key(&sp) == 0);
-}
 
-TEST_CASE("component_name_key: walks the entity ref to the spawn point's hash", "[name_key]")
-{
-    FakeSpawnPoint sp{};
-    sp.name_key = 0xc0ffee;
-    FakeEntity ent{};
-    ent.spawn = &sp;
-    FakeComponent comp{};
-    comp.entity = &ent;
-
-    CHECK(mth::component_name_key(&comp) == 0xc0ffee);
-}
-
-TEST_CASE("component_name_key: a null hop anywhere in the chain reports 0", "[name_key]")
-{
     FakeComponent comp{}; // no entity ref: an unspawned or already-freed component
     CHECK(mth::component_name_key(&comp) == 0);
 

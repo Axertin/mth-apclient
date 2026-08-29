@@ -21,14 +21,6 @@ constexpr std::int64_t kHealth = mth::kUpgradeItemBase + 1;
 constexpr std::int64_t kTrinket = mth::kUpgradeItemBase + 4;
 } // namespace
 
-TEST_CASE("upgrade: default counts are zero and clean", "[upgrade]")
-{
-    mth::UpgradeState up;
-    REQUIRE_FALSE(up.dirty());
-    for (int i = 0; i < mth::kUpgradeCount; ++i)
-        REQUIRE(up.counts()[i] == 0);
-}
-
 TEST_CASE("upgrade: counts receipts per type and flags dirty", "[upgrade]")
 {
     mth::UpgradeState up;
@@ -44,12 +36,17 @@ TEST_CASE("upgrade: counts receipts per type and flags dirty", "[upgrade]")
 TEST_CASE("upgrade: clamps to the per-type cap", "[upgrade]")
 {
     mth::UpgradeState up;
-    std::vector<std::int64_t> many(50, kTrinket); // Trinket cap is 6
     mth::ApState s2;
-    make_state(s2, many);
+    make_state(s2, std::vector<std::int64_t>(50, kTrinket));
     up.recompute(s2);
     REQUIRE(up.counts()[4] == mth::kUpgradeCaps[4]);
-    REQUIRE(up.counts()[4] == 6);
+
+    // Saturating, not wrapping or accumulating: one receipt over the cap lands where fifty do.
+    mth::UpgradeState just_over;
+    mth::ApState s3;
+    make_state(s3, std::vector<std::int64_t>(static_cast<std::size_t>(mth::kUpgradeCaps[4]) + 1, kTrinket));
+    just_over.recompute(s3);
+    REQUIRE(just_over.counts()[4] == up.counts()[4]);
 }
 
 TEST_CASE("upgrade: mark_applied clears dirty until counts change", "[upgrade]")

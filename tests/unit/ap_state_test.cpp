@@ -1,3 +1,6 @@
+#include <algorithm>
+#include <string>
+
 #include <catch2/catch_test_macros.hpp>
 
 #include "mth/core/ap/ap_state.hpp"
@@ -21,30 +24,17 @@ TEST_CASE("ap_state: ApConnected populates slot/locations and authenticates", "[
     REQUIRE(s.is_valid_location(10));
     REQUIRE(s.is_valid_location(12));
     REQUIRE_FALSE(s.is_valid_location(99));
-    REQUIRE_FALSE(s.ossex_start());                   // defaults off
-    REQUIRE(s.kear_mode() == mth::KearMode::ApItems); // defaults to the apworld's default mode
-    REQUIRE_FALSE(s.deathlink());                     // defaults off
 }
 
-TEST_CASE("ap_state: ossex_start flows from ApConnected", "[mth][ap_state]")
+TEST_CASE("ap_state: ApConnected copies the parsed slot config through", "[mth][ap_state]")
 {
+    // One assignment carries the whole config, so a few fields stand in for all of them. What each
+    // slot_data key parses to is parse_slot_data's contract, covered in slot_data_test.
     mth::ApState s;
-    s.apply(mth::ApConnected{.slot_data = "{}", .player_slot = 1, .config = {.ossex_start = true}});
+    s.apply(mth::ApConnected{.slot_data = "{}", .player_slot = 1, .config = {.ossex_start = true, .deathlink = true, .lit_generator_lamp_mask = 0x2Au}});
     REQUIRE(s.ossex_start());
-}
-
-TEST_CASE("ap_state: deathlink flows from ApConnected", "[mth][ap_state]")
-{
-    mth::ApState s;
-    s.apply(mth::ApConnected{.slot_data = "{}", .player_slot = 1, .config = {.deathlink = true}});
     REQUIRE(s.deathlink());
-}
-
-TEST_CASE("ap_state: kear_rando flows from ApConnected", "[mth][ap_state]")
-{
-    mth::ApState s;
-    s.apply(mth::ApConnected{.slot_data = "{}", .player_slot = 1, .config = {.kear_mode = mth::KearMode::ApItems}});
-    REQUIRE(s.kear_mode() == mth::KearMode::ApItems);
+    REQUIRE(s.lit_generator_lamp_mask() == 0x2Au);
 }
 
 // slot_data "kear_rando" is an int mode, not a flag: 0 = vanilla (the pool carries Universal Kear items,
@@ -124,12 +114,15 @@ TEST_CASE("ap_state: ApConnected -> Connected phase", "[mth][ap_state]")
     REQUIRE(s.phase() == mth::ConnectionPhase::Connected);
 }
 
-TEST_CASE("ap_state: ApConnectionRefused -> Error phase with joined detail", "[mth][ap_state]")
+TEST_CASE("ap_state: ApConnectionRefused -> Error phase keeping every server error", "[mth][ap_state]")
 {
+    // The login window shows detail() verbatim, so an error the join drops is a refusal the player
+    // never gets an explanation for.
     mth::ApState s;
     s.apply(mth::ApConnectionRefused{{"bad slot", "bad pw"}});
     REQUIRE(s.phase() == mth::ConnectionPhase::Error);
-    REQUIRE(s.detail() == "bad slot, bad pw");
+    REQUIRE(s.detail().find("bad slot") != std::string::npos);
+    REQUIRE(s.detail().find("bad pw") != std::string::npos);
 }
 
 TEST_CASE("ap_state: ApDisconnected -> Disconnected phase", "[mth][ap_state]")
@@ -145,18 +138,15 @@ TEST_CASE("ap_state: ApLocationsChecked accumulates and drains once", "[mth][ap_
     mth::ApState s;
     s.apply(mth::ApLocationsChecked{{10, 11}});
     s.apply(mth::ApLocationsChecked{{12}});
-    REQUIRE(s.take_server_checked_pending() == std::vector<std::int64_t>{10, 11, 12});
-    REQUIRE(s.take_server_checked_pending().empty()); // drained
-}
 
-TEST_CASE("ApState exposes lit_generator_lamp_mask from ApConnected", "[ap_state][fountain]")
-{
-    mth::ApState state;
-    mth::ApConnected ev;
-    ev.player_slot = 1;
-    ev.config.lit_generator_lamp_mask = 0x2A;
-    state.apply(mth::ApEvent{ev});
-    REQUIRE(state.lit_generator_lamp_mask() == 0x2Au);
+    // App::reconcile_server_checked handles each id on its own, so the batch order is not a contract.
+    // A duplicate is, since it would reconcile the same location twice.
+    const std::vector<std::int64_t> batch = s.take_server_checked_pending();
+    REQUIRE(batch.size() == 3);
+    REQUIRE(std::count(batch.begin(), batch.end(), 10) == 1);
+    REQUIRE(std::count(batch.begin(), batch.end(), 11) == 1);
+    REQUIRE(std::count(batch.begin(), batch.end(), 12) == 1);
+    REQUIRE(s.take_server_checked_pending().empty()); // drained
 }
 
 TEST_CASE("ap_state: reset_session drops the session stream but keeps the connection identity", "[mth][ap_state]")

@@ -42,12 +42,10 @@ TEST_CASE("trap table: every trap has a label and a positive duration", "[trap][
     }
 }
 
-TEST_CASE("trap table: lookup by modifier index", "[trap][trap_table]")
+TEST_CASE("trap table: lookup returns the row for every modifier index in the table", "[trap][trap_table]")
 {
-    const mth::TrapDef *d = mth::trap_for_modifier(204);
-    REQUIRE(d != nullptr);
-    REQUIRE(d->modifier_index == 204);
-    REQUIRE(std::string_view(d->label) == "Mirror");
+    for (const auto &t : mth::traps())
+        REQUIRE(mth::trap_for_modifier(t.modifier_index) == &t);
 
     REQUIRE(mth::trap_for_modifier(19) == nullptr); // a Grant-class modifier is never a trap
     REQUIRE(mth::trap_for_modifier(-1) == nullptr);
@@ -68,4 +66,18 @@ TEST_CASE("ap_ids: a trap id carries its modifier index", "[trap][ap_ids]")
 {
     REQUIRE(mth::trap_modifier_index(mth::kTrapItemBase + 204) == 204);
     REQUIRE(mth::trap_modifier_index(mth::kTrapItemBase) == 0);
+}
+
+TEST_CASE("the trap index set is frozen, because a seed already carries these item ids", "[trap]")
+{
+    // trap_table.hpp spells out the hazard: each row's modifier_index is the AP item id offset
+    // (kTrapItemBase + index), so retiring or renumbering a row repoints an id a live seed hands out
+    // and the player receives a different trap than the one that was rolled. Adding a row is safe, so
+    // this pins the set rather than the count. Raw numbers on purpose: written as kCheat_ names, an
+    // upstream renumber would move the AP ids and still pass.
+    for (int index : {15, 174, 190, 191, 192, 193, 195, 197, 202, 203, 204, 205})
+    {
+        INFO("modifier index " << index << " left the table, retiring the AP item id built from it");
+        REQUIRE(mth::trap_for_modifier(index) != nullptr);
+    }
 }

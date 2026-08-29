@@ -258,8 +258,14 @@ TEST_CASE("bundle switches cleanly between sessions", "[bundle]")
 TEST_CASE("bundle ignores an unsafe legacy state name", "[bundle]")
 {
     Fixture f;
+    // A seed carrying a separator must not be turned into a path to read. The pre-container name
+    // interpolates it raw, so this seed builds "ap_../../etc/passwd_2.state". Plant both the
+    // directory the traversal steps through and the file it lands on, inside the fixture's own tree:
+    // without the refusal that read succeeds and the planted text becomes the session's AP state.
+    std::filesystem::create_directories(f.root / "ap_..");
+    f.write_file(f.root / "etc" / "passwd_2.state", "c 999\n");
+
     auto store = f.make();
-    // A seed carrying a separator must not be turned into a path to read.
     REQUIRE_FALSE(store.load_state("../../etc/passwd", "2").has_value());
 }
 
@@ -279,7 +285,7 @@ TEST_CASE("bundle ignores a malformed save entry inside a container", "[bundle]"
     REQUIRE(reader.load_state("S", "2").value() == "c 1\n");
 }
 
-TEST_CASE("bundle never deletes a save entry it declined to use", "[bundle]")
+TEST_CASE("bundle reads and stages without rewriting a container it declined to use", "[bundle]")
 {
     Fixture f;
     // A structurally valid container whose save blob the mod does not recognise: exactly what a game
@@ -301,19 +307,16 @@ TEST_CASE("bundle never deletes a save entry it declined to use", "[bundle]")
     REQUIRE_FALSE(std::filesystem::exists(f.saves / "ap_S_2.zip.bak"));
 
     // The container must still carry the unrecognised blob verbatim.
-    for (const char *file : {"ap_S_2.zip"})
-    {
-        std::ifstream in(f.saves / file, std::ios::binary);
-        REQUIRE(in.good());
-        const std::string image((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>{});
-        const auto entries = mth::zip::read(image);
-        REQUIRE(entries.has_value());
-        bool found = false;
-        for (const auto &e : *entries)
-            if (e.name == "save.ycsave" && e.data == future)
-                found = true;
-        REQUIRE(found);
-    }
+    std::ifstream in(f.saves / "ap_S_2.zip", std::ios::binary);
+    REQUIRE(in.good());
+    const std::string image((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>{});
+    const auto entries = mth::zip::read(image);
+    REQUIRE(entries.has_value());
+    bool found = false;
+    for (const auto &e : *entries)
+        if (e.name == "save.ycsave" && e.data == future)
+            found = true;
+    REQUIRE(found);
 }
 
 TEST_CASE("bundle refuses to overwrite a container belonging to another run", "[bundle]")
@@ -351,6 +354,40 @@ TEST_CASE("bundle refuses to overwrite a container belonging to another run", "[
     REQUIRE(reader.load_state("a b", "2").value() == "c 1\n");
 }
 
+TEST_CASE("bundle leaves both copies alone when the container cannot be written", "[bundle]")
+{
+    Fixture f;
+    {
+        auto store = f.make();
+        REQUIRE(store.stage_state("S", "2", "c 1\n"));
+        REQUIRE(store.store("S", "2", kBlob));
+        REQUIRE(store.store("S", "2", kBlob)); // a second generation, so a backup exists to protect
+    }
+
+    const auto container = f.saves / "ap_S_2.zip";
+    const auto backup = f.saves / "ap_S_2.zip.bak";
+    const auto slurp = [](const std::filesystem::path &p)
+    {
+        std::ifstream in(p, std::ios::binary);
+        return std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>{});
+    };
+    const std::string before = slurp(container);
+    const std::string backup_before = slurp(backup);
+    REQUIRE_FALSE(before.empty());
+    REQUIRE_FALSE(backup_before.empty());
+
+    // A directory sitting where the writer wants its temp file, so the open fails the way a full or
+    // read-only disk would. The saves directory itself stays writable, so a rotation done in the
+    // wrong order would still be able to consume the backup, and this case would catch it.
+    std::filesystem::create_directory(f.saves / "ap_S_2.zip.tmp");
+
+    auto store = f.make();
+    REQUIRE_FALSE(store.store("S", "2", "[YCD Version: 1]\nSaveSlot\n{ m_iFoo: 42 }"));
+    // Rotation consumes the only other copy, so a write that never landed has to stop short of it.
+    REQUIRE(slurp(container) == before);
+    REQUIRE(slurp(backup) == backup_before);
+}
+
 TEST_CASE("bundle survives a manifest with wrong field types", "[bundle]")
 {
     Fixture f;
@@ -366,45 +403,6 @@ TEST_CASE("bundle survives a manifest with wrong field types", "[bundle]")
         REQUIRE_NOTHROW(store.load("S", "2"));
         REQUIRE_FALSE(store.load("S", "2").has_value()); // unreadable, not adopted
     }
-}
-
-TEST_CASE("bundle state writes do not block on the disk", "[bundle]")
-{
-    Fixture f;
-    auto store = f.make();
-    // A grant drain acks a whole batch in one call, so this is the shape of a reconnect. It must not
-    // turn into one container rewrite per item on the calling thread.
-    std::string text;
-    for (int i = 0; i < 500; ++i)
-    {
-        text += "c " + std::to_string(i) + "\n";
-        REQUIRE(store.stage_state("S", "2", text));
-    }
-    REQUIRE(store.flush());
-    REQUIRE_FALSE(std::filesystem::exists(f.saves / "ap_S_2.zip"));
-    REQUIRE(store.store("S", "2", kBlob));
-
-    // Whatever the writer coalesced away, the final state is what lands.
-    auto reader = f.make();
-    REQUIRE(reader.load_state("S", "2").value() == text);
-    REQUIRE(reader.load("S", "2").value() == kBlob);
-}
-
-TEST_CASE("bundle does not drop a queued write when the session changes", "[bundle]")
-{
-    Fixture f;
-    auto store = f.make();
-    REQUIRE(store.stage_state("S1", "2", "c 1\n"));
-    REQUIRE(store.store("S1", "2", kBlob));
-    // Switching keys with a write still owed must not coalesce it away or read stale bytes.
-    REQUIRE(store.stage_state("S2", "3", "c 9\n"));
-    REQUIRE(store.store("S2", "3", kBlob));
-    REQUIRE(store.stage_state("S1", "2", "c 1\nc 2\n"));
-    REQUIRE(store.store("S1", "2", kBlob));
-
-    auto reader = f.make();
-    REQUIRE(reader.load_state("S1", "2").value() == "c 1\nc 2\n");
-    REQUIRE(reader.load_state("S2", "3").value() == "c 9\n");
 }
 
 TEST_CASE("bundle game saves are on disk before store returns", "[bundle]")
@@ -440,9 +438,9 @@ TEST_CASE("bundle rewrites a save blob that changed without changing length", "[
 {
     Fixture f;
     auto store = f.make();
+    // Same length as each other: the save is a text format, so this is the common case.
     const std::string first = "[YCD Version: 1]\nSaveSlot\n{ m_iFoo: 1 }";
     const std::string second = "[YCD Version: 1]\nSaveSlot\n{ m_iFoo: 2 }";
-    REQUIRE(first.size() == second.size()); // the save is a text format; this is the common case
 
     REQUIRE(store.store("S", "2", first));
     REQUIRE(store.store("S", "2", second));

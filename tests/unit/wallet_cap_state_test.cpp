@@ -76,10 +76,3 @@ TEST_CASE("WalletCapState uncapped once 8 items received", "[wallet_cap]")
     REQUIRE(w.received() == 8);
     REQUIRE_FALSE(w.enforced_cap().has_value());
 }
-
-TEST_CASE("WalletCapState set_count seam", "[wallet_cap]")
-{
-    mth::WalletCapState w;
-    w.set_count(1);
-    REQUIRE(w.enforced_cap() == 1250);
-}

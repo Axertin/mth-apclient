@@ -1,6 +1,7 @@
-#include <filesystem>
-#include <fstream>
+#include <optional>
 #include <set>
+#include <string>
+#include <string_view>
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -13,6 +14,12 @@ using mth::ap_loc_id;
 
 namespace
 {
+// The bridge's routing never touches the statefile, so these cases need no backing store.
+mth::ApSaveState detached()
+{
+    return mth::ApSaveState([] { return std::nullopt; }, [](std::string_view) {});
+}
+
 // ApState is non-copyable/non-movable (mutex + atomic); populate in-place.
 void connect_with(mth::ApState &s, std::vector<std::int64_t> missing)
 {
@@ -59,9 +66,7 @@ TEST_CASE("rando_bridge: negative slot is ignored", "[mth][rando]")
 
 TEST_CASE("rando_bridge: persists checks and flushes the full set", "[mth][rando]")
 {
-    const auto path = std::filesystem::temp_directory_path() / "mthap_bridge_flush.state";
-    std::filesystem::remove(path);
-    mth::ApSaveState save(path);
+    mth::ApSaveState save = detached();
 
     mth::test::FakeApLink link;
     link.connected = true;
@@ -77,14 +82,14 @@ TEST_CASE("rando_bridge: persists checks and flushes the full set", "[mth][rando
     bridge.on_location_collected(9);
     link.sent_locations.clear();
     bridge.flush(); // resend the whole set
-    REQUIRE(link.sent_locations == std::vector<std::int64_t>{ap_loc_id(5), ap_loc_id(9)});
+    // Order is the checked set's, and the server dedups anyway, so only membership and count matter.
+    REQUIRE(std::set<std::int64_t>(link.sent_locations.begin(), link.sent_locations.end()) == std::set<std::int64_t>{ap_loc_id(5), ap_loc_id(9)});
+    REQUIRE(link.sent_locations.size() == 2);
 }
 
 TEST_CASE("rando_bridge: disconnected checks persist, flush on connect", "[mth][rando]")
 {
-    const auto path = std::filesystem::temp_directory_path() / "mthap_bridge_offline.state";
-    std::filesystem::remove(path);
-    mth::ApSaveState save(path);
+    mth::ApSaveState save = detached();
 
     mth::test::FakeApLink link;
     link.connected = false;
@@ -115,9 +120,7 @@ TEST_CASE("rando_bridge: is_ap_location reflects the server set", "[mth][rando]"
 
 TEST_CASE("rando_bridge: double-collect of the same location sends once", "[mth][rando]")
 {
-    const auto path = std::filesystem::temp_directory_path() / "mthap_bridge_dup.state";
-    std::filesystem::remove(path);
-    mth::ApSaveState save(path);
+    mth::ApSaveState save = detached();
 
     mth::test::FakeApLink link;
     link.connected = true;
@@ -133,9 +136,7 @@ TEST_CASE("rando_bridge: double-collect of the same location sends once", "[mth]
 
 TEST_CASE("rando_bridge: is_checked reflects collected locations (durable)", "[mth][rando]")
 {
-    const auto path = std::filesystem::temp_directory_path() / "mthap_bridge_ischecked.state";
-    std::filesystem::remove(path);
-    mth::ApSaveState save(path);
+    mth::ApSaveState save = detached();
 
     mth::test::FakeApLink link;
     link.connected = true;
@@ -189,9 +190,7 @@ TEST_CASE("rando_bridge: send_goal is a no-op when not authenticated", "[mth][ra
 
 TEST_CASE("rando_bridge: reconcile_server_checked marks without sending", "[mth][rando]")
 {
-    const auto path = std::filesystem::temp_directory_path() / "mthap_bridge_collect.state";
-    std::filesystem::remove(path);
-    mth::ApSaveState save(path);
+    mth::ApSaveState save = detached();
     mth::test::FakeApLink link;
     link.connected = true;
     mth::ApState state;
@@ -207,9 +206,7 @@ TEST_CASE("rando_bridge: reconcile_server_checked marks without sending", "[mth]
 
 TEST_CASE("rando_bridge: reconcile_server_checked dedups and rejects non-AP", "[mth][rando]")
 {
-    const auto path = std::filesystem::temp_directory_path() / "mthap_bridge_collect_dup.state";
-    std::filesystem::remove(path);
-    mth::ApSaveState save(path);
+    mth::ApSaveState save = detached();
     mth::test::FakeApLink link;
     mth::ApState state;
     connect_with(state, {ap_loc_id(5)});
@@ -244,9 +241,7 @@ TEST_CASE("rando_bridge: checked_slots exposes the persisted set (nullptr withou
     mth::RandoBridge bridge(link, state);
     REQUIRE(bridge.checked_slots() == nullptr); // no save attached yet
 
-    const auto path = std::filesystem::temp_directory_path() / "mthap_bridge_checkedslots.state";
-    std::filesystem::remove(path);
-    mth::ApSaveState save(path);
+    mth::ApSaveState save = detached();
     bridge.attach_save_state(save);
     REQUIRE(bridge.checked_slots() != nullptr);
     REQUIRE(bridge.checked_slots()->empty());
@@ -258,16 +253,13 @@ TEST_CASE("rando_bridge: checked_slots exposes the persisted set (nullptr withou
 
 TEST_CASE("rando_bridge: detach stops writing the released save and clears its dedup", "[mth][rando]")
 {
-    const auto path = std::filesystem::temp_directory_path() / "mthap_test_bridge_detach.state";
-    std::filesystem::remove(path);
-
     mth::test::FakeApLink link;
     link.connected = true;
     mth::ApState state;
     connect_with(state, {ap_loc_id(5), ap_loc_id(6)});
     mth::RandoBridge bridge(link, state);
 
-    mth::ApSaveState save(path);
+    mth::ApSaveState save = detached();
     bridge.attach_save_state(save);
     bridge.on_location_collected(5);
     REQUIRE(save.is_checked(5));
@@ -280,18 +272,13 @@ TEST_CASE("rando_bridge: detach stops writing the released save and clears its d
 
 TEST_CASE("rando_bridge: a new server's flush never resends the previous save's checks (#124)", "[mth][rando]")
 {
-    const auto path_a = std::filesystem::temp_directory_path() / "mthap_test_bridge_server_a.state";
-    const auto path_b = std::filesystem::temp_directory_path() / "mthap_test_bridge_server_b.state";
-    std::filesystem::remove(path_a);
-    std::filesystem::remove(path_b);
-
     mth::test::FakeApLink link;
     link.connected = true;
     mth::ApState state;
     connect_with(state, {ap_loc_id(165), ap_loc_id(186)});
     mth::RandoBridge bridge(link, state);
 
-    mth::ApSaveState save_a(path_a);
+    mth::ApSaveState save_a = detached();
     bridge.attach_save_state(save_a);
     bridge.on_location_collected(165);
     bridge.on_location_collected(186);
@@ -299,7 +286,7 @@ TEST_CASE("rando_bridge: a new server's flush never resends the previous save's 
 
     // Explicit connect to a different server: the session clear releases A's save before B's attaches.
     bridge.reset_session();
-    mth::ApSaveState save_b(path_b);
+    mth::ApSaveState save_b = detached();
     bridge.attach_save_state(save_b);
     bridge.flush();
     REQUIRE(link.sent_locations.empty()); // A's checked-set must never reach B
@@ -341,9 +328,7 @@ TEST_CASE("rando_bridge: a removed location reads as a checked AP location", "[m
 
 TEST_CASE("rando_bridge: a removed location is never persisted, sent, or flushed", "[mth][rando]")
 {
-    const auto path = std::filesystem::temp_directory_path() / "mthap_bridge_removed.state";
-    std::filesystem::remove(path);
-    mth::ApSaveState save(path);
+    mth::ApSaveState save = detached();
 
     mth::test::FakeApLink link;
     link.connected = true;
@@ -364,9 +349,7 @@ TEST_CASE("rando_bridge: a removed location is never persisted, sent, or flushed
 
 TEST_CASE("rando_bridge: a removed location is not reconciled or scouted", "[mth][rando]")
 {
-    const auto path = std::filesystem::temp_directory_path() / "mthap_bridge_removed_reconcile.state";
-    std::filesystem::remove(path);
-    mth::ApSaveState save(path);
+    mth::ApSaveState save = detached();
 
     mth::test::FakeApLink link;
     link.connected = true;
@@ -399,16 +382,9 @@ TEST_CASE("rando_bridge: a removed location suppresses without a save attached",
 
 TEST_CASE("rando_bridge: flush excludes a removed id even from a stale statefile", "[mth][rando]")
 {
-    const auto path = std::filesystem::temp_directory_path() / "mthap_bridge_removed_flush.state";
-    std::filesystem::remove(path);
-    {
-        // Written directly (not through the bridge) to simulate a statefile predating the seed's prune,
-        // so slot 40 is checked on disk despite slot_data now marking it removed.
-        std::ofstream out(path);
-        out << "c 5\n";
-        out << "c 40\n";
-    }
-    mth::ApSaveState save(path);
+    // Loaded content the bridge never wrote, standing in for a statefile that predates the seed's
+    // prune: slot 40 is checked in it despite slot_data now marking it removed.
+    mth::ApSaveState save([] { return std::optional<std::string>("c 5\nc 40\n"); }, [](std::string_view) {});
 
     mth::test::FakeApLink link;
     link.connected = true;

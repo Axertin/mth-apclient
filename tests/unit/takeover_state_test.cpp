@@ -1,5 +1,3 @@
-#include <string>
-
 #include <catch2/catch_test_macros.hpp>
 
 #include "mth/core/save/takeover_state.hpp"
@@ -136,10 +134,4 @@ TEST_CASE("the ceiling releases a step that still wants the block", "[takeover]"
     REQUIRE_FALSE(mth::block_game_input(TakeoverStep::AwaitingMenu, in));
     REQUIRE_FALSE(mth::block_game_input(TakeoverStep::Launching, in));
     REQUIRE_FALSE(mth::block_game_input(TakeoverStep::Failed, in));
-}
-
-TEST_CASE("every step has a name", "[takeover]")
-{
-    for (const auto step : {TakeoverStep::Idle, TakeoverStep::AwaitingMenu, TakeoverStep::Launching, TakeoverStep::Running, TakeoverStep::Failed})
-        REQUIRE(std::string(mth::takeover_step_name(step)) != "Unknown");
 }

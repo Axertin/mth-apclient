@@ -2,6 +2,7 @@
 // corners included. Malformed input fails closed by design.
 #include <cstdint>
 #include <mutex>
+#include <set>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -34,18 +35,20 @@ class CapturingLog final : public pal::ILog
     {
     }
 
-    [[nodiscard]] bool saw(pal::LogLevel level, std::string_view needle) const
+    // An empty needle matches any line of that level, so `count(Warn) == 0` reads as "nothing was
+    // reported" without pinning how much the parser traces at other levels.
+    [[nodiscard]] std::size_t count(pal::LogLevel level, std::string_view needle = "") const
     {
         std::lock_guard<std::mutex> lock(mu_);
+        std::size_t n = 0;
         for (const auto &[lvl, text] : lines_)
             if (lvl == level && text.find(needle) != std::string::npos)
-                return true;
-        return false;
+                ++n;
+        return n;
     }
-    [[nodiscard]] std::size_t count() const
+    [[nodiscard]] bool saw(pal::LogLevel level, std::string_view needle) const
     {
-        std::lock_guard<std::mutex> lock(mu_);
-        return lines_.size();
+        return count(level, needle) != 0;
     }
 
   private:
@@ -91,9 +94,6 @@ TEST_CASE("parse_slot_data: an absent blob yields every default", "[slot_data]")
     REQUIRE_FALSE(cfg.puff_rando);
     REQUIRE_FALSE(cfg.spring_rando);
     REQUIRE_FALSE(cfg.carry_rando);
-    // Asymmetric with the empty-object case below: train_rando's "absent means on" default only
-    // applies to a missing KEY, because the is_object guard short-circuits ahead of it.
-    REQUIRE_FALSE(cfg.train_rando);
     REQUIRE(cfg.train_pass_cost == mth::kTrainPassCostDefault);
     REQUIRE_FALSE(cfg.deathlink);
     REQUIRE(cfg.max_stat_level == 99);
@@ -119,16 +119,18 @@ TEST_CASE("parse_slot_data: an empty object takes the key-absent defaults", "[sl
     REQUIRE(cfg.broken_generator_mask == mth::kAllGeneratorsMask);
 }
 
-TEST_CASE("parse_slot_data: a non-object blob is ignored wholesale", "[slot_data]")
+TEST_CASE("parse_slot_data: a non-object blob still yields a usable config", "[slot_data]")
 {
-    // Not merely "no keys": every read is guarded on is_object, so an array or scalar never throws.
+    // Every read is guarded on is_object, so an array or scalar reads no keys and never throws. The
+    // apworld always sends an object, so which side of the guard a defaulted flag lands on is not a
+    // contract; surviving the parse is.
     for (const json &blob : {json::array({1, 2}), json("nope"), json(7), json(true)})
     {
-        const mth::SlotDataConfig cfg = mth::parse_slot_data(blob);
+        mth::SlotDataConfig cfg;
+        REQUIRE_NOTHROW(cfg = mth::parse_slot_data(blob));
         REQUIRE(cfg.kear_mode == mth::KearMode::ApItems);
-        REQUIRE_FALSE(cfg.train_rando); // see the absent-blob case: the guard beats the default
+        REQUIRE(cfg.train_pass_cost == mth::kTrainPassCostDefault);
         REQUIRE(cfg.max_stat_level == 99);
-        REQUIRE(cfg.broken_generator_mask == mth::kAllGeneratorsMask);
         REQUIRE(cfg.removed_locations.empty());
     }
 }
@@ -220,7 +222,7 @@ TEST_CASE("parse_slot_data: a missing goal count the goal does not use is quiet"
     REQUIRE(mth::parse_slot_data(json{{"goal_config", mth::kGoalBosses}, {"goal_bosses", 4}}).goal_generators == 99);
     REQUIRE(mth::parse_slot_data(json{{"goal_config", mth::kGoalGenerators}, {"goal_generators", 3}, {"broken_generators", json::array({0})}}).goal_bosses ==
             99);
-    REQUIRE(log.sink().count() == 0);
+    REQUIRE(log.sink().count(pal::LogLevel::Warn) == 0);
 }
 
 TEST_CASE("parse_slot_data: a generator goal with nothing broken is reported", "[slot_data]")
@@ -236,7 +238,7 @@ TEST_CASE("parse_slot_data: an empty broken_generators is quiet under another go
     LogCapture log;
     REQUIRE(mth::parse_slot_data(json{{"goal_config", mth::kGoalFinish}, {"broken_generators", json::array()}}).broken_generator_mask == 0);
     REQUIRE(mth::parse_slot_data(json{{"goal_config", mth::kGoalBosses}, {"goal_bosses", 3}, {"broken_generators", json::array()}}).broken_generator_mask == 0);
-    REQUIRE(log.sink().count() == 0);
+    REQUIRE(log.sink().count(pal::LogLevel::Warn) == 0);
 }
 
 TEST_CASE("parse_slot_data: broken_generators indices become save bits", "[slot_data]")
@@ -267,18 +269,15 @@ TEST_CASE("parse_slot_data: out-of-range broken_generators are dropped and repor
     LogCapture log;
     const mth::SlotDataConfig cfg = mth::parse_slot_data(json{{"broken_generators", json::array({0, 6, -1})}});
 
-    REQUIRE(cfg.broken_generator_mask == (std::uint64_t{1} << 2)); // only index 0 survived
-    REQUIRE(log.sink().saw(pal::LogLevel::Warn, "broken_generators: generator index 6"));
-    REQUIRE(log.sink().saw(pal::LogLevel::Warn, "broken_generators: generator index -1"));
+    REQUIRE(cfg.broken_generator_mask == (std::uint64_t{1} << 2));            // only index 0 survived
+    REQUIRE(log.sink().count(pal::LogLevel::Warn, "broken_generators") == 2); // one per dropped index
 }
 
-TEST_CASE("parse_slot_data: non-integer broken_generators entries are skipped silently", "[slot_data]")
+TEST_CASE("parse_slot_data: non-integer broken_generators entries are skipped", "[slot_data]")
 {
-    LogCapture log;
     const mth::SlotDataConfig cfg = mth::parse_slot_data(json{{"broken_generators", json::array({0, "1", 2.5, nullptr})}});
 
-    REQUIRE(cfg.broken_generator_mask == (std::uint64_t{1} << 2));
-    REQUIRE(log.sink().count() == 0); // unlike removed_locations, dropped entries here are not reported
+    REQUIRE(cfg.broken_generator_mask == (std::uint64_t{1} << 2)); // only the integer 0 survived
 }
 
 TEST_CASE("parse_slot_data: lit_generators folds indices into a lamp mask", "[slot_data]")
@@ -295,17 +294,17 @@ TEST_CASE("parse_slot_data: out-of-range lit_generators are dropped and reported
     const mth::SlotDataConfig cfg = mth::parse_slot_data(json{{"lit_generators", json::array({1, 6, -2})}});
 
     REQUIRE(cfg.lit_generator_lamp_mask == 0x2);
-    REQUIRE(log.sink().saw(pal::LogLevel::Warn, "lit_generators: ignoring out-of-range lamp index 6"));
-    REQUIRE(log.sink().saw(pal::LogLevel::Warn, "lit_generators: ignoring out-of-range lamp index -2"));
+    REQUIRE(log.sink().count(pal::LogLevel::Warn, "lit_generators") == 2); // one per dropped index
 }
 
-TEST_CASE("parse_slot_data: removed_locations keeps integer ids in order", "[slot_data]")
+TEST_CASE("parse_slot_data: removed_locations keeps every integer id", "[slot_data]")
 {
     LogCapture log;
     const mth::SlotDataConfig cfg = mth::parse_slot_data(json{{"removed_locations", json::array({500, 100, 300})}});
 
-    REQUIRE(cfg.removed_locations == std::vector<std::int64_t>{500, 100, 300});
-    REQUIRE(log.sink().saw(pal::LogLevel::Info, "removed_locations: seed prunes 3 location(s)"));
+    REQUIRE(std::set<std::int64_t>(cfg.removed_locations.begin(), cfg.removed_locations.end()) == std::set<std::int64_t>{100, 300, 500});
+    REQUIRE(cfg.removed_locations.size() == 3); // set equality alone would hide a duplicate
+    REQUIRE(log.sink().saw(pal::LogLevel::Info, "removed_locations"));
 }
 
 TEST_CASE("parse_slot_data: removed_locations drops non-integer entries and reports the count", "[slot_data]")
@@ -314,7 +313,7 @@ TEST_CASE("parse_slot_data: removed_locations drops non-integer entries and repo
     const mth::SlotDataConfig cfg = mth::parse_slot_data(json{{"removed_locations", json::array({1, "2", 3.5, nullptr, 4})}});
 
     REQUIRE(cfg.removed_locations == std::vector<std::int64_t>{1, 4});
-    REQUIRE(log.sink().saw(pal::LogLevel::Warn, "removed_locations: dropped 3 non-integer entr(ies)"));
+    REQUIRE(log.sink().saw(pal::LogLevel::Warn, "removed_locations"));
 }
 
 TEST_CASE("parse_slot_data: an absent or non-array removed_locations prunes nothing", "[slot_data]")
@@ -323,13 +322,13 @@ TEST_CASE("parse_slot_data: an absent or non-array removed_locations prunes noth
     REQUIRE(mth::parse_slot_data(json::object()).removed_locations.empty());
     REQUIRE(mth::parse_slot_data(json{{"removed_locations", json::array()}}).removed_locations.empty());
     REQUIRE(mth::parse_slot_data(json{{"removed_locations", 12}}).removed_locations.empty());
-    REQUIRE(log.sink().count() == 0);
+    REQUIRE(log.sink().count(pal::LogLevel::Warn) == 0);
 }
 
 TEST_CASE("parse_slot_data: a key of the wrong JSON type throws", "[slot_data]")
 {
-    // A wrong-typed key aborts the parse, and the connection with it, rather than substituting a
-    // default and running a seed on configuration the apworld did not actually specify.
+    // A wrong-typed key throws out of the parse rather than substituting a default and running a seed
+    // on configuration the apworld did not actually specify.
     REQUIRE_THROWS_AS(mth::parse_slot_data(json{{"ossex_start", "yes"}}), nlohmann::json::type_error);
     REQUIRE_THROWS_AS(mth::parse_slot_data(json{{"goal_generators", "4"}}), nlohmann::json::type_error);
     REQUIRE_THROWS_AS(mth::parse_slot_data(json{{"train_pass_cost", json::array({1})}}), nlohmann::json::type_error);

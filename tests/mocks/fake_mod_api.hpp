@@ -21,7 +21,6 @@ struct FakeSaveState
     int active_slot{0};
     std::string contents;
     bool write_enabled{true};
-    int start_calls{0};
     int restore_calls{0};
     int staged_slot{-1}; // last slot written without activating it
     std::string staged_contents;
@@ -62,19 +61,11 @@ struct ModApiRecorder
     int clone_palette_calls = 0; // ClonePalette
     void *clone_palette_source = nullptr;
     void *clone_palette_result = nullptr; // the clone the fake reports; null models allocation failure
-    int palette_set_group_calls = 0;      // PaletteSetGroup
-    void *palette_set_group_target = nullptr;
     std::int32_t palette_set_group_value = 0;
-    int palette_write_index_calls = 0; // PaletteWriteIndex
     void *palette_write_index_target = nullptr;
     std::int32_t palette_write_index_index = 0;
     std::uint8_t palette_write_index_color[4]{};
-    int palette_get_index_calls = 0; // PaletteGetIndex
-    void *palette_get_index_target = nullptr;
-    std::uint8_t palette_get_index_color[4]{};
     std::int32_t palette_get_index_result = 0;
-    int palette_get_width_calls = 0; // PaletteGetWidth
-    void *palette_get_width_target = nullptr;
     std::uint32_t palette_get_width_result = 0;
     int water_calls = 0; // WaterListenerIsInDeepWater
     void *water_target = nullptr;
@@ -95,16 +86,17 @@ struct ModApiRecorder
     int update_stats_calls = 0;                   // PlayerUpdateStats
     int cheat_manager_is_cheat_applied_calls = 0; // CheatManagerIsCheatApplied
     bool cheat_manager_is_cheat_applied_result = false;
+    int cheat_manager_set_cheat_applied_calls = 0; // CheatManagerSetCheatApplied
+    int cheat_manager_set_cheat_index = -1;
+    bool cheat_manager_set_cheat_active = false;
 
-    // WorldGetEntityList: the entries the fake serves per list name, and what it was asked for.
+    // WorldGetEntityList: the entries the fake serves per list name.
     std::unordered_map<std::string, std::vector<void *>> entity_lists;
-    std::string entity_list_asked;
     int entity_list_calls = 0;
 
     // CreateWeakPtr/WeakPtrGet/DestroyWeakPtr. A handle is an index into `weak_targets`; a null entry
     // means the game freed the target, which is the case the chest registry has to survive.
     std::vector<void *> weak_targets;
-    int weak_creates = 0;
     int weak_destroys = 0;
 
     void fire(const char *name, void *ctx)
@@ -113,79 +105,12 @@ struct ModApiRecorder
         if (it != hooks.end() && it->second != nullptr)
             it->second(ctx);
     }
+    // Assign from a default instance rather than listing members, so a new recorder field cannot leak
+    // state into the next test by being forgotten here. The save state lives outside the recorder, so
+    // it needs its own line.
     void reset()
     {
-        hooks.clear();
-        revision = 148716;
-        game_state = 0;
-        install_returns_null = false;
-        health = 0.0f;
-        spark = 0;
-        deaths = 0;
-        paused = false;
-        game_paused = false;
-        world_has_area = true;
-        room_time = 0.0f;
-        player = nullptr;
-        bosses_defeated = 0;
-        pos[0] = pos[1] = pos[2] = 0.0f;
-        collected_calls = 0;
-        collected_index = -1;
-        collected_value = false;
-        text_color_calls = 0;
-        text_color_target = nullptr;
-        text_color[0] = text_color[1] = text_color[2] = text_color[3] = 0;
-        text_set_calls = 0;
-        text_set_target = nullptr;
-        text_value.clear();
-        clone_palette_calls = 0;
-        clone_palette_source = nullptr;
-        clone_palette_result = nullptr;
-        palette_set_group_calls = 0;
-        palette_set_group_target = nullptr;
-        palette_set_group_value = 0;
-        palette_write_index_calls = 0;
-        palette_write_index_target = nullptr;
-        palette_write_index_index = 0;
-        palette_write_index_color[0] = palette_write_index_color[1] = palette_write_index_color[2] = palette_write_index_color[3] = 0;
-        palette_get_index_calls = 0;
-        palette_get_index_target = nullptr;
-        palette_get_index_color[0] = palette_get_index_color[1] = palette_get_index_color[2] = palette_get_index_color[3] = 0;
-        palette_get_index_result = 0;
-        palette_get_width_calls = 0;
-        palette_get_width_target = nullptr;
-        palette_get_width_result = 0;
-        water_calls = 0;
-        water_target = nullptr;
-        water_ignore_enabled = false;
-        in_deep_water = false;
-        aabb_calls = 0;
-        aabb_target = nullptr;
-        aabb_local = false;
-        aabb_shape_flags = 0;
-        aabb[0] = 1.0f;
-        aabb[1] = 2.0f;
-        aabb[2] = 3.0f;
-        aabb[3] = 4.0f;
-        aabb[4] = 5.0f;
-        aabb[5] = 6.0f;
-        closest_calls = 0;
-        closest_target = nullptr;
-        for (float &f : closest_box)
-            f = 0.0f;
-        closest_layer = 0;
-        closest_max_dist = 0.0f;
-        closest_mask = 0;
-        closest_result = nullptr;
-        update_stats_calls = 0;
-        cheat_manager_is_cheat_applied_calls = 0;
-        cheat_manager_is_cheat_applied_result = false;
-        entity_lists.clear();
-        entity_list_asked.clear();
-        entity_list_calls = 0;
-        weak_targets.clear();
-        weak_creates = 0;
-        weak_destroys = 0;
+        *this = ModApiRecorder{};
         fake_save_state() = FakeSaveState{};
     }
 };
@@ -248,15 +173,12 @@ inline ycPaletteTexture *fake_clone_palette(ycPaletteTexture *pal)
     recorder().clone_palette_source = pal;
     return static_cast<ycPaletteTexture *>(recorder().clone_palette_result);
 }
-inline void fake_palette_set_group(ycPaletteTexture *pal, std::int32_t group)
+inline void fake_palette_set_group(ycPaletteTexture * /*pal*/, std::int32_t group)
 {
-    ++recorder().palette_set_group_calls;
-    recorder().palette_set_group_target = pal;
     recorder().palette_set_group_value = group;
 }
 inline void fake_palette_write_index(ycPaletteTexture *pal, std::int32_t index, MM_Color color)
 {
-    ++recorder().palette_write_index_calls;
     recorder().palette_write_index_target = pal;
     recorder().palette_write_index_index = index;
     recorder().palette_write_index_color[0] = color.r;
@@ -264,20 +186,12 @@ inline void fake_palette_write_index(ycPaletteTexture *pal, std::int32_t index, 
     recorder().palette_write_index_color[2] = color.b;
     recorder().palette_write_index_color[3] = color.a;
 }
-inline std::int32_t fake_palette_get_index(ycPaletteTexture *pal, MM_Color color)
+inline std::int32_t fake_palette_get_index(ycPaletteTexture * /*pal*/, MM_Color /*color*/)
 {
-    ++recorder().palette_get_index_calls;
-    recorder().palette_get_index_target = pal;
-    recorder().palette_get_index_color[0] = color.r;
-    recorder().palette_get_index_color[1] = color.g;
-    recorder().palette_get_index_color[2] = color.b;
-    recorder().palette_get_index_color[3] = color.a;
     return recorder().palette_get_index_result;
 }
-inline std::uint32_t fake_palette_get_width(ycPaletteTexture *pal)
+inline std::uint32_t fake_palette_get_width(ycPaletteTexture * /*pal*/)
 {
-    ++recorder().palette_get_width_calls;
-    recorder().palette_get_width_target = pal;
     return recorder().palette_get_width_result;
 }
 
@@ -337,13 +251,19 @@ inline bool fake_cheat_manager_is_cheat_applied(std::int32_t /*cheat*/, std::uin
     return recorder().cheat_manager_is_cheat_applied_result;
 }
 
+inline void fake_cheat_manager_set_cheat_applied(std::int32_t cheat, bool active, std::uint32_t /*save_slot*/)
+{
+    ++recorder().cheat_manager_set_cheat_applied_calls;
+    recorder().cheat_manager_set_cheat_index = cheat;
+    recorder().cheat_manager_set_cheat_active = active;
+}
+
 // Mirrors the real contract: the total count comes back even when the buffer is too small, and a
 // null/0 buffer is the sizing call.
 inline std::size_t fake_world_entity_list(World * /*world*/, const char *list, GameComponent **out, std::size_t cap)
 {
     ++recorder().entity_list_calls;
-    recorder().entity_list_asked = (list != nullptr) ? list : "";
-    auto it = recorder().entity_lists.find(recorder().entity_list_asked);
+    auto it = recorder().entity_lists.find((list != nullptr) ? list : "");
     if (it == recorder().entity_lists.end())
         return 0;
     const std::vector<void *> &src = it->second;
@@ -356,7 +276,6 @@ inline std::size_t fake_world_entity_list(World * /*world*/, const char *list, G
 // test clears to model the game freeing the target.
 inline MM_WeakPtr *fake_create_weak_ptr(void *target)
 {
-    ++recorder().weak_creates;
     recorder().weak_targets.push_back(target);
     return reinterpret_cast<MM_WeakPtr *>(recorder().weak_targets.size());
 }
@@ -452,6 +371,8 @@ struct FakeComponent
 {
     void *vtable{nullptr};
     std::uint64_t type{0};
+    std::uint64_t base{0}; // a second id the node also answers to, since the engine's ComponentIsa is a
+                           // hierarchy test and one object can be both an entity and something else
     std::vector<void *> children;
 };
 
@@ -465,11 +386,12 @@ struct FakeScene
         nodes.clear();
     }
 
-    void *add(std::uint64_t type, void *parent)
+    void *add(std::uint64_t type, void *parent, std::uint64_t base = 0)
     {
         FakeComponent &n = nodes.emplace_back();
         n.vtable = &vtable_anchor;
         n.type = type;
+        n.base = base;
         if (parent != nullptr)
             static_cast<FakeComponent *>(parent)->children.push_back(&n);
         return &n;
@@ -504,7 +426,7 @@ inline size_t fake_entity_children(ycEntity *entity, ycComponent **out, size_t c
 inline bool fake_component_isa(ycComponent *component, MM_Rtti rtti)
 {
     auto *n = reinterpret_cast<FakeComponent *>(component);
-    return n != nullptr && n->type == rtti.typeId;
+    return n != nullptr && (n->type == rtti.typeId || (n->base != 0 && n->base == rtti.typeId));
 }
 
 // A MinaModAPI wired to the recorder stubs. reset() the recorder before use.
@@ -530,6 +452,7 @@ inline MinaModAPI make_fake_api()
     mm.CarryManagerGetClosestCarryableObject = &fake_closest_carryable;
     mm.PlayerUpdateStats = &fake_player_update_stats;
     mm.CheatManagerIsCheatApplied = &fake_cheat_manager_is_cheat_applied;
+    mm.CheatManagerSetCheatApplied = &fake_cheat_manager_set_cheat_applied;
     mm.WorldGetEntityList = &fake_world_entity_list;
     mm.WorldGetGameRootEntity = &fake_world_game_root;
     mm.EntityGetChildren = &fake_entity_children;
@@ -573,7 +496,7 @@ inline MinaModAPI make_fake_api()
         return buf;
     };
     mm.Free = [](void *p) { std::free(p); };
-    mm.StartActiveSaveSlot = [] { ++fake_save_state().start_calls; };
+    mm.StartActiveSaveSlot = [] {};
     mm.PlayerRestoreFromSave = [] { ++fake_save_state().restore_calls; };
     mm.SetSaveWriteEnabled = [](bool on) { fake_save_state().write_enabled = on; };
     mm.IsSaveWriteEnabled = [] { return fake_save_state().write_enabled; };

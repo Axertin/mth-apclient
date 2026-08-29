@@ -2,6 +2,9 @@
 
 #include "mth/core/shop_boxes.hpp"
 
+// The hook site rejects an implausible count at compile time, so keep it constexpr-callable.
+static_assert(mth::shop_box_walk_count(mth::kMaxShopBoxes + 1) == 0);
+
 TEST_CASE("shop_box_walk_count: a stocked shop walks every row", "[shop_boxes]")
 {
     REQUIRE(mth::shop_box_walk_count(1) == 1);
@@ -25,12 +28,4 @@ TEST_CASE("shop_box_walk_count: an implausible row count walks nothing", "[shop_
 {
     REQUIRE(mth::shop_box_walk_count(mth::kMaxShopBoxes + 1) == 0);
     REQUIRE(mth::shop_box_walk_count(0x1000000) == 0);
-}
-
-TEST_CASE("shop_box_walk_count: is usable in a constant expression", "[shop_boxes]")
-{
-    static_assert(mth::shop_box_walk_count(3) == 3);
-    static_assert(mth::shop_box_walk_count(0) == 0);
-    static_assert(mth::shop_box_walk_count(mth::kMaxShopBoxes + 1) == 0);
-    SUCCEED();
 }

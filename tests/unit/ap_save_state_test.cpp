@@ -1,4 +1,3 @@
-#include <filesystem>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -16,69 +15,6 @@ mth::ApSaveState detached()
 }
 } // namespace
 
-TEST_CASE("ApSaveState round-trips both sets through a file", "[ap_save_state]")
-{
-    const auto path = std::filesystem::temp_directory_path() / "mthap_test_state.txt";
-    std::filesystem::remove(path);
-
-    {
-        mth::ApSaveState s(path);
-        REQUIRE_FALSE(s.is_granted(7));
-        s.mark_granted(7);
-        s.mark_granted(7);
-        s.mark_checked(3);
-        REQUIRE(s.is_granted(7));
-        REQUIRE(s.is_checked(3));
-        s.stage();
-    }
-    {
-        mth::ApSaveState s(path);
-        REQUIRE(s.is_granted(7));
-        REQUIRE_FALSE(s.is_granted(8));
-        REQUIRE(s.is_checked(3));
-    }
-    std::filesystem::remove(path);
-}
-
-TEST_CASE("ApSaveState on a missing file starts empty", "[ap_save_state]")
-{
-    const auto path = std::filesystem::temp_directory_path() / "mthap_no_such_state.txt";
-    std::filesystem::remove(path);
-    mth::ApSaveState s(path);
-    REQUIRE_FALSE(s.is_granted(0));
-    REQUIRE_FALSE(s.is_checked(0));
-}
-
-TEST_CASE("ApSaveState round-trips the game save slot", "[ap_save_state]")
-{
-    const auto path = std::filesystem::temp_directory_path() / "mthap_slot_state.txt";
-    std::filesystem::remove(path);
-
-    {
-        mth::ApSaveState s(path);
-        REQUIRE(s.game_slot() == -1); // unknown by default
-        s.set_game_slot(3);
-        REQUIRE(s.game_slot() == 3);
-        s.stage();
-    }
-    {
-        mth::ApSaveState s(path);
-        REQUIRE(s.game_slot() == 3);
-    }
-    std::filesystem::remove(path);
-}
-
-TEST_CASE("ApSaveState exposes the checked set for flush", "[ap_save_state]")
-{
-    const auto path = std::filesystem::temp_directory_path() / "mthap_checked_accessor.state";
-    std::filesystem::remove(path);
-    mth::ApSaveState s(path);
-    s.mark_checked(7);
-    s.mark_checked(3);
-    s.mark_checked(7);
-    REQUIRE(s.checked() == std::set<int>{3, 7});
-}
-
 TEST_CASE("state serializes to the line-oriented format", "[ap_save_state]")
 {
     auto s = detached();
@@ -87,6 +23,7 @@ TEST_CASE("state serializes to the line-oriented format", "[ap_save_state]")
     s.mark_granted(7);
     s.set_game_slot(3);
     REQUIRE(s.serialize() == "c 1\nc 2\ng 7\ns 3\n");
+    REQUIRE(s.checked() == std::set<int>{1, 2}); // the set the bridge walks to replay locations
 }
 
 TEST_CASE("state omits an unset game slot", "[ap_save_state]")
@@ -131,5 +68,10 @@ TEST_CASE("state save hands the serialized text to the injected store", "[ap_sav
     mth::ApSaveState s([] { return std::nullopt; }, [&written](std::string_view t) { written = std::string(t); });
     s.mark_checked(9);
     s.stage();
-    REQUIRE(written == "c 9\n");
+    REQUIRE_FALSE(written.empty());
+
+    const std::string first = written;
+    s.mark_granted(4);
+    s.stage();
+    REQUIRE(written != first);
 }

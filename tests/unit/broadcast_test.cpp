@@ -1,3 +1,6 @@
+#include <cstddef>
+#include <string>
+
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
@@ -90,13 +93,17 @@ TEST_CASE("BannerQueue: shows a message and fades over hold+fade", "[mth][broadc
     REQUIRE(f0.size() == 1);
     REQUIRE(f0[0].segments.size() == 1);
     REQUIRE(f0[0].segments[0].text == "hi");
-    REQUIRE(f0[0].alpha == Approx(1.0f));                               // within hold
-    REQUIRE(q.update(t0 + hold * 0.5)[0].alpha == Approx(1.0f));        // still hold
-    REQUIRE(q.update(t0 + hold + fade * 0.5)[0].alpha == Approx(0.5f)); // mid fade
-    REQUIRE(q.update(t0 + hold + fade).empty());                        // fully faded -> gone
+    REQUIRE(f0[0].alpha == Approx(1.0f));                        // within hold
+    REQUIRE(q.update(t0 + hold * 0.5)[0].alpha == Approx(1.0f)); // still hold
+    // Two samples inside the fade, so a stuck or reversed fade fails without pinning the curve's shape.
+    const float early = q.update(t0 + hold + fade * 0.25)[0].alpha;
+    const float late = q.update(t0 + hold + fade * 0.75)[0].alpha;
+    REQUIRE(early < 1.0f);
+    REQUIRE(late < early);
+    REQUIRE(q.update(t0 + hold + fade).empty()); // fully faded -> gone
 }
 
-TEST_CASE("BannerQueue: stacks up to kMaxVisible, one promotion per interval", "[mth][broadcast]")
+TEST_CASE("BannerQueue: a burst staggers in and never exceeds kMaxVisible", "[mth][broadcast]")
 {
     constexpr double step = BannerQueue::kPromoteIntervalSeconds;
 
@@ -107,17 +114,23 @@ TEST_CASE("BannerQueue: stacks up to kMaxVisible, one promotion per interval", "
     REQUIRE(q.update(0.0).size() == 1);        // a same-frame batch does not appear all at once
     REQUIRE(q.update(step * 0.5).size() == 1); // still inside the interval
 
-    std::vector<mth::BannerFrame> frames;
+    // Sampled past each boundary rather than on it. The spacing is the contract; which way an exact
+    // hit on the promotion time rounds is not, and pinning it makes the comparison load-bearing.
+    double now = 0.0;
+    std::size_t shown = 1;
     for (int i = 1; i < BannerQueue::kMaxVisible; ++i)
     {
-        frames = q.update(step * i);
-        REQUIRE(static_cast<int>(frames.size()) == i + 1);
+        now += step * 1.1;
+        const std::vector<mth::BannerFrame> frames = q.update(now);
+        REQUIRE(frames.size() > shown);
+        shown = frames.size();
+        for (const auto &f : frames)
+            REQUIRE(f.alpha == Approx(1.0f)); // each shown independently, all still within hold
     }
-    for (const auto &f : frames)
-        REQUIRE(f.alpha == Approx(1.0f)); // each shown independently, all within hold
+    REQUIRE(static_cast<int>(shown) == BannerQueue::kMaxVisible);
 
-    // The cap holds with extras pending even once the interval has elapsed.
-    REQUIRE(static_cast<int>(q.update(step * BannerQueue::kMaxVisible).size()) == BannerQueue::kMaxVisible);
+    // The cap holds with extras pending even once further intervals have elapsed.
+    REQUIRE(static_cast<int>(q.update(now + step).size()) == BannerQueue::kMaxVisible);
 }
 
 TEST_CASE("BannerQueue: a queued message waits until a visible slot frees, in order", "[mth][broadcast]")
@@ -148,9 +161,13 @@ TEST_CASE("deathlink_banner_text: a cause is already a full sentence naming the 
     REQUIRE(deathlink_banner_text("Amaterasu", "Amaterasu was crushed by a spike trap") == "Amaterasu was crushed by a spike trap");
 }
 
-TEST_CASE("deathlink_banner_text: falls back to the sender when the cause is empty", "[mth][broadcast][deathlink]")
+TEST_CASE("deathlink_banner_text: an empty cause still attributes the death to the sender", "[mth][broadcast][deathlink]")
 {
-    REQUIRE(deathlink_banner_text("Amaterasu", "") == "Killed by Amaterasu");
+    // The wording is the banner's own, so only the attribution is pinned: the sender is named, and the
+    // line is not the bare name, which would read as a player rather than as a death.
+    const std::string line = deathlink_banner_text("Amaterasu", "");
+    REQUIRE(line.find("Amaterasu") != std::string::npos);
+    REQUIRE(line != "Amaterasu");
 }
 
 TEST_CASE("deathlink_banner_text: a cause without a sender still stands alone", "[mth][broadcast][deathlink]")
@@ -158,7 +175,7 @@ TEST_CASE("deathlink_banner_text: a cause without a sender still stands alone", 
     REQUIRE(deathlink_banner_text("", "somebody blew up") == "somebody blew up");
 }
 
-TEST_CASE("deathlink_banner_text: neither field leaves a generic attribution", "[mth][broadcast][deathlink]")
+TEST_CASE("deathlink_banner_text: neither field still leaves something to show", "[mth][broadcast][deathlink]")
 {
-    REQUIRE(deathlink_banner_text("", "") == "Killed by a deathlink");
+    REQUIRE_FALSE(deathlink_banner_text("", "").empty()); // an empty banner would be a silent deathlink
 }

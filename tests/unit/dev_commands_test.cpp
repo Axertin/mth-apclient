@@ -1,3 +1,6 @@
+#include <cctype>
+#include <string>
+
 #include <catch2/catch_test_macros.hpp>
 
 #include "mth/core/dev_commands.hpp"
@@ -5,22 +8,75 @@
 using mth::CommandKind;
 using mth::parse_command;
 
+namespace
+{
+
+struct VerbRow
+{
+    const char *verb;
+    CommandKind kind;
+};
+
+// Every kind the console dispatches, in enum order. None and Unknown are parse outcomes, not verbs.
+constexpr VerbRow kVerbs[] = {
+    {"help", CommandKind::Help},
+    {"clear", CommandKind::Clear},
+    {"status", CommandKind::Status},
+    {"gate", CommandKind::Gate},
+    {"items", CommandKind::Items},
+    {"giveapitem", CommandKind::GiveItem},
+    {"removelock", CommandKind::RemoveLock},
+    {"modifier", CommandKind::Modifier},
+    {"modifiers", CommandKind::ModifierLock},
+    {"caps", CommandKind::StatCaps},
+    {"ability", CommandKind::Ability},
+    {"connect", CommandKind::Connect},
+    {"disconnect", CommandKind::Disconnect},
+    {"deathlink", CommandKind::Deathlink},
+    {"litlamps", CommandKind::LitLamps},
+    {"savetest", CommandKind::SaveTest},
+    {"trap", CommandKind::Trap},
+    {"switches", CommandKind::Switches},
+};
+
+std::string to_upper(std::string s)
+{
+    for (char &c : s)
+        c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+    return s;
+}
+
+} // namespace
+
 TEST_CASE("parse_command: empty and whitespace are None", "[mth][commands]")
 {
     REQUIRE(parse_command("").kind == CommandKind::None);
     REQUIRE(parse_command("   \t ").kind == CommandKind::None);
 }
 
-TEST_CASE("parse_command: known verbs map case-insensitively", "[mth][commands]")
+TEST_CASE("parse_command: every dispatchable kind has a verb, mapped case-insensitively", "[mth][commands]")
 {
-    REQUIRE(parse_command("help").kind == CommandKind::Help);
-    REQUIRE(parse_command("HELP").kind == CommandKind::Help);
-    REQUIRE(parse_command("clear").kind == CommandKind::Clear);
-    REQUIRE(parse_command("Status").kind == CommandKind::Status);
-    REQUIRE(parse_command("items").kind == CommandKind::Items);
-    REQUIRE(parse_command("disconnect").kind == CommandKind::Disconnect);
+    for (const VerbRow &row : kVerbs)
+    {
+        INFO(row.verb);
+        REQUIRE(parse_command(row.verb).kind == row.kind);
+        REQUIRE(parse_command(to_upper(row.verb)).kind == row.kind);
+        // Nothing past token 0 reaches the mapping, so one trailing-argument shape stands in for all of them.
+        REQUIRE(parse_command(std::string(row.verb) + " 1 2 3").kind == row.kind);
+    }
 
-    REQUIRE(parse_command("HELP").verb == "HELP");
+    // Driven off the enum rather than the table, so a kind whose branch in verb_to_kind is missing or
+    // misspelled fails here instead of silently parsing as Unknown. Switches is the last enumerator; a
+    // kind added after it has to move this bound.
+    for (int i = static_cast<int>(CommandKind::Help); i <= static_cast<int>(CommandKind::Switches); ++i)
+    {
+        const auto kind = static_cast<CommandKind>(i);
+        INFO(i);
+        int rows = 0;
+        for (const VerbRow &row : kVerbs)
+            rows += (row.kind == kind) ? 1 : 0;
+        REQUIRE(rows == 1);
+    }
 }
 
 TEST_CASE("parse_command: connect captures args", "[mth][commands]")
@@ -41,102 +97,12 @@ TEST_CASE("parse_command: unknown verb is reported with its text", "[mth][comman
     const auto c = parse_command("frobnicate x y");
     REQUIRE(c.kind == CommandKind::Unknown);
     REQUIRE(c.verb == "frobnicate");
-}
 
-TEST_CASE("parse_command recognizes giveapitem", "[dev_commands]")
-{
-    const auto cmd = mth::parse_command("giveapitem 17");
-    REQUIRE(cmd.kind == mth::CommandKind::GiveItem);
-    REQUIRE(cmd.args.size() == 1);
-    REQUIRE(cmd.args[0] == "17");
-}
-
-TEST_CASE("parse_command recognizes removelock with a slot arg", "[commands]")
-{
-    const auto cmd = mth::parse_command("removelock 42");
-    REQUIRE(cmd.kind == mth::CommandKind::RemoveLock);
-    REQUIRE(cmd.args.size() == 1);
-    REQUIRE(cmd.args[0] == "42");
-}
-
-TEST_CASE("parse_command recognizes modifier verbs", "[dev_commands]")
-{
-    REQUIRE(mth::parse_command("modifier 31 on").kind == mth::CommandKind::Modifier);
-    REQUIRE(mth::parse_command("modifier 31 on").args == std::vector<std::string>{"31", "on"});
-    REQUIRE(mth::parse_command("modifiers lock").kind == mth::CommandKind::ModifierLock);
-    REQUIRE(mth::parse_command("modifiers").kind == mth::CommandKind::ModifierLock);
-}
-
-TEST_CASE("parse_command recognizes caps with three args", "[dev_commands]")
-{
-    const auto cmd = mth::parse_command("caps 1 4 0");
-    REQUIRE(cmd.kind == mth::CommandKind::StatCaps);
-    REQUIRE(cmd.args == std::vector<std::string>{"1", "4", "0"});
-}
-
-TEST_CASE("parse_command recognizes ability with name and on/off", "[dev_commands]")
-{
-    const auto cmd = mth::parse_command("ability burrow on");
-    REQUIRE(cmd.kind == mth::CommandKind::Ability);
-    REQUIRE(cmd.args == std::vector<std::string>{"burrow", "on"});
-    REQUIRE(mth::parse_command("ABILITY swim off").kind == mth::CommandKind::Ability);
-}
-
-TEST_CASE("parse_command recognizes deathlink with on/off", "[dev_commands]")
-{
-    const auto cmd = mth::parse_command("deathlink off");
-    REQUIRE(cmd.kind == mth::CommandKind::Deathlink);
-    REQUIRE(cmd.args == std::vector<std::string>{"off"});
-    REQUIRE(mth::parse_command("DEATHLINK on").kind == mth::CommandKind::Deathlink);
-}
-
-TEST_CASE("parse_command recognizes litlamps with index args", "[dev_commands]")
-{
-    const auto cmd = mth::parse_command("litlamps 0 4 5");
-    REQUIRE(cmd.kind == mth::CommandKind::LitLamps);
-    REQUIRE(cmd.args == std::vector<std::string>{"0", "4", "5"});
-    REQUIRE(mth::parse_command("LITLAMPS off").kind == mth::CommandKind::LitLamps);
-    REQUIRE(mth::parse_command("litlamps").kind == mth::CommandKind::LitLamps);
-    REQUIRE(mth::parse_command("litlamps").args.empty());
-}
-
-TEST_CASE("savetest verb parses case-insensitively", "[commands]")
-{
-    REQUIRE(mth::parse_command("savetest dump").kind == mth::CommandKind::SaveTest);
-    REQUIRE(mth::parse_command("SAVETEST launch").kind == mth::CommandKind::SaveTest);
-    REQUIRE(mth::parse_command("savetest dump").args.at(0) == "dump");
-}
-
-TEST_CASE("parse_command: trap verb", "[dev_commands][trap]")
-{
-    const auto c = mth::parse_command("trap 204");
-    REQUIRE(c.kind == mth::CommandKind::Trap);
-    REQUIRE(c.args == std::vector<std::string>{"204"});
-}
-
-TEST_CASE("parse_command: trap verb with an explicit duration", "[dev_commands][trap]")
-{
-    const auto c = mth::parse_command("trap 204 5");
-    REQUIRE(c.kind == mth::CommandKind::Trap);
-    REQUIRE(c.args == std::vector<std::string>{"204", "5"});
+    // The console echoes the verb back at the player, so it has to come back as typed.
+    REQUIRE(parse_command("FROBNICATE").verb == "FROBNICATE");
 }
 
 TEST_CASE("parse_command: trap verb is case-insensitive", "[dev_commands][trap]")
 {
     REQUIRE(mth::parse_command("TRAP 204").kind == mth::CommandKind::Trap);
-}
-
-TEST_CASE("switches verb parses with no args", "[dev_commands]")
-{
-    const auto cmd = mth::parse_command("switches");
-    REQUIRE(cmd.kind == mth::CommandKind::Switches);
-    REQUIRE(cmd.args.empty());
-    REQUIRE(mth::parse_command("SWITCHES").kind == mth::CommandKind::Switches);
-}
-
-TEST_CASE("switches verb carries an on/off argument", "[dev_commands]")
-{
-    REQUIRE(mth::parse_command("switches on").kind == mth::CommandKind::Switches);
-    REQUIRE(mth::parse_command("switches on").args == std::vector<std::string>{"on"});
-    REQUIRE(mth::parse_command("SWITCHES OFF").args == std::vector<std::string>{"OFF"});
 }

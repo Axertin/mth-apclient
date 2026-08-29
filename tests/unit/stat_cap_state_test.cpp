@@ -152,18 +152,36 @@ TEST_CASE("boneup_fake_capped_stat gates the fake to the interactive state, the 
     REQUIRE_FALSE(mth::boneup_fake_capped_stat(true, true, 4, 5));
 }
 
-TEST_CASE("boneup_display_cap converts an enforced cap to the level the menu shows", "[boneup]")
+TEST_CASE("boneup_display_cap is the level shown once the buy gate closes", "[boneup]")
 {
-    // Buy-gate is `raw_level < cap` and the menu renders raw+1, so cap N tops out at displayed N+1.
-    REQUIRE(mth::boneup_display_cap(0) == 1);
-    REQUIRE(mth::boneup_display_cap(2) == 3);
-    REQUIRE(mth::boneup_display_cap(9) == 10); // vanilla ceiling
+    // The gate is `raw_level < cap` and the menu renders raw+1, so a cap of 9 makes raw 8 the last
+    // buyable step and 10 the level it lands on, which is also what vanilla tops out at.
+    REQUIRE_FALSE(mth::boneup_fake_capped_stat(true, true, 8, 9));
+    REQUIRE(mth::boneup_fake_capped_stat(true, true, 9, 9));
+    REQUIRE(mth::boneup_display_cap(9) == 10);
 }
 
-TEST_CASE("boneup_with_cap_suffix appends the cap to the first line only", "[boneup]")
+namespace
+{
+// The annotation is an in-place edit of the title line, so what holds for any description is that
+// everything from the first newline on survives untouched and the title only gained a suffix.
+void require_first_line_grew(const std::string &in, const std::string &out)
+{
+    const std::size_t in_eol = in.find('\n');
+    const std::size_t out_eol = out.find('\n');
+    REQUIRE(out.substr(out_eol == std::string::npos ? out.size() : out_eol) == in.substr(in_eol == std::string::npos ? in.size() : in_eol));
+
+    const std::string in_head = in.substr(0, in_eol);
+    const std::string out_head = out.substr(0, out_eol);
+    REQUIRE(out_head.size() > in_head.size());
+    REQUIRE(out_head.starts_with(in_head));
+}
+} // namespace
+
+TEST_CASE("boneup_with_cap_suffix annotates the first line and leaves the rest byte-identical", "[boneup]")
 {
     const std::string desc = "Attack Level 1\nNext level at 175 Bones\nThe power of your main attack.";
-    REQUIRE(mth::boneup_with_cap_suffix(desc, 3) == "Attack Level 1 (3)\nNext level at 175 Bones\nThe power of your main attack.");
+    require_first_line_grew(desc, mth::boneup_with_cap_suffix(desc, 3));
 }
 
 TEST_CASE("boneup_with_cap_suffix is idempotent across frames", "[boneup]")
@@ -174,13 +192,17 @@ TEST_CASE("boneup_with_cap_suffix is idempotent across frames", "[boneup]")
 
 TEST_CASE("boneup_with_cap_suffix replaces a stale cap when the cap changes mid-menu", "[boneup]")
 {
-    const std::string stale = "Attack Level 1 (2)\nNext level at 175 Bones";
-    REQUIRE(mth::boneup_with_cap_suffix(stale, 3) == "Attack Level 1 (3)\nNext level at 175 Bones");
+    // A description the walk already annotated has to be indistinguishable from the vanilla one as an
+    // input, or a cap raised while the menu is open stacks a second suffix onto the first.
+    const std::string base = "Attack Level 1\nNext level at 175 Bones";
+    REQUIRE(mth::boneup_with_cap_suffix(mth::boneup_with_cap_suffix(base, 2), 3) == mth::boneup_with_cap_suffix(base, 3));
+    REQUIRE(mth::boneup_with_cap_suffix(base, 2) != mth::boneup_with_cap_suffix(base, 3));
 }
 
 TEST_CASE("boneup_with_cap_suffix handles a single-line description", "[boneup]")
 {
-    REQUIRE(mth::boneup_with_cap_suffix("Attack Level 1", 3) == "Attack Level 1 (3)");
+    const std::string desc = "Attack Level 1";
+    require_first_line_grew(desc, mth::boneup_with_cap_suffix(desc, 3));
 }
 
 TEST_CASE("boneup_with_cap_suffix leaves empty text alone", "[boneup]")
@@ -190,9 +212,12 @@ TEST_CASE("boneup_with_cap_suffix leaves empty text alone", "[boneup]")
 
 TEST_CASE("boneup_with_cap_suffix only strips a numeric parenthesised suffix", "[boneup]")
 {
-    // Localized text may legitimately end in parentheses; only a bare number is ours to replace.
-    REQUIRE(mth::boneup_with_cap_suffix("Attack (special) Level 1", 3) == "Attack (special) Level 1 (3)");
-    REQUIRE(mth::boneup_with_cap_suffix("Attack Level 1 (max)", 3) == "Attack Level 1 (max) (3)");
+    // Localized text may legitimately end in parentheses; only a bare number is ours to replace, so
+    // anything else survives whole into the annotated line.
+    REQUIRE(mth::boneup_with_cap_suffix("Attack (special) Level 1", 3).starts_with("Attack (special) Level 1"));
+    REQUIRE(mth::boneup_with_cap_suffix("Attack Level 1 (max)", 3).starts_with("Attack Level 1 (max)"));
+    // Ours does get stripped, so the input is not a prefix of the result.
+    REQUIRE_FALSE(mth::boneup_with_cap_suffix("Attack Level 1 (2)", 3).starts_with("Attack Level 1 (2)"));
 }
 
 TEST_CASE("boneup_with_cap_suffix leaves text alone when the first line is empty", "[boneup]")
@@ -211,7 +236,7 @@ namespace
 constexpr std::size_t kPanelFitChars = 10;
 } // namespace
 
-TEST_CASE("status_panel_with_cap_suffix keeps every reachable level and cap inside the panel width", "[boneup]")
+TEST_CASE("status_panel_with_cap_suffix keeps every reachable level and cap within the measured budget", "[boneup]")
 {
     // Levels and caps both top out at the game's absolute ceiling of 99, displayed as level+1.
     for (int level = 1; level <= 100; ++level)
