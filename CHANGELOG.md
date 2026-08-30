@@ -1,5 +1,37 @@
 # Changelog
 
+## [1.2.0](https://github.com/Axertin/mth-apclient/compare/v1.1.0...v1.2.0) (2026-08-30)
+
+
+### Features
+
+* add option to randomize the Mirror's End switches ([#218](https://github.com/Axertin/mth-apclient/issues/218)) ([a06bb86](https://github.com/Axertin/mth-apclient/commit/a06bb861a22cf6c2565b870e9792ff20cc161749)), closes [#28](https://github.com/Axertin/mth-apclient/issues/28)
+* Add traps, starting with a small set of vanilla modifiers ([#212](https://github.com/Axertin/mth-apclient/issues/212)) ([0a54337](https://github.com/Axertin/mth-apclient/commit/0a54337a1785caae93ba483b92d726f83de5d95f))
+* attempt TLS backoff / upgrade on connection with no scheme defined ([c5d89c7](https://github.com/Axertin/mth-apclient/commit/c5d89c7e1dffa92d475a62525a70392a1100f425))
+* enforce the AP safety gate by default ([72914fc](https://github.com/Axertin/mth-apclient/commit/72914fc69a46a5ecb634c15ea08186cf5bd4f138))
+* scale the dev overlay to the display resolution ([7b17c1a](https://github.com/Axertin/mth-apclient/commit/7b17c1ad8c437c024ad89b0bb6426c9e54851064)), closes [#153](https://github.com/Axertin/mth-apclient/issues/153)
+
+
+### Bug fixes
+
+* deathlink no longer sends when you are saved by Proto Spark ([98bb812](https://github.com/Axertin/mth-apclient/commit/98bb8127229a240126e7aa0be7f85b0b0b6e6349))
+* drop the spurious traps-inert warning at startup ([66d6b35](https://github.com/Axertin/mth-apclient/commit/66d6b35d7d506c67131aee4bfcfa9b4a04588484))
+* publish the AP status and the staged-save flag across the thread boundary ([c6671b2](https://github.com/Axertin/mth-apclient/commit/c6671b29dc12954bcf9b464f968b7edc4234476f))
+* report a refusal when a connect throws before the handshake ([ae72118](https://github.com/Axertin/mth-apclient/commit/ae72118edd99bde281ae2cabd89e825d0d42ec18))
+* reworded max cap notation in pause menu to prevent line wrapping ([856630f](https://github.com/Axertin/mth-apclient/commit/856630f6951b5c648ec5d68ef82546ecb031ebdd)), closes [#220](https://github.com/Axertin/mth-apclient/issues/220)
+* trim a newline out of a stored server or slot ([7207754](https://github.com/Axertin/mth-apclient/commit/7207754015b5c39046f0765c3fd1ceabd96d6471))
+
+
+### Internals
+
+* consolidate platform loggers into one ([#215](https://github.com/Axertin/mth-apclient/issues/215)) ([d977ed9](https://github.com/Axertin/mth-apclient/commit/d977ed9694943038c75ba486c9c9019817577bc6))
+* drop the orphaned modifier CSV parser and a test-only wallet seam ([30826aa](https://github.com/Axertin/mth-apclient/commit/30826aa8fb6364803620f1c6c5dd3e61f098d783))
+* drop the superseded save store and a dead coalescing branch ([04aec8a](https://github.com/Axertin/mth-apclient/commit/04aec8ac135b5e055bdc42e62ac90dce13886c90))
+* generalize scene-walk operations into one helper ([#216](https://github.com/Axertin/mth-apclient/issues/216)) ([97e7054](https://github.com/Axertin/mth-apclient/commit/97e705431eaa1611303a0c36a9c912c603247100))
+* move the takeover flush decision into the pure layer ([d855ff3](https://github.com/Axertin/mth-apclient/commit/d855ff331adf115fdb604ae8ae266cb7376ea503))
+* pull duplicated PAL entries into shared files ([#214](https://github.com/Axertin/mth-apclient/issues/214)) ([1078da3](https://github.com/Axertin/mth-apclient/commit/1078da30c2bb9279430fe177dee8fc04e79a9c36))
+* remove duplicate signature resolution logging ([b591d30](https://github.com/Axertin/mth-apclient/commit/b591d30ca6fd558be8b57cca7befc8295090cfcb))
+
 ## [1.1.0](https://github.com/Axertin/mth-apclient/compare/v1.0.0...v1.1.0) (2026-08-24)
 
 
