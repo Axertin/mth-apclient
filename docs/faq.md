@@ -46,7 +46,7 @@ Into the game's **save** directory, not the Steam install folder:
 - **Linux**: `~/.local/share/Yacht Club Games/Mina the Hollower/mods/apclient/`
 - **Windows**: `%APPDATA%\Yacht Club Games\Mina the Hollower\mods\apclient\`
 
-The folder must hold both the library and `mod.yc`. See [Installing](user-guide.md#installing).
+The folder must hold both the library and `mod.yc`. Make the `mods` folder if it doesn't exist. See [Installing](user-guide.md#installing).
 
 ### Why do I need the beta branch?
 
