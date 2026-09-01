@@ -247,7 +247,7 @@ void tick_mirror_switches(const ApState &state, bool slot_ok)
     // stays either way.
     const bool console = g_console_override.load();
     const bool armed = console || (state.authenticated() && slot_ok && state.mirror_switch_rando());
-    const bool in_hub = mod::current_game_state() == kGameStateMirrorHub && mod::room_index() == kGameStateMirrorHubSwitchRoom;
+    const bool in_hub = mod::current_game_state() == kGameStateMirrorHub && mod::room_index() != kGameStateMirrorHubPathToAO;
     const bool wanted = armed && in_hub;
     // Standing among the switches with nothing driving them is indistinguishable from a broken clamp, and
     // the console override does not survive a restart, so say which condition is missing. Once per visit.

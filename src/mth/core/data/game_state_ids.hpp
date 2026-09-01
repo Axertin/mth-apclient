@@ -20,7 +20,7 @@ inline constexpr int kGameStateProfileSelect = GAMESTATE_PROFILE_SELECT_MENU;
 // Mirrors End proper.
 inline constexpr int kGameStateMirrorHub = GAMESTATE_ASTRAL_ORRERY_MIRROR_HUB;
 // The Mirrors End mirror hub's switch room, which is the only room that the switch gate should be active for
-inline constexpr int kGameStateMirrorHubSwitchRoom = 1;
+inline constexpr int kGameStateMirrorHubPathToAO = 0;
 // The death screen, reached only once a death sequence runs to its end. A Proto Spark save runs the same
 // sequence and revives in place instead, so this is what separates a cushioned death from one that stuck.
 inline constexpr int kGameStateDeath = GAMESTATE_DEATH;
