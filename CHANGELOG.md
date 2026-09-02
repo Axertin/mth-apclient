@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.2.1](https://github.com/Axertin/mth-apclient/compare/v1.2.0...v1.2.1) (2026-09-02)
+
+
+### Bug fixes
+
+* Add Room Filter To Astral Switches ([#227](https://github.com/Axertin/mth-apclient/issues/227)) ([ab8d5d7](https://github.com/Axertin/mth-apclient/commit/ab8d5d7b999f4b0da0b2972c1f1182d9131f09d5))
+
+
+### Documentation
+
+* update and format docs ([d1f4d29](https://github.com/Axertin/mth-apclient/commit/d1f4d2970459ed86b4123dceaaa83d666fa9f85e))
+
 ## [1.2.0](https://github.com/Axertin/mth-apclient/compare/v1.1.0...v1.2.0) (2026-08-30)
 
 
