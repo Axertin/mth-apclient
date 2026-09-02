@@ -220,3 +220,53 @@ jobs:
           else
             gh release edit "$TAG" --prerelease=false --latest=true
           fi
+
+      - name: Derive the Nexus version and changelog
+        id: ver
+        if: ${{ !contains(needs.beta.outputs.tag, '-') }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ needs.beta.outputs.tag }}
+        run: |
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+          # The release body is release-please's changelog section for this version, so Nexus gets the
+          # same notes as the GitHub release rather than a second hand-written copy.
+          {
+            echo "notes<<NEXUS_NOTES_EOF"
+            gh release view "$TAG" --json body -q .body
+            echo "NEXUS_NOTES_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      # Both Nexus steps are skipped for the beta lane, which tags and publishes here too. A dash in
+      # the tag is what separates v1.2.0-beta.3 from v1.2.0.
+      #
+      # file_id is the mod-file id from the Files tab's API info panel, NOT the small file_id in the
+      # download URL. That one is a game-scoped version id and would point at another mod's file.
+      # Nexus renamed update groups to mod files in June 2026 and the site still labels it a group id.
+      - name: Crosspost the Linux drop-in to Nexus Mods
+        if: ${{ !contains(needs.beta.outputs.tag, '-') }}
+        uses: Nexus-Mods/upload-action@v1.0.0-beta.10
+        with:
+          api_key: ${{ secrets.NEXUS_API_KEY }}
+          file_id: ${{ vars.NEXUS_FILE_ID_LINUX }}
+          filename: mth-apclient-${{ needs.beta.outputs.tag }}-linux.zip
+          display_name: APClient Linux
+          version: ${{ steps.ver.outputs.version }}
+          archive_existing_version: true
+
+      - name: Crosspost the Windows drop-in to Nexus Mods
+        if: ${{ !contains(needs.beta.outputs.tag, '-') }}
+        uses: Nexus-Mods/upload-action@v1.0.0-beta.10
+        with:
+          api_key: ${{ secrets.NEXUS_API_KEY }}
+          file_id: ${{ vars.NEXUS_FILE_ID_WINDOWS }}
+          filename: mth-apclient-${{ needs.beta.outputs.tag }}-windows.zip
+          display_name: APClient Windows
+          version: ${{ steps.ver.outputs.version }}
+          archive_existing_version: true
+          # The page version and the changelog belong to the mod, not to either archive, so only the
+          # last upload sets them.
+          update_mod_version: true
+          mod_id: ${{ vars.NEXUS_MOD_ID }}
+          changelog: ${{ steps.ver.outputs.notes }}
