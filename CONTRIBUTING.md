@@ -130,7 +130,11 @@ Keep them green. Tagged releases (`v*` on `master`) build and publish artifacts 
 
 ## Commit conventions
 
-- Conventional-commit prefixes: `feat`, `fix`, `build`, `refactor`, `docs`, `test`, `chore`.
+- The PR title must follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/),
+  since it becomes the squash-merge subject and release-please reads it for the changelog. Types:
+  `feat`, `fix`, `perf`, `refactor`, `build`, `ci`, `docs`, `test`, `style`, `chore`. No scope in
+  parentheses.
+- Commits inside a branch are free to say whatever describes them. Only the title is parsed.
 - Keep commit bodies short and to the point.
 - Keep history linear and rebase-friendly.
 
