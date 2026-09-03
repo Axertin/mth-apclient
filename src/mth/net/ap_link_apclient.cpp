@@ -275,6 +275,10 @@ void ApLink::do_connect(const std::string &server, const std::string &slot, cons
 
     const mth::ConnectTarget target = mth::plan_connection(server);
     const auto ca = pal::ca_bundle_path();
+    // Which store we read is not the one a shell on the same machine reads, whenever the game is
+    // launched through a runtime that remaps SSL_CERT_FILE or mounts its own /etc/ssl. A verify
+    // failure against a chain the user can validate by hand is that gap, so name the file.
+    pal::logf(pal::LogLevel::Info, "ApLink: CA bundle %s", ca ? ca->string().c_str() : "not found");
     const mth::CertChoice choice = mth::choose_cert(target.tls, ca ? ca->string() : std::string{});
     if (choice.refuse)
     {
@@ -288,7 +292,7 @@ void ApLink::do_connect(const std::string &server, const std::string &slot, cons
     {
         const std::string uuid = ap_get_uuid((pal::log_dir() / "ap_uuid").string(), server);
         client_ = std::make_unique<APClient>(uuid, kGameName, target.uri, choice.cert);
-        setup_handlers(slot, password, target.tls == mth::TlsMode::Preferred);
+        setup_handlers(slot, password, target.tls);
         push_event(mth::ApConnecting{});
         connect_deadline_ = std::chrono::steady_clock::now() + kConnectTimeout;
         pal::logf(pal::LogLevel::Info, "ApLink: connecting to %s", target.uri.c_str());
@@ -312,21 +316,21 @@ void ApLink::do_disconnect()
         push_event(mth::ApDisconnected{});
 }
 
-void ApLink::setup_handlers(const std::string &slot, const std::string &password, bool may_downgrade)
+void ApLink::setup_handlers(const std::string &slot, const std::string &password, mth::TlsMode tls)
 {
-    if (may_downgrade)
-    {
-        encrypted_attempt_ = true;
-        // apclientpp flips the scheme on every socket error when it was handed a schemeless URI, so the event that
-        // says the attempt failed is also the only notice of what the next one will use. Nothing exposes the live URI.
-        client_->set_socket_error_handler(
-            [this](const std::string &msg)
-            {
+    // apclientpp flips the scheme on every socket error when it was handed a schemeless URI, so the event that says
+    // the attempt failed is also the only notice of what the next one will use. Nothing exposes the live URI.
+    const bool alternates = tls == mth::TlsMode::Preferred;
+    encrypted_attempt_ = tls != mth::TlsMode::Off;
+    client_->set_socket_error_handler(
+        [this, alternates](const std::string &msg)
+        {
+            const bool was_encrypted = encrypted_attempt_;
+            if (alternates)
                 encrypted_attempt_ = !encrypted_attempt_;
-                if (!encrypted_attempt_)
-                    pal::logf(pal::LogLevel::Warn, "ApLink: encrypted connect failed (%s), retrying in plaintext", msg.c_str());
-            });
-    }
+            pal::logf(pal::LogLevel::Warn, "ApLink: %s connect failed (%s)%s", was_encrypted ? "encrypted" : "plaintext", msg.c_str(),
+                      alternates ? (was_encrypted ? ", retrying in plaintext" : ", retrying encrypted") : "");
+        });
 
     client_->set_socket_disconnected_handler(
         [this]

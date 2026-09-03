@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "mth/core/ap/ap_link.hpp"
+#include "mth/core/ap/connect_target.hpp"
 
 class APClient; // forward-declared; full type only in the .cpp
 
@@ -46,7 +47,7 @@ class ApLink final : public mth::IApLink
 
     void do_connect(const std::string &server, const std::string &slot, const std::string &password);
     void do_disconnect();
-    void setup_handlers(const std::string &slot, const std::string &password, bool may_downgrade);
+    void setup_handlers(const std::string &slot, const std::string &password, mth::TlsMode tls);
 
     std::unique_ptr<APClient> client_; // net thread only
     bool encrypted_attempt_{true};     // net thread only; mirrors which scheme apclientpp will try next

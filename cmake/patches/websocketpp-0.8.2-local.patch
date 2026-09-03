@@ -92,3 +92,19 @@ index 9cc652f..4aea46f 100644
  
  #ifdef _WEBSOCKETPP_DEFAULT_DELETE_FUNCTIONS_
      // no move assignment operator because of const member variables
+diff --git a/websocketpp/transport/asio/security/tls.hpp b/websocketpp/transport/asio/security/tls.hpp
+index 04ac379..a75c9ff 100644
+--- a/websocketpp/transport/asio/security/tls.hpp
++++ b/websocketpp/transport/asio/security/tls.hpp
+@@ -297,7 +297,10 @@ protected:
+ 
+     void handle_init(init_handler callback,lib::asio::error_code const & ec) {
+         if (ec) {
+-            m_ec = socket::make_error_code(socket::error::tls_handshake_failed);
++            // Upstream replaces the asio code with a generic tls_handshake_failed, which collapses a
++            // certificate rejection, a version mismatch and a reset mid-handshake into one message. The
++            // asio code carries the OpenSSL reason and nothing in this stack matches on the generic one.
++            m_ec = ec;
+         } else {
+             m_ec = lib::error_code();
+         }

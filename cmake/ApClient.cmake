@@ -5,7 +5,7 @@
 # We fetch them here instead so:
 #   * the patched websocketpp copy lives in the build dir (build/_deps), never
 #     dirtying a tracked worktree the way an in-place `git apply` on a submodule did;
-#   * the C++23 fix is a normal PATCH_COMMAND against the pinned tag, applied once
+#   * the local fixes are a normal PATCH_COMMAND against the pinned tag, applied once
 #     at populate (no idempotent reverse-check dance);
 #   * external/ holds only vcpkg.
 #
@@ -28,7 +28,7 @@ set(_apclient_no_build "_headers_only")
 
 # FetchContent's stamps record the patch COMMAND, not the patch CONTENT, so editing the patch
 # would otherwise leave the old one applied with no reconfigure and no warning.
-set(_apclient_ws_patch "${CMAKE_CURRENT_LIST_DIR}/patches/websocketpp-0.8.2-cxx23-cdtor.patch")
+set(_apclient_ws_patch "${CMAKE_CURRENT_LIST_DIR}/patches/websocketpp-0.8.2-local.patch")
 set_property(DIRECTORY "${CMAKE_SOURCE_DIR}" APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${_apclient_ws_patch}")
 
 FetchContent_Declare(
