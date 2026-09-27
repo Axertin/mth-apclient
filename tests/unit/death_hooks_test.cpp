@@ -31,7 +31,26 @@ struct FakePlayer
     {
         return bytes.data();
     }
+
+    void set_state(int s)
+    {
+        std::memcpy(bytes.data() + mth::layout::kPlayerStateOff, &s, sizeof(s));
+    }
 };
+
+// Enough frozen polls to show a deferral is not a one-tick effect. Nothing ages while the world is
+// frozen, so the exact count is arbitrary.
+constexpr int kFrozenPolls = 4;
+
+// Stably alive with no sparks: the state an inbound death may be applied from.
+void settle(mth::DeathHooks &hooks, FakePlayer &player)
+{
+    mth::test::recorder().health = 1.0f;
+    mth::test::recorder().spark = 0;
+    player.set_dying(false);
+    for (int i = 0; i < mth::DeathBroadcastGate::kStableAliveTicks; ++i)
+        hooks.poll();
+}
 } // namespace
 
 // The death sequence (Player::DropDeathSpark) zeroes the live spark BEFORE the poll observes the death edge,
@@ -61,6 +80,50 @@ TEST_CASE("deathlink: a death with sparks banked while alive is not broadcast", 
     hooks.poll();
 
     REQUIRE(broadcasts == 0); // cushioned death (had 3 sparks) must NOT broadcast
+
+    mod::set_api(nullptr);
+}
+
+TEST_CASE("deathlink: an inbound death during an area enter waits for it to finish", "[deathlink]")
+{
+    mth::test::recorder().reset();
+    auto fake = mth::test::make_fake_api();
+    mod::set_api(&fake);
+
+    FakePlayer player;
+    mth::DeathHooks hooks([](const std::string &) {}, [&] { return player.base(); });
+
+    player.set_state(7);
+    settle(hooks, player);
+    hooks.kill();
+    REQUIRE(mth::test::recorder().deaths == 0); // area enter state: death deferred
+
+    player.set_state(0);
+    hooks.poll();
+    REQUIRE(mth::test::recorder().deaths == 1); // area enter finished: death applied
+
+    mod::set_api(nullptr);
+}
+
+TEST_CASE("deathlink: a long area change does not expore a latched inbound death", "[deathlink]")
+{
+    mth::test::recorder().reset();
+    auto fake = mth::test::make_fake_api();
+    mod::set_api(&fake);
+
+    FakePlayer player;
+    mth::DeathHooks hooks([](const std::string &) {}, [&] { return player.base(); });
+
+    player.set_state(7);
+    settle(hooks, player);
+    hooks.kill();
+    for (int i = 0; i < mth::DeathHooks::kPendingInboundDeathTicks + 1; ++i)
+        hooks.poll();
+    REQUIRE(mth::test::recorder().deaths == 0); // area enter state: death deferred
+
+    player.set_state(0);
+    hooks.poll();
+    REQUIRE(mth::test::recorder().deaths == 1); // area enter finished: death applied
 
     mod::set_api(nullptr);
 }
@@ -233,23 +296,6 @@ TEST_CASE("deathlink: respawn re-arms; a mid-death guard-byte pulse does not ove
 
     mod::set_api(nullptr);
 }
-
-namespace
-{
-// Enough frozen polls to show a deferral is not a one-tick effect. Nothing ages while the world is
-// frozen, so the exact count is arbitrary.
-constexpr int kFrozenPolls = 4;
-
-// Stably alive with no sparks: the state an inbound death may be applied from.
-void settle(mth::DeathHooks &hooks, FakePlayer &player)
-{
-    mth::test::recorder().health = 1.0f;
-    mth::test::recorder().spark = 0;
-    player.set_dying(false);
-    for (int i = 0; i < mth::DeathBroadcastGate::kStableAliveTicks; ++i)
-        hooks.poll();
-}
-} // namespace
 
 // Two bounces landed 142ms apart in the field and both issued PlayerDie into a single death sequence: no
 // advancing poll ran in between, so the gate kept reporting the state it had before the first. PlayerDie

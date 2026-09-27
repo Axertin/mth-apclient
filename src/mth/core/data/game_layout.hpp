@@ -128,6 +128,7 @@ inline constexpr std::ptrdiff_t kChestLockedFlagOff = 0x265; // u8 (0x101 word):
 
 // Player (deathlink).
 inline constexpr std::ptrdiff_t kPlayerDeathGuardOff = 0x1380; // once-per-death guard byte (0 = fresh)
+inline constexpr std::ptrdiff_t kPlayerStateOff = 0x254;       // StateMachine current state (Player+0x340 + 0x14)
 
 // Player (ability gating).
 

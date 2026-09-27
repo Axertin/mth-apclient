@@ -33,6 +33,12 @@ namespace
     return *reinterpret_cast<void **>(static_cast<char *>(world) + mth::layout::kWorldAreaManagerOff) == nullptr;
 }
 
+[[nodiscard]] bool in_area_change(void *player)
+{
+    const int s = *reinterpret_cast<int *>(static_cast<char *>(player) + mth::layout::kPlayerStateOff);
+    return s == -1 || (s >= 1 && s <= 0x18) || s == 0x4a || s == 0x4b || s == 0x74;
+}
+
 } // namespace
 
 namespace mth
@@ -143,8 +149,9 @@ bool DeathHooks::try_apply_inbound_death()
     // Underlab->overworld transition softlocks, and applying it while already dying just no-ops. A stalled
     // room clock with the world unpaused is a transition or a death already in flight, where PlayerDie lands
     // at an unpredictable point; a paused world is a menu, which holds the death safely. #125.
-    if (!gate_.stably_alive() || room_clock_stalled_)
+    if (!gate_.stably_alive() || room_clock_stalled_ || in_area_change(p))
         return false;
+
     // The ending sequence leaves a live, settled player in a World with no area bound, and PlayerDie there
     // faults a tick later inside Player::InitDeath. Checked after the two guards above so that the other
     // area-less window - between area teardown and AreaManagerNewArea - is still caught as the transition it
@@ -189,8 +196,9 @@ void DeathHooks::drive_pending_death(bool advanced)
         pending_kill_ticks_ = 0;
         return;
     }
-    if (advanced && --pending_kill_ticks_ == 0)
-        pal::logf(pal::LogLevel::Warn, "deathlink: inbound death dropped (player never settled within the retry window)");
+    void *p = get_player_ ? get_player_() : nullptr;
+    if (advanced && !(p && in_area_change(p)) && --pending_kill_ticks_ == 0)
+        pal::logf(pal::LogLevel::Warn, "deathlink: inbound death dropped (player in a cutscene or other area-change state)");
 }
 
 void DeathHooks::kill()
